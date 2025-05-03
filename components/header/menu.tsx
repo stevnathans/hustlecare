@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Menu as MenuIcon, X } from "lucide-react";
-import Image from "next/image";
+import { Menu as MenuIcon, ShoppingCart, X } from "lucide-react";
 import Link from "next/link";
+import { useClerk, SignInButton, SignedOut, SignedIn, UserButton} from "@clerk/nextjs"
+import router from "next/router";
 
-export default function Menu({ user }: { user?: { name: string; photoURL?: string } }) {
+export default function Menu({ }: { user?: { name: string; photoURL?: string } }) {
   const [isOpen, setIsOpen] = useState(false);
+  useClerk()
 
   return (
     <header className="bg-white shadow-sm">
@@ -21,20 +23,22 @@ export default function Menu({ user }: { user?: { name: string; photoURL?: strin
           <Link href="#" className="text-gray-700 hover:text-green-600">Samples</Link>
           <Link href="#" className="text-gray-700 hover:text-green-600">About</Link>
           <Link href="#" className="text-gray-700 hover:text-green-600">Contact</Link>
+    
 
-          {user ? (
-            <Image
-              src={user.photoURL || "/default-avatar.png"}
-              alt={user.name}
-              width={36}
-              height={36}
-              className="rounded-full"
-            />
-          ) : (
-            <Link href="/login" className="text-green-600 font-medium hover:underline">
-              Login
-            </Link>
-          )}
+          <div>
+            <SignedOut>
+              <SignInButton />
+            </SignedOut>
+            <SignedIn>
+             <UserButton showName>
+               <UserButton.MenuItems>
+                <UserButton.Action label="Cart" labelIcon={<ShoppingCart />} onClick ={() => router.push('/cart')} />
+
+               </UserButton.MenuItems>
+             </UserButton>
+            </SignedIn>
+
+          </div>
         </nav>
 
         {/* Mobile Menu Button */}
@@ -49,20 +53,14 @@ export default function Menu({ user }: { user?: { name: string; photoURL?: strin
           <Link href="#" className="block text-gray-700">Samples</Link>
           <Link href="#" className="block text-gray-700">About</Link>
           <Link href="#" className="block text-gray-700">Contact</Link>
-          {user ? (
-            <div className="flex items-center gap-2">
-              <Image
-                src={user.photoURL || "/default-avatar.png"}
-                alt={user.name}
-                width={36}
-                height={36}
-                className="rounded-full"
-              />
-              <span className="text-sm text-gray-600">{user.name}</span>
-            </div>
-          ) : (
-            <Link href="/login" className="text-green-600 font-medium">Login</Link>
-          )}
+          <div>
+            <SignedOut>
+              <SignInButton/>
+            </SignedOut>
+            <SignedIn>
+             <UserButton showName/>
+            </SignedIn>
+          </div>
         </div>
       )}
     </header>

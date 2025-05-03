@@ -3,3 +3,4 @@ export const APP_SLOGAN = process.env.NEXT_PUBLIC_APP_SLOGAN || 'Your business p
 export const APP_DESCRIPTION = 
     process.env.NEXT_PUBLIC_APP_DESCRIPTION || 
     'Hustlecare helps you quickly identify requirements you need to start any business and calculate startup costs in record time'
+export const PAGE_SIZE = Number(process.env.PAGE_SIZE || 9)   

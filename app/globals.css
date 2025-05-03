@@ -145,3 +145,16 @@
     @apply flex justify-between items-center;
   }
 }
+/* transitions.css */
+.transition-shadow {
+  transition: box-shadow 0.2s ease;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
