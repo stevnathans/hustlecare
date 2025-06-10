@@ -11,6 +11,7 @@ type Business = {
   description?: string;
   image?: string;
   slug: string;  
+  location?: string;
 };
 
 export default function BusinessesPage() {

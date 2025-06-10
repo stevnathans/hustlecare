@@ -1,14 +1,44 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
-// Fetch all businesses
+// Fetch all businesses with their grouped requirements
 export async function GET() {
   try {
-    const businesses = await prisma.business.findMany();
-    return NextResponse.json(businesses, { status: 200 });
+    const businesses = await prisma.business.findMany({
+      include: {
+        requirements: true,
+      },
+    });
+
+    const businessesWithGroupedRequirements = businesses.map((business) => {
+      const groupedRequirements = business.requirements.reduce(
+        (groups: Record<string, typeof business.requirements>, req) => {
+          const category = req.category || "Uncategorized";
+          if (!groups[category]) {
+            groups[category] = [];
+          }
+          groups[category].push(req);
+          return groups;
+        },
+        {}
+      );
+
+      return {
+        id: business.id,
+        name: business.name,
+        image: business.image,
+        slug: business.slug,
+        groupedRequirements: groupedRequirements,
+      };
+    });
+
+    return NextResponse.json(businessesWithGroupedRequirements, { status: 200 });
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: "Failed to fetch businesses" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to fetch businesses with requirements" },
+      { status: 500 }
+    );
   }
 }
 
@@ -29,7 +59,10 @@ export async function POST(req: Request) {
     return NextResponse.json(business);
   } catch (error) {
     console.error("Error creating business:", error);
-    return NextResponse.json({ error: "Failed to create business" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to create business" },
+      { status: 500 }
+    );
   }
 }
 
@@ -47,7 +80,10 @@ export async function PATCH(request: Request) {
     return NextResponse.json(updatedBusiness, { status: 200 });
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: "Failed to update business" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to update business" },
+      { status: 500 }
+    );
   }
 }
 
@@ -64,6 +100,9 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ message: "Business deleted" }, { status: 200 });
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: "Failed to delete business" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to delete business" },
+      { status: 500 }
+    );
   }
 }

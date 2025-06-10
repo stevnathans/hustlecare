@@ -1,6 +1,8 @@
+import { Vendor } from "./vendor";
+
 export interface Product {
-  unit: any;
-  inCart: any; // It's generally better to be more explicit with types. What is 'inCart' supposed to represent? A boolean? A quantity?
+  unit: number;
+  inCart: boolean; 
   id: string;
   name: string;
   image?: string;
@@ -8,15 +10,29 @@ export interface Product {
   description: string;
   rating: number;
   reviews: number;
-  vendorLogo?: string;
+  vendorId: number;
+  vendor: Vendor;
+  url: string;
   specifications?: string[];
   category: string;
-  requirement: string;
-  quantity: number; // This 'quantity' seems to represent the available quantity of the product, not the quantity in the cart.
+  requirementName: string;
+  quantity: number; 
   business: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
+export type ProductFormValues = {
+  name: string;
+  description: string;
+  price: string;
+  image: string;
+  vendorId: string;
+};
+
 export interface CartItem {
+  unitPrice: number;
+  productId: string;
   business: string;
   id: string;
   name: string;

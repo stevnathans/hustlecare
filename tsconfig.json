@@ -21,8 +21,10 @@
     ],
     "paths": {
       "@/*": ["./*"]
-    }
+    },
+    "typeRoots": ["./types", "./node_modules/@types"]
+
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "middleware.js", "app/layout.js", "app/api/cart/item/route.js", "app/api/cart/route.ts", "lib/cart.ts", "contexts/CartContext.js"],
   "exclude": ["node_modules"]
 }

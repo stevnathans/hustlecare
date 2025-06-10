@@ -1,60 +1,51 @@
 'use client';
 import { useState } from 'react';
-import ProductCard from 'components/product/ProductCard';
+import ProductCard from '@/components/product/ProductCard';
 import { Product } from '@/types';
 
 interface RequirementCardProps {
   requirement: {
-    id: string;
+    category: string;
+    id: number;
     name: string;
-    description: string;
-    status: 'required' | 'optional';
-    productCount: number;
-    lowestPrice: number;
-    imageUrl?: string;
+    description?: string;
+    necessity: string;
+    image?: string;
   };
-  matchingProducts?: Product[];
-  isExpanded?: boolean;
-  onToggle?: () => void;
-  isProductInList?: (product: Product) => boolean;
-  onToggleList?: (product: Product, business: string) => void; // Updated onToggleList signature
-  getProductQuantity?: (productId: string) => number;
-  business: string; // Add business prop
+  products?: Product[];
 }
 
 export default function RequirementCard({
   requirement,
-  matchingProducts = [],
-  isExpanded = false,
-  onToggle = () => {},
-  isProductInList = () => false,
-  onToggleList = (product, business) => {}, // Updated default signature
-  getProductQuantity = () => 1,
-  business, // Receive business prop
+  products = [],
 }: RequirementCardProps) {
-  // Use the provided isExpanded prop if available, otherwise manage state internally
-  const [localIsExpanded, setLocalIsExpanded] = useState(false);
-  const effectiveIsExpanded = isExpanded || localIsExpanded;
+  const [isExpanded, setIsExpanded] = useState(false);
 
-  const handleToggle = () => {
-    if (onToggle) {
-      onToggle();
-    } else {
-      setLocalIsExpanded(!localIsExpanded);
-    }
+  // Calculate derived values
+  const productCount = products?.length || 0;
+  const lowestPrice = productCount > 0 
+    ? Math.min(...products.map(p => p.price))
+    : 0;
+
+  // Map necessity to status
+  const getStatus = () => {
+    const lowerCaseNecessity = requirement.necessity.toLowerCase();
+    return lowerCaseNecessity.includes('required') ? 'required' : 'optional';
   };
 
+  const status = getStatus();
+
   return (
-    <div className="border rounded-lg bg-gray-50 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+    <div className="border rounded-lg bg-gray-50 overflow-hidden shadow-sm hover:shadow-md transition-shadow mb-6">
       {/* Main content */}
       <div className="p-4">
         {/* First row: Image, Name/Status, Description */}
         <div className="flex items-start">
           {/* Image thumbnail (left) */}
           <div className="w-16 h-16 bg-gray-100 rounded-md overflow-hidden mr-4 flex-shrink-0">
-            {requirement.imageUrl ? (
+            {requirement.image ? (
               <img 
-                src={requirement.imageUrl} 
+                src={requirement.image} 
                 alt={requirement.name}
                 className="w-full h-full object-cover"
               />
@@ -72,32 +63,33 @@ export default function RequirementCard({
             <h3 className="font-medium text-lg">{requirement.name}</h3>
             <div className="flex items-center mt-1">
               <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
-                requirement.status === 'required' ? 'bg-green-500' : 'bg-orange-500'
+                status === 'required' ? 'bg-green-500' : 'bg-orange-500'
               }`}></span>
               <span className="text-sm capitalize">
-                {requirement.status}
-                {requirement.status === 'optional'}
+                {status}
               </span>
             </div>
           </div>
   
           {/* Description (right) */}
-          <div className="flex-2 max-w-md">
-            <p className="text-gray-600 text-sm">{requirement.description}</p>
-          </div>
+          {requirement.description && (
+            <div className="flex-2 max-w-md">
+              <p className="text-gray-600 text-sm">{requirement.description}</p>
+            </div>
+          )}
         </div>
   
         {/* Second row: Price and product count (centered) */}
         <div className="flex justify-center mt-4 text-sm">
-          {requirement.productCount > 0 ? (
+          {productCount > 0 ? (
             <>
               <span className="mr-2 flex items-baseline gap-1">
                 <span className="text-gray-600 text-sm">From</span>
-                <span className="text-green-600 text-base font-semibold">${requirement.lowestPrice.toLocaleString()}</span>
+                <span className="text-green-600 text-base font-semibold">KSh {lowestPrice.toLocaleString()}</span>
               </span>
               
               <span className="text-gray-500 text-base">
-                {requirement.productCount} {requirement.productCount === 1 ? 'option' : 'options'}
+                {productCount} {productCount === 1 ? 'option' : 'options'}
               </span>
             </>
           ) : (
@@ -107,31 +99,30 @@ export default function RequirementCard({
       </div>
   
       {/* Recommended products toggle (only show if there are products) */}
-      {matchingProducts.length > 0 && (
+      {productCount > 0 && (
         <div className="px-4 pb-4 text-center">
           <button 
-            onClick={handleToggle}
+            onClick={() => setIsExpanded(!isExpanded)}
             className="text-blue-500 hover:text-blue-700 text-sm flex items-center justify-center w-full"
           >
-            {effectiveIsExpanded ? 'Hide Recommended Products ▲' : 'See Recommended Products ▼'}
+            {isExpanded ? 'Hide Recommended Products ▲' : 'See Recommended Products ▼'}
           </button>
         </div>
       )}
   
-  
       {/* Expanded content - Recommended products */}
-      {isExpanded && matchingProducts.length > 0 && (
+      {isExpanded && productCount > 0 && (
         <div className="border-t p-4 bg-gray-50">
           <h4 className="font-medium text-gray-700 mb-3">
             Recommended Products
           </h4>
           <div className="space-y-3">
-            {matchingProducts.map((product) => (
-              <ProductCard
-                key={product.id}
+            {products.map((product) => (
+              <ProductCard 
+                key={product.id} 
                 product={product}
-                isInList={isProductInList(product)}
-                onToggleList={onToggleList}
+                requirementName={requirement.name}
+                category={requirement.category}
               />
             ))}
           </div>

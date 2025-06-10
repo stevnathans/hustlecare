@@ -3,12 +3,21 @@
 import { useEffect, useState } from 'react';
 import ProductFormModal from '@/components/product/ProductFormModal';
 
+type Vendor = {
+  id: number;
+  name: string;
+  website: string;
+  logo: string;
+};
+
 type Product = {
   id: number;
   name: string;
   description: string;
   price: number;
   image: string;
+  vendorId: number | null;
+  vendor: Vendor | null;
 };
 
 export default function ProductsPage() {
@@ -49,7 +58,8 @@ export default function ProductsPage() {
   useEffect(() => {
     const filtered = products.filter(product =>
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.description?.toLowerCase().includes(searchTerm.toLowerCase())
+      product.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.vendor?.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
     setFilteredProducts(filtered);
   }, [searchTerm, products]);
@@ -61,8 +71,44 @@ export default function ProductsPage() {
 
   const handleDelete = async (id: number) => {
     if (!confirm('Delete this product?')) return;
-    await fetch(`/api/products/${id}`, { method: 'DELETE' });
-    fetchProducts();
+    try {
+      const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        throw new Error(`Failed to delete product: ${res.status}`);
+      }
+      fetchProducts();
+    } catch (error) {
+      console.error("Error deleting product:", error);
+    }
+  };
+
+  const renderVendorInfo = (product: Product) => {
+    if (product.vendor) {
+      return (
+        <div className="flex items-center">
+          {product.vendor.logo && (
+            <img 
+              src={product.vendor.logo} 
+              alt={product.vendor.name} 
+              className="w-6 h-6 mr-2 object-contain" 
+            />
+          )}
+          {product.vendor.website ? (
+            <a 
+              href={product.vendor.website} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline"
+            >
+              {product.vendor.name}
+            </a>
+          ) : (
+            <span>{product.vendor.name}</span>
+          )}
+        </div>
+      );
+    }
+    return '—';
   };
 
   return (
@@ -95,6 +141,7 @@ export default function ProductsPage() {
             <th className="p-2 border">Image</th>
             <th className="p-2 border">Name</th>
             <th className="p-2 border">Description</th>
+            <th className="p-2 border">Vendor</th>
             <th className="p-2 border">Price</th>
             <th className="p-2 border">Actions</th>
           </tr>
@@ -112,6 +159,7 @@ export default function ProductsPage() {
                 </td>
                 <td className="border p-2">{product.name}</td>
                 <td className="border p-2">{product.description}</td>
+                <td className="border p-2">{renderVendorInfo(product)}</td>
                 <td className="border p-2">KES {product.price?.toLocaleString()}</td>
                 <td className="border p-2">
                   <button
@@ -131,7 +179,7 @@ export default function ProductsPage() {
             ))
           ) : (
             <tr>
-              <td colSpan={5} className="p-4 text-center">No products found</td>
+              <td colSpan={6} className="p-4 text-center">No products found</td>
             </tr>
           )}
         </tbody>

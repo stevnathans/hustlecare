@@ -2,7 +2,7 @@
 import "@/app/globals.css"
 import Link from "next/link"
 import { ReactNode } from "react"
-import { Home, Users, ShoppingCart, Building, ClipboardList, MessageSquare, Star } from "lucide-react"
+import { Home, Users, ShoppingCart, Building, ClipboardList, MessageSquare, Star, Store } from "lucide-react"
 import { ModeToggle } from "@/components/ui/mode-toggle"
 
 const navItems = [
@@ -13,6 +13,7 @@ const navItems = [
   { name: "Requirements", href: "/admin/requirements", icon: <ClipboardList size={20} /> },
   { name: "Comments", href: "/admin/comments", icon: <MessageSquare size={20} /> },
   { name: "Reviews", href: "/admin/reviews", icon: <Star size={20} /> },
+   { name: "Vendors", href: "/admin/vendors", icon: <Store size={20} /> },
 ]
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
