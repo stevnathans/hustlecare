@@ -95,7 +95,7 @@ export default function HomeSearch() {
   }, []);
 
   return (
-    <section className="relative bg-gradient-to-br from-emerald-600 via-green-600 to-teal-700 text-white w-full overflow-hidden">
+    <section className="relative bg-[#ECF2F0] text-black w-full overflow-hidden">
       {/* Animated background elements */}
       <div className="absolute inset-0 opacity-10">
         <div className="absolute top-20 left-10 w-72 h-72 bg-white rounded-full blur-3xl animate-pulse"></div>
@@ -130,9 +130,9 @@ export default function HomeSearch() {
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="inline-flex items-center bg-white/20 backdrop-blur-sm rounded-full px-4 py-2 mb-6 border border-white/30"
+              className="inline-flex items-center bg-emerald-50 backdrop-blur-sm rounded-full px-4 py-2 mb-6 border border-emerald-70"
             >
-              <Sparkles className="w-4 h-4 mr-2 text-yellow-300" />
+              <Sparkles className="w-4 h-4 mr-2 text-yellow-500" />
               <span className="text-sm font-semibold">
                 Kenya's #1 Business Startup Platform
               </span>
@@ -141,11 +141,11 @@ export default function HomeSearch() {
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight">
               Launch Your Business{" "}
               <span className="relative inline-block">
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-yellow-300 via-yellow-400 to-orange-400">
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-700">
                   Smarter
                 </span>
                 <motion.div
-                  className="absolute -bottom-2 left-0 right-0 h-1 bg-gradient-to-r from-yellow-300 to-orange-400 rounded-full"
+                  className="absolute -bottom-2 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-700 rounded-full"
                   initial={{ scaleX: 0 }}
                   animate={{ scaleX: 1 }}
                   transition={{ duration: 0.8, delay: 0.5 }}
@@ -155,25 +155,25 @@ export default function HomeSearch() {
 
             <p className="text-xl md:text-2xl mb-10 max-w-2xl opacity-90 leading-relaxed">
               Discover everything you need to start any business in Kenya -
-              requirements, costs, and suppliers - all in one intelligent
+              requirements, costs, loans, and suppliers - all in one intelligent
               platform.
             </p>
 
-            {/* Enhanced Search + Location Box */}
+            {/* Enhanced Search Container */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
-              className="bg-white/95 backdrop-blur-md rounded-2xl p-2 shadow-2xl border border-white/20 w-full max-w-3xl"
+              className="w-full max-w-3xl"
             >
-              <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-2">
-                {/* Search Input - Updated to remove inner box styling */}
-                <div className="relative flex-1 flex items-center">
-                  <div className="absolute left-3 text-emerald-600">
-                    <SearchIcon className="w-5 h-5" />
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                {/* Search Input - Professional redesign */}
+                <div className="relative flex-1">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <SearchIcon className="h-5 w-5 text-emerald-600 opacity-80" />
                   </div>
                   <Input
-                    className="pl-11 pr-4 py-6 border-none focus:ring-0 focus-visible:ring-0 w-full h-auto placeholder-gray-500 text-base font-medium text-gray-800 rounded-xl"
+                    className="block w-full pl-12 pr-4 py-5 border border-gray-300 bg-white text-gray-800 placeholder-gray-500 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-lg shadow-sm transition-all duration-200"
                     placeholder="Search business (e.g. 'Gym')"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
@@ -185,17 +185,18 @@ export default function HomeSearch() {
                   />
                 </div>
 
-                {/* Enhanced Search Button */}
+                {/* Search Button - Professional redesign */}
                 <Button
                   onClick={() => handleSearch(search, location)}
-                  className="w-full sm:w-auto bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white rounded-xl px-8 py-6 text-base font-semibold whitespace-nowrap shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                  className="py-5 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1"
                 >
+  
                   Search
                 </Button>
               </div>
             </motion.div>
 
-            {/* Enhanced Suggestions */}
+            {/* Suggestions */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -204,8 +205,8 @@ export default function HomeSearch() {
             >
               {loading ? (
                 <div className="flex items-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-yellow-300 border-t-transparent mr-2"></div>
-                  <span className="text-yellow-300 font-medium">
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-emerald-400 border-t-transparent mr-2"></div>
+                  <span className="text-emerald-400 font-medium">
                     Loading suggestions...
                   </span>
                 </div>
@@ -214,9 +215,9 @@ export default function HomeSearch() {
                   {error}
                 </span>
               ) : searchSuggestions.length > 0 ? (
-                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                
                   <div className="flex flex-wrap items-center gap-3">
-                    <span className="font-semibold text-yellow-300 flex items-center">
+                    <span className="font-semibold text-emerald-500 flex items-center">
                       <TrendingUp className="w-4 h-4 mr-1" />
                       {suggestionType === "popular"
                         ? "Popular Searches"
@@ -228,14 +229,14 @@ export default function HomeSearch() {
                         <button
                           key={business.id}
                           onClick={() => handleSearch(business.name, location)}
-                          className="bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-full text-sm font-medium transition-all duration-200 border border-white/30 hover:border-white/50 hover:scale-105"
+                          className="bg-emerald-60 hover:bg-emerald-100 text-black px-3 py-1 rounded-full text-sm font-medium transition-all duration-200 border border-emerald-400 hover:border-emerald-100 hover:scale-105"
                         >
                           {business.name}
                         </button>
                       ))}
                     </div>
                   </div>
-                </div>
+          
               ) : null}
             </motion.div>
           </motion.div>
@@ -248,14 +249,14 @@ export default function HomeSearch() {
             <motion.div
               animate={{ rotate: 360 }}
               transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-              className="absolute inset-0 border-2 border-dashed border-white/30 rounded-full w-96 h-96 mx-auto"
+              className="absolute inset-0 border-2 border-dashed border-emerald-300 rounded-full w-96 h-96 mx-auto"
             />
 
             {/* Inner rotating ring */}
             <motion.div
               animate={{ rotate: -360 }}
               transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-              className="absolute inset-8 border border-dotted border-white/20 rounded-full"
+              className="absolute inset-8 border border-dotted border-emerald-300 rounded-full"
             />
 
             {/* Floating business icons with enhanced styling */}

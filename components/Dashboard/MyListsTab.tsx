@@ -158,8 +158,8 @@ export default function MyListsTab() {
           <Link key={business.id} href={`/business/${business.slug}`}>
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-lg transition-shadow cursor-pointer">
               <div className="flex items-start justify-between mb-4">
-                <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-full">
-                  <ShoppingBag className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                <div className="p-3 bg-emerald-100 dark:bg-emerald-900 rounded-full">
+                  <ShoppingBag className="w-6 h-6 text-emerald-600 dark:text-blue-400" />
                 </div>
                 <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                   <Calendar className="w-4 h-4 mr-1" />
@@ -185,7 +185,7 @@ export default function MyListsTab() {
               </div>
               
               <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <div className="flex items-center text-blue-600 dark:text-blue-400 text-sm font-medium">
+                <div className="flex items-center text-emerald-600 dark:text-emerald-400 text-sm font-medium">
                   <TrendingUp className="w-4 h-4 mr-2" />
                   View Details
                 </div>
@@ -196,7 +196,7 @@ export default function MyListsTab() {
 
         {/* Add New Business Card */}
         <Link href="/business">
-          <div className="bg-white dark:bg-gray-800 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 p-6 hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors cursor-pointer">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 p-6 hover:border-emerald-500 dark:hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-colors cursor-pointer">
             <div className="flex flex-col items-center justify-center h-full min-h-[200px]">
               <div className="p-3 bg-gray-100 dark:bg-gray-700 rounded-full mb-4">
                 <Plus className="w-8 h-8 text-gray-600 dark:text-gray-400" />

@@ -134,7 +134,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, requirementName, cat
     className={`flex items-center justify-center p-2 rounded-full ${
       isInCart
         ? 'bg-green-100 text-green-700 hover:bg-green-200'
-        : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+        : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
     } transition`}
     aria-label={isInCart ? "Remove from cart" : "Add to cart"}
   >
@@ -150,7 +150,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, requirementName, cat
             {product.url && (
               <button
                 onClick={handleGoToShop}
-                className="flex items-center text-sm text-blue-600 hover:text-blue-800"
+                className="flex items-center text-sm text-emerald-600 hover:text-emerald-800"
               >
                 Go to Shop <FiExternalLink className="ml-1" />
               </button>

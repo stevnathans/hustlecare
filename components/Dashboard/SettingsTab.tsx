@@ -220,7 +220,7 @@ export default function SettingsTab({ user, theme, setTheme }: SettingsTabProps)
                       type={showPassword ? "text" : "password"}
                       value={formData.currentPassword}
                       onChange={(e) => handleInputChange("currentPassword", e.target.value)}
-                      className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                      className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                     />
                     <button
                       type="button"
@@ -239,7 +239,7 @@ export default function SettingsTab({ user, theme, setTheme }: SettingsTabProps)
                     type="password"
                     value={formData.newPassword}
                     onChange={(e) => handleInputChange("newPassword", e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                   />
                 </div>
                 <div>
@@ -250,7 +250,7 @@ export default function SettingsTab({ user, theme, setTheme }: SettingsTabProps)
                     type="password"
                     value={formData.confirmPassword}
                     onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                   />
                 </div>
               </div>
@@ -258,7 +258,7 @@ export default function SettingsTab({ user, theme, setTheme }: SettingsTabProps)
             <button
               onClick={handlePasswordUpdate}
               disabled={loading}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
               {loading ? "Updating..." : "Update Password"}
@@ -286,7 +286,7 @@ export default function SettingsTab({ user, theme, setTheme }: SettingsTabProps)
                       onClick={() => handleThemeChange(option.value)}
                       className={`p-4 rounded-lg border-2 transition-all ${
                         theme === option.value
-                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                          ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20"
                           : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500"
                       }`}
                     >
@@ -346,7 +346,7 @@ export default function SettingsTab({ user, theme, setTheme }: SettingsTabProps)
                         onChange={(e) => handleInputChange(option.key, e.target.checked)}
                         className="sr-only peer"
                       />
-                      <div className="w-11 h-6 bg-gray-200 dark:bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      <div className="w-11 h-6 bg-gray-200 dark:bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-300 dark:peer-focus:ring-emerald-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
                     </label>
                   </div>
                 ))}
@@ -355,7 +355,7 @@ export default function SettingsTab({ user, theme, setTheme }: SettingsTabProps)
             <button
               onClick={handleNotificationSave}
               disabled={loading}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
               {loading ? "Saving..." : "Save Notification Settings"}
@@ -379,7 +379,7 @@ export default function SettingsTab({ user, theme, setTheme }: SettingsTabProps)
                   <button 
                     onClick={handleExportData}
                     disabled={loading}
-                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
                   >
                     <Download className="w-4 h-4" />
                     {loading ? "Exporting..." : "Export Data"}
@@ -467,7 +467,7 @@ export default function SettingsTab({ user, theme, setTheme }: SettingsTabProps)
                   onClick={() => setActiveSection(section.id)}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${
                     activeSection === section.id
-                      ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800"
+                      ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
                       : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                   }`}
                 >

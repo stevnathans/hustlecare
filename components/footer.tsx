@@ -13,7 +13,7 @@ export default function Footer() {
           {/* Logo and brief info */}
           <div className="mb-8 md:mb-0">
             <div className="flex items-center space-x-2">
-              <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-emerald-600 rounded-lg flex items-center justify-center">
                 <span className="font-bold text-white text-xl">HC</span>
               </div>
               <h3 className="font-bold text-2xl">Hustlecare</h3>
@@ -27,7 +27,7 @@ export default function Footer() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
             {/* About Section */}
             <div>
-              <h4 className="text-lg font-semibold mb-4 text-green-500">About</h4>
+              <h4 className="text-lg font-semibold mb-4 text-emerald-500">About</h4>
               <ul className="space-y-3">
                 <li><Link href="#" className="text-gray-400 hover:text-white transition">Our Story</Link></li>
                 <li><Link href="#" className="text-gray-400 hover:text-white transition">Team</Link></li>
@@ -38,7 +38,7 @@ export default function Footer() {
 
             {/* Help Section */}
             <div>
-              <h4 className="text-lg font-semibold mb-4 text-green-500">Help</h4>
+              <h4 className="text-lg font-semibold mb-4 text-emerald-500">Help</h4>
               <ul className="space-y-3">
                 <li><Link href="/faqs" className="text-gray-400 hover:text-white transition">FAQ</Link></li>
                 <li><Link href="/contact" className="text-gray-400 hover:text-white transition">Contact Us</Link></li>
@@ -49,7 +49,7 @@ export default function Footer() {
 
             {/* Legal Section */}
             <div>
-              <h4 className="text-lg font-semibold mb-4 text-green-500">Legal</h4>
+              <h4 className="text-lg font-semibold mb-4 text-emerald-500">Legal</h4>
               <ul className="space-y-3">
                 <li><Link href="/privacy" className="text-gray-400 hover:text-white transition">Privacy Policy</Link></li>
                 <li><Link href="/terms" className="text-gray-400 hover:text-white transition">Terms of Service</Link></li>

@@ -45,8 +45,8 @@ export default function MobileHeader({ activeTab, setActiveTab }: MobileHeaderPr
               {getCurrentTabName()}
             </h1>
           </div>
-          <div className="h-8 w-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center">
-            <span className="text-indigo-600 dark:text-indigo-400 font-medium text-xs">
+          <div className="h-8 w-8 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
+            <span className="text-emerald-600 dark:text-emerald-400 font-medium text-xs">
               HC
             </span>
           </div>
@@ -66,7 +66,7 @@ export default function MobileHeader({ activeTab, setActiveTab }: MobileHeaderPr
           <div className="md:hidden fixed inset-y-0 left-0 z-30 w-80 bg-white dark:bg-gray-900 shadow-xl transform transition-transform duration-300">
             {/* Header */}
             <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-              <h1 className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
+              <h1 className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
                 Hustlecare
               </h1>
               <button 
@@ -90,7 +90,7 @@ export default function MobileHeader({ activeTab, setActiveTab }: MobileHeaderPr
                     className={`
                       group flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200
                       ${isActive
-                        ? "bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border-r-2 border-indigo-600 dark:border-indigo-400"
+                        ? "bg-emerald-50 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border-r-2 border-emerald-600 dark:border-emerald-400"
                         : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white"
                       }
                     `}
@@ -98,7 +98,7 @@ export default function MobileHeader({ activeTab, setActiveTab }: MobileHeaderPr
                     <Icon 
                       className={`mr-3 h-5 w-5 transition-colors duration-200 ${
                         isActive 
-                          ? "text-indigo-600 dark:text-indigo-400" 
+                          ? "text-emerald-600 dark:text-emerald-400" 
                           : "text-gray-400 dark:text-gray-500 group-hover:text-gray-500 dark:group-hover:text-gray-400"
                       }`} 
                     />
@@ -111,8 +111,8 @@ export default function MobileHeader({ activeTab, setActiveTab }: MobileHeaderPr
             {/* Bottom section */}
             <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700">
               <div className="flex items-center">
-                <div className="h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center">
-                  <span className="text-indigo-600 dark:text-indigo-400 font-medium text-sm">
+                <div className="h-10 w-10 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
+                  <span className="text-emerald-600 dark:text-emerald-400 font-medium text-sm">
                     HC
                   </span>
                 </div>

@@ -84,13 +84,13 @@ export default function BusinessesPage() {
       </Head>
 
       <div className="max-w-7xl mx-auto">
-        {/* Green Background Section - Improved semantic structure */}
-        <header className="bg-green-600 px-4 sm:px-6 lg:px-8 py-16">
+        {/* emerald Background Section - Improved semantic structure */}
+        <header className="bg-emerald-600 px-4 sm:px-6 lg:px-8 py-16">
           <div className="max-w-3xl mx-auto text-center">
             <h1 className="text-4xl font-bold text-white mb-4">
               Start Your Next Business in a Few Steps
             </h1>
-            <p className="text-xl text-green-100 mb-8">
+            <p className="text-xl text-emerald-100 mb-8">
               Browse our collection of verified business opportunities with complete setup requirements
             </p>
             
@@ -100,7 +100,7 @@ export default function BusinessesPage() {
                 id="business-search"
                 type="text"
                 placeholder="Search businesses..."
-                className="w-full px-6 py-4 bg-white border-0 rounded-xl shadow-lg focus:outline-none focus:ring-2 focus:ring-green-700 text-lg"
+                className="w-full px-6 py-4 bg-white border-0 rounded-xl shadow-lg focus:outline-none focus:ring-2 focus:ring-emerald-700 text-lg"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 aria-label="Search business opportunities"

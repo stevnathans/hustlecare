@@ -210,7 +210,7 @@ export default function ProfileTab({ user }: ProfileTabProps) {
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 Upload a profile picture to personalize your account (max 5MB)
               </p>
-              <label className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer">
+              <label className="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors cursor-pointer">
                 <Upload className="w-4 h-4" />
                 Upload Photo
                 <input
@@ -234,7 +234,7 @@ export default function ProfileTab({ user }: ProfileTabProps) {
                 type="text"
                 value={formData.name}
                 onChange={(e) => handleInputChange("name", e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                 placeholder="Enter your full name"
                 required
               />
@@ -249,7 +249,7 @@ export default function ProfileTab({ user }: ProfileTabProps) {
                 type="tel"
                 value={formData.phone}
                 onChange={(e) => handleInputChange("phone", e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                 placeholder="Enter your phone number"
               />
             </div>
@@ -292,7 +292,7 @@ export default function ProfileTab({ user }: ProfileTabProps) {
             <button
               onClick={handleSave}
               disabled={loading || !formData.name.trim()}
-              className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-3 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
               {loading ? "Saving..." : "Save Changes"}

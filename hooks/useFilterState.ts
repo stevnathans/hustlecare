@@ -92,28 +92,32 @@ export const useFilterState = (
     };
   }, [requirements, products, globalSearchQuery, globalFilter]);
 
+  // FIXED: Always show all categories, don't filter them out
   const filteredCategories = useMemo(() => {
-    return sortedCategories.filter(category => {
-      const hasMatches = groupedRequirements[category]?.some(req => {
-        const matchesGlobalSearch = globalSearchQuery
-          ? req.name.toLowerCase().includes(globalSearchQuery.toLowerCase()) ||
-            (req.description && req.description.toLowerCase().includes(globalSearchQuery.toLowerCase()))
-          : true;
-        const matchesGlobalFilter = globalFilter === 'all' ||
-          req.necessity.toLowerCase() === globalFilter;
-        const matchesCategorySearch = categoryStates[category]?.searchQuery
-          ? req.name.toLowerCase().includes(categoryStates[category].searchQuery.toLowerCase()) ||
-            (req.description && req.description.toLowerCase().includes(categoryStates[category].searchQuery.toLowerCase()))
-          : true;
-        const matchesCategoryFilter = !categoryStates[category]?.filter ||
-          categoryStates[category]?.filter === 'all' ||
-          req.necessity.toLowerCase() === categoryStates[category]?.filter;
+    // Return all categories - let the individual category sections handle showing "no results"
+    return sortedCategories;
+  }, [sortedCategories]);
 
-        return matchesGlobalSearch && matchesGlobalFilter && matchesCategorySearch && matchesCategoryFilter;
-      });
-      return hasMatches;
-    });
-  }, [sortedCategories, groupedRequirements, globalSearchQuery, globalFilter, categoryStates]);
+  // Helper function to get filtered requirements for a specific category
+  const getFilteredRequirements = (category: string) => {
+    return groupedRequirements[category]?.filter(req => {
+      const matchesGlobalSearch = globalSearchQuery
+        ? req.name.toLowerCase().includes(globalSearchQuery.toLowerCase()) ||
+          (req.description && req.description.toLowerCase().includes(globalSearchQuery.toLowerCase()))
+        : true;
+      const matchesGlobalFilter = globalFilter === 'all' ||
+        req.necessity.toLowerCase() === globalFilter;
+      const matchesCategorySearch = categoryStates[category]?.searchQuery
+        ? req.name.toLowerCase().includes(categoryStates[category].searchQuery.toLowerCase()) ||
+          (req.description && req.description.toLowerCase().includes(categoryStates[category].searchQuery.toLowerCase()))
+        : true;
+      const matchesCategoryFilter = !categoryStates[category]?.filter ||
+        categoryStates[category]?.filter === 'all' ||
+        req.necessity.toLowerCase() === categoryStates[category]?.filter;
+
+      return matchesGlobalSearch && matchesGlobalFilter && matchesCategorySearch && matchesCategoryFilter;
+    }) || [];
+  };
 
   const toggleCategorySearch = (category: string) => {
     setCategoryStates(prev => ({
@@ -172,6 +176,7 @@ export const useFilterState = (
     lowPrice,
     highPrice,
     filteredCategories,
+    getFilteredRequirements, // NEW: Export this helper function
     toggleCategorySearch,
     toggleFilter,
     setFilter,

@@ -196,7 +196,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
       
       {/* Mobile summary panel */}
       <div 
-        className="fixed bottom-4 left-4 right-4 bg-gradient-to-r from-blue-600 to-blue-500 rounded-xl shadow-xl p-4 z-50 transition-all duration-300"
+        className="fixed bottom-4 left-4 right-4 bg-gradient-to-r from-emerald-600 to-emerald-500 rounded-xl shadow-xl p-4 z-50 transition-all duration-300"
         onClick={() => setIsExpanded(true)}
       >
         <div className="flex flex-col space-y-3">
@@ -216,7 +216,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
           
           {/* View Details button at bottom */}
           <button 
-            className="w-full bg-white bg-opacity-20 text-blue-600 rounded-lg py-2 text-sm font-medium flex items-center justify-center mt-2"
+            className="w-full bg-white bg-opacity-20 text-emerald-600 rounded-lg py-2 text-sm font-medium flex items-center justify-center mt-2"
             onClick={(e) => {
               e.stopPropagation();
               setIsExpanded(true);
@@ -264,7 +264,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-semibold text-gray-800">{business.name} Requirements</h2>
               <div className="flex items-center">
-                <span className="bg-blue-100 text-blue-800 rounded-full px-3 py-1 text-sm font-medium flex items-center">
+                <span className="bg-emerald-100 text-emerald-800 rounded-full px-3 py-1 text-sm font-medium flex items-center">
                   <FiShoppingCart className="mr-1" size={14} />
                   {formatItemCount(overallTotalItems)}
                 </span>
@@ -382,12 +382,12 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
                 placeholder="Name your list (e.g., Cafe Requirements)"
                 value={cartName}
                 onChange={(e) => setCartName(e.target.value)}
-                className="flex-grow px-4 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                className="flex-grow px-4 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
               />
               <button
                 onClick={handleSaveCart}
                 disabled={!businessId || items.length === 0}
-                className="px-6 py-2.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center text-sm font-medium"
+                className="px-6 py-2.5 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center text-sm font-medium"
               >
                 <FiSave className="mr-2"/> Save List
               </button>

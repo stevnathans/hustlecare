@@ -27,7 +27,7 @@ const CategorySearchFilter: React.FC<CategorySearchFilterProps> = ({
             <input
               type="text"
               placeholder={`Search ${category} requirements...`}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
             />
@@ -53,7 +53,7 @@ const CategorySearchFilter: React.FC<CategorySearchFilterProps> = ({
           <button
             onClick={() => onFilterChange('required')}
             className={`px-3 py-1 text-xs rounded-md ${
-              filter === 'required' ? 'bg-green-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
+              filter === 'required' ? 'bg-emerald-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
             }`}
           >
             Required
