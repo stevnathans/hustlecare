@@ -4,7 +4,6 @@ import { useState, useMemo } from "react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ChevronRight, Mail, Search } from "lucide-react";
@@ -230,7 +229,7 @@ export default function FaqPage() {
               <div className="bg-background rounded-2xl shadow-lg overflow-hidden border border-muted">
                 <div className="px-6 py-4 bg-muted/50">
                   <h2 className="text-lg font-semibold">
-                    {filteredQuestions.length} result{filteredQuestions.length !== 1 ? 's' : ''} for "{searchQuery}"
+                    {filteredQuestions.length} result{filteredQuestions.length !== 1 ? 's' : ''} for &quot;{searchQuery}&quot;
                   </h2>
                 </div>
                 <Accordion type="multiple" className="divide-y divide-muted">
@@ -264,7 +263,7 @@ export default function FaqPage() {
                   </div>
                   <h3 className="text-2xl font-bold mb-2">No results found</h3>
                   <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                    We couldn't find any questions matching "{searchQuery}". Try different keywords or contact our support team.
+                    We couldn&apos;t find any questions matching &quot;{searchQuery}&quot;. Try different keywords or contact our support team.
                   </p>
                   <Button size="lg" className="gap-2">
                     Contact Support
@@ -313,7 +312,7 @@ export default function FaqPage() {
             </div>
             <h3 className="text-2xl font-bold mb-2">Still have questions?</h3>
             <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-              Can't find the answer you're looking for? Our support team is here to help.
+              Can&apos;t find the answer you&apos;re looking for? Our support team is here to help.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" className="gap-2">

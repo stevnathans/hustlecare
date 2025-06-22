@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
 import { deleteVendor } from 'app/actions/vendor-actions';
 import { toast } from 'sonner';
+import Image from 'next/image';
 
 interface VendorTableProps {
   vendors: Vendor[];
@@ -22,6 +23,7 @@ export function VendorTable({ vendors, onEdit, fetchVendors }: VendorTableProps)
       toast.success('Vendor deleted successfully');
       fetchVendors();
     } catch (error) {
+      console.error('Error deleting vendor:', error);
       toast.error('Failed to delete vendor');
     } finally {
       setDeletingId(null);
@@ -69,9 +71,11 @@ export function VendorTable({ vendors, onEdit, fetchVendors }: VendorTableProps)
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 {vendor.logo ? (
-                  <img
+                  <Image
                     src={vendor.logo}
                     alt={`${vendor.name} logo`}
+                     width={100} 
+                     height={60}
                     className="h-10 w-10 object-contain rounded"
                   />
                 ) : (

@@ -5,6 +5,14 @@ import { NextResponse } from 'next/server';
 
 const prisma = new PrismaClient();
 
+// Define the user data type for better type safety
+type UserData = {
+  name: string;
+  email: string;
+  image?: string | null;
+  password?: string;
+};
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -33,7 +41,8 @@ export async function POST(req: Request) {
       );
     }
 
-    let userData: any = {
+    // Use const instead of let since we're creating a new object each time
+    const userData: UserData = {
       name,
       email: email.toLowerCase(), // Store email in lowercase
       image: image || null, // Store image if provided, otherwise null
@@ -70,16 +79,18 @@ export async function POST(req: Request) {
     });
 
     // Exclude password from the returned user object
-    const { password: _, ...safeUser } = newUser;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password: _password, ...safeUser } = newUser;
 
     // Return the created user object (without password)
     // This is what the NextAuth signIn callback expects
     return NextResponse.json(safeUser, { status: 201 });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Signup API Error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Internal Server Error';
     return NextResponse.json(
-      { message: 'An unexpected error occurred.', error: error.message || 'Internal Server Error' },
+      { message: 'An unexpected error occurred.', error: errorMessage },
       { status: 500 }
     );
   }

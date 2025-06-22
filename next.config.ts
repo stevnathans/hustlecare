@@ -8,7 +8,10 @@ const nextConfig: NextConfig = {
      'marketplace.canva.com',
      'lh3.googleusercontent.com',
      'cdn.thewirecutter.com',
-     'healthkenya.co.ke'
+     'healthkenya.co.ke',
+     'hauzisha.co.ke',
+     'encrypted-tbn0.gstatic.com',
+     'dynamic-media-cdn.tripadvisor.com'
       // Add any other domains you use
     ],
   },

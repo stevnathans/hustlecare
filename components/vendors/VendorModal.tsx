@@ -58,6 +58,7 @@ export function VendorModal({ open, onOpenChange, vendor, onSuccess }: VendorMod
       onSuccess();
       toast.success(`Vendor ${vendor ? 'updated' : 'created'} successfully`);
     } catch (error) {
+      console.error('Error submitting vendor:', error);
       toast.error(`Failed to ${vendor ? 'update' : 'create'} vendor`);
     }
   };

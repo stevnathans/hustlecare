@@ -6,7 +6,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 export type CartItem = {
   __index: number;
   id: string;
-  productId: number;
+  productId: string | number; // Updated to accept both string and number
   name: string;
   price: number;
   quantity: number;
@@ -23,8 +23,8 @@ type CartContextType = {
   totalCost: number;
   totalItems: number;
   addToCart: (product: Omit<CartItem, 'id' | 'quantity'>) => Promise<void>;
-  removeFromCart: (productId: number) => Promise<void>;
-  updateQuantity: (productId: number, quantity: number) => Promise<void>;
+  removeFromCart: (productId: string | number) => Promise<void>; // Updated parameter type
+  updateQuantity: (productId: string | number, quantity: number) => Promise<void>; // Updated parameter type
   clearCart: () => Promise<void>;
   clearCategory: (category: string) => Promise<void>;
   clearRequirement: (requirementName: string, category: string) => Promise<void>;
@@ -138,7 +138,7 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
   };
 
   // Remove item from cart
-  const removeFromCart = async (productId: number) => {
+  const removeFromCart = async (productId: string | number) => {
     if (!businessId) {
       setError('No business selected');
       return;
@@ -174,7 +174,7 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
   };
 
   // Update item quantity
-  const updateQuantity = async (productId: number, quantity: number) => {
+  const updateQuantity = async (productId: string | number, quantity: number) => {
     if (!businessId) {
       setError('No business selected');
       return;

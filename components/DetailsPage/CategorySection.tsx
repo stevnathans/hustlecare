@@ -2,6 +2,8 @@ import React from 'react';
 import RequirementCard from '@/components/Requirements/RequirementCard';
 import CategorySectionHeader from './CategorySectionHeader';
 import CategorySearchFilter from './CategorySearchFilter';
+import { Link } from 'lucide-react';
+import { Product } from '@/types';
 
 interface Requirement {
   id: number;
@@ -9,14 +11,6 @@ interface Requirement {
   description?: string;
   category?: string;
   necessity: string;
-  image?: string;
-}
-
-interface Product {
-  id: number;
-  name: string;
-  description?: string;
-  price: number;
   image?: string;
 }
 
@@ -76,29 +70,6 @@ const CategorySection: React.FC<CategorySectionProps> = ({
       }
     }
     return `No requirements found in ${category}`;
-  };
-
-  const getClearFiltersAction = () => {
-    const hasGlobalFilters = globalSearchQuery || globalFilter !== 'all';
-    const hasCategoryFilters = categoryState.searchQuery || categoryState.filter !== 'all';
-    
-    if (hasGlobalFilters || hasCategoryFilters) {
-      return {
-        text: hasGlobalFilters && hasCategoryFilters ? 'Clear All Filters' : 
-              hasGlobalFilters ? 'Clear Global Filters' : 'Clear Category Filters',
-        action: () => {
-          if (hasGlobalFilters) {
-            // Note: This would need to be passed down as props from parent
-            // For now, we'll show the message but the parent handles clearing
-          }
-          if (hasCategoryFilters) {
-            onSearchChange('');
-            onFilterChange('all');
-          }
-        }
-      };
-    }
-    return null;
   };
 
   const categoryId = category.toLowerCase().replace(/\s+/g, '-');
@@ -208,7 +179,10 @@ const CategorySection: React.FC<CategorySectionProps> = ({
                     {requiredItems.map((requirement) => (
                       <div key={requirement.id} itemScope itemType="https://schema.org/Product">
                         <RequirementCard
-                          requirement={requirement}
+                          requirement={{
+                            ...requirement,
+                            category: requirement.category || category
+                          }}
                           products={products[requirement.name] || []}
                         />
                       </div>
@@ -227,13 +201,16 @@ const CategorySection: React.FC<CategorySectionProps> = ({
                     Optional {category} Items ({optionalItems.length})
                   </h4>
                   <p className="text-sm text-gray-600 mb-6">
-                    These optional items can enhance your {businessName} business but aren't required to get started.
+                    These optional items can enhance your {businessName} business but aren&apos;t required to get started.
                   </p>
                   <div className="space-y-6">
                     {optionalItems.map((requirement) => (
                       <div key={requirement.id} itemScope itemType="https://schema.org/Product">
                         <RequirementCard
-                          requirement={requirement}
+                          requirement={{
+                            ...requirement,
+                            category: requirement.category || category
+                          }}
                           products={products[requirement.name] || []}
                         />
                       </div>
@@ -281,21 +258,21 @@ const CategorySection: React.FC<CategorySectionProps> = ({
               {!hasActiveFilters && (
                 <div className="mt-4">
                   <p className="text-gray-500 text-sm mb-3">
-                    This category doesn't have any requirements yet, or they may be categorized differently.
+                    This category doesn&apos;t have any requirements yet, or they may be categorized differently.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                    <a 
+                    <Link 
                       href="/business" 
                       className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
                     >
                       Browse Other Businesses
-                    </a>
-                    <a 
+                    </Link>
+                    <Link 
                       href="/contact" 
                       className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm"
                     >
                       Request Requirements
-                    </a>
+                    </Link>
                   </div>
                 </div>
               )}

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Menu as MenuIcon, X, LogIn, Sparkles, Briefcase, Mail, Info, Search } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { useSession, signIn, signOut } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import MenuSearchBar from "./MenuSearchBar";
 

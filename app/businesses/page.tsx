@@ -2,10 +2,22 @@
 import { useEffect, useState, useMemo } from "react";
 import BusinessCard from "@/components/business/BusinessCards";
 import Head from "next/head";
-import { usePathname } from "next/navigation";;
+
+interface Requirement {
+  id: number; 
+  name: string;
+  description: string | null;
+  image: string | null;
+  category: string | null;
+  necessity: string;
+  businessId: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 
 interface Business {
-  groupedRequirements: Record<string, Requirement[]> | undefined;
+  groupedRequirements: Record<string, Requirement[]>;
   id: number;
   name: string;
   image?: string;
@@ -22,7 +34,7 @@ export default function BusinessesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [sortOption, setSortOption] = useState<string>("default");
-  const pathname = usePathname(); // Using usePathname instead of useRouter
+  
 
   // Extract unique categories from businesses
   const categories = useMemo(() => {
@@ -33,7 +45,7 @@ export default function BusinessesPage() {
   // SEO Metadata
   const pageTitle = "Best Business Opportunities to Start in 2024 | VentureGuide";
   const pageDescription = "Discover 100+ verified business opportunities with complete setup guides. Get step-by-step requirements, cost estimates, and launch timelines to start your dream business.";
-  const canonicalUrl = `https://www.ventureguide.com${pathname || '/businesses'}`; // Fallback if pathname is null
+  const canonicalUrl = `'/businesses'}`; // Fallback if pathname is null
   const pageKeywords = "business opportunities, start a business, entrepreneurship, small business ideas, business requirements";
   
   // Featured businesses for structured data
@@ -376,10 +388,10 @@ export default function BusinessesPage() {
             {!loading && filteredBusinesses.length > 0 && (
               <div className="mt-16 text-center">
                 <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                  Can't find what you're looking for?
+                  Can&apos;t find what you&apos;re looking for?
                 </h2>
                 <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
-                  We're constantly adding new business opportunities. Sign up to be notified when we add new ventures to our platform.
+                  We&apos;re constantly adding new business opportunities. Sign up to be notified when we add new ventures to our platform.
                 </p>
                 <div className="max-w-md mx-auto flex gap-2">
                   <input

@@ -1,7 +1,6 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { cookies } from 'next/headers';
 import {prisma} from '@/lib/prisma';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
@@ -218,10 +217,9 @@ export async function addToCart(
       return { success: false, message: 'Authentication required' };
     }
 
-    const userId = session.user.id;
 
     // Get or create cart for this business
-    let cart = await getOrCreateCart(businessId);
+    const cart = await getOrCreateCart(businessId);
     
     if (!cart) {
       return { success: false, message: 'Failed to access or create cart' };

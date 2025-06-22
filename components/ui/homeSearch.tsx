@@ -1,12 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
-  MapPin,
   Search as SearchIcon,
-  ChevronDown,
   Sparkles,
   Target,
   TrendingUp,
@@ -14,8 +12,6 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-
-const locations = ["Nairobi", "Mombasa", "Kisumu", "Eldoret", "Nakuru"];
 
 type Business = {
   id: number;
@@ -26,15 +22,12 @@ type Business = {
 export default function HomeSearch() {
   const router = useRouter();
   const [search, setSearch] = useState("");
-  const [location, setLocation] = useState("");
-  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [searchSuggestions, setSearchSuggestions] = useState<Business[]>([]);
   const [suggestionType, setSuggestionType] = useState<
     "popular" | "recent" | null
   >(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchSuggestions = async () => {
@@ -65,34 +58,12 @@ export default function HomeSearch() {
     fetchSuggestions();
   }, []);
 
-  const filteredLocations = locations.filter((loc) =>
-    loc.toLowerCase().includes(location.toLowerCase())
-  );
-
-  const handleSearch = (keyword: string, loc: string = "") => {
+  const handleSearch = (keyword: string) => {
     if (!keyword.trim()) return;
 
-    let query = `/search?keyword=${encodeURIComponent(keyword.trim())}`;
-    if (loc) {
-      query += `&location=${encodeURIComponent(loc)}`;
-    }
+    const query = `/search?keyword=${encodeURIComponent(keyword.trim())}`;
     router.push(query);
   };
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setShowLocationDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
 
   return (
     <section className="relative bg-[#ECF2F0] text-black w-full overflow-hidden">
@@ -134,7 +105,7 @@ export default function HomeSearch() {
             >
               <Sparkles className="w-4 h-4 mr-2 text-yellow-500" />
               <span className="text-sm font-semibold">
-                Kenya's #1 Business Startup Platform
+                Kenya&apos;s #1 Business Startup Platform
               </span>
             </motion.div>
 
@@ -179,7 +150,7 @@ export default function HomeSearch() {
                     onChange={(e) => setSearch(e.target.value)}
                     onKeyPress={(e) => {
                       if (e.key === "Enter") {
-                        handleSearch(search, location);
+                        handleSearch(search);
                       }
                     }}
                   />
@@ -187,10 +158,9 @@ export default function HomeSearch() {
 
                 {/* Search Button - Professional redesign */}
                 <Button
-                  onClick={() => handleSearch(search, location)}
+                  onClick={() => handleSearch(search)}
                   className="py-5 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1"
                 >
-  
                   Search
                 </Button>
               </div>
@@ -215,28 +185,26 @@ export default function HomeSearch() {
                   {error}
                 </span>
               ) : searchSuggestions.length > 0 ? (
-                
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="font-semibold text-emerald-500 flex items-center">
-                      <TrendingUp className="w-4 h-4 mr-1" />
-                      {suggestionType === "popular"
-                        ? "Popular Searches"
-                        : "Recently Published"}
-                      :
-                    </span>
-                    <div className="flex flex-wrap gap-2">
-                      {searchSuggestions.map((business) => (
-                        <button
-                          key={business.id}
-                          onClick={() => handleSearch(business.name, location)}
-                          className="bg-emerald-60 hover:bg-emerald-100 text-black px-3 py-1 rounded-full text-sm font-medium transition-all duration-200 border border-emerald-400 hover:border-emerald-100 hover:scale-105"
-                        >
-                          {business.name}
-                        </button>
-                      ))}
-                    </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="font-semibold text-emerald-500 flex items-center">
+                    <TrendingUp className="w-4 h-4 mr-1" />
+                    {suggestionType === "popular"
+                      ? "Popular Searches"
+                      : "Recently Published"}
+                    :
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {searchSuggestions.map((business) => (
+                      <button
+                        key={business.id}
+                        onClick={() => handleSearch(business.name)}
+                        className="bg-emerald-60 hover:bg-emerald-100 text-black px-3 py-1 rounded-full text-sm font-medium transition-all duration-200 border border-emerald-400 hover:border-emerald-100 hover:scale-105"
+                      >
+                        {business.name}
+                      </button>
+                    ))}
                   </div>
-          
+                </div>
               ) : null}
             </motion.div>
           </motion.div>

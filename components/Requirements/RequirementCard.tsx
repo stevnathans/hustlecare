@@ -1,16 +1,17 @@
-'use client';
-import { useState } from 'react';
-import ProductCard from '@/components/product/ProductCard';
-import { Product } from '@/types';
-import { 
-  ChevronDownIcon, 
-  ChevronUpIcon, 
+"use client";
+import { useState } from "react";
+import ProductCard from "@/components/product/ProductCard";
+import { Product } from "@/types";
+import {
+  ChevronDownIcon,
+  ChevronUpIcon,
   ShoppingBagIcon,
   CurrencyDollarIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
-  PhotoIcon
-} from '@heroicons/react/24/outline';
+  PhotoIcon,
+} from "@heroicons/react/24/outline";
+import Image from "next/image";
 
 interface RequirementCardProps {
   requirement: {
@@ -32,14 +33,13 @@ export default function RequirementCard({
 
   // Calculate derived values
   const productCount = products?.length || 0;
-  const lowestPrice = productCount > 0 
-    ? Math.min(...products.map(p => p.price))
-    : 0;
+  const lowestPrice =
+    productCount > 0 ? Math.min(...products.map((p) => p.price)) : 0;
 
   // Map necessity to status
   const getStatus = () => {
     const lowerCaseNecessity = requirement.necessity.toLowerCase();
-    return lowerCaseNecessity.includes('required') ? 'required' : 'optional';
+    return lowerCaseNecessity.includes("required") ? "required" : "optional";
   };
 
   const status = getStatus();
@@ -47,19 +47,19 @@ export default function RequirementCard({
   // Status configuration
   const statusConfig = {
     required: {
-      color: 'text-emerald-700',
-      bgColor: 'bg-emerald-50',
-      borderColor: 'border-emerald-200',
+      color: "text-emerald-700",
+      bgColor: "bg-emerald-50",
+      borderColor: "border-emerald-200",
       icon: CheckCircleIcon,
-      dotColor: 'bg-green-500'
+      dotColor: "bg-green-500",
     },
     optional: {
-      color: 'text-amber-700',
-      bgColor: 'bg-amber-50',
-      borderColor: 'border-amber-200',
+      color: "text-amber-700",
+      bgColor: "bg-amber-50",
+      borderColor: "border-amber-200",
       icon: ExclamationTriangleIcon,
-      dotColor: 'bg-amber-500'
-    }
+      dotColor: "bg-amber-500",
+    },
   };
 
   const config = statusConfig[status as keyof typeof statusConfig];
@@ -69,7 +69,7 @@ export default function RequirementCard({
     <div className="group relative bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-gray-200 transition-all duration-300 mb-6 overflow-hidden">
       {/* Subtle gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 via-transparent to-purple-50/30 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-      
+
       {/* Main content */}
       <div className="relative p-6">
         {/* Header Section */}
@@ -78,9 +78,11 @@ export default function RequirementCard({
           <div className="relative flex-shrink-0">
             <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 shadow-inner">
               {requirement.image ? (
-                <img 
-                  src={requirement.image} 
+                <Image
+                  src={requirement.image}
                   alt={requirement.name}
+                  width={100} 
+                  height={100}
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                 />
               ) : (
@@ -90,7 +92,9 @@ export default function RequirementCard({
               )}
             </div>
             {/* Status indicator overlay */}
-            <div className={`absolute -top-1 -right-1 w-6 h-6 rounded-full ${config.bgColor} ${config.borderColor} border-2 flex items-center justify-center`}>
+            <div
+              className={`absolute -top-1 -right-1 w-6 h-6 rounded-full ${config.bgColor} ${config.borderColor} border-2 flex items-center justify-center`}
+            >
               <StatusIcon className={`h-3 w-3 ${config.color}`} />
             </div>
           </div>
@@ -103,8 +107,12 @@ export default function RequirementCard({
                 <h3 className="text-xl font-bold text-gray-900 group-hover:text-blue-700 transition-colors duration-200 leading-tight">
                   {requirement.name}
                 </h3>
-                <div className={`inline-flex items-center gap-2 mt-2 px-3 py-1 rounded-full text-xs font-semibold ${config.bgColor} ${config.color} ${config.borderColor} border`}>
-                  <div className={`w-2 h-2 rounded-full ${config.dotColor}`}></div>
+                <div
+                  className={`inline-flex items-center gap-2 mt-2 px-3 py-1 rounded-full text-xs font-semibold ${config.bgColor} ${config.color} ${config.borderColor} border`}
+                >
+                  <div
+                    className={`w-2 h-2 rounded-full ${config.dotColor}`}
+                  ></div>
                   <span className="capitalize">{status}</span>
                 </div>
               </div>
@@ -127,7 +135,9 @@ export default function RequirementCard({
                       <CurrencyDollarIcon className="h-4 w-4 text-emerald-600" />
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500 font-medium">Starting from</div>
+                      <div className="text-xs text-gray-500 font-medium">
+                        Starting from
+                      </div>
                       <div className="text-lg font-bold text-emerald-600">
                         KSh {lowestPrice.toLocaleString()}
                       </div>
@@ -152,9 +162,12 @@ export default function RequirementCard({
                       <ShoppingBagIcon className="h-4 w-4 text-blue-600" />
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500 font-medium">Available</div>
+                      <div className="text-xs text-gray-500 font-medium">
+                        Available
+                      </div>
                       <div className="text-sm font-semibold text-gray-900">
-                        {productCount} {productCount === 1 ? 'option' : 'options'}
+                        {productCount}{" "}
+                        {productCount === 1 ? "option" : "options"}
                       </div>
                     </div>
                   </div>
@@ -162,12 +175,12 @@ export default function RequirementCard({
 
                 {/* Expand Toggle - Desktop */}
                 {productCount > 0 && (
-                  <button 
+                  <button
                     onClick={() => setIsExpanded(!isExpanded)}
                     className="hidden sm:flex items-center space-x-2 px-4 py-2 rounded-xl bg-gray-50 hover:bg-blue-50 text-gray-700 hover:text-blue-700 transition-all duration-200 font-medium text-sm group/button ml-auto"
                   >
                     <span>
-                      {isExpanded ? 'Hide Products' : 'View Products'}
+                      {isExpanded ? "Hide Products" : "View Products"}
                     </span>
                     {isExpanded ? (
                       <ChevronUpIcon className="h-4 w-4 transition-transform group-hover/button:translate-y-[-1px]" />
@@ -180,13 +193,11 @@ export default function RequirementCard({
 
               {/* Expand Toggle - Mobile */}
               {productCount > 0 && (
-                <button 
+                <button
                   onClick={() => setIsExpanded(!isExpanded)}
                   className="sm:hidden w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-xl bg-gray-50 hover:bg-blue-50 text-gray-700 hover:text-blue-700 transition-all duration-200 font-medium text-sm group/button"
                 >
-                  <span>
-                    {isExpanded ? 'Hide Products' : 'View Products'}
-                  </span>
+                  <span>{isExpanded ? "Hide Products" : "View Products"}</span>
                   {isExpanded ? (
                     <ChevronUpIcon className="h-4 w-4 transition-transform group-hover/button:translate-y-[-1px]" />
                   ) : (
@@ -212,18 +223,20 @@ export default function RequirementCard({
               </h4>
               <div className="flex-1 h-px bg-gradient-to-r from-gray-200 to-transparent"></div>
             </div>
-            
+
             <div className="grid gap-4">
               {products.map((product, index) => (
-                <div 
+                <div
                   key={product.id}
                   className="transform transition-all duration-300"
                   style={{
                     animationDelay: `${index * 100}ms`,
-                    animation: isExpanded ? 'slideInUp 0.5s ease-out forwards' : 'none'
+                    animation: isExpanded
+                      ? "slideInUp 0.5s ease-out forwards"
+                      : "none",
                   }}
                 >
-                  <ProductCard 
+                  <ProductCard
                     product={product}
                     requirementName={requirement.name}
                     category={requirement.category}
@@ -246,7 +259,7 @@ export default function RequirementCard({
             transform: translateY(0);
           }
         }
-        
+
         .line-clamp-2 {
           display: -webkit-box;
           -webkit-line-clamp: 2;

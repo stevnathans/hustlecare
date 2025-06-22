@@ -19,6 +19,13 @@ interface Product {
 }
 
 interface Business {
+  address: any;
+  phone: any;
+  email: any;
+  hours: any;
+  socialLinks: never[];
+  reviewCount: number;
+  rating: any;
   id: number;
   name: string;
   slug: string;

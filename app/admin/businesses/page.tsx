@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { Dialog } from "@headlessui/react";
 import { PlusIcon } from "@heroicons/react/24/solid";
 import { Toaster, toast } from "react-hot-toast";
+import Image from 'next/image';
 
 type Business = {
   id: number;
@@ -190,9 +191,11 @@ export default function BusinessesPage() {
               <h2 className="text-lg font-semibold">{business.name}</h2>
 
               {business.image && (
-                <img
+                <Image
                   src={business.image}
                   alt={business.name}
+                  width={800} 
+                  height={400}
                   className="w-full h-40 object-cover rounded-md my-2"
                 />
               )}

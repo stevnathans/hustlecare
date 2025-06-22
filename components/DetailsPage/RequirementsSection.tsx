@@ -1,6 +1,7 @@
 import React from 'react';
 import CategorySection from './CategorySection';
 import GlobalSearchFilter from './GlobalSearchFilter';
+import { Product } from '@/types';
 
 interface Requirement {
   id: number;
@@ -8,14 +9,6 @@ interface Requirement {
   description?: string;
   category?: string;
   necessity: string;
-  image?: string;
-}
-
-interface Product {
-  id: number;
-  name: string;
-  description?: string;
-  price: number;
   image?: string;
 }
 
@@ -118,7 +111,7 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
           No Requirements Available
         </h3>
         <p className="text-yellow-700 mb-4">
-          We're still building the requirements list for this {businessName} business.
+          We&apos;re still building the requirements list for this {businessName} business.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <a 
@@ -149,7 +142,7 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
             Complete Requirements For {businessName} Business
           </h2>
           <p className="text-gray-700 leading-relaxed">
-            Below you'll find all the requirements organized by category to help you start your {businessName} business in Kenya. 
+            Below you&apos;ll find all the requirements organized by category to help you start your {businessName} business in Kenya. 
             Each category contains both essential and optional items. Use the search and filter options to easily find requirements, 
             and add items to your cost calculator to build your personalized business budget.
           </p>

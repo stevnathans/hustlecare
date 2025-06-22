@@ -26,7 +26,17 @@ type Business = {
   image?: string
 }
 
-const defaultForm = {
+// Add this type definition for your form data
+type FormData = {
+  name: string
+  description: string
+  image: string
+  category: string
+  businessId: string | number
+  necessity: 'Required' | 'Optional'
+}
+
+const defaultForm: FormData = {
   name: '',
   description: '',
   image: '',
@@ -37,7 +47,7 @@ const defaultForm = {
 
 export default function RequirementsPage() {
   const [requirements, setRequirements] = useState<Requirement[]>([])
-  const [formData, setFormData] = useState<any>(defaultForm)
+  const [formData, setFormData] = useState<FormData>(defaultForm) // Changed from 'any' to 'FormData'
   const [isOpen, setIsOpen] = useState(false)
   const [editingRequirement, setEditingRequirement] = useState<number | null>(null)
   const [search, setSearch] = useState('')
@@ -124,7 +134,7 @@ export default function RequirementsPage() {
       const payload = {
         ...formData,
         businessId: Number(formData.businessId),
-        categoryId: Number(formData.categoryId),
+        // Note: Removed categoryId as it's not in your FormData type
       };
   
       const res = await fetch(url, {
@@ -280,7 +290,7 @@ export default function RequirementsPage() {
                 className="w-full border px-3 py-2 rounded"
                 value={formData.businessId}
                 onChange={(e) =>
-                  setFormData({ ...formData, businessId: parseInt(e.target.value) })
+                  setFormData({ ...formData, businessId: e.target.value })
                 }
                 
                 required
@@ -299,7 +309,7 @@ export default function RequirementsPage() {
       name="necessity"
       value="Required"
       checked={formData.necessity === 'Required'}
-      onChange={(e) => setFormData({ ...formData, necessity: e.target.value })}
+      onChange={(e) => setFormData({ ...formData, necessity: e.target.value as 'Required' | 'Optional' })}
     />
     <span className="text-green-600 font-medium">Required</span>
   </label>
@@ -309,7 +319,7 @@ export default function RequirementsPage() {
       name="necessity"
       value="Optional"
       checked={formData.necessity === 'Optional'}
-      onChange={(e) => setFormData({ ...formData, necessity: e.target.value })}
+      onChange={(e) => setFormData({ ...formData, necessity: e.target.value as 'Required' | 'Optional' })}
     />
     <span className="text-orange-500 font-medium">Optional</span>
   </label>

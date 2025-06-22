@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import prisma from "@/lib/prisma";
+import {prisma} from "@/lib/prisma";
 
 export async function DELETE(
   req: Request,
@@ -20,6 +20,7 @@ export async function DELETE(
     });
 
     return NextResponse.json({ success: true });
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (err) {
     return NextResponse.json({ error: "Item not found or delete failed" }, { status: 400 });
   }
@@ -48,6 +49,7 @@ export async function PATCH(
     });
 
     return NextResponse.json(updatedItem);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (err) {
     return NextResponse.json({ error: "Update failed" }, { status: 400 });
   }

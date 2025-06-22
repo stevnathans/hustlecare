@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 
 type Vendor = {
   id: number;
@@ -244,9 +245,11 @@ export default function ProductFormModal({
               <div className="mt-4 p-3 bg-gray-50 rounded-md">
                 <h4 className="text-sm font-medium text-gray-700">Selected Vendor Details</h4>
                 {vendors.find(v => v.id.toString() === formData.vendorId)?.logo && (
-                  <img 
+                  <Image 
                     src={vendors.find(v => v.id.toString() === formData.vendorId)?.logo} 
                     alt="Vendor logo" 
+                    width={100} 
+                    height={60} 
                     className="h-10 w-10 object-contain mt-2"
                   />
                 )}

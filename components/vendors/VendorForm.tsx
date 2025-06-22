@@ -47,6 +47,7 @@ export function VendorForm({ vendor, onSubmit }: VendorFormProps) {
       toast.success(`Vendor ${vendor ? 'updated' : 'created'} successfully`);
       router.push('/vendors');
     } catch (error) {
+      console.error('Error submitting vendor:', error);
       toast.error(`Failed to ${vendor ? 'update' : 'create'} vendor`);
     }
   };

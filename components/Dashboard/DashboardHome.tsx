@@ -52,7 +52,7 @@ export default function DashboardHome({ user, stats, recentActivity }: Dashboard
           {greeting}, {user.name || "User"}!
         </h1>
         <p className="text-white/80 dark:text-gray-100">
-          Welcome back to your dashboard. Here's what's happening with your saved businesses.
+          Welcome back to your dashboard. Here&apos;s what&apos;s happening with your saved businesses.
         </p>
       </div>
 

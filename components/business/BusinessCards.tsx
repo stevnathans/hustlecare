@@ -2,17 +2,28 @@
 import Link from 'next/link';
 import { FiArrowRight, FiFileText, FiDollarSign } from 'react-icons/fi';
 import { useMemo } from 'react';
+import Image from 'next/image';
 
 type Requirement = {
-  id: string;
+  id: number; 
   name: string;
+  description: string | null;
+  image: string | null;
+  category: string | null;
+  necessity: string;
+  businessId: number;
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 type BusinessCardProps = {
-  id: string;
+  id: string | number; // Allow both string and number for flexibility
   name: string;
   image?: string;
   slug: string;
+  category?: string;
+  estimatedCost?: string;
+  timeToLaunch?: string;
   groupedRequirements?: Record<string, Requirement[]>;
 };
 
@@ -46,9 +57,11 @@ export default function BusinessCard({
         <div className="relative overflow-hidden">
           {image ? (
             <>
-              <img 
+              <Image 
                 src={image} 
                 alt={name} 
+                width={800} 
+                height={400} 
                 className="w-full h-48 object-cover transition-transform duration-500 group-hover:scale-110"
               />
               {/* Dark overlay for better text readability */}

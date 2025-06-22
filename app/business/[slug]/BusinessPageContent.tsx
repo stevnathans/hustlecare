@@ -6,6 +6,7 @@ import BusinessHeader from '@/components/DetailsPage/BusinessHeader';
 import RequirementsSection from '@/components/DetailsPage/RequirementsSection';
 import { useBusinessData } from 'hooks/useBusinessData';
 import { useFilterState } from 'hooks/useFilterState';
+import Link from 'next/link';
 
 interface BusinessPageProps {
   params: Promise<{
@@ -50,11 +51,11 @@ export default function BusinessPage({ params }: BusinessPageProps) {
       <div className="container mx-auto px-4 py-8 text-center">
         <h1 className="text-4xl font-bold mb-4">Business Not Found</h1>
         <p className="text-gray-600 mb-4">
-          The business you're looking for doesn't exist or has been moved.
+          The business you&apos;re looking for doesn&apos;t exist or has been moved.
         </p>
-        <a href="/" className="text-blue-600 hover:underline">
-          Return to Home
-        </a>
+        <Link href="/" className="text-blue-600 hover:underline">
+  Return to Home
+</Link>
       </div>
     );
   }

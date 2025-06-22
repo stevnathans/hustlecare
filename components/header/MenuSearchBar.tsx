@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Search as SearchIcon, X } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -11,151 +11,11 @@ type Business = {
   slug: string;
 };
 
-// Fuzzy search utility functions
-const calculateLevenshteinDistance = (str1: string, str2: string): number => {
-  const matrix = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
-
-  for (let i = 0; i <= str1.length; i++) {
-    matrix[0][i] = i;
-  }
-
-  for (let j = 0; j <= str2.length; j++) {
-    matrix[j][0] = j;
-  }
-
-  for (let j = 1; j <= str2.length; j++) {
-    for (let i = 1; i <= str1.length; i++) {
-      const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
-      matrix[j][i] = Math.min(
-        matrix[j][i - 1] + 1, // deletion
-        matrix[j - 1][i] + 1, // insertion
-        matrix[j - 1][i - 1] + indicator // substitution
-      );
-    }
-  }
-
-  return matrix[str2.length][str1.length];
-};
-
-const normalizeString = (str: string): string => {
-  return str.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
-};
-
-const fuzzyMatch = (query: string, target: string, threshold: number = 0.6): boolean => {
-  const normalizedQuery = normalizeString(query);
-  const normalizedTarget = normalizeString(target);
-
-  // Exact match (highest priority)
-  if (normalizedTarget.includes(normalizedQuery)) {
-    return true;
-  }
-
-  // Word boundary matches
-  const queryWords = normalizedQuery.split(' ').filter(word => word.length > 0);
-  const targetWords = normalizedTarget.split(' ').filter(word => word.length > 0);
-
-  // Check if all query words have fuzzy matches in target words
-  const allWordsMatch = queryWords.every(queryWord => {
-    return targetWords.some(targetWord => {
-      if (targetWord.includes(queryWord) || queryWord.includes(targetWord)) {
-        return true;
-      }
-      
-      const distance = calculateLevenshteinDistance(queryWord, targetWord);
-      const maxLength = Math.max(queryWord.length, targetWord.length);
-      const similarity = 1 - (distance / maxLength);
-      
-      return similarity >= threshold;
-    });
-  });
-
-  if (allWordsMatch) {
-    return true;
-  }
-
-  // Overall string similarity for short queries
-  if (normalizedQuery.length <= 6) {
-    const distance = calculateLevenshteinDistance(normalizedQuery, normalizedTarget);
-    const maxLength = Math.max(normalizedQuery.length, normalizedTarget.length);
-    const similarity = 1 - (distance / maxLength);
-    
-    return similarity >= (threshold + 0.1); // Slightly higher threshold for overall similarity
-  }
-
-  return false;
-};
-
-const scoreMatch = (query: string, target: string): number => {
-  const normalizedQuery = normalizeString(query);
-  const normalizedTarget = normalizeString(target);
-
-  // Exact match gets highest score
-  if (normalizedTarget === normalizedQuery) {
-    return 100;
-  }
-
-  // Starts with query gets high score
-  if (normalizedTarget.startsWith(normalizedQuery)) {
-    return 90;
-  }
-
-  // Contains query gets good score
-  if (normalizedTarget.includes(normalizedQuery)) {
-    return 80;
-  }
-
-  // Word boundary matches
-  const queryWords = normalizedQuery.split(' ').filter(word => word.length > 0);
-  const targetWords = normalizedTarget.split(' ').filter(word => word.length > 0);
-
-  let totalScore = 0;
-  let matchedWords = 0;
-
-  queryWords.forEach(queryWord => {
-    let bestWordScore = 0;
-    
-    targetWords.forEach(targetWord => {
-      let wordScore = 0;
-      
-      if (targetWord === queryWord) {
-        wordScore = 10;
-      } else if (targetWord.startsWith(queryWord) || queryWord.startsWith(targetWord)) {
-        wordScore = 8;
-      } else if (targetWord.includes(queryWord) || queryWord.includes(targetWord)) {
-        wordScore = 6;
-      } else {
-        const distance = calculateLevenshteinDistance(queryWord, targetWord);
-        const maxLength = Math.max(queryWord.length, targetWord.length);
-        const similarity = 1 - (distance / maxLength);
-        
-        if (similarity >= 0.6) {
-          wordScore = similarity * 5;
-        }
-      }
-      
-      bestWordScore = Math.max(bestWordScore, wordScore);
-    });
-    
-    if (bestWordScore > 0) {
-      totalScore += bestWordScore;
-      matchedWords++;
-    }
-  });
-
-  // Return average score, bonus for matching all words
-  if (matchedWords === 0) return 0;
-  const averageScore = totalScore / queryWords.length;
-  const completenessBonus = matchedWords === queryWords.length ? 10 : 0;
-  
-  return Math.min(79, averageScore + completenessBonus); // Cap at 79 to keep below exact matches
-};
-
 export default function MenuSearchBar() {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searchSuggestions, setSearchSuggestions] = useState<Business[]>([]);
-  const [allBusinesses, setAllBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
@@ -168,44 +28,7 @@ export default function MenuSearchBar() {
     setShowSuggestions(false);
   };
 
-  // Fetch all businesses once for client-side fuzzy search
-  const fetchAllBusinesses = async () => {
-    try {
-      const response = await fetch('/api/businesses'); // You'll need this endpoint
-      const data = await response.json();
-      
-      if (response.ok && data.success) {
-        setAllBusinesses(data.results || []);
-      }
-    } catch (error) {
-      console.error("Error fetching businesses:", error);
-    }
-  };
-
-  // Initialize businesses on component mount
-  useEffect(() => {
-    fetchAllBusinesses();
-  }, []);
-
-  const performFuzzySearch = (query: string) => {
-    if (!query.trim() || allBusinesses.length === 0) {
-      setSearchSuggestions([]);
-      return;
-    }
-
-    const matches = allBusinesses
-      .filter(business => fuzzyMatch(query, business.name))
-      .map(business => ({
-        ...business,
-        score: scoreMatch(query, business.name)
-      }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 5);
-
-    setSearchSuggestions(matches);
-  };
-
-  const fetchSearchSuggestions = async (query: string) => {
+  const fetchSearchSuggestions = useCallback(async (query: string) => {
     if (!query.trim()) {
       setSearchSuggestions([]);
       return;
@@ -214,19 +37,13 @@ export default function MenuSearchBar() {
     try {
       setLoading(true);
       
-      // If we have all businesses loaded, use client-side fuzzy search
-      if (allBusinesses.length > 0) {
-        performFuzzySearch(query);
-      } else {
-        // Fallback to server search if businesses not loaded
-        const response = await fetch(`/api/businesses/search?q=${encodeURIComponent(query)}`);
-        const data = await response.json();
+      const response = await fetch(`/api/businesses/search?q=${encodeURIComponent(query)}`);
+      const data = await response.json();
 
-        if (response.ok && data.success) {
-          setSearchSuggestions(data.results?.slice(0, 5) || []);
-        } else {
-          setSearchSuggestions([]);
-        }
+      if (response.ok && data.success) {
+        setSearchSuggestions(data.results?.slice(0, 5) || []);
+      } else {
+        setSearchSuggestions([]);
       }
     } catch (error) {
       console.error("Search suggestions error:", error);
@@ -234,7 +51,7 @@ export default function MenuSearchBar() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Debounced search suggestions
   useEffect(() => {
@@ -247,7 +64,7 @@ export default function MenuSearchBar() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [search, allBusinesses]);
+  }, [search, fetchSearchSuggestions]);
 
   // Handle click outside
   useEffect(() => {

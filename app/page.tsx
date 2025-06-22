@@ -9,6 +9,7 @@ import BusinessCard from "@/components/business/BusinessCards";
 import Skeleton from "react-loading-skeleton";
 import { motion } from "framer-motion";
 import { WhatWeDoSection } from "@/components/WhatWeDo"; 
+import { Requirement } from "@prisma/client";
 
 type Business = {
   sortedCategories: string[];

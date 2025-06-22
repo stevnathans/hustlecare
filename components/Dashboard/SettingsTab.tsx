@@ -107,6 +107,7 @@ export default function SettingsTab({ user, theme, setTheme }: SettingsTabProps)
         showMessage('error', data.error || 'Failed to update password');
       }
     } catch (error) {
+      console.error('Password update error:', error);
       showMessage('error', 'An error occurred while updating password');
     } finally {
       setLoading(false);
@@ -132,6 +133,7 @@ export default function SettingsTab({ user, theme, setTheme }: SettingsTabProps)
         showMessage('error', 'Failed to save notification settings');
       }
     } catch (error) {
+      console.error('Notification save error:', error);
       showMessage('error', 'An error occurred while saving settings');
     } finally {
       setLoading(false);
@@ -169,6 +171,7 @@ export default function SettingsTab({ user, theme, setTheme }: SettingsTabProps)
         showMessage('error', 'Failed to export data');
       }
     } catch (error) {
+      console.error('Data export error:', error);
       showMessage('error', 'An error occurred while exporting data');
     } finally {
       setLoading(false);
@@ -194,6 +197,7 @@ export default function SettingsTab({ user, theme, setTheme }: SettingsTabProps)
         showMessage('error', data.error || 'Failed to delete account');
       }
     } catch (error) {
+      console.error('Account deletion error:', error);
       showMessage('error', 'An error occurred while deleting account');
     } finally {
       setLoading(false);
