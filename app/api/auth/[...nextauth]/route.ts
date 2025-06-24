@@ -6,8 +6,6 @@ import { PrismaAdapter } from '@auth/prisma-adapter';
 import { PrismaClient } from '@prisma/client';
 import { compare } from 'bcrypt';
 
-// Create a single instance of PrismaClient - IMPORTANT!
-// This ensures we don't have connection issues
 const prisma = new PrismaClient();
 
 export const authOptions: NextAuthOptions = {
@@ -29,7 +27,6 @@ export const authOptions: NextAuthOptions = {
       }
     }),
     CredentialsProvider({
-      // Rest of your credentials provider configuration
       name: 'Credentials',
       credentials: {
         email: { label: 'Email', type: 'text' },
@@ -57,39 +54,62 @@ export const authOptions: NextAuthOptions = {
         if (!isValid) {
           throw new Error('Invalid password');
         }
-
+       
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { password, ...safeUser } = user;
         return safeUser;
       },
     }),
   ],
   callbacks: {
-    // Your existing callbacks...
     async signIn({ user, account, profile }) {
       console.log("Sign in callback triggered for:", profile?.email);
       
       if (account?.provider === "google" && profile?.email) {
         try {
-          // Check if user already exists
           let existingUser = await prisma.user.findUnique({
             where: { email: profile.email },
           });
 
           if (!existingUser) {
-            // Create a new user record
-            console.log(`Creating new user via Google: ${profile.email}`);
+            // Validate required fields
+            if (!profile.name) {
+              throw new Error('Google profile is missing required name field');
+            }
+
             existingUser = await prisma.user.create({
               data: {
                 email: profile.email,
                 name: profile.name,
-                image: profile.image as string,
-                emailVerified: new Date(), // Google auth automatically verifies email
+                image: profile.image as string || null,
+                emailVerified: new Date(),
+                role: 'user',
+                emailNotifications: true,
+                pushNotifications: false,
+                marketingEmails: true
               },
             });
             
-            // Also create account link (if needed)
+            if (account) {
+              await prisma.account.create({
+                data: {
+                  userId: existingUser.id,
+                  type: account.type,
+                  provider: account.provider,
+                  providerAccountId: account.providerAccountId,
+                  access_token: account.access_token,
+                  refresh_token: account.refresh_token,
+                  expires_at: account.expires_at,
+                  token_type: account.token_type,
+                  scope: account.scope,
+                  id_token: account.id_token,
+                },
+              });
+            }
+          } else {
             if (account && !await prisma.account.findFirst({ 
               where: { 
+                userId: existingUser.id,
                 provider: account.provider,
                 providerAccountId: account.providerAccountId 
               }
@@ -109,64 +129,31 @@ export const authOptions: NextAuthOptions = {
                 },
               });
             }
-            
-            console.log(`Successfully created new Google user: ${existingUser.id}`);
-          } else {
-            console.log(`User ${profile.email} already exists, continuing with Google sign-in.`);
-            
-            // Ensure the account is linked
-            const existingAccount = await prisma.account.findFirst({
-              where: {
-                userId: existingUser.id,
-                provider: account.provider,
-                providerAccountId: account.providerAccountId,
-              },
-            });
-            
-            if (!existingAccount && account) {
-              // Link the account
-              await prisma.account.create({
+
+            if (existingUser && (
+              (profile.name && existingUser.name !== profile.name) || 
+              (profile.image && existingUser.image !== profile.image)
+            )) {
+              await prisma.user.update({
+                where: { id: existingUser.id },
                 data: {
-                  userId: existingUser.id,
-                  type: account.type,
-                  provider: account.provider,
-                  providerAccountId: account.providerAccountId,
-                  access_token: account.access_token,
-                  refresh_token: account.refresh_token,
-                  expires_at: account.expires_at,
-                  token_type: account.token_type,
-                  scope: account.scope,
-                  id_token: account.id_token,
+                  name: profile.name,
+                  image: profile.image as string || existingUser.image,
                 },
               });
-              console.log(`Linked Google account to existing user: ${existingUser.id}`);
             }
-          }
-
-          // Check if we should update user info
-          if (existingUser && profile.name && existingUser.name !== profile.name || 
-              existingUser && profile.image && existingUser.image !== profile.image) {
-            await prisma.user.update({
-              where: { id: existingUser.id },
-              data: {
-                name: profile.name || existingUser.name,
-                image: profile.image as string || existingUser.image,
-              },
-            });
-            console.log(`Updated user profile info for: ${existingUser.id}`);
-          }
-          
-          // Make sure the user object has the right ID
-          if (existingUser && user) {
-            user.id = existingUser.id;
+            
+            if (existingUser && user) {
+              user.id = existingUser.id;
+            }
           }
         } catch (error) {
           console.error("Error in Google sign-in process:", error);
-          return false; // Deny sign-in on error
+          return false;
         }
       }
       
-      return true; // Allow sign-in
+      return true;
     },
     async jwt({ token, user }) {
       if (user) {
@@ -183,7 +170,7 @@ export const authOptions: NextAuthOptions = {
   },
   pages: {
     signIn: '/signin',
-    error: '/signin', // Redirect to login page on error
+    error: '/signin',
   },
   debug: process.env.NODE_ENV === 'development',
 };
