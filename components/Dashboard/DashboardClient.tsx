@@ -42,7 +42,7 @@ interface DashboardClientProps {
 
 export default function DashboardClient({ user, stats, recentActivity }: DashboardClientProps) {
   const [activeTab, setActiveTab] = useState("dashboard");
-  const { theme, setTheme, systemTheme } = useTheme();
+  const { theme, setTheme } = useTheme(); // Removed unused systemTheme
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -69,8 +69,8 @@ export default function DashboardClient({ user, stats, recentActivity }: Dashboa
   if (!mounted) {
     return (
       <div className="flex h-full">
-        <DesktopSidebar />
-        <MobileHeader />
+        <DesktopSidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+        <MobileHeader activeTab={activeTab} setActiveTab={setActiveTab} />
         <main className="flex-1 md:pl-64 pt-16 md:pt-0">
           <div className="py-6 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto">
             <div className="animate-pulse">Loading...</div>

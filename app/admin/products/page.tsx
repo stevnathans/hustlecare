@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import ProductFormModal from '@/components/product/ProductFormModal';
+import Image from 'next/image';
 
 type Vendor = {
   id: number;
@@ -16,6 +17,7 @@ type Product = {
   description: string;
   price: number;
   image: string;
+  url: string; // Added URL field to match ProductFormModal
   vendorId: number | null;
   vendor: Vendor | null;
 };
@@ -87,9 +89,11 @@ export default function ProductsPage() {
       return (
         <div className="flex items-center">
           {product.vendor.logo && (
-            <img 
+            <Image 
               src={product.vendor.logo} 
               alt={product.vendor.name} 
+              width={100} 
+              height={60}
               className="w-6 h-6 mr-2 object-contain" 
             />
           )}
@@ -143,6 +147,7 @@ export default function ProductsPage() {
             <th className="p-2 border">Description</th>
             <th className="p-2 border">Vendor</th>
             <th className="p-2 border">Price</th>
+            <th className="p-2 border">URL</th>
             <th className="p-2 border">Actions</th>
           </tr>
         </thead>
@@ -152,7 +157,12 @@ export default function ProductsPage() {
               <tr key={product.id}>
                 <td className="border p-2">
                   {product.image ? (
-                    <img src={product.image} alt="" className="w-12 h-12 object-cover" />
+                    <Image 
+                    src={product.image} 
+                    alt="" 
+                    width={100} 
+                    height={100}
+                    className="w-12 h-12 object-cover" />
                   ) : (
                     '—'
                   )}
@@ -161,6 +171,20 @@ export default function ProductsPage() {
                 <td className="border p-2">{product.description}</td>
                 <td className="border p-2">{renderVendorInfo(product)}</td>
                 <td className="border p-2">KES {product.price?.toLocaleString()}</td>
+                <td className="border p-2">
+                  {product.url ? (
+                    <a 
+                      href={product.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      View Product
+                    </a>
+                  ) : (
+                    '—'
+                  )}
+                </td>
                 <td className="border p-2">
                   <button
                     className="text-blue-600 hover:underline mr-2"
@@ -179,7 +203,7 @@ export default function ProductsPage() {
             ))
           ) : (
             <tr>
-              <td colSpan={6} className="p-4 text-center">No products found</td>
+              <td colSpan={7} className="p-4 text-center">No products found</td>
             </tr>
           )}
         </tbody>

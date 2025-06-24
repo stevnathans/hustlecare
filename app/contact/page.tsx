@@ -12,14 +12,14 @@ export default function ContactSection() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     });
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     setIsLoading(true);
     
@@ -64,8 +64,8 @@ export default function ContactSection() {
             Get In Touch
           </h2>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Have a question or want to work together? We'd love to hear from you.
-            Send us a message and we'll respond as soon as possible.
+            Have a question or want to work together? We&apos;d love to hear from you.
+            Send us a message and we&apos;ll respond as soon as possible.
           </p>
         </div>
 
@@ -149,6 +149,7 @@ export default function ContactSection() {
 
               <button
                 type="submit"
+                onClick={handleSubmit}
                 disabled={isLoading}
                 className="w-full bg-gradient-to-r from-emerald-600 to-green-600 text-white py-4 px-6 rounded-lg font-semibold text-lg hover:from-emerald-700 hover:to-green-700 focus:ring-4 focus:ring-emerald-300 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed transform hover:scale-[1.02] active:scale-[0.98]"
               >

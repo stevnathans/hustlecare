@@ -44,6 +44,7 @@ export default function SignIn() {
         // Redirect to callbackUrl or home page
         router.push(callbackUrl)
       }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
       setError("An error occurred. Please try again.")
     } finally {

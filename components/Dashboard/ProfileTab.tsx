@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { User, Mail, Phone, Calendar, Save, Upload, X, CheckCircle, AlertCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -123,7 +124,6 @@ export default function ProfileTab({ user }: ProfileTabProps) {
       });
 
       if (response.ok) {
-        const data = await response.json();
         setMessage({ type: 'success', text: 'Profile updated successfully!' });
         
         // Clear the image file state since it's now uploaded
@@ -184,10 +184,13 @@ export default function ProfileTab({ user }: ProfileTabProps) {
             <div className="relative">
               <div className="w-24 h-24 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center overflow-hidden">
                 {previewUrl || user.image ? (
-                  <img
+                  <Image
                     src={previewUrl || user.image!}
                     alt="Profile"
+                    width={96}
+                    height={96}
                     className="w-full h-full object-cover"
+                    priority
                   />
                 ) : (
                   <User className="w-12 h-12 text-gray-400 dark:text-gray-500" />

@@ -15,6 +15,20 @@ interface SavedBusiness {
   slug: string;
 }
 
+// Add interface for the API response structure
+interface ApiBusinessList {
+  businessId: string;
+  businessName: string;
+  totalCost: number;
+  totalItems: number;
+  updatedAt: string;
+  businessSlug: string;
+}
+
+interface ApiResponse {
+  lists: ApiBusinessList[];
+}
+
 export default function MyListsTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,8 +50,8 @@ export default function MyListsTab() {
           throw new Error("Failed to load saved businesses");
         }
 
-        const data = await response.json();
-        const mappedBusinesses: SavedBusiness[] = data.lists.map((list: any) => ({
+        const data: ApiResponse = await response.json();
+        const mappedBusinesses: SavedBusiness[] = data.lists.map((list: ApiBusinessList) => ({
           id: list.businessId,
           name: list.businessName,
           totalCost: list.totalCost,

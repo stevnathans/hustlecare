@@ -136,6 +136,11 @@ export default function ProductFormModal({
     }
   };
 
+  // Helper function to get selected vendor
+  const getSelectedVendor = () => {
+    return vendors.find(v => v.id.toString() === formData.vendorId);
+  };
+
   if (!open) return null;
 
   return (
@@ -241,12 +246,12 @@ export default function ProductFormModal({
               )}
             </div>
 
-            {formData.vendorId && (
+            {formData.vendorId && getSelectedVendor() && (
               <div className="mt-4 p-3 bg-gray-50 rounded-md">
                 <h4 className="text-sm font-medium text-gray-700">Selected Vendor Details</h4>
-                {vendors.find(v => v.id.toString() === formData.vendorId)?.logo && (
+                {getSelectedVendor()?.logo && (
                   <Image 
-                    src={vendors.find(v => v.id.toString() === formData.vendorId)?.logo} 
+                    src={getSelectedVendor()!.logo} 
                     alt="Vendor logo" 
                     width={100} 
                     height={60} 
@@ -255,12 +260,12 @@ export default function ProductFormModal({
                 )}
                 <p className="text-sm mt-1">
                   <a 
-                    href={vendors.find(v => v.id.toString() === formData.vendorId)?.website} 
+                    href={getSelectedVendor()?.website} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:underline"
                   >
-                    {vendors.find(v => v.id.toString() === formData.vendorId)?.website}
+                    {getSelectedVendor()?.website}
                   </a>
                 </p>
               </div>

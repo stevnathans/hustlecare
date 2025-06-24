@@ -9,6 +9,7 @@ export async function GET() {
       orderBy: { name: 'asc' },
     });
     return NextResponse.json(vendors);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (error) {
     return NextResponse.json(
       { error: 'Failed to fetch vendors' },

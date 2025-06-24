@@ -10,6 +10,35 @@ interface BusinessHeaderProps {
   totalRequirements: number;
 }
 
+interface SchemaOrganization {
+  "@type": "Organization";
+  name: string;
+  url: string;
+}
+
+interface SchemaAreaServed {
+  "@type": "Country";
+  name: string;
+  sameAs: string;
+}
+
+interface SchemaOffer {
+  "@type": "Offer";
+  description: string;
+  priceRange: string;
+  priceCurrency: string;
+}
+
+interface BusinessSchema {
+  "@context": string;
+  "@type": "Service";
+  name: string;
+  description: string;
+  provider: SchemaOrganization;
+  areaServed: SchemaAreaServed;
+  offers?: SchemaOffer;
+}
+
 const BusinessHeader: React.FC<BusinessHeaderProps> = ({
   businessName,
   unfilteredLowPrice,
@@ -28,7 +57,7 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
   };
 
   const generateBusinessSchema = () => {
-    const baseSchema: any = {
+    const baseSchema: BusinessSchema = {
       "@context": "https://schema.org",
       "@type": "Service",
       "name": `${businessName} Business Startup Guide`,
@@ -188,7 +217,7 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
                             ? formatPrice(unfilteredLowPrice)
                             : `${formatPrice(unfilteredLowPrice)} to ${formatPrice(unfilteredHighPrice)}`
                           }
-                        </strong>, you'll be positioned to address{' '}
+                        </strong>, you&apos;ll be positioned to address{' '}
                       </>
                     ) : (
                       "You'll need to carefully consider "

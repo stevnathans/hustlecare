@@ -78,7 +78,7 @@ export async function PUT(req: NextRequest) {
   }
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     // Get the current session
     const session = await getServerSession(authOptions);

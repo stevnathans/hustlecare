@@ -1,12 +1,12 @@
 // app/api/user/delete-account/route.ts
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-export async function DELETE(req: NextRequest) {
+export async function DELETE() {
   try {
     // Get the current session
     const session = await getServerSession(authOptions);
@@ -122,14 +122,6 @@ export async function DELETE(req: NextRequest) {
 
   } catch (error) {
     console.error('Error deleting account:', error);
-    
-    // Check if it's a foreign key constraint error
-    if (error.code === 'P2003') {
-      return NextResponse.json(
-        { error: 'Cannot delete account due to data dependencies. Please contact support.' },
-        { status: 400 }
-      );
-    }
 
     return NextResponse.json(
       { error: 'Internal server error while deleting account' },
