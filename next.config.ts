@@ -11,7 +11,8 @@ const nextConfig: NextConfig = {
      'healthkenya.co.ke',
      'hauzisha.co.ke',
      'encrypted-tbn0.gstatic.com',
-     'dynamic-media-cdn.tripadvisor.com'
+     'dynamic-media-cdn.tripadvisor.com',
+     'storage.googleapis.com'
       // Add any other domains you use
     ],
   },

@@ -42,7 +42,7 @@ interface DashboardClientProps {
 
 export default function DashboardClient({ user, stats, recentActivity }: DashboardClientProps) {
   const [activeTab, setActiveTab] = useState("dashboard");
-  const { theme, setTheme } = useTheme(); // Removed unused systemTheme
+  const { theme, setTheme } = useTheme(); 
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {

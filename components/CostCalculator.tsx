@@ -209,7 +209,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
               <span className="text-white text-sm">{formatItemCount(overallTotalItems)}</span>
             </div>
             <div className="text-right">
-              <span className="text-white font-bold text-lg">${totalCost.toFixed(2)}</span>
+              <span className="text-white font-bold text-lg">KSh {totalCost.toFixed(2)}</span>
               <p className="text-white text-opacity-80 text-xs">Estimated Cost</p>
             </div>
           </div>
@@ -286,7 +286,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
                   </div>
                   <div className="text-right">
                     <span className="text-sm text-gray-600 block">{formatItemCount(category.categoryTotalItems)}</span>
-                    <span className="text-sm font-medium text-green-600 block">${category.categorySubtotal.toFixed(2)}</span>
+                    <span className="text-sm font-medium text-green-600 block">KSh {category.categorySubtotal.toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -329,7 +329,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
                               )}
                               <div className="flex-grow">
                                 <h5 className="font-normal text-sm text-gray-800">{item.name}</h5>
-                                <p className="text-xs text-gray-500">${item.price.toFixed(2)}</p>
+                                <p className="text-xs text-gray-500">KSh {item.price.toFixed(2)}</p>
                               </div>
                               <div className="flex items-center space-x-1.5 ml-2">
                                 <button
@@ -369,7 +369,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
           <div className="border-t border-gray-200 pt-4">
             <div className="flex justify-between items-center text-xl font-semibold text-gray-800">
               <span>Total Estimated Cost:</span>
-              <span>${totalCost.toFixed(2)}</span>
+              <span>KSh {totalCost.toFixed(2)}</span>
             </div>
           </div>
           

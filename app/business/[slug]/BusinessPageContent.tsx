@@ -174,7 +174,7 @@ export default function BusinessPage({ params }: BusinessPageProps) {
             business={business} />
           </aside>
         </div>
-      </div>
+      </div> 
     </>
   );
 }

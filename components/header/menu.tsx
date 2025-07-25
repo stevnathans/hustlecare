@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Menu as MenuIcon, X, LogIn, Sparkles, Briefcase, Mail, Info, Search } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -11,10 +11,29 @@ import MenuSearchBar from "./MenuSearchBar";
 export default function Menu() {
   const [isOpen, setIsOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const router = useRouter();
   
   const isAuthenticated = status === "authenticated";
+
+  // Check for profile updates periodically
+  useEffect(() => {
+    if (isAuthenticated) {
+      const checkForUpdates = async () => {
+        try {
+          // Update session to get latest user data
+          await update();
+        } catch (error) {
+          console.error('Error updating session:', error);
+        }
+      };
+
+      // Check for updates every 30 seconds when user is authenticated
+      const interval = setInterval(checkForUpdates, 30000);
+
+      return () => clearInterval(interval);
+    }
+  }, [isAuthenticated, update]);
 
   const handleDashboardClick = () => {
     router.push('/dashboard');
@@ -120,7 +139,6 @@ export default function Menu() {
                     <span className="text-sm font-semibold text-gray-900 dark:text-white group-hover:text-emerald-700 dark:group-hover:text-emerald-300 transition-colors duration-200">
                       {session?.user?.name || "User"}
                     </span>
-                  
                   </div>
                 </button>
                 
@@ -205,7 +223,7 @@ export default function Menu() {
               {/* Navigation Links */}
               <div className="space-y-2">
                 <Link
-                  href="/business"
+                  href="/businesses"
                   className="flex items-center space-x-3 px-4 py-3 rounded-xl text-base font-medium text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-all duration-200"
                   onClick={() => setIsOpen(false)}
                 >
