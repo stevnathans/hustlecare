@@ -47,6 +47,9 @@ export default function BusinessCard({
     }, 0);
   }, [groupedRequirements]);
 
+  // Determine if cost estimate is available based on requirements
+  const costEstimateAvailable = totalRequirements > 0;
+
   return (
     <div className="group relative bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 h-full flex flex-col border border-gray-100">
       {/* Gradient overlay for premium feel */}
@@ -116,10 +119,10 @@ export default function BusinessCard({
                 <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Cost Estimate</span>
               </div>
               <div className="text-sm font-semibold text-gray-900">
-                Available
+                {costEstimateAvailable ? 'Available' : 'Not available'}
               </div>
               <div className="text-xs text-gray-600">
-                View details
+                {costEstimateAvailable ? 'View details' : 'No requirements'}
               </div>
             </div>
           </div>

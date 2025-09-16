@@ -62,113 +62,142 @@ export const authOptions: NextAuthOptions = {
       },
     }),
   ],
-  callbacks: {
-    async signIn({ user, account, profile }) {
-      console.log("Sign in callback triggered for:", profile?.email);
-      
-      if (account?.provider === "google" && profile?.email) {
-        try {
-          let existingUser = await prisma.user.findUnique({
-            where: { email: profile.email },
+ 
+callbacks: {
+  async signIn({ user, account, profile }) {
+    console.log("Sign in callback triggered for:", profile?.email);
+    
+    if (account?.provider === "google" && profile?.email) {
+      try {
+        let existingUser = await prisma.user.findUnique({
+          where: { email: profile.email },
+        });
+
+        if (!existingUser) {
+          // Validate required fields
+          if (!profile.name) {
+            throw new Error('Google profile is missing required name field');
+          }
+
+          existingUser = await prisma.user.create({
+            data: {
+              email: profile.email,
+              name: profile.name,
+              image: profile.image as string || null,
+              emailVerified: new Date(),
+              role: 'user',
+              emailNotifications: true,
+              pushNotifications: false,
+              marketingEmails: true
+            },
           });
-
-          if (!existingUser) {
-            // Validate required fields
-            if (!profile.name) {
-              throw new Error('Google profile is missing required name field');
-            }
-
-            existingUser = await prisma.user.create({
+          
+          if (account) {
+            await prisma.account.create({
               data: {
-                email: profile.email,
-                name: profile.name,
-                image: profile.image as string || null,
-                emailVerified: new Date(),
-                role: 'user',
-                emailNotifications: true,
-                pushNotifications: false,
-                marketingEmails: true
+                userId: existingUser.id,
+                type: account.type,
+                provider: account.provider,
+                providerAccountId: account.providerAccountId,
+                access_token: account.access_token,
+                refresh_token: account.refresh_token,
+                expires_at: account.expires_at,
+                token_type: account.token_type,
+                scope: account.scope,
+                id_token: account.id_token,
               },
             });
-            
-            if (account) {
-              await prisma.account.create({
-                data: {
-                  userId: existingUser.id,
-                  type: account.type,
-                  provider: account.provider,
-                  providerAccountId: account.providerAccountId,
-                  access_token: account.access_token,
-                  refresh_token: account.refresh_token,
-                  expires_at: account.expires_at,
-                  token_type: account.token_type,
-                  scope: account.scope,
-                  id_token: account.id_token,
-                },
-              });
-            }
-          } else {
-            if (account && !await prisma.account.findFirst({ 
-              where: { 
-                userId: existingUser.id,
-                provider: account.provider,
-                providerAccountId: account.providerAccountId 
-              }
-            })) {
-              await prisma.account.create({
-                data: {
-                  userId: existingUser.id,
-                  type: account.type,
-                  provider: account.provider,
-                  providerAccountId: account.providerAccountId,
-                  access_token: account.access_token,
-                  refresh_token: account.refresh_token,
-                  expires_at: account.expires_at,
-                  token_type: account.token_type,
-                  scope: account.scope,
-                  id_token: account.id_token,
-                },
-              });
-            }
-
-            if (existingUser && (
-              (profile.name && existingUser.name !== profile.name) || 
-              (profile.image && existingUser.image !== profile.image)
-            )) {
-              await prisma.user.update({
-                where: { id: existingUser.id },
-                data: {
-                  name: profile.name,
-                  image: profile.image as string || existingUser.image,
-                },
-              });
-            }
-            
-            if (existingUser && user) {
-              user.id = existingUser.id;
-            }
           }
-        } catch (error) {
-          console.error("Error in Google sign-in process:", error);
-          return false;
+        } else {
+          if (account && !await prisma.account.findFirst({ 
+            where: { 
+              userId: existingUser.id,
+              provider: account.provider,
+              providerAccountId: account.providerAccountId 
+            }
+          })) {
+            await prisma.account.create({
+              data: {
+                userId: existingUser.id,
+                type: account.type,
+                provider: account.provider,
+                providerAccountId: account.providerAccountId,
+                access_token: account.access_token,
+                refresh_token: account.refresh_token,
+                expires_at: account.expires_at,
+                token_type: account.token_type,
+                scope: account.scope,
+                id_token: account.id_token,
+              },
+            });
+          }
+
+          if (existingUser && (
+            (profile.name && existingUser.name !== profile.name) || 
+            (profile.image && existingUser.image !== profile.image)
+          )) {
+            await prisma.user.update({
+              where: { id: existingUser.id },
+              data: {
+                name: profile.name,
+                image: profile.image as string || existingUser.image,
+              },
+            });
+          }
+          
+          if (existingUser && user) {
+            user.id = existingUser.id;
+          }
         }
+      } catch (error) {
+        console.error("Error in Google sign-in process:", error);
+        return false;
       }
-      
-      return true;
-    },
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (token?.id && session.user) {
-        session.user.id = token.id as string;
-      }
-      return session;
-    },
+    }
+    
+    return true;
   },
+  async jwt({ token, user, trigger }) {
+    if (user) {
+      token.id = user.id;
+    }
+    
+    // Only fetch fresh data when session is explicitly updated
+    if (trigger === 'update' && token.id) {
+      try {
+        const freshUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+          },
+        });
+        
+        if (freshUser) {
+          token.name = freshUser.name;
+          token.email = freshUser.email;
+          token.picture = freshUser.image;
+        }
+      } catch (error) {
+        console.error("Error fetching fresh user data in JWT callback:", error);
+      }
+    }
+    
+    return token;
+  },
+  async session({ session, token }) {
+    if (token?.id && session.user) {
+      session.user.id = token.id as string;
+      // Use token data (which gets updated when trigger === 'update')
+      session.user.name = token.name as string;
+      session.user.email = token.email as string;
+      session.user.image = token.picture as string;
+    }
+    return session;
+  },
+},
   pages: {
     signIn: '/signin',
     error: '/signin',
