@@ -372,8 +372,7 @@ export default function SearchPage() {
                   name={business.name}
                   image={business.image}
                   slug={business.slug}
-                  groupedRequirements={business.groupedRequirements}
-                />
+                  groupedRequirements={business.groupedRequirements} requirements={[]} sortedCategories={[]}                />
               ))}
             </div>
 

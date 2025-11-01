@@ -14,7 +14,7 @@ import { Requirement } from "@prisma/client";
 type Business = {
   sortedCategories: string[];
   groupedRequirements: Record<string, Requirement[]>;
-  requirements: Requirement[] | undefined;
+  requirements: Requirement[];
   id: string;
   name: string;
   image: string;

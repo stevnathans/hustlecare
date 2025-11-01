@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
@@ -22,6 +23,7 @@ type CartContextType = {
   error: string | null;
   totalCost: number;
   totalItems: number;
+  fetchCart: (businessId: number) => Promise<void>;
   addToCart: (product: Omit<CartItem, 'id' | 'quantity'>) => Promise<void>;
   removeFromCart: (productId: string | number) => Promise<void>; // Updated parameter type
   updateQuantity: (productId: string | number, quantity: number) => Promise<void>; // Updated parameter type
@@ -30,6 +32,7 @@ type CartContextType = {
   clearRequirement: (requirementName: string, category: string) => Promise<void>;
   switchBusiness: (businessId: number) => Promise<void>;
   saveCart: (name?: string) => Promise<{ success: boolean; cartId?: string }>;
+  
 };
 
 // Create the context with default values
@@ -40,14 +43,17 @@ const CartContext = createContext<CartContextType>({
   error: null,
   totalCost: 0,
   totalItems: 0,
-  addToCart: async () => {},
-  removeFromCart: async () => {},
-  updateQuantity: async () => {},
-  clearCart: async () => {},
-  clearCategory: async () => {},
-  clearRequirement: async () => {},
-  switchBusiness: async () => {},
+  addToCart: async () => { },
+  removeFromCart: async () => { },
+  updateQuantity: async () => { },
+  clearCart: async () => { },
+  clearCategory: async () => { },
+  clearRequirement: async () => { },
+  switchBusiness: async () => { },
   saveCart: async () => ({ success: false }),
+  fetchCart: function (businessId: number): Promise<void> {
+    throw new Error('Function not implemented.');
+  }
 });
 
 // Props for the provider component
@@ -75,12 +81,12 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
   // Load cart from server when businessId changes
   useEffect(() => {
     if (businessId !== null) {
-      loadCart(businessId);
+      fetchCart(businessId);
     }
   }, [businessId]);
 
   // Function to load cart from the server
-  const loadCart = async (businessId: number) => {
+  const fetchCart = async (businessId: number) => {
     try {
       setLoading(true);
       setError(null);
@@ -321,7 +327,7 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
   const switchBusiness = async (newBusinessId: number) => {
     if (businessId === newBusinessId) return;
     setBusinessId(newBusinessId);
-    // loadCart will be triggered by the useEffect
+    
   };
 
   // Save cart for sharing
@@ -371,6 +377,7 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
         error,
         totalCost,
         totalItems,
+        fetchCart,
         addToCart,
         removeFromCart,
         updateQuantity,

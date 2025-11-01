@@ -6,6 +6,7 @@ interface BusinessPageProps {
   params: Promise<{
     slug: string;
   }>;
+  
 }
 
 // Server-side function to fetch business data for metadata
@@ -225,7 +226,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
       {/* Client Component */}
       <BusinessPageContent 
         params={params} 
-        initialData={initialBusinessData}
+        
       />
     </>
   );

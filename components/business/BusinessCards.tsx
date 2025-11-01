@@ -23,6 +23,8 @@ type BusinessCardProps = {
   slug: string;
   category?: string;
   estimatedCost?: string;
+  requirements: Requirement[]; 
+  sortedCategories: string[];
   timeToLaunch?: string;
   groupedRequirements?: Record<string, Requirement[]>;
 };

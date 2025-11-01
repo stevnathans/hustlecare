@@ -339,8 +339,7 @@ export default function BusinessesPage() {
                         category={biz.category}
                         estimatedCost={biz.estimatedCost}
                         timeToLaunch={biz.timeToLaunch}
-                        groupedRequirements={biz.groupedRequirements}
-                      />
+                        groupedRequirements={biz.groupedRequirements} requirements={[]} sortedCategories={[]}                      />
                     ))}
                   </div>
                 ) : (
