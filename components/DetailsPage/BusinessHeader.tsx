@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { CheckCircle, Package, Target } from 'lucide-react';
 
 interface BusinessHeaderProps {
   businessName: string;
@@ -10,33 +11,27 @@ interface BusinessHeaderProps {
   totalRequirements: number;
 }
 
-interface SchemaOrganization {
-  "@type": "Organization";
-  name: string;
-  url: string;
-}
-
-interface SchemaAreaServed {
-  "@type": "Country";
-  name: string;
-  sameAs: string;
-}
-
-interface SchemaOffer {
-  "@type": "Offer";
-  description: string;
-  priceRange: string;
-  priceCurrency: string;
-}
-
 interface BusinessSchema {
   "@context": string;
   "@type": "Service";
   name: string;
   description: string;
-  provider: SchemaOrganization;
-  areaServed: SchemaAreaServed;
-  offers?: SchemaOffer;
+  provider: {
+    "@type": "Organization";
+    name: string;
+    url: string;
+  };
+  areaServed: {
+    "@type": "Country";
+    name: string;
+    sameAs: string;
+  };
+  offers?: {
+    "@type": "Offer";
+    description: string;
+    priceRange: string;
+    priceCurrency: string;
+  };
 }
 
 const BusinessHeader: React.FC<BusinessHeaderProps> = ({
@@ -47,6 +42,8 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
   optionalCount,
   totalRequirements
 }) => {
+  const [budgetScale, setBudgetScale] = useState<'small' | 'medium' | 'large'>('medium');
+
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-KE', {
       style: 'currency',
@@ -56,8 +53,23 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
     }).format(price);
   };
 
-  const generateBusinessSchema = () => {
-    const baseSchema: BusinessSchema = {
+  const hasPricing = unfilteredLowPrice > 0;
+  const priceRange = unfilteredLowPrice === unfilteredHighPrice
+    ? formatPrice(unfilteredLowPrice)
+    : `${formatPrice(unfilteredLowPrice)} - ${formatPrice(unfilteredHighPrice)}`;
+
+  const budgetScales = {
+    small: { multiplier: 0.6, label: "Small Scale" },
+    medium: { multiplier: 1, label: "Medium Scale" },
+    large: { multiplier: 1.5, label: "Large Scale" }
+  };
+
+  const calculateScaledPrice = (price: number) => {
+    return Math.round(price * budgetScales[budgetScale].multiplier);
+  };
+
+  const generateBusinessSchema = (): BusinessSchema => {
+    const schema: BusinessSchema = {
       "@context": "https://schema.org",
       "@type": "Service",
       "name": `${businessName} Business Startup Guide`,
@@ -74,161 +86,174 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
       }
     };
 
-    if (unfilteredLowPrice > 0) {
-      baseSchema.offers = {
+    if (hasPricing) {
+      schema.offers = {
         "@type": "Offer",
         "description": `Startup cost estimate for ${businessName} business`,
-        "priceRange": unfilteredLowPrice === unfilteredHighPrice
-          ? formatPrice(unfilteredLowPrice)
-          : `${formatPrice(unfilteredLowPrice)}-${formatPrice(unfilteredHighPrice)}`,
+        "priceRange": priceRange,
         "priceCurrency": "KES"
       };
     }
 
-    return (
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(baseSchema) }}
-      />
-    );
+    return schema;
   };
+
+  const StatCard = ({ icon: Icon, label, value, valueColor = "text-slate-900" }: {
+    icon: React.ElementType;
+    label: string;
+    value: React.ReactNode;
+   
+    valueColor?: string;
+  }) => (
+    <div className="group bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-all duration-300 border border-slate-200/60">
+      <div className="flex items-start gap-4">
+        <div className="p-2.5 bg-gradient-to-br from-emerald-50 to-blue-50 rounded-lg group-hover:scale-110 transition-transform duration-300">
+          <Icon className="w-5 h-5 text-emerald-600" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+            {label}
+          </h3>
+          <div className={`text-2xl font-bold ${valueColor} mb-1`}>
+            {value}
+          </div>
+          
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <>
-      {generateBusinessSchema()}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(generateBusinessSchema()) }}
+      />
 
-      <div className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-white to-blue-50 border-b border-slate-200">
-        <div className="absolute inset-0 opacity-30">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/50 to-blue-50/50"></div>
-          <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-l from-emerald-100/30 to-transparent rounded-full transform translate-x-32 -translate-y-32"></div>
-          <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-r from-blue-100/30 to-transparent rounded-full transform -translate-x-32 translate-y-32"></div>
+      <div className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-white to-blue-50/30">
+        {/* Background Decorations */}
+        <div className="absolute inset-0 opacity-40">
+          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-radial from-emerald-100/40 via-transparent to-transparent rounded-full blur-3xl transform translate-x-1/3 -translate-y-1/3" />
+          <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gradient-radial from-blue-100/40 via-transparent to-transparent rounded-full blur-3xl transform -translate-x-1/3 translate-y-1/3" />
         </div>
-        
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-16">
-          {/* Header Section */}
+
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-20">
+          {/* Hero Section */}
           <div className="text-center mb-12">
-            <div className="inline-flex items-center px-4 py-2 rounded-full bg-emerald-100 text-emerald-800 text-sm font-medium mb-6">
-              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 border border-emerald-200/50 text-emerald-700 text-sm font-medium mb-6 shadow-sm">
+              <CheckCircle className="w-4 h-4" />
               Complete Business Guide
             </div>
-            
-            <h1 className="text-4xl lg:text-5xl font-bold text-slate-900 leading-tight mb-6">
-              Start Your <span className="text-emerald-600">{businessName}</span> Business in Kenya
+
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 leading-tight mb-6 tracking-tight">
+              Start Your{' '}
+              <span className="bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
+                {businessName}
+              </span>
+              {' '}Business
             </h1>
-            
-            <p className="text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed">
-              Comprehensive requirements, cost estimates, and essential resources to launch your {businessName} business successfully in the Kenyan market.
+
+            <p className="text-lg sm:text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed">
+              Comprehensive requirements, cost estimates, and essential resources to launch successfully in the Kenyan market
             </p>
           </div>
 
-          
+          {/* Interactive Cost Calculator */}
+          <div className="mb-10">
+            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-slate-200/60">
+              <div className="max-w-3xl mx-auto">
+                <h3 className="text-lg font-semibold text-slate-900 mb-4 text-center">
+                  Adjust Your Budget Scenario
+                </h3>
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  {(Object.keys(budgetScales) as Array<keyof typeof budgetScales>).map(scale => (
+                    <button
+                      key={scale}
+                      onClick={() => setBudgetScale(scale)}
+                      className={`px-4 py-3 rounded-lg font-medium transition-all duration-300 ${
+                        budgetScale === scale
+                          ? 'bg-emerald-600 text-white shadow-md'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {budgetScales[scale].label}
+                    </button>
+                  ))}
+                </div>
+                {hasPricing && (
+                  <div className="text-center p-4 bg-gradient-to-r from-emerald-50 to-blue-50 rounded-lg">
+                    <p className="text-sm text-slate-600 mb-1">Estimated Cost for {budgetScales[budgetScale].label}</p>
+                    <p className="text-3xl font-bold text-emerald-700">
+                      {formatPrice(calculateScaledPrice(unfilteredLowPrice))} - {formatPrice(calculateScaledPrice(unfilteredHighPrice))}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
 
-          {/* Description Section */}
-          <div className="bg-white rounded-2xl p-8 lg:p-10 shadow-lg border border-slate-200">
+          {/* Stats Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
+            <StatCard
+              icon={Package}
+              label="Total Requirements"
+              value={totalRequirements}
+              
+              valueColor="text-blue-600"
+            />
+
+            <StatCard
+              icon={Target}
+              label="Breakdown"
+              value={
+                <div className="flex items-center gap-4">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-emerald-600">{requiredCount}</span>
+                    <span className="text-xs text-slate-500 font-normal">Essential</span>
+                  </div>
+                  <div className="w-px h-6 bg-slate-200" />
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-amber-600">{optionalCount}</span>
+                    <span className="text-xs text-slate-500 font-normal">Optional</span>
+                  </div>
+                </div>
+              }
+              
+            />
+          </div>
+
+          {/* Content Card */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 lg:p-10 shadow-lg border border-slate-200/60">
             <div className="max-w-4xl mx-auto">
               <div className="text-center mb-8">
                 <h2 className="text-2xl lg:text-3xl font-bold text-slate-900 mb-4">
                   {businessName} Business Overview
                 </h2>
-                <div className="w-24 h-1 bg-gradient-to-r from-emerald-500 to-blue-500 mx-auto rounded-full"></div>
+                <div className="w-20 h-1 bg-gradient-to-r from-emerald-500 to-blue-500 mx-auto rounded-full" />
               </div>
 
-              {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-            {/* Cost Card */}
-            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-200">
-              <div className="text-center">
-                <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">
-                  Estimated Cost
-                </h3>
-                <div className="text-2xl lg:text-3xl font-bold text-slate-900 mb-2">
-                  {unfilteredLowPrice === 0 && unfilteredHighPrice === 0 ? (
-                    <span className="text-slate-400">Calculating...</span>
-                  ) : (
-                    <>
-                      {unfilteredLowPrice === unfilteredHighPrice ? (
-                        <span itemProp="price" className="text-emerald-600">
-                          {formatPrice(unfilteredLowPrice)}
-                        </span>
-                      ) : (
-                        <span itemProp="priceRange" className="text-emerald-600">
-                          {formatPrice(unfilteredLowPrice)} - {formatPrice(unfilteredHighPrice)}
-                        </span>
-                      )}
-                    </>
-                  )}
-                </div>
-                <p className="text-slate-500 text-sm">
-                  Required capital in Kenya
-                </p>
-              </div>
-            </div>
-
-            {/* Requirements Card */}
-            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-200">
-              <div className="text-center">
-                <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">
-                  Total Requirements
-                </h3>
-                <div className="text-2xl lg:text-3xl font-bold text-blue-600 mb-2">
-                  {totalRequirements}
-                </div>
-                <p className="text-slate-500 text-sm">
-                  Items to consider
-                </p>
-              </div>
-            </div>
-
-            {/* Breakdown Card */}
-            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-200">
-              <div className="text-center">
-                <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">
-                  Requirement Breakdown
-                </h3>
-                <div className="flex items-center justify-center gap-6">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-emerald-600">{requiredCount}</div>
-                    <div className="text-xs text-slate-500 font-medium">Essential</div>
-                  </div>
-                  <div className="w-px h-8 bg-slate-200"></div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-amber-600">{optionalCount}</div>
-                    <div className="text-xs text-slate-500 font-medium">Optional</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-              
-              <div className="prose prose-lg prose-slate max-w-none">
-                <p className="text-slate-700 leading-relaxed mb-6 text-lg">
-                  Launching a successful <strong className="text-slate-900">{businessName}</strong> business in Kenya requires strategic planning and comprehensive market understanding. Our expertly crafted guide provides you with everything needed to navigate the local business landscape confidently.
+              <div className="space-y-6 text-slate-700 leading-relaxed">
+                <p className="text-lg">
+                  Launching a successful <span className="font-semibold text-slate-900">{businessName}</span> business in Kenya requires strategic planning and comprehensive market understanding. Our expertly crafted guide provides everything needed to navigate the local business landscape confidently.
                 </p>
 
-                <div className="bg-slate-50 rounded-xl p-6 mb-6 border-l-4 border-emerald-500">
-                  <p className="text-slate-700 leading-relaxed mb-0">
-                    {unfilteredLowPrice > 0 ? (
+                <div className="bg-gradient-to-r from-emerald-50 to-blue-50 rounded-xl p-6 border-l-4 border-emerald-500 shadow-sm">
+                  <p className="text-base">
+                    {hasPricing ? (
                       <>
                         With a strategic investment of{' '}
-                        <strong className="text-emerald-600 font-semibold">
-                          {unfilteredLowPrice === unfilteredHighPrice 
-                            ? formatPrice(unfilteredLowPrice)
-                            : `${formatPrice(unfilteredLowPrice)} to ${formatPrice(unfilteredHighPrice)}`
-                          }
-                        </strong>, you&apos;ll be positioned to address{' '}
+                        <span className="font-bold text-emerald-700">{priceRange}</span>, you'll be positioned to address{' '}
                       </>
                     ) : (
                       "You'll need to carefully consider "
                     )}
-                    <strong className="text-blue-600 font-semibold">{totalRequirements} critical requirements</strong> — including{' '}
-                    <span className="text-emerald-600 font-semibold">{requiredCount} essential components</span> and{' '}
-                    <span className="text-amber-600 font-semibold">{optionalCount} strategic enhancements</span> that will set your business apart.
+                    <span className="font-bold text-blue-700">{totalRequirements} critical requirements</span> — including{' '}
+                    <span className="font-bold text-emerald-700">{requiredCount} essential components</span> and{' '}
+                    <span className="font-bold text-amber-700">{optionalCount} strategic enhancements</span> that will set your business apart.
                   </p>
                 </div>
 
-                <p className="text-slate-700 leading-relaxed mb-0">
+                <p className="text-base">
                   Our interactive checklist below guides you through each category with detailed explanations, vetted product recommendations, and personalized cost calculations. Every requirement is carefully analyzed to help you make informed decisions that align with your {businessName} business goals and budget.
                 </p>
               </div>

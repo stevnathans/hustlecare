@@ -22,6 +22,7 @@ export default function BusinessPage({ params }: BusinessPageProps) {
     requirements,
     products,
     error,
+    isLoading,
     groupedRequirements,
     sortedCategories
   } = useBusinessData(slug);
@@ -45,8 +46,8 @@ export default function BusinessPage({ params }: BusinessPageProps) {
     handleCategorySearchChange
   } = useFilterState(requirements, products, groupedRequirements, sortedCategories);
 
-  // Handle 404 case properly
-  if (error === 'Business not found' || (!business && !error)) {
+  // Handle 404 case - only show when error explicitly says "not found"
+  if (error === 'Business not found') {
     return (
       <div className="container mx-auto px-4 py-8 text-center">
         <h1 className="text-4xl font-bold mb-4">Business Not Found</h1>
@@ -54,12 +55,13 @@ export default function BusinessPage({ params }: BusinessPageProps) {
           The business you&apos;re looking for doesn&apos;t exist or has been moved.
         </p>
         <Link href="/" className="text-blue-600 hover:underline">
-  Return to Home
-</Link>
+          Return to Home
+        </Link>
       </div>
     );
   }
 
+  // Handle other errors
   if (error) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -71,6 +73,7 @@ export default function BusinessPage({ params }: BusinessPageProps) {
     );
   }
 
+  // Show loading state while data is being fetched
   if (!business) {
     return (
       <div className="container mx-auto px-4 py-8">

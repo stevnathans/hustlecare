@@ -50,32 +50,16 @@ const CategorySection: React.FC<CategorySectionProps> = ({
   onSearchChange,
   onFilterChange
 }) => {
-  const getNoResultsMessage = () => {
-    const hasGlobalFilters = globalSearchQuery || globalFilter !== 'all';
-    const hasCategoryFilters = categoryState.searchQuery || categoryState.filter !== 'all';
-    
-    if (hasGlobalFilters && hasCategoryFilters) {
-      return 'No requirements match your global and category filters';
-    } else if (hasGlobalFilters) {
-      if (globalSearchQuery) {
-        return `No requirements in ${category} match your search for "${globalSearchQuery}"`;
-      } else {
-        return `No ${globalFilter} requirements found in ${category}`;
-      }
-    } else if (hasCategoryFilters) {
-      if (categoryState.searchQuery) {
-        return `No requirements in ${category} match your search for "${categoryState.searchQuery}"`;
-      } else {
-        return `No ${categoryState.filter} requirements found in ${category}`;
-      }
-    }
-    return `No requirements found in ${category}`;
-  };
-
   const categoryId = category.toLowerCase().replace(/\s+/g, '-');
   const requiredItems = filteredRequirements.filter(req => req.necessity.toLowerCase() === 'required');
   const optionalItems = filteredRequirements.filter(req => req.necessity.toLowerCase() === 'optional');
   const hasActiveFilters = globalSearchQuery || globalFilter !== 'all' || categoryState.searchQuery || categoryState.filter !== 'all';
+
+  // Don't render this category if there are no filtered results AND there are active global filters
+  const hasGlobalFilters = globalSearchQuery || globalFilter !== 'all';
+  if (filteredRequirements.length === 0 && hasGlobalFilters) {
+    return null;
+  }
 
   // Generate category-specific structured data
   const generateCategorySchema = () => {
@@ -220,7 +204,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
               )}
             </>
           ) : (
-            /* No Results Section - Always show when there are no filtered results */
+            /* No Results Section - Only show when no global filters are active */
             <div className="text-center py-12">
               <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6-4h6m2 5.291A7.962 7.962 0 0112 15c-2.34 0-4.29-1.175-5.5-2.958A7.963 7.963 0 016 12c0-1.657.5-3.2 1.357-4.48A7.955 7.955 0 0112 9c2.34 0 4.29 1.175 5.5 2.958A7.963 7.963 0 0118 12c0 1.657-.5 3.2-1.357 4.48z" />
@@ -229,53 +213,41 @@ const CategorySection: React.FC<CategorySectionProps> = ({
                 No {category} Requirements Found
               </h5>
               <p className="text-gray-500 text-sm mb-4">
-                {getNoResultsMessage()}
+                This category doesn&apos;t have any requirements yet, or they may be categorized differently.
               </p>
               
-              {/* Show clear filters button if there are active filters */}
-              {hasActiveFilters && (
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  {(categoryState.searchQuery || categoryState.filter !== 'all') && (
-                    <button 
-                      onClick={() => {
-                        onSearchChange('');
-                        onFilterChange('all');
-                      }}
-                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
-                    >
-                      Clear {category} Filters
-                    </button>
-                  )}
-                  <p className="text-blue-600 text-sm">
-                    {(globalSearchQuery || globalFilter !== 'all') && 
-                      'You can also clear global filters above to see all requirements.'
-                    }
-                  </p>
+              {/* Show clear filters button if there are category-level filters */}
+              {(categoryState.searchQuery || categoryState.filter !== 'all') && (
+                <div className="flex flex-col sm:flex-row gap-3 justify-center mb-4">
+                  <button 
+                    onClick={() => {
+                      onSearchChange('');
+                      onFilterChange('all');
+                    }}
+                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+                  >
+                    Clear {category} Filters
+                  </button>
                 </div>
               )}
               
-              {/* Helpful suggestions when no filters are active */}
-              {!hasActiveFilters && (
-                <div className="mt-4">
-                  <p className="text-gray-500 text-sm mb-3">
-                    This category doesn&apos;t have any requirements yet, or they may be categorized differently.
-                  </p>
-                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                    <Link 
-                      href="/business" 
-                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
-                    >
-                      Browse Other Businesses
-                    </Link>
-                    <Link 
-                      href="/contact" 
-                      className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm"
-                    >
-                      Request Requirements
-                    </Link>
-                  </div>
+              {/* Helpful suggestions */}
+              <div className="mt-4">
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <Link 
+                    href="/business" 
+                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+                  >
+                    Browse Other Businesses
+                  </Link>
+                  <Link 
+                    href="/contact" 
+                    className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm"
+                  >
+                    Request Requirements
+                  </Link>
                 </div>
-              )}
+              </div>
             </div>
           )}
         </div>
@@ -291,8 +263,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
               </span>
             ) : (
               <span>
-                {category} requirements 
-                {hasActiveFilters ? ' (no matches found)' : ' (none available)'}
+                {category} requirements (none available)
               </span>
             )}
             <a 

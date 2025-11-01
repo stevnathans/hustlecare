@@ -50,16 +50,30 @@ export const useBusinessData = (slug: string) => {
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [products, setProducts] = useState<Record<string, Product[]>>({});
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true); // NEW: Loading state
   const [groupedRequirements, setGroupedRequirements] = useState<Record<string, Requirement[]>>({});
   const [sortedCategories, setSortedCategories] = useState<string[]>([]);
 
   useEffect(() => {
     const loadBusinessData = async () => {
       try {
+        setIsLoading(true); // NEW: Set loading to true at start
         setError(null);
 
+        // Fetch business data
         const businessResponse = await fetch(`/api/business/${slug}`);
-        if (!businessResponse.ok) throw new Error('Failed to load business data');
+        
+        // Handle 404 specifically
+        if (businessResponse.status === 404) {
+          setError('Business not found');
+          setIsLoading(false);
+          return;
+        }
+        
+        if (!businessResponse.ok) {
+          throw new Error('Failed to load business data');
+        }
+        
         const businessData = await businessResponse.json();
         setBusiness(businessData);
        
@@ -67,11 +81,16 @@ export const useBusinessData = (slug: string) => {
           switchBusiness(businessData.id);
         }
 
+        // Fetch requirements
         const requirementsResponse = await fetch(`/api/business/${slug}/requirements`);
-        if (!requirementsResponse.ok) throw new Error('Failed to load requirements');
+        if (!requirementsResponse.ok) {
+          throw new Error('Failed to load requirements');
+        }
+        
         const requirementsData = await requirementsResponse.json();
         setRequirements(requirementsData);
 
+        // Group requirements by category
         const grouped = requirementsData.reduce((groups: Record<string, Requirement[]>, req: Requirement) => {
           const category = req.category || "Uncategorized";
           if (!groups[category]) groups[category] = [];
@@ -82,6 +101,7 @@ export const useBusinessData = (slug: string) => {
         setGroupedRequirements(grouped);
         setSortedCategories(CATEGORY_ORDER.filter(cat => grouped[cat]));
 
+        // Fetch products for each requirement
         const productsByRequirement: Record<string, Product[]> = {};
         for (const requirement of requirementsData) {
           const productsResponse = await fetch(
@@ -93,8 +113,11 @@ export const useBusinessData = (slug: string) => {
           }
         }
         setProducts(productsByRequirement);
+        
+        setIsLoading(false); // NEW: Set loading to false when done
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An unknown error occurred');
+        setIsLoading(false); // NEW: Set loading to false on error
         console.error('Error loading business data:', err);
       }
     };
@@ -107,6 +130,7 @@ export const useBusinessData = (slug: string) => {
     requirements,
     products,
     error,
+    isLoading, // NEW: Return loading state
     groupedRequirements,
     sortedCategories
   };

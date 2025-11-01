@@ -1,8 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Dialog } from '@headlessui/react'
-import { PlusIcon } from '@heroicons/react/24/solid'
 
 type Requirement = {
   id: number
@@ -26,7 +24,6 @@ type Business = {
   image?: string
 }
 
-// Add this type definition for your form data
 type FormData = {
   name: string
   description: string
@@ -47,7 +44,7 @@ const defaultForm: FormData = {
 
 export default function RequirementsPage() {
   const [requirements, setRequirements] = useState<Requirement[]>([])
-  const [formData, setFormData] = useState<FormData>(defaultForm) // Changed from 'any' to 'FormData'
+  const [formData, setFormData] = useState<FormData>(defaultForm)
   const [isOpen, setIsOpen] = useState(false)
   const [editingRequirement, setEditingRequirement] = useState<number | null>(null)
   const [search, setSearch] = useState('')
@@ -69,17 +66,16 @@ export default function RequirementsPage() {
   
       if (!Array.isArray(data)) {
         console.error("Unexpected API response format:", data);
-        setRequirements([]); // Set to an empty array to avoid errors
+        setRequirements([]);
         return;
       }
   
       setRequirements(data);
     } catch (error) {
       console.error("Error fetching requirements:", error);
-      setRequirements([]); // Ensure it's always an array
+      setRequirements([]);
     }
   };
-  
 
   const fetchOptions = async () => {
     const [bizRes] = await Promise.all([
@@ -90,10 +86,10 @@ export default function RequirementsPage() {
   }
 
   const filtered = Array.isArray(requirements)
-  ? requirements.filter((req) =>
-      req.name.toLowerCase().includes(search.toLowerCase())
-    )
-  : [];
+    ? requirements.filter((req) =>
+        req.name.toLowerCase().includes(search.toLowerCase())
+      )
+    : [];
 
   const openNewModal = () => {
     setFormData(defaultForm)
@@ -134,7 +130,6 @@ export default function RequirementsPage() {
       const payload = {
         ...formData,
         businessId: Number(formData.businessId),
-        // Note: Removed categoryId as it's not in your FormData type
       };
   
       const res = await fetch(url, {
@@ -155,196 +150,264 @@ export default function RequirementsPage() {
       console.error("Failed to submit:", error);
     }
   };
-  
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Requirements</h1>
-        <div className="flex items-center gap-4">
-          <input
-            type="text"
-            placeholder="Search..."
-            className="border px-3 py-2 rounded-md"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <button
-            onClick={openNewModal}
-            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            <PlusIcon className="h-5 w-5 mr-2" />
-            Add Requirement
-          </button>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="max-w-7xl mx-auto p-6 lg:p-8">
+        {/* Header Section */}
+        <div className="mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900 mb-1">Requirements</h1>
+              <p className="text-slate-600">Manage your business requirements and dependencies</p>
+            </div>
+            <button
+              onClick={openNewModal}
+              className="inline-flex items-center justify-center px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm hover:shadow-md font-medium"
+            >
+              <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Requirement
+            </button>
+          </div>
+          
+          {/* Search Bar */}
+          <div className="mt-6">
+            <div className="relative max-w-md">
+              <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Search requirements..."
+                className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow shadow-sm"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full border rounded-md">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="text-left px-4 py-2">Name</th>
-              <th className="text-left px-4 py-2">Description</th>
-              <th className="text-left px-4 py-2">Image</th>
-              <th className="text-left px-4 py-2">Category</th>
-              <th className="text-left px-4 py-2">Business</th>
-              <th className="text-left px-4 py-2">Necessity</th>
-              <th className="text-left px-4 py-2">Comments</th>
-              <th className="text-left px-4 py-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((req) => (
-              <tr key={req.id} className="border-t">
-                <td className="px-4 py-2 font-medium">{req.name}</td>
-                <td className="px-4 py-2">{req.description}</td>
-                <td className="px-4 py-2">
-                  {req.image && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={req.image}
-                      alt={req.name}
-                      className="w-12 h-12 object-cover rounded"
-                    />
-                  )}
-                </td>
-                <td className="px-4 py-2">{req.category}</td>
-                <td className="px-4 py-2">{req.business?.name}</td>
-                <td
-                  className={`px-4 py-2 font-semibold ${
-                    req.necessity === 'Required'
-                      ? 'text-green-600'
-                      : 'text-orange-500'
-                  }`}
-                >
-                  {req.necessity}
-                </td>
-                <td className="px-4 py-2">{req.productCount}</td>
-                <td className="px-4 py-2">{req.commentCount}</td>
-                <td className="px-4 py-2 space-x-2">
-                  <button
-                    onClick={() => openEditModal(req)}
-                    className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(req.id)}
-                    className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {/* Table Card */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="text-left px-6 py-4 text-xs font-semibold text-slate-700 uppercase tracking-wider">Name</th>
+                  <th className="text-left px-6 py-4 text-xs font-semibold text-slate-700 uppercase tracking-wider">Description</th>
+                  <th className="text-left px-6 py-4 text-xs font-semibold text-slate-700 uppercase tracking-wider">Image</th>
+                  <th className="text-left px-6 py-4 text-xs font-semibold text-slate-700 uppercase tracking-wider">Category</th>
+                  <th className="text-left px-6 py-4 text-xs font-semibold text-slate-700 uppercase tracking-wider">Business</th>
+                  <th className="text-left px-6 py-4 text-xs font-semibold text-slate-700 uppercase tracking-wider">Necessity</th>
+                  <th className="text-right px-6 py-4 text-xs font-semibold text-slate-700 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-slate-200">
+                {filtered.map((req) => (
+                  <tr key={req.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="font-medium text-slate-900">{req.name}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-slate-600 max-w-xs truncate">{req.description}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      {req.image && (
+                        <img
+                          src={req.image}
+                          alt={req.name}
+                          className="w-12 h-12 object-cover rounded-lg border border-slate-200"
+                        />
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
+                        {req.category}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-slate-900">{req.business?.name}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                        req.necessity === 'Required'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {req.necessity}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-slate-600">{req.productCount}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-slate-600">{req.commentCount}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => openEditModal(req)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Edit"
+                        >
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => handleDelete(req.id)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete"
+                        >
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          
+          {filtered.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-slate-500">No requirements found</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Modal */}
-      <Dialog open={isOpen} onClose={() => setIsOpen(false)} className="relative z-50">
-        <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
-        <div className="fixed inset-0 flex items-center justify-center p-4">
-          <Dialog.Panel className="bg-white rounded-md p-6 w-full max-w-md">
-            <Dialog.Title className="text-xl font-bold mb-4">
-              {editingRequirement ? 'Edit Requirement' : 'Add Requirement'}
-            </Dialog.Title>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <input
-                type="text"
-                placeholder="Name"
-                className="w-full border px-3 py-2 rounded"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
-              />
-              <textarea
-                placeholder="Description"
-                className="w-full border px-3 py-2 rounded"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              />
-              <input
-                type="text"
-                placeholder="Image URL"
-                className="w-full border px-3 py-2 rounded"
-                value={formData.image}
-                onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-              />
-              <select
-                className="w-full border px-3 py-2 rounded"
-                value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                required
-              >
-                <option value="">Select Category</option>
-                {['Equipment', 'Software', 'Documents', 'Legal', 'Branding Resources', 'Operating Expenses'].map((cat) => (
-  <option key={cat} value={cat}>
-    {cat}
-  </option>
-))}
-
-              </select>
-              <select
-                className="w-full border px-3 py-2 rounded"
-                value={formData.businessId}
-                onChange={(e) =>
-                  setFormData({ ...formData, businessId: e.target.value })
-                }
+      {isOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsOpen(false)} />
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="relative bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg">
+              <h2 className="text-2xl font-bold text-slate-900 mb-6">
+                {editingRequirement ? 'Edit Requirement' : 'Add New Requirement'}
+              </h2>
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Name *</label>
+                  <input
+                    type="text"
+                    placeholder="Enter requirement name"
+                    className="w-full border border-slate-300 px-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    required
+                  />
+                </div>
                 
-                required
-              >
-                <option value="">Select Business</option>
-                {businessOptions.map((biz) => (
-                  <option key={biz.id} value={biz.id}>
-                    {biz.name}
-                  </option>
-                ))}
-              </select>
-              <div className="flex gap-4">
-  <label className="flex items-center gap-2">
-    <input
-      type="radio"
-      name="necessity"
-      value="Required"
-      checked={formData.necessity === 'Required'}
-      onChange={(e) => setFormData({ ...formData, necessity: e.target.value as 'Required' | 'Optional' })}
-    />
-    <span className="text-green-600 font-medium">Required</span>
-  </label>
-  <label className="flex items-center gap-2">
-    <input
-      type="radio"
-      name="necessity"
-      value="Optional"
-      checked={formData.necessity === 'Optional'}
-      onChange={(e) => setFormData({ ...formData, necessity: e.target.value as 'Required' | 'Optional' })}
-    />
-    <span className="text-orange-500 font-medium">Optional</span>
-  </label>
-</div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Description</label>
+                  <textarea
+                    placeholder="Enter description"
+                    className="w-full border border-slate-300 px-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow resize-none"
+                    rows={3}
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Image URL</label>
+                  <input
+                    type="text"
+                    placeholder="https://example.com/image.jpg"
+                    className="w-full border border-slate-300 px-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                    value={formData.image}
+                    onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Category *</label>
+                  <select
+                    className="w-full border border-slate-300 px-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    required
+                  >
+                    <option value="">Select Category</option>
+                    {['Equipment', 'Software', 'Documents', 'Legal', 'Branding Resources', 'Operating Expenses'].map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Business *</label>
+                  <select
+                    className="w-full border border-slate-300 px-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
+                    value={formData.businessId}
+                    onChange={(e) => setFormData({ ...formData, businessId: e.target.value })}
+                    required
+                  >
+                    <option value="">Select Business</option>
+                    {businessOptions.map((biz) => (
+                      <option key={biz.id} value={biz.id}>
+                        {biz.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-3">Necessity *</label>
+                  <div className="flex gap-6">
+                    <label className="flex items-center gap-3 cursor-pointer group">
+                      <input
+                        type="radio"
+                        name="necessity"
+                        value="Required"
+                        checked={formData.necessity === 'Required'}
+                        onChange={(e) => setFormData({ ...formData, necessity: e.target.value as 'Required' | 'Optional' })}
+                        className="w-4 h-4 text-green-600"
+                      />
+                      <span className="text-green-700 font-medium group-hover:text-green-800">Required</span>
+                    </label>
+                    <label className="flex items-center gap-3 cursor-pointer group">
+                      <input
+                        type="radio"
+                        name="necessity"
+                        value="Optional"
+                        checked={formData.necessity === 'Optional'}
+                        onChange={(e) => setFormData({ ...formData, necessity: e.target.value as 'Required' | 'Optional' })}
+                        className="w-4 h-4 text-amber-600"
+                      />
+                      <span className="text-amber-700 font-medium group-hover:text-amber-800">Optional</span>
+                    </label>
+                  </div>
+                </div>
 
-
-              <div className="flex justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setIsOpen(false)}
-                  className="px-4 py-2 bg-gray-300 rounded"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                >
-                  {editingRequirement ? 'Update' : 'Create'}
-                </button>
+                <div className="flex justify-end gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setIsOpen(false)}
+                    className="px-5 py-2.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm hover:shadow-md font-medium"
+                  >
+                    {editingRequirement ? 'Update Requirement' : 'Create Requirement'}
+                  </button>
+                </div>
               </div>
-            </form>
-          </Dialog.Panel>
+            </div>
+          </div>
         </div>
-      </Dialog>
+      )}
     </div>
   )
 }

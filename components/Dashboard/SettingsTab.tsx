@@ -1,7 +1,7 @@
 // components/Dashboard/SettingsTab.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { 
   Bell, 
@@ -65,6 +65,49 @@ export default function SettingsTab({ user, theme, setTheme }: SettingsTabProps)
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 5000);
   };
+
+  const applyTheme = (newTheme: string) => {
+    const root = document.documentElement;
+    
+    if (newTheme === 'dark') {
+      root.classList.add('dark');
+    } else if (newTheme === 'light') {
+      root.classList.remove('dark');
+    } else if (newTheme === 'system') {
+      // Check system preference
+      const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (systemPrefersDark) {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+      }
+    }
+  };
+
+  const handleThemeChange = (newTheme: string) => {
+    setTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
+    applyTheme(newTheme);
+    showMessage('success', `Theme changed to ${newTheme}`);
+  };
+
+  // Apply theme on mount and when system preference changes
+  useEffect(() => {
+    if (theme) {
+      applyTheme(theme);
+    }
+
+    // Listen for system theme changes if theme is set to 'system'
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = () => {
+      if (theme === 'system') {
+        applyTheme('system');
+      }
+    };
+
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, [theme]);
 
   const handlePasswordUpdate = async () => {
     if (!formData.currentPassword || !formData.newPassword) {
@@ -140,13 +183,6 @@ export default function SettingsTab({ user, theme, setTheme }: SettingsTabProps)
     }
   };
 
-  const handleThemeChange = (newTheme: string) => {
-    setTheme(newTheme);
-    // Store theme preference in localStorage for persistence
-    localStorage.setItem('theme', newTheme);
-    showMessage('success', `Theme changed to ${newTheme}`);
-  };
-
   const handleExportData = async () => {
     setLoading(true);
     try {
@@ -188,7 +224,6 @@ export default function SettingsTab({ user, theme, setTheme }: SettingsTabProps)
 
       if (response.ok) {
         showMessage('success', 'Account deleted successfully');
-        // Redirect to home page after a brief delay
         setTimeout(() => {
           router.push('/');
         }, 2000);

@@ -12,7 +12,9 @@ const nextConfig: NextConfig = {
      'hauzisha.co.ke',
      'encrypted-tbn0.gstatic.com',
      'dynamic-media-cdn.tripadvisor.com',
-     'storage.googleapis.com'
+     'storage.googleapis.com',
+     'www.metrostores.co.ke',
+     'cdn.salla.sa',
       // Add any other domains you use
     ],
   },
