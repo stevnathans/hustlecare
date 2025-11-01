@@ -106,7 +106,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
     // Sort products within each requirement by productId to maintain consistent order
     Object.values(grouped).forEach(category => {
       Object.values(category.requirements).forEach(products => {
-        products.sort((a, b) => a.productId - b.productId);
+        products.sort((a, b) => Number(a.productId) - Number(b.productId));
       });
     });
 
@@ -308,6 +308,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
             }
           });
 
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           yPosition = (doc as any).lastAutoTable.finalY + 8;
         }
 
@@ -579,26 +580,26 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
                               </div>
                               <div className="flex items-center space-x-1.5 ml-3">
                                 <button
-                                  onClick={() => handleQuantityChange(item.productId, item.quantity - 1)}
+                                  onClick={() => handleQuantityChange(item.productId as number, item.quantity - 1)}
                                   className="p-1.5 text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
                                   aria-label="Decrease quantity"
                                 >
                                   <FiMinus size={14} />
                                 </button>
-                                {editingQuantity === item.productId ? (
+                                {editingQuantity === item.productId as number ? (
                                   <div className="flex items-center space-x-1">
                                     <input
                                       type="number"
                                       value={quantityInputValue}
                                       onChange={(e) => setQuantityInputValue(e.target.value)}
-                                      onKeyDown={(e) => handleQuantityInputKeyDown(e, item.productId)}
-                                      onBlur={() => handleQuantitySave(item.productId)}
+                                      onKeyDown={(e) => handleQuantityInputKeyDown(e, item.productId as number)}
+                                      onBlur={() => handleQuantitySave(item.productId as number)}
                                       className="w-12 text-center text-sm font-medium text-gray-700 border border-emerald-400 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                                       autoFocus
                                       min="1"
                                     />
                                     <button
-                                      onClick={() => handleQuantitySave(item.productId)}
+                                      onClick={() => handleQuantitySave(item.productId as number)}
                                       className="p-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors"
                                       aria-label="Save quantity"
                                     >
@@ -607,7 +608,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
                                   </div>
                                 ) : (
                                   <button
-                                    onClick={() => handleQuantityEdit(item.productId, item.quantity)}
+                                    onClick={() => handleQuantityEdit(item.productId as number, item.quantity)}
                                     className="w-10 text-center text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded px-2 py-1 transition-colors group"
                                     title="Click to edit quantity"
                                   >
@@ -616,7 +617,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
                                   </button>
                                 )}
                                 <button
-                                  onClick={() => handleQuantityChange(item.productId, item.quantity + 1)}
+                                  onClick={() => handleQuantityChange(item.productId as number, item.quantity + 1)}
                                   className="p-1.5 text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
                                   aria-label="Increase quantity"
                                 >

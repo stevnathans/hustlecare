@@ -156,7 +156,7 @@ export default function MyListsTab() {
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Value</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                ${totalStats.totalCost.toLocaleString()}
+                KSh {totalStats.totalCost.toLocaleString()}
               </p>
             </div>
             <div className="p-3 bg-purple-100 dark:bg-purple-900 rounded-full">
@@ -193,7 +193,7 @@ export default function MyListsTab() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600 dark:text-gray-400">Total Cost</span>
                   <span className="font-medium text-gray-900 dark:text-white">
-                    ${business.totalCost.toLocaleString()}
+                    KSh {business.totalCost.toLocaleString()}
                   </span>
                 </div>
               </div>

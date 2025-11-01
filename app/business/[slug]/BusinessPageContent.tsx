@@ -22,7 +22,6 @@ export default function BusinessPage({ params }: BusinessPageProps) {
     requirements,
     products,
     error,
-    isLoading,
     groupedRequirements,
     sortedCategories
   } = useBusinessData(slug);
@@ -52,7 +51,7 @@ export default function BusinessPage({ params }: BusinessPageProps) {
       <div className="container mx-auto px-4 py-8 text-center">
         <h1 className="text-4xl font-bold mb-4">Business Not Found</h1>
         <p className="text-gray-600 mb-4">
-          The business you&apos;re looking for doesn&apos;t exist or has been moved.
+          The business you&apos;re looking for doesn&apos;t exist or has been removed.
         </p>
         <Link href="/" className="text-blue-600 hover:underline">
           Return to Home

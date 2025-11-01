@@ -233,6 +233,7 @@ export default function SharedCartPage({ params }: SharedCartProps) {
             }
           });
 
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           yPosition = (doc as any).lastAutoTable.finalY + 10;
         }
       } else {
@@ -612,7 +613,7 @@ export default function SharedCartPage({ params }: SharedCartProps) {
               <h3 className="font-semibold text-gray-900 text-lg">This is a Shared Cart</h3>
             </div>
             <p className="text-gray-600 max-w-2xl mx-auto">
-              You're viewing a read-only version of this cart. Quantity adjustments are temporary and won't be saved. 
+              You&apos;re viewing a read-only version of this cart. Quantity adjustments are temporary and won&apos;t be saved. 
               Create your own list to save and manage your requirements.
             </p>
           </div>

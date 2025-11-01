@@ -242,7 +242,7 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
                     {hasPricing ? (
                       <>
                         With a strategic investment of{' '}
-                        <span className="font-bold text-emerald-700">{priceRange}</span>, you'll be positioned to address{' '}
+                        <span className="font-bold text-emerald-700">{priceRange}</span>, you&apos;ll be positioned to address{' '}
                       </>
                     ) : (
                       "You'll need to carefully consider "

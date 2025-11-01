@@ -3,7 +3,7 @@ import { Vendor } from "./vendor";
 export interface Product {
   unit: number;
   inCart: boolean; 
-  id: string;
+  id: number;
   name: string;
   image?: string;
   price: number;
