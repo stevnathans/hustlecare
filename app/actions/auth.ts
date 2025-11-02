@@ -1,7 +1,7 @@
 'use server';
 
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth';
 import {prisma} from '@/lib/prisma';
 
 /**
@@ -76,6 +76,7 @@ export async function hasCartAccess(cartId: string): Promise<boolean> {
  * Get the business for the current page from the URL
  * This helps determine which business-specific cart to show
  */
+
 export async function getCurrentBusinessFromUrl(businessId: number): Promise<{
   id: number;
   name: string;

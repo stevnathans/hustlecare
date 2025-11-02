@@ -19,9 +19,9 @@ interface CartItemType {
 }
 
 interface SharedCartProps {
-  params: {
+  params: Promise<{
     cartId: string;
-  };
+  }>;
 }
 
 // Helper to format currency
@@ -35,7 +35,7 @@ const formatItemCount = (count: number) => {
 };
 
 export default function SharedCartPage({ params }: SharedCartProps) {
-  const { cartId } = params;
+  const [cartId, setCartId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cart, setCart] = useState<{
@@ -48,7 +48,18 @@ export default function SharedCartPage({ params }: SharedCartProps) {
   const [isCopied, setIsCopied] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
 
+  // Await params in useEffect since this is a client component
   useEffect(() => {
+    const loadParams = async () => {
+      const resolvedParams = await params;
+      setCartId(resolvedParams.cartId);
+    };
+    loadParams();
+  }, [params]);
+
+  useEffect(() => {
+    if (!cartId) return;
+
     const fetchCart = async () => {
       try {
         setLoading(true);
@@ -297,7 +308,7 @@ export default function SharedCartPage({ params }: SharedCartProps) {
     window.print();
   };
 
-  if (loading) {
+  if (loading || !cartId) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 flex items-center justify-center">
         <div className="text-center">

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Menu from "@/components/header/menu";
@@ -20,7 +20,6 @@ export const metadata: Metadata = {
   description:
     "Your smart partner in starting a business – explore ideas, requirements, and startup costs tailored for Kenya.",
   keywords: ["start business Kenya", "business requirements", "startup costs", "Hustlecare"],
-  themeColor: "#16a34a",
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon.ico",
@@ -52,6 +51,12 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://hustlecare.com"),
 };
 
+export const viewport: Viewport = {
+  themeColor: "#16a34a",
+  width: "device-width",
+  initialScale: 1,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -61,7 +66,6 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <meta charSet="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="manifest" href="/site.webmanifest" />
         <link rel="canonical" href="https://hustlecare.com/" />
       </head>

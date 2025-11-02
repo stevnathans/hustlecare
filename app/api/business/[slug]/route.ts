@@ -3,10 +3,11 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { slug: string } }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    const businessType = params.slug;
+    // Await params in Next.js 15+
+    const { slug: businessType } = await params;
     
     // Find business by slug
     const business = await prisma.business.findUnique({

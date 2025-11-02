@@ -1,7 +1,7 @@
 // app/search/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import BusinessCard from "@/components/business/BusinessCards";
 import {
@@ -42,7 +42,7 @@ type ApiResponse = {
   total?: number;
 };
 
-export default function SearchPage() {
+function SearchPageContent() {
   const searchParams = useSearchParams();
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(false);
@@ -386,5 +386,23 @@ export default function SearchPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50/50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="relative mx-auto w-12 h-12 mb-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-2 border-gray-200"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-2 border-emerald-600 border-t-transparent absolute top-0"></div>
+          </div>
+          <p className="text-gray-600 font-medium">Loading search...</p>
+        </div>
+      </div>
+    }>
+      <SearchPageContent />
+    </Suspense>
   );
 }

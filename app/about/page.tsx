@@ -1,5 +1,26 @@
+import { Metadata } from "next";
 import { Rocket, CheckCircle, Users, BarChart2, Search, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
+export const metadata: Metadata = {
+  title: "About Us - Hustlecare | Your Partner in Starting a Business",
+  description: "Learn how Hustlecare helps entrepreneurs launch businesses faster with accurate requirements, cost estimates, and verified resources tailored for the African market.",
+  keywords: ["about hustlecare", "business startup help", "entrepreneur tools", "Kenya business guide"],
+  openGraph: {
+    title: "About Hustlecare - Simplifying Business Launches",
+    description: "Discover how we're helping thousands of entrepreneurs start their businesses with confidence.",
+    url: "https://hustlecare.com/about",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "About Hustlecare - Your Business Launch Partner",
+    description: "Learn how we're revolutionizing business startups in Africa",
+  },
+  alternates: {
+    canonical: "https://hustlecare.com/about",
+  },
+};
 
 export default function AboutPage() {
   return (
@@ -143,7 +164,7 @@ export default function AboutPage() {
             <Button size="lg" className="bg-emerald-600 hover:bg-emerald-700">
               Get Started Today
             </Button>
-            <Button variant="outline" size="lg" className="text-emerald-600 border-emerald-600 hover:bg-emerald-700">
+            <Button variant="outline" size="lg" className="text-white border-white hover:bg-emerald-700 hover:border-emerald-700">
               Explore Business Ideas
             </Button>
           </div>

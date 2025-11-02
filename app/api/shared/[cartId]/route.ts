@@ -1,19 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+
 export async function GET(
   request: NextRequest,
-  { params }: { params: { cartId: string } }
+  { params }: { params: Promise<{ cartId: string }> }
 ) {
   try {
-    const cartId = params.cartId;
-    
+    // Await params in Next.js 15+
+    const { cartId } = await params;
+   
     if (!cartId) {
       return NextResponse.json(
         { error: 'Cart ID is required' },
         { status: 400 }
       );
     }
+
 
     // Fetch the cart with its items and related business
     const cart = await prisma.cart.findUnique({
@@ -30,12 +33,14 @@ export async function GET(
       },
     });
 
+
     if (!cart) {
       return NextResponse.json(
         { error: 'Cart not found' },
         { status: 404 }
       );
     }
+
 
     // Transform cart data for the client
     const transformedCart = {
@@ -44,7 +49,7 @@ export async function GET(
       businessName: cart.business.name,
       businessId: cart.businessId,
       totalCost: cart.totalCost || cart.items.reduce(
-        (sum, item) => sum + (item.unitPrice * item.quantity), 
+        (sum, item) => sum + (item.unitPrice * item.quantity),
         0
       ),
       items: cart.items.map(item => ({
@@ -56,6 +61,7 @@ export async function GET(
         image: item.product.image || undefined,
       })),
     };
+
 
     return NextResponse.json(transformedCart);
   } catch (error) {

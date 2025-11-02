@@ -126,6 +126,7 @@ model Requirement {
   category    String?
   necessity   String
   businessId  Int
+  
   business    Business  @relation(fields: [businessId], references: [id])
   comments    Comment[]
   createdAt   DateTime  @default(now())

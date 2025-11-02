@@ -1,6 +1,8 @@
+// app/business/[slug]/page.tsx
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import BusinessPageContent from './BusinessPageContent';
+import { prisma } from '@/lib/prisma';
 
 interface BusinessPageProps {
   params: Promise<{
@@ -12,17 +14,12 @@ interface BusinessPageProps {
 // Server-side function to fetch business data for metadata
 async function fetchBusinessForMetadata(slug: string) {
   try {
-    // Replace with your actual API endpoint or database query
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/businesses/${slug}`, {
-      cache: 'force-cache', // Cache for better performance
-      next: { revalidate: 3600 }, // Revalidate every hour
+    // Fetch directly from database instead of API
+    const business = await prisma.business.findUnique({
+      where: { slug },
     });
     
-    if (!response.ok) {
-      return null;
-    }
-    
-    return await response.json();
+    return business;
   } catch (error) {
     console.error('Error fetching business for metadata:', error);
     return null;
@@ -32,16 +29,12 @@ async function fetchBusinessForMetadata(slug: string) {
 // Server-side function to fetch all business slugs
 async function fetchAllBusinessSlugs() {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/businesses/slugs`, {
-      cache: 'force-cache',
-      next: { revalidate: 86400 }, // Revalidate daily
+    // Fetch directly from database instead of API
+    const businesses = await prisma.business.findMany({
+      select: { slug: true },
     });
     
-    if (!response.ok) {
-      return [];
-    }
-    
-    return await response.json();
+    return businesses;
   } catch (error) {
     console.error('Error fetching business slugs:', error);
     return [];
@@ -79,8 +72,7 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
         'cost calculator',
         'business planning',
         'investment calculator',
-        business.category || 'business',
-        ...(business.tags || [])
+        'business',
       ].join(', '),
       
       authors: [{ name: 'Your Company Name' }],
@@ -134,7 +126,7 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
       },
       
       // Additional metadata
-      category: business.category || 'Business',
+      category: 'Business',
       classification: 'Business Directory',
       
       // Verification and other meta tags
@@ -191,26 +183,6 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
     "description": initialBusinessData.description || `${initialBusinessData.name} business requirements and cost calculator`,
     "url": `${process.env.NEXT_PUBLIC_SITE_URL}/business/${slug}`,
     "image": initialBusinessData.image || "/images/default-business.jpg",
-    "aggregateRating": initialBusinessData.rating ? {
-      "@type": "AggregateRating",
-      "ratingValue": initialBusinessData.rating,
-      "reviewCount": initialBusinessData.reviewCount || 1
-    } : undefined,
-    "address": initialBusinessData.address ? {
-      "@type": "PostalAddress",
-      "streetAddress": initialBusinessData.address.street,
-      "addressLocality": initialBusinessData.address.city,
-      "addressRegion": initialBusinessData.address.state,
-      "postalCode": initialBusinessData.address.zip,
-      "addressCountry": initialBusinessData.address.country || "US"
-    } : undefined,
-    "telephone": initialBusinessData.phone,
-    "email": initialBusinessData.email,
-    "openingHours": initialBusinessData.hours,
-    "sameAs": initialBusinessData.socialLinks || [],
-    "priceRange": initialBusinessData.priceRange,
-    "paymentAccepted": initialBusinessData.paymentMethods || ["Cash", "Credit Card"],
-    "currenciesAccepted": "USD"
   };
 
   return (

@@ -3,9 +3,10 @@ import { prisma } from "@/lib/prisma"; // adjust this path if your prisma client
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { slug: string } }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
-  const { slug } = params;
+  // Await params in Next.js 15+
+  const { slug } = await params;
 
   try {
     const business = await prisma.business.findUnique({

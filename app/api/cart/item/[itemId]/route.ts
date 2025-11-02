@@ -5,14 +5,15 @@ import {prisma} from "@/lib/prisma";
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { itemId: string } }
+  { params }: { params: Promise<{ itemId: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const itemId = params.itemId;
+  // Await params in Next.js 15+
+  const { itemId } = await params;
 
   try {
     await prisma.cartItem.delete({
@@ -28,7 +29,7 @@ export async function DELETE(
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { itemId: string } }
+  { params }: { params: Promise<{ itemId: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
@@ -36,7 +37,9 @@ export async function PATCH(
   }
 
   const { quantity } = await req.json();
-  const itemId = params.itemId;
+  
+  // Await params in Next.js 15+
+  const { itemId } = await params;
 
   if (typeof quantity !== "number" || quantity < 1) {
     return NextResponse.json({ error: "Invalid quantity" }, { status: 400 });

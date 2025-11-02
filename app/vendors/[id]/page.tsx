@@ -2,11 +2,12 @@ import { VendorForm } from '@/components/vendors/VendorForm';
 import { updateVendor } from 'app/actions/vendor-actions';
 
 interface VendorPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export default async function VendorPage({ params }: VendorPageProps) {
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/vendors/${params.id}`);
+  const { id } = await params;
+  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/vendors/${id}`);
   const vendor = await response.json();
 
   return (

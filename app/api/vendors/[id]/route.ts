@@ -4,11 +4,14 @@ import {prisma} from '@/lib/prisma';
 // GET single vendor
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Await params in Next.js 15+
+    const { id } = await params;
+
     const vendor = await prisma.vendor.findUnique({
-      where: { id: parseInt(params.id) },
+      where: { id: parseInt(id) },
     });
 
     if (!vendor) {
@@ -31,12 +34,16 @@ export async function GET(
 // PATCH update vendor
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const data = await request.json();
+    
+    // Await params in Next.js 15+
+    const { id } = await params;
+
     const updatedVendor = await prisma.vendor.update({
-      where: { id: parseInt(params.id) },
+      where: { id: parseInt(id) },
       data,
     });
 
@@ -53,12 +60,15 @@ export async function PATCH(
 // DELETE vendor
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Await params in Next.js 15+
+    const { id } = await params;
+
     // Check if vendor has associated products
     const productsCount = await prisma.product.count({
-      where: { vendorId: parseInt(params.id) },
+      where: { vendorId: parseInt(id) },
     });
 
     if (productsCount > 0) {
@@ -69,7 +79,7 @@ export async function DELETE(
     }
 
     await prisma.vendor.delete({
-      where: { id: parseInt(params.id) },
+      where: { id: parseInt(id) },
     });
 
     return NextResponse.json(

@@ -1,18 +1,23 @@
-// app/api/cart/item/route.js
+// app/api/cart/item/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from '@/lib/auth';
+
+interface PatchRequestBody {
+  cartItemId: string;
+  quantity: number;
+}
 
 // Update cart item quantity
-export async function PATCH(request) {
+export async function PATCH(request: Request): Promise<NextResponse> {
   try {
     const session = await getServerSession(authOptions);
-    if (!session) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { cartItemId, quantity } = await request.json();
+    const { cartItemId, quantity }: PatchRequestBody = await request.json();
 
     if (!cartItemId) {
       return NextResponse.json({ error: "Cart Item ID is required" }, { status: 400 });
@@ -47,10 +52,10 @@ export async function PATCH(request) {
 }
 
 // Remove item from cart
-export async function DELETE(request) {
+export async function DELETE(request: Request): Promise<NextResponse> {
   try {
     const session = await getServerSession(authOptions);
-    if (!session) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

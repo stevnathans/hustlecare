@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 
 type Requirement = {
   id: number
@@ -215,11 +216,15 @@ export default function RequirementsPage() {
                     </td>
                     <td className="px-6 py-4">
                       {req.image && (
-                        <img
-                          src={req.image}
-                          alt={req.name}
-                          className="w-12 h-12 object-cover rounded-lg border border-slate-200"
-                        />
+                        <div className="relative w-12 h-12">
+                          <Image
+                            src={req.image}
+                            alt={req.name}
+                            fill
+                            className="object-cover rounded-lg border border-slate-200"
+                            sizes="48px"
+                          />
+                        </div>
                       )}
                     </td>
                     <td className="px-6 py-4">

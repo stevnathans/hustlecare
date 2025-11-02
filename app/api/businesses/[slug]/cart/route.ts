@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'; 
+import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma'; 
 
-// Define a type for the params to expect businessId
+// Define a type for the params to expect slug (matching the file path [slug])
 interface RouteParams {
-  params: {
-    businessId: string;
-  };
+  params: Promise<{
+    slug: string;
+  }>;
 }
 
 export async function GET(request: Request, { params }: RouteParams) {
@@ -19,9 +19,9 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
     const userId = session.user.id;
 
-    // 2. Get and validate businessId from the URL
-    const businessIdString = params.businessId;
-    const businessId = parseInt(businessIdString, 10);
+    // 2. Get and validate slug from the URL (await params in Next.js 15+)
+    const { slug } = await params;
+    const businessId = parseInt(slug, 10);
 
     if (isNaN(businessId)) {
       return NextResponse.json({ error: 'Invalid business ID format' }, { status: 400 });
