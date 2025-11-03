@@ -114,7 +114,7 @@ export default function ProfileTab({ user }: ProfileTabProps) {
 
       // Update profile
       const response = await fetch('/api/user/update', {
-        method: 'POST', // Changed to POST to match your API
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: formData.name.trim(),
@@ -134,6 +134,9 @@ export default function ProfileTab({ user }: ProfileTabProps) {
             setPreviewUrl(null);
           }
         }
+        
+        // Dispatch custom event to notify Menu component
+        window.dispatchEvent(new Event('profileUpdated'));
         
         // Refresh the page to show updated data
         router.refresh();

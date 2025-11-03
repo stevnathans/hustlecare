@@ -2,6 +2,13 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
  images: {
+  remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'hauzisha.co.ke',
+        pathname: '/blog/wp-content/uploads/**',
+      },
+    ],
     domains: [
       'gfx3.senetic.com', 
      'avechi.co.ke',
@@ -15,7 +22,20 @@ const nextConfig: NextConfig = {
      'storage.googleapis.com',
      'www.metrostores.co.ke',
      'cdn.salla.sa',
+     'mchzszszydkhzlwcessy.supabase.co',
       // Add any other domains you use
+    ],
+  },
+};
+
+module.exports = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'mchzszszydkhzlwcessy.supabase.co',
+        pathname: '/storage/v1/object/public/uploads/**'
+      }
     ],
   },
 };

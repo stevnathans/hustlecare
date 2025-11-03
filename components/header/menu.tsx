@@ -16,24 +16,23 @@ export default function Menu() {
   
   const isAuthenticated = status === "authenticated";
 
-  // Check for profile updates periodically
+  // Listen for profile update events
   useEffect(() => {
-    if (isAuthenticated) {
-      const checkForUpdates = async () => {
-        try {
-          // Update session to get latest user data
-          await update();
-        } catch (error) {
-          console.error('Error updating session:', error);
-        }
-      };
+    const handleProfileUpdate = async () => {
+      try {
+        await update();
+      } catch (error) {
+        console.error('Error updating session:', error);
+      }
+    };
 
-      // Check for updates every 30 seconds when user is authenticated
-      const interval = setInterval(checkForUpdates, 30000);
+    // Listen for custom profile update event
+    window.addEventListener('profileUpdated', handleProfileUpdate);
 
-      return () => clearInterval(interval);
-    }
-  }, [isAuthenticated, update]);
+    return () => {
+      window.removeEventListener('profileUpdated', handleProfileUpdate);
+    };
+  }, [update]);
 
   const handleDashboardClick = () => {
     router.push('/dashboard');
