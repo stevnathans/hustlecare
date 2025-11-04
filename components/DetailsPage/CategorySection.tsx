@@ -100,7 +100,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
       
       <section
         id={categoryId}
-        className="scroll-mt-24 bg-gray-50 rounded-lg overflow-hidden mb-6"
+        className="scroll-mt-20 bg-gray-50 rounded-lg overflow-hidden mb-4 sm:mb-6"
         itemScope
         itemType="https://schema.org/ItemList"
       >
@@ -131,11 +131,11 @@ const CategorySection: React.FC<CategorySectionProps> = ({
           onFilterChange={onFilterChange}
         />
 
-        <div className="p-6">
+        <div className="p-2 sm:p-6">
           {filteredRequirements.length > 0 ? (
             <>
               {/* Category Introduction */}
-              <div className="mb-6">
+              <div className="mb-4 sm:mb-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-2">
                   {category} Requirements for Your {businessName} Business
                 </h3>
@@ -152,14 +152,14 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 
               {/* Required Items Section */}
               {requiredItems.length > 0 && (
-                <div className="mb-8">
-                  <h4 className="text-md font-semibold text-green-700 mb-4 flex items-center">
-                    <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <div className="mb-6 sm:mb-8">
+                  <h4 className="text-md font-semibold text-green-700 mb-3 sm:mb-4 flex items-center">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
                     Essential {category} Items ({requiredItems.length})
                   </h4>
-                  <div className="space-y-6">
+                  <div className="space-y-4 sm:space-y-6">
                     {requiredItems.map((requirement) => (
                       <div key={requirement.id} itemScope itemType="https://schema.org/Product">
                         <RequirementCard
@@ -178,16 +178,16 @@ const CategorySection: React.FC<CategorySectionProps> = ({
               {/* Optional Items Section */}
               {optionalItems.length > 0 && (
                 <div>
-                  <h4 className="text-md font-semibold text-yellow-700 mb-4 flex items-center">
-                    <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <h4 className="text-md font-semibold text-yellow-700 mb-3 sm:mb-4 flex items-center">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                     </svg>
                     Optional {category} Items ({optionalItems.length})
                   </h4>
-                  <p className="text-sm text-gray-600 mb-6">
+                  <p className="text-sm text-gray-600 mb-4 sm:mb-6">
                     These optional items can enhance your {businessName} business but aren&apos;t required to get started.
                   </p>
-                  <div className="space-y-6">
+                  <div className="space-y-4 sm:space-y-6">
                     {optionalItems.map((requirement) => (
                       <div key={requirement.id} itemScope itemType="https://schema.org/Product">
                         <RequirementCard
@@ -205,11 +205,11 @@ const CategorySection: React.FC<CategorySectionProps> = ({
             </>
           ) : (
             /* No Results Section - Only show when no global filters are active */
-            <div className="text-center py-12">
-              <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="text-center py-8 sm:py-12">
+              <svg className="w-10 h-10 sm:w-12 sm:h-12 text-gray-400 mx-auto mb-3 sm:mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6-4h6m2 5.291A7.962 7.962 0 0112 15c-2.34 0-4.29-1.175-5.5-2.958A7.963 7.963 0 016 12c0-1.657.5-3.2 1.357-4.48A7.955 7.955 0 0112 9c2.34 0 4.29 1.175 5.5 2.958A7.963 7.963 0 0118 12c0 1.657-.5 3.2-1.357 4.48z" />
               </svg>
-              <h5 className="text-lg font-medium text-gray-700 mb-2">
+              <h5 className="text-base sm:text-lg font-medium text-gray-700 mb-2">
                 No {category} Requirements Found
               </h5>
               <p className="text-gray-500 text-sm mb-4">
@@ -218,13 +218,13 @@ const CategorySection: React.FC<CategorySectionProps> = ({
               
               {/* Show clear filters button if there are category-level filters */}
               {(categoryState.searchQuery || categoryState.filter !== 'all') && (
-                <div className="flex flex-col sm:flex-row gap-3 justify-center mb-4">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center mb-4">
                   <button 
                     onClick={() => {
                       onSearchChange('');
                       onFilterChange('all');
                     }}
-                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+                    className="inline-flex items-center px-3 py-2 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
                   >
                     Clear {category} Filters
                   </button>
@@ -233,16 +233,16 @@ const CategorySection: React.FC<CategorySectionProps> = ({
               
               {/* Helpful suggestions */}
               <div className="mt-4">
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center">
                   <Link 
                     href="/business" 
-                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+                    className="inline-flex items-center px-3 py-2 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
                   >
                     Browse Other Businesses
                   </Link>
                   <Link 
                     href="/contact" 
-                    className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm"
+                    className="inline-flex items-center px-3 py-2 sm:px-4 sm:py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm"
                   >
                     Request Requirements
                   </Link>
@@ -253,22 +253,22 @@ const CategorySection: React.FC<CategorySectionProps> = ({
         </div>
 
         {/* Category Summary for SEO - Always show, but adapt message based on results */}
-        <div className="bg-gray-100 px-6 py-4 border-t">
-          <div className="flex items-center justify-between text-sm text-gray-600">
+        <div className="bg-gray-100 px-4 py-3 sm:px-6 sm:py-4 border-t">
+          <div className="flex flex-col xs:flex-row xs:items-center xs:justify-between text-sm text-gray-600 gap-2 xs:gap-0">
             {filteredRequirements.length > 0 ? (
-              <span>
+              <span className="text-center xs:text-left">
                 {filteredRequirements.length} {category.toLowerCase()} requirement{filteredRequirements.length !== 1 ? 's' : ''} 
                 {requiredItems.length > 0 && ` (${requiredItems.length} essential${optionalItems.length > 0 ? `, ${optionalItems.length} optional` : ''})`}
                 {hasActiveFilters && ` matching your filters`}
               </span>
             ) : (
-              <span>
+              <span className="text-center xs:text-left">
                 {category} requirements (none available)
               </span>
             )}
             <a 
               href={`#${categoryId}`}
-              className="text-blue-600 hover:text-blue-800 hover:underline"
+              className="text-blue-600 hover:text-blue-800 hover:underline text-center"
               aria-label={`Jump to ${category} requirements section`}
             >
               ↑ Back to top

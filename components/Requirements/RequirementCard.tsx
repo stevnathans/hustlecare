@@ -66,68 +66,69 @@ export default function RequirementCard({
   const StatusIcon = config.icon;
 
   return (
-    <div className="group relative bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-gray-200 transition-all duration-300 mb-6 overflow-hidden">
+    <div className="group relative bg-white sm:rounded-2xl border-y sm:border border-gray-100 shadow-sm hover:shadow-xl sm:hover:border-gray-200 transition-all duration-300 sm:mb-6 mb-4 overflow-hidden">
       {/* Subtle gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 via-transparent to-purple-50/30 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
       {/* Main content */}
-      <div className="relative p-6">
+      <div className="relative p-4 sm:p-6">
         {/* Header Section */}
-        <div className="flex items-start space-x-4">
-          {/* Enhanced Image */}
-          <div className="relative flex-shrink-0">
-            <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 shadow-inner">
-              {requirement.image ? (
-                <Image
-                  src={requirement.image}
-                  alt={requirement.name}
-                  width={100} 
-                  height={100}
-                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <PhotoIcon className="h-8 w-8 text-gray-400" />
-                </div>
-              )}
-            </div>
-            {/* Status indicator overlay */}
-            <div
-              className={`absolute -top-1 -right-1 w-6 h-6 rounded-full ${config.bgColor} ${config.borderColor} border-2 flex items-center justify-center`}
-            >
-              <StatusIcon className={`h-3 w-3 ${config.color}`} />
-            </div>
-          </div>
-
-          {/* Content Section */}
-          <div className="flex-1 min-w-0">
-            {/* Title and Status */}
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <h3 className="text-xl font-bold text-gray-900 group-hover:text-blue-700 transition-colors duration-200 leading-tight">
-                  {requirement.name}
-                </h3>
-                <div
-                  className={`inline-flex items-center gap-2 mt-2 px-3 py-1 rounded-full text-xs font-semibold ${config.bgColor} ${config.color} ${config.borderColor} border`}
-                >
-                  <div
-                    className={`w-2 h-2 rounded-full ${config.dotColor}`}
-                  ></div>
-                  <span className="capitalize">{status}</span>
-                </div>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:space-x-4">
+          {/* Top Row: Image, Title, and Status - Mobile */}
+          <div className="flex items-start space-x-3 sm:space-x-4 mb-3 sm:mb-0">
+            {/* Enhanced Image */}
+            <div className="relative flex-shrink-0">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 shadow-inner">
+                {requirement.image ? (
+                  <Image
+                    src={requirement.image}
+                    alt={requirement.name}
+                    width={100} 
+                    height={100}
+                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <PhotoIcon className="h-8 w-8 text-gray-400" />
+                  </div>
+                )}
+              </div>
+              {/* Status indicator overlay */}
+              <div
+                className={`absolute -top-1 -right-1 w-6 h-6 rounded-full ${config.bgColor} ${config.borderColor} border-2 flex items-center justify-center`}
+              >
+                <StatusIcon className={`h-3 w-3 ${config.color}`} />
               </div>
             </div>
 
-            {/* Description */}
+            {/* Title and Status Badge */}
+            <div className="flex-1 min-w-0">
+              <h3 className="text-lg sm:text-xl font-bold text-gray-900 group-hover:text-blue-700 transition-colors duration-200 leading-tight mb-2">
+                {requirement.name}
+              </h3>
+              <div
+                className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold ${config.bgColor} ${config.color} ${config.borderColor} border`}
+              >
+                <div
+                  className={`w-2 h-2 rounded-full ${config.dotColor}`}
+                ></div>
+                <span className="capitalize">{status}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Content Section - Full Width on Mobile */}
+          <div className="w-full sm:flex-1 sm:min-w-0">
+            {/* Description - Full Width */}
             {requirement.description && (
-              <p className="text-gray-600 text-sm leading-relaxed mb-4 line-clamp-2">
+              <p className="text-gray-600 text-sm leading-relaxed mb-4 sm:line-clamp-2">
                 {requirement.description}
               </p>
             )}
 
-            {/* Stats Section */}
+            {/* Stats Section - Full Width on Mobile */}
             <div className="space-y-4">
-              <div className="flex items-center space-x-4 sm:space-x-6">
+              <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4 sm:space-x-6">
                 {/* Price Info */}
                 {productCount > 0 ? (
                   <div className="flex items-center space-x-2">
@@ -191,7 +192,7 @@ export default function RequirementCard({
                 )}
               </div>
 
-              {/* Expand Toggle - Mobile */}
+              {/* Expand Toggle - Mobile (Full Width) */}
               {productCount > 0 && (
                 <button
                   onClick={() => setIsExpanded(!isExpanded)}
@@ -213,7 +214,7 @@ export default function RequirementCard({
       {/* Expanded Products Section */}
       {isExpanded && productCount > 0 && (
         <div className="border-t border-gray-100 bg-gradient-to-r from-gray-50/50 to-blue-50/50">
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             <div className="flex items-center space-x-2 mb-4">
               <div className="w-6 h-6 rounded-lg bg-blue-100 flex items-center justify-center">
                 <ShoppingBagIcon className="h-4 w-4 text-blue-600" />

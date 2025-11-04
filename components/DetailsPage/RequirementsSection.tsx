@@ -258,16 +258,16 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
     <>
       {generateRequirementsSchema()}
       
-      <div className="space-y-6" role="main" aria-label={`Requirements for ${businessName} business`}>
-        {/* Section Introduction */}
-        <div className="bg-white rounded-lg p-6 border border-gray-200">
+      <div className="space-y-6 px-0 sm:px-4" role="main" aria-label={`Requirements for ${businessName} business`}>
+        {/* Section Introduction - No border/background on mobile */}
+        <div className="p-0 sm:p-6">
           <h2 className="text-2xl font-bold text-gray-900 mb-3">
-            Complete Requirements For {businessName} Business
+            Complete List of Requirements For {businessName} Business
           </h2>
           <p className="text-gray-700 leading-relaxed">
-            Below you&apos;ll find all the requirements organized by category to help you start your {businessName} business in Kenya. 
-            Each category contains both essential and optional items. Use the search and filter options to easily find requirements, 
-            and add items to your cost calculator to build your personalized business budget.
+            Below is a categorized list of all the requirements you need to start a profitable {businessName} business. 
+            Each category contains both essential and optional requirements. Use the search and filter options to easily find items, 
+            and add them to your cost calculator to understand how much you need to start a {businessName} business.
           </p>
         </div>
 
