@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import CategorySection from './CategorySection';
 import GlobalSearchFilter from './GlobalSearchFilter';
 import StickyQuickNavigation from './StickyQuickNavigation';
+import BusinessCard from '../business/BusinessCards';
 import { Product } from '@/types';
+import { Requirement } from '@prisma/client';
 
-interface Requirement {
+interface RequirementLocal {
   id: number;
   name: string;
   description?: string;
@@ -23,7 +25,7 @@ interface CategoryState {
 interface RequirementsSectionProps {
   businessName: string;
   sortedCategories: string[];
-  groupedRequirements: Record<string, Requirement[]>;
+  groupedRequirements: Record<string, RequirementLocal[]>;
   products: Record<string, Product[]>;
   categoryStates: Record<string, CategoryState>;
   globalSearchQuery: string;
@@ -34,9 +36,19 @@ interface RequirementsSectionProps {
   onToggleFilter: (category: string) => void;
   onCategorySearchChange: (category: string, query: string) => void;
   onSetFilter: (category: string, filter: 'all' | 'required' | 'optional') => void;
-  getFilteredRequirements: (category: string) => Requirement[];
+  getFilteredRequirements: (category: string) => RequirementLocal[];
   isLoading?: boolean;
 }
+
+type Business = {
+  sortedCategories: string[];
+  groupedRequirements: Record<string, Requirement[]>;
+  requirements: Requirement[];
+  id: string;
+  name: string;
+  image: string;
+  slug: string;
+};
 
 const RequirementsSection: React.FC<RequirementsSectionProps> = ({
   businessName,
@@ -55,6 +67,28 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
   getFilteredRequirements,
   isLoading = false
 }) => {
+  const [similarBusinesses, setSimilarBusinesses] = useState<Business[]>([]);
+  const [loadingBusinesses, setLoadingBusinesses] = useState(true);
+
+  // Fetch latest businesses
+  useEffect(() => {
+    const fetchSimilarBusinesses = async () => {
+      try {
+        const res = await fetch("/api/businesses");
+        if (!res.ok) throw new Error("Failed to fetch businesses");
+        const data = await res.json();
+        // Get 3 latest businesses
+        setSimilarBusinesses(data.slice(0, 3));
+      } catch (error) {
+        console.error("Error fetching similar businesses:", error);
+      } finally {
+        setLoadingBusinesses(false);
+      }
+    };
+
+    fetchSimilarBusinesses();
+  }, []);
+
   // Check if global filters are active
   const hasGlobalFilters = globalSearchQuery || globalFilter !== 'all';
 
@@ -202,6 +236,97 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
     );
   };
 
+  // Similar Businesses Section Component
+  const SimilarBusinessesSection = () => {
+    if (loadingBusinesses) {
+      return (
+        <div className="bg-gradient-to-r from-blue-50 to-emerald-50 rounded-lg p-6 border border-blue-200">
+          <h3 className="text-xl font-semibold text-gray-900 mb-4">
+            Explore Similar Businesses
+          </h3>
+          <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide">
+            {[...Array(3)].map((_, index) => (
+              <div key={index} className="flex-shrink-0 w-full sm:w-80 snap-center">
+                <div className="bg-white rounded-xl p-4 shadow-sm animate-pulse">
+                  <div className="h-40 bg-gray-200 rounded-lg mb-4"></div>
+                  <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    if (similarBusinesses.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="bg-gradient-to-r from-blue-50 to-emerald-50 rounded-lg p-6 border border-blue-200">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-semibold text-gray-900">
+            Explore Similar Businesses
+          </h3>
+          <a 
+            href="/businesses" 
+            className="text-emerald-600 hover:text-emerald-700 font-medium text-sm flex items-center gap-1"
+          >
+            View All
+            <svg 
+              className="w-4 h-4" 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={2} 
+                d="M9 5l7 7-7 7" 
+              />
+            </svg>
+          </a>
+        </div>
+        
+        <p className="text-gray-700 mb-6">
+          Discover other business opportunities with detailed requirements and cost calculators.
+        </p>
+
+        {/* Horizontal scrollable list */}
+        <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide -mx-2 px-2">
+          {similarBusinesses.map((business) => (
+            <div 
+              key={business.id} 
+              className="flex-shrink-0 w-full sm:w-80 snap-center"
+            >
+              <BusinessCard
+                id={business.id}
+                name={business.name}
+                image={business.image}
+                requirements={business.requirements}
+                groupedRequirements={business.groupedRequirements}
+                sortedCategories={business.sortedCategories}
+                slug={business.slug}
+              />
+            </div>
+          ))}
+        </div>
+
+        {/* Mobile scroll indicator */}
+        <div className="flex justify-center gap-2 mt-4 sm:hidden">
+          {similarBusinesses.map((_, index) => (
+            <div 
+              key={index}
+              className="w-2 h-2 rounded-full bg-emerald-300"
+            ></div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   // Show loading skeleton while data is being fetched
   if (isLoading) {
     return (
@@ -260,7 +385,7 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
       
       <div className="space-y-6 px-0 sm:px-4" role="main" aria-label={`Requirements for ${businessName} business`}>
         {/* Section Introduction - No border/background on mobile */}
-        <div className="p-0 sm:p-6">
+        <div className="p-4 sm:p-6">
           <h2 className="text-2xl font-bold text-gray-900 mb-3">
             Complete List of Requirements For {businessName} Business
           </h2>
@@ -321,36 +446,21 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
               );
             })}
 
-            {/* Bottom Summary and CTA - Only show when there are results */}
-            {hasAnyResults && (
-              <div className="bg-gradient-to-r from-blue-50 to-emerald-50 rounded-lg p-6 border border-blue-200">
-                <div className="text-center">
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    Ready to Start Your {businessName} Business?
-                  </h3>
-                  <p className="text-gray-700 mb-4">
-                    Use our cost calculator to get your personalized startup estimate and create your business plan.
-                  </p>
-                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                    <a 
-                      href="#cost-calculator" 
-                      className="inline-flex items-center px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
-                    >
-                      Calculate Startup Costs
-                    </a>
-                    <a 
-                      href="/business-guides" 
-                      className="inline-flex items-center px-6 py-3 bg-white text-emerald-600 border border-emerald-600 rounded-lg hover:bg-emerald-50 transition-colors font-medium"
-                    >
-                      More Business Guides
-                    </a>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Similar Businesses Section - Only show when there are results */}
+            {hasAnyResults && <SimilarBusinessesSection />}
           </>
         )}
       </div>
+
+      <style jsx>{`
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+        .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
     </>
   );
 };

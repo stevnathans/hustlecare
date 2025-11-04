@@ -214,7 +214,7 @@ export default function RequirementCard({
       {/* Expanded Products Section */}
       {isExpanded && productCount > 0 && (
         <div className="border-t border-gray-100 bg-gradient-to-r from-gray-50/50 to-blue-50/50">
-          <div className="p-4 sm:p-6">
+          <div className="p-2 sm:p-6">
             <div className="flex items-center space-x-2 mb-4">
               <div className="w-6 h-6 rounded-lg bg-blue-100 flex items-center justify-center">
                 <ShoppingBagIcon className="h-4 w-4 text-blue-600" />
