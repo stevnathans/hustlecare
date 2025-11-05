@@ -127,70 +127,70 @@ export default function RequirementCard({
             )}
 
             {/* Stats Section - Full Width on Mobile */}
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4 sm:space-x-6">
-                {/* Price Info */}
-                {productCount > 0 ? (
-                  <div className="flex items-center space-x-2">
-                    <div className="p-2 rounded-lg bg-emerald-50">
-                      <CurrencyDollarIcon className="h-4 w-4 text-emerald-600" />
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-500 font-medium">
-                        Starting from
-                      </div>
-                      <div className="text-lg font-bold text-emerald-600">
-                        KSh {lowestPrice.toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center space-x-2 text-gray-400">
-                    <div className="p-2 rounded-lg bg-gray-50">
-                      <CurrencyDollarIcon className="h-4 w-4 text-gray-400" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-medium">No products</div>
-                      <div className="text-sm">available</div>
-                    </div>
-                  </div>
-                )}
+<div className="space-y-4">
+  <div className="flex flex-row items-center justify-between sm:justify-start sm:space-x-4 sm:space-x-6">
+    {/* Price Info */}
+    {productCount > 0 ? (
+      <div className="flex items-center space-x-2">
+        <div className="p-2 rounded-lg bg-emerald-50">
+          <CurrencyDollarIcon className="h-4 w-4 text-emerald-600" />
+        </div>
+        <div>
+          <div className="text-xs text-gray-500 font-medium">
+            Starting from
+          </div>
+          <div className="text-lg font-bold text-emerald-600">
+            KSh {lowestPrice.toLocaleString()}
+          </div>
+        </div>
+      </div>
+    ) : (
+      <div className="flex items-center space-x-2 text-gray-400">
+        <div className="p-2 rounded-lg bg-gray-50">
+          <CurrencyDollarIcon className="h-4 w-4 text-gray-400" />
+        </div>
+        <div>
+          <div className="text-xs font-medium">No products</div>
+          <div className="text-sm">available</div>
+        </div>
+      </div>
+    )}
 
-                {/* Product Count */}
-                {productCount > 0 && (
-                  <div className="flex items-center space-x-2">
-                    <div className="p-2 rounded-lg bg-blue-50">
-                      <ShoppingBagIcon className="h-4 w-4 text-blue-600" />
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-500 font-medium">
-                        Available
-                      </div>
-                      <div className="text-sm font-semibold text-gray-900">
-                        {productCount}{" "}
-                        {productCount === 1 ? "option" : "options"}
-                      </div>
-                    </div>
-                  </div>
-                )}
+    {/* Product Count */}
+    {productCount > 0 && (
+      <div className="flex items-center space-x-2">
+        <div className="p-2 rounded-lg bg-blue-50">
+          <ShoppingBagIcon className="h-4 w-4 text-blue-600" />
+        </div>
+        <div>
+          <div className="text-xs text-gray-500 font-medium">
+            Available
+          </div>
+          <div className="text-sm font-semibold text-gray-900">
+            {productCount}{" "}
+            {productCount === 1 ? "option" : "options"}
+          </div>
+        </div>
+      </div>
+    )}
 
-                {/* Expand Toggle - Desktop */}
-                {productCount > 0 && (
-                  <button
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className="hidden sm:flex items-center space-x-2 px-4 py-2 rounded-xl bg-gray-50 hover:bg-blue-50 text-gray-700 hover:text-blue-700 transition-all duration-200 font-medium text-sm group/button ml-auto"
-                  >
-                    <span>
-                      {isExpanded ? "Hide Products" : "View Products"}
-                    </span>
-                    {isExpanded ? (
-                      <ChevronUpIcon className="h-4 w-4 transition-transform group-hover/button:translate-y-[-1px]" />
-                    ) : (
-                      <ChevronDownIcon className="h-4 w-4 transition-transform group-hover/button:translate-y-[1px]" />
-                    )}
-                  </button>
-                )}
-              </div>
+    {/* Expand Toggle - Desktop */}
+    {productCount > 0 && (
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="hidden sm:flex items-center space-x-2 px-4 py-2 rounded-xl bg-gray-50 hover:bg-blue-50 text-gray-700 hover:text-blue-700 transition-all duration-200 font-medium text-sm group/button ml-auto"
+      >
+        <span>
+          {isExpanded ? "Hide Products" : "View Products"}
+        </span>
+        {isExpanded ? (
+          <ChevronUpIcon className="h-4 w-4 transition-transform group-hover/button:translate-y-[-1px]" />
+        ) : (
+          <ChevronDownIcon className="h-4 w-4 transition-transform group-hover/button:translate-y-[1px]" />
+        )}
+      </button>
+    )}
+  </div>
 
               {/* Expand Toggle - Mobile (Full Width) */}
               {productCount > 0 && (

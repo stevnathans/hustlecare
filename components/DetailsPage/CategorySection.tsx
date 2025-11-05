@@ -53,7 +53,6 @@ const CategorySection: React.FC<CategorySectionProps> = ({
   const categoryId = category.toLowerCase().replace(/\s+/g, '-');
   const requiredItems = filteredRequirements.filter(req => req.necessity.toLowerCase() === 'required');
   const optionalItems = filteredRequirements.filter(req => req.necessity.toLowerCase() === 'optional');
-  const hasActiveFilters = globalSearchQuery || globalFilter !== 'all' || categoryState.searchQuery || categoryState.filter !== 'all';
 
   // Don't render this category if there are no filtered results AND there are active global filters
   const hasGlobalFilters = globalSearchQuery || globalFilter !== 'all';
@@ -255,17 +254,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
         {/* Category Summary for SEO - Always show, but adapt message based on results */}
         <div className="bg-gray-100 px-4 py-3 sm:px-6 sm:py-4 border-t">
           <div className="flex flex-col xs:flex-row xs:items-center xs:justify-between text-sm text-gray-600 gap-2 xs:gap-0">
-            {filteredRequirements.length > 0 ? (
-              <span className="text-center xs:text-left">
-                {filteredRequirements.length} {category.toLowerCase()} requirement{filteredRequirements.length !== 1 ? 's' : ''} 
-                {requiredItems.length > 0 && ` (${requiredItems.length} essential${optionalItems.length > 0 ? `, ${optionalItems.length} optional` : ''})`}
-                {hasActiveFilters && ` matching your filters`}
-              </span>
-            ) : (
-              <span className="text-center xs:text-left">
-                {category} requirements (none available)
-              </span>
-            )}
+           
             <a 
               href={`#${categoryId}`}
               className="text-blue-600 hover:text-blue-800 hover:underline text-center"

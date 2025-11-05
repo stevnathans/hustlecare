@@ -422,7 +422,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
         )}
         
         <div 
-          className="fixed bottom-4 left-4 right-4 bg-gradient-to-r from-emerald-600 to-emerald-500 rounded-2xl shadow-2xl p-4 z-50 transition-all duration-300 hover:shadow-emerald-500/50 cursor-pointer"
+          className="fixed bottom-4 left-4 right-4 bg-gradient-to-r from-emerald-600 to-emerald-500 rounded-2xl shadow-2xl p-4 z-[60] transition-all duration-300 hover:shadow-emerald-500/50 cursor-pointer"
           onClick={() => setIsExpanded(true)}
         >
           <div className="flex flex-col space-y-3">
@@ -461,13 +461,13 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
   return (
     <>
       {isMobile && isExpanded && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={() => setIsExpanded(false)} />
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[55]" onClick={() => setIsExpanded(false)} />
       )}
       
       <div className={`
         bg-white rounded-t-2xl shadow-2xl border border-gray-200
         ${isMobile ? 
-          `fixed inset-x-0 bottom-0 max-h-[90vh] overflow-y-auto z-50 
+          `fixed inset-x-0 bottom-0 max-h-[90vh] overflow-y-auto z-[60] 
            transition-all duration-300 ease-in-out 
            ${isExpanded ? 'translate-y-0' : 'translate-y-full'}` 
           : "sticky top-8"}
