@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import CategorySection from './CategorySection';
-import GlobalSearchFilter from './GlobalSearchFilter';
-import StickyQuickNavigation from './StickyQuickNavigation';
-import BusinessCard from '../business/BusinessCards';
-import { Product } from '@/types';
-import { Requirement } from '@prisma/client';
+import React, { useEffect, useState } from "react";
+import CategorySection from "./CategorySection";
+import GlobalSearchFilter from "./GlobalSearchFilter";
+import StickyQuickNavigation from "./StickyQuickNavigation";
+import BusinessCard from "../business/BusinessCards";
+import { Product } from "@/types";
+import { Requirement } from "@prisma/client";
 
 interface RequirementLocal {
   id: number;
@@ -17,7 +17,7 @@ interface RequirementLocal {
 
 interface CategoryState {
   showFilter: boolean;
-  filter: 'all' | 'required' | 'optional';
+  filter: "all" | "required" | "optional";
   showSearch: boolean;
   searchQuery: string;
 }
@@ -29,13 +29,16 @@ interface RequirementsSectionProps {
   products: Record<string, Product[]>;
   categoryStates: Record<string, CategoryState>;
   globalSearchQuery: string;
-  globalFilter: 'all' | 'required' | 'optional';
+  globalFilter: "all" | "required" | "optional";
   setGlobalSearchQuery: (query: string) => void;
-  setGlobalFilter: (filter: 'all' | 'required' | 'optional') => void;
+  setGlobalFilter: (filter: "all" | "required" | "optional") => void;
   onToggleCategorySearch: (category: string) => void;
   onToggleFilter: (category: string) => void;
   onCategorySearchChange: (category: string, query: string) => void;
-  onSetFilter: (category: string, filter: 'all' | 'required' | 'optional') => void;
+  onSetFilter: (
+    category: string,
+    filter: "all" | "required" | "optional"
+  ) => void;
   getFilteredRequirements: (category: string) => RequirementLocal[];
   isLoading?: boolean;
 }
@@ -65,7 +68,7 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
   onCategorySearchChange,
   onSetFilter,
   getFilteredRequirements,
-  isLoading = false
+  isLoading = false,
 }) => {
   const [similarBusinesses, setSimilarBusinesses] = useState<Business[]>([]);
   const [loadingBusinesses, setLoadingBusinesses] = useState(true);
@@ -90,10 +93,10 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
   }, []);
 
   // Check if global filters are active
-  const hasGlobalFilters = globalSearchQuery || globalFilter !== 'all';
+  const hasGlobalFilters = globalSearchQuery || globalFilter !== "all";
 
   // Calculate if there are any visible categories with results
-  const hasAnyResults = sortedCategories.some(category => {
+  const hasAnyResults = sortedCategories.some((category) => {
     const filteredReqs = getFilteredRequirements(category);
     return filteredReqs.length > 0;
   });
@@ -102,9 +105,9 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
   const showGlobalNoResults = hasGlobalFilters && !hasAnyResults;
 
   // Prepare category data for navigation
-  const categoryInfo = sortedCategories.map(category => ({
+  const categoryInfo = sortedCategories.map((category) => ({
     name: category,
-    count: groupedRequirements[category]?.length || 0
+    count: groupedRequirements[category]?.length || 0,
   }));
 
   // Generate overall requirements structured data
@@ -116,34 +119,37 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
     const requirementsSchema = {
       "@context": "https://schema.org",
       "@type": "ItemList",
-      "name": `Complete Requirements for Starting a ${businessName} Business in Kenya`,
-      "description": `Comprehensive list of all requirements needed to start a ${businessName} business in Kenya, organized by category.`,
-      "numberOfItems": totalRequirements,
-      "itemListElement": sortedCategories.map((category, categoryIndex) => ({
+      name: `Complete Requirements for Starting a ${businessName} Business in Kenya`,
+      description: `Comprehensive list of all requirements needed to start a ${businessName} business in Kenya, organized by category.`,
+      numberOfItems: totalRequirements,
+      itemListElement: sortedCategories.map((category, categoryIndex) => ({
         "@type": "ListItem",
-        "position": categoryIndex + 1,
-        "item": {
+        position: categoryIndex + 1,
+        item: {
           "@type": "ItemList",
-          "name": `${category} Requirements`,
-          "description": `${category} requirements for ${businessName} business`,
-          "numberOfItems": groupedRequirements[category]?.length || 0,
-          "itemListElement": (groupedRequirements[category] || []).map((req, reqIndex) => ({
-            "@type": "ListItem",
-            "position": reqIndex + 1,
-            "item": {
-              "@type": "Product",
-              "name": req.name,
-              "description": req.description || `${req.name} for ${businessName} business`,
-              "category": category,
-              "additionalProperty": {
-                "@type": "PropertyValue",
-                "name": "necessity",
-                "value": req.necessity
-              }
-            }
-          }))
-        }
-      }))
+          name: `${category} Requirements`,
+          description: `${category} requirements for ${businessName} business`,
+          numberOfItems: groupedRequirements[category]?.length || 0,
+          itemListElement: (groupedRequirements[category] || []).map(
+            (req, reqIndex) => ({
+              "@type": "ListItem",
+              position: reqIndex + 1,
+              item: {
+                "@type": "Product",
+                name: req.name,
+                description:
+                  req.description || `${req.name} for ${businessName} business`,
+                category: category,
+                additionalProperty: {
+                  "@type": "PropertyValue",
+                  name: "necessity",
+                  value: req.necessity,
+                },
+              },
+            })
+          ),
+        },
+      })),
     };
 
     return (
@@ -157,11 +163,11 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
   // Global No Results Component
   const GlobalNoResults = () => {
     const getNoResultsMessage = () => {
-      if (globalSearchQuery && globalFilter !== 'all') {
+      if (globalSearchQuery && globalFilter !== "all") {
         return `No ${globalFilter} requirements match your search for "${globalSearchQuery}"`;
       } else if (globalSearchQuery) {
         return `No requirements match your search for "${globalSearchQuery}"`;
-      } else if (globalFilter !== 'all') {
+      } else if (globalFilter !== "all") {
         return `No ${globalFilter} requirements found for ${businessName} business`;
       }
       return `No requirements found`;
@@ -169,24 +175,24 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
 
     return (
       <div className="bg-white p-12 rounded-lg shadow-md border border-gray-200 text-center">
-        <svg 
-          className="w-16 h-16 text-gray-400 mx-auto mb-4" 
-          fill="none" 
-          stroke="currentColor" 
+        <svg
+          className="w-16 h-16 text-gray-400 mx-auto mb-4"
+          fill="none"
+          stroke="currentColor"
           viewBox="0 0 24 24"
         >
-          <path 
-            strokeLinecap="round" 
-            strokeLinejoin="round" 
-            strokeWidth={2} 
-            d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" 
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
           />
         </svg>
-        
+
         <h3 className="text-xl font-semibold text-gray-800 mb-2">
           No Requirements Found
         </h3>
-        
+
         <p className="text-gray-600 mb-6 max-w-md mx-auto">
           {getNoResultsMessage()}
         </p>
@@ -194,29 +200,29 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <button
             onClick={() => {
-              setGlobalSearchQuery('');
-              setGlobalFilter('all');
+              setGlobalSearchQuery("");
+              setGlobalFilter("all");
             }}
             className="inline-flex items-center justify-center px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium"
           >
-            <svg 
-              className="w-5 h-5 mr-2" 
-              fill="none" 
-              stroke="currentColor" 
+            <svg
+              className="w-5 h-5 mr-2"
+              fill="none"
+              stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M6 18L18 6M6 6l12 12" 
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
               />
             </svg>
             Clear All Filters
           </button>
-          
-          <a 
-            href="/businesses" 
+
+          <a
+            href="/businesses"
             className="inline-flex items-center justify-center px-6 py-3 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors font-medium"
           >
             Browse Other Businesses
@@ -225,8 +231,8 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
 
         <div className="mt-6 text-sm text-gray-500">
           <p className="mb-2">Try adjusting your search terms or filters, or</p>
-          <a 
-            href="/contact" 
+          <a
+            href="/contact"
             className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
           >
             request specific requirements for {businessName} business
@@ -246,7 +252,10 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
           </h3>
           <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide">
             {[...Array(3)].map((_, index) => (
-              <div key={index} className="flex-shrink-0 w-full sm:w-80 snap-center">
+              <div
+                key={index}
+                className="flex-shrink-0 w-full sm:w-80 snap-center"
+              >
                 <div className="bg-white rounded-xl p-4 shadow-sm animate-pulse">
                   <div className="h-40 bg-gray-200 rounded-lg mb-4"></div>
                   <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
@@ -269,36 +278,37 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
           <h3 className="text-xl font-semibold text-gray-900">
             Explore Similar Businesses
           </h3>
-          <a 
-            href="/businesses" 
+          <a
+            href="/businesses"
             className="text-emerald-600 hover:text-emerald-700 font-medium text-sm flex items-center gap-1"
           >
             View All
-            <svg 
-              className="w-4 h-4" 
-              fill="none" 
-              stroke="currentColor" 
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M9 5l7 7-7 7" 
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 5l7 7-7 7"
               />
             </svg>
           </a>
         </div>
-        
+
         <p className="text-gray-700 mb-6">
-          Discover other business opportunities with detailed requirements and cost calculators.
+          Discover other business opportunities with detailed requirements and
+          cost calculators.
         </p>
 
         {/* Horizontal scrollable list */}
         <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide -mx-2 px-2">
           {similarBusinesses.map((business) => (
-            <div 
-              key={business.id} 
+            <div
+              key={business.id}
               className="flex-shrink-0 w-full sm:w-80 snap-center"
             >
               <BusinessCard
@@ -317,7 +327,7 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
         {/* Mobile scroll indicator */}
         <div className="flex justify-center gap-2 mt-4 sm:hidden">
           {similarBusinesses.map((_, index) => (
-            <div 
+            <div
               key={index}
               className="w-2 h-2 rounded-full bg-emerald-300"
             ></div>
@@ -352,24 +362,35 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
   if (!isLoading && sortedCategories.length === 0) {
     return (
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-8 text-center">
-        <svg className="w-16 h-16 text-yellow-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.863-.833-2.633 0L4.182 14.5c-.77.833.192 2.5 1.732 2.5z" />
+        <svg
+          className="w-16 h-16 text-yellow-500 mx-auto mb-4"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.863-.833-2.633 0L4.182 14.5c-.77.833.192 2.5 1.732 2.5z"
+          />
         </svg>
         <h3 className="text-lg font-semibold text-yellow-800 mb-2">
           No Requirements Available
         </h3>
         <p className="text-yellow-700 mb-4">
-          We&apos;re still building the requirements list for this {businessName} business.
+          We&apos;re still building the requirements list for this{" "}
+          {businessName} business.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <a 
-            href="/businesses" 
+          <a
+            href="/businesses"
             className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
           >
             Browse Other Businesses
           </a>
-          <a 
-            href="/contact" 
+          <a
+            href="/contact"
             className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
           >
             Request Requirements
@@ -382,24 +403,34 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
   return (
     <>
       {generateRequirementsSchema()}
-      
-      <div className="space-y-6 px-0 sm:px-4" role="main" aria-label={`Requirements for ${businessName} business`}>
+
+      <div
+        className="space-y-6 px-0 sm:px-4"
+        role="main"
+        aria-label={`Requirements for ${businessName} business`}
+      >
         {/* Section Introduction - No border/background on mobile */}
         <div className="p-4 sm:p-6">
           <h2 className="text-2xl font-bold text-gray-900 mb-3">
             Complete List of Requirements For {businessName} Business
           </h2>
           <p className="text-gray-700 leading-relaxed">
-            Below is a categorized list of all the requirements you need to start a profitable {businessName} business. 
-            Each category contains both essential and optional requirements. Use the search and filter options to easily find items, 
-            and add them to your cost calculator to understand how much you need to start a {businessName} business.
+            Below is a categorized list of all the requirements you need to
+            start a profitable {businessName} business. Each category contains
+            both essential and optional requirements. Use the search and filter
+            options to easily find items, and add them to your cost calculator
+            to understand how much you need to start a {businessName} business.
           </p>
         </div>
 
         {/* Sticky Quick Navigation */}
-        <StickyQuickNavigation 
+        <StickyQuickNavigation
           categories={categoryInfo}
           businessName={businessName}
+          globalSearchQuery={globalSearchQuery}
+          setGlobalSearchQuery={setGlobalSearchQuery}
+          globalFilter={globalFilter}
+          setGlobalFilter={setGlobalFilter}
         />
 
         {/* Search and Filters Section */}
@@ -422,9 +453,9 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
               const filteredReqs = getFilteredRequirements(category);
               const categoryState = categoryStates[category] || {
                 showFilter: false,
-                filter: 'all' as const,
+                filter: "all" as const,
                 showSearch: false,
-                searchQuery: ''
+                searchQuery: "",
               };
 
               return (
@@ -440,7 +471,9 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
                   globalFilter={globalFilter}
                   onToggleSearch={() => onToggleCategorySearch(category)}
                   onToggleFilter={() => onToggleFilter(category)}
-                  onSearchChange={(query) => onCategorySearchChange(category, query)}
+                  onSearchChange={(query) =>
+                    onCategorySearchChange(category, query)
+                  }
                   onFilterChange={(filter) => onSetFilter(category, filter)}
                 />
               );

@@ -10,18 +10,29 @@ interface StickyQuickNavigationProps {
   categories: CategoryInfo[];
   businessName: string;
   onRemove?: () => void;
+  globalSearchQuery: string;
+  setGlobalSearchQuery: (query: string) => void;
+  globalFilter: 'all' | 'required' | 'optional';
+  setGlobalFilter: (filter: 'all' | 'required' | 'optional') => void;
 }
 
 const StickyQuickNavigation: React.FC<StickyQuickNavigationProps> = ({ 
   categories, 
   businessName,
-  onRemove 
+  onRemove,
+  globalSearchQuery,
+  setGlobalSearchQuery,
+  globalFilter,
+  setGlobalFilter
 }) => {
   const [activeSection, setActiveSection] = useState<string>('');
   const [isSticky, setIsSticky] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showScrollHint, setShowScrollHint] = useState(true);
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -78,6 +89,13 @@ const StickyQuickNavigation: React.FC<StickyQuickNavigationProps> = ({
     return () => clearTimeout(timer);
   }, []);
 
+  // Focus search input when expanded
+  useEffect(() => {
+    if (isSearchExpanded && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isSearchExpanded]);
+
   const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, categoryId: string) => {
     e.preventDefault();
     const element = document.getElementById(categoryId);
@@ -95,6 +113,22 @@ const StickyQuickNavigation: React.FC<StickyQuickNavigationProps> = ({
 
   const handleToggleCollapse = () => {
     setIsCollapsed(!isCollapsed);
+    setIsSearchExpanded(false);
+    setIsFilterExpanded(false);
+  };
+
+  const handleToggleSearch = () => {
+    setIsSearchExpanded(!isSearchExpanded);
+    if (isFilterExpanded) setIsFilterExpanded(false);
+  };
+
+  const handleToggleFilter = () => {
+    setIsFilterExpanded(!isFilterExpanded);
+    if (isSearchExpanded) setIsSearchExpanded(false);
+  };
+
+  const clearGlobalSearch = () => {
+    setGlobalSearchQuery('');
   };
 
   // Collapsed state - floating button
@@ -157,12 +191,166 @@ const StickyQuickNavigation: React.FC<StickyQuickNavigationProps> = ({
                 Quick Navigation
               </h3>
               
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
                 {isSticky && (
                   <span className="text-xs text-gray-500 hidden sm:block">
                     {businessName} Requirements
                   </span>
                 )}
+                
+                {/* Search Button/Input */}
+                <div className="flex items-center">
+                  {isSearchExpanded ? (
+                    <div className="relative flex items-center animate-expand-width">
+                      <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                        <svg 
+                          className="h-4 w-4 text-gray-400" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 20 20"
+                        >
+                          <path 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round" 
+                            strokeWidth={2} 
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" 
+                          />
+                        </svg>
+                      </div>
+                      <input
+                        ref={searchInputRef}
+                        type="text"
+                        placeholder="Search..."
+                        className="block w-48 pl-8 pr-8 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                        value={globalSearchQuery}
+                        onChange={(e) => setGlobalSearchQuery(e.target.value)}
+                      />
+                      {globalSearchQuery && (
+                        <button
+                          onClick={clearGlobalSearch}
+                          className="absolute inset-y-0 right-8 flex items-center pr-2"
+                        >
+                          <svg 
+                            className="h-4 w-4 text-gray-400 hover:text-gray-600" 
+                            fill="currentColor" 
+                            viewBox="0 0 20 20"
+                          >
+                            <path 
+                              fillRule="evenodd" 
+                              d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" 
+                              clipRule="evenodd" 
+                            />
+                          </svg>
+                        </button>
+                      )}
+                      <button
+                        onClick={handleToggleSearch}
+                        className="absolute inset-y-0 right-0 flex items-center pr-2"
+                      >
+                        <svg 
+                          className="h-4 w-4 text-gray-400 hover:text-gray-600" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round" 
+                            strokeWidth={2} 
+                            d="M6 18L18 6M6 6l12 12" 
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleToggleSearch}
+                      className={`p-1.5 rounded-full transition-colors duration-200 ${
+                        globalSearchQuery 
+                          ? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100' 
+                          : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                      }`}
+                      aria-label="Search requirements"
+                      title="Search requirements"
+                    >
+                      <svg 
+                        className="w-5 h-5" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round" 
+                          strokeWidth={2} 
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" 
+                        />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+
+                {/* Filter Button/Dropdown */}
+                <div className="flex items-center">
+                  {isFilterExpanded ? (
+                    <div className="flex items-center gap-2 animate-expand-width">
+                      <select
+                        value={globalFilter}
+                        onChange={(e) => setGlobalFilter(e.target.value as 'all' | 'required' | 'optional')}
+                        className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      >
+                        <option value="all">All</option>
+                        <option value="required">Required</option>
+                        <option value="optional">Optional</option>
+                      </select>
+                      <button
+                        onClick={handleToggleFilter}
+                        className="p-1"
+                      >
+                        <svg 
+                          className="h-4 w-4 text-gray-400 hover:text-gray-600" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round" 
+                            strokeWidth={2} 
+                            d="M6 18L18 6M6 6l12 12" 
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleToggleFilter}
+                      className={`p-1.5 rounded-full transition-colors duration-200 ${
+                        globalFilter !== 'all' 
+                          ? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100' 
+                          : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                      }`}
+                      aria-label="Filter requirements"
+                      title="Filter requirements"
+                    >
+                      <svg 
+                        className="w-5 h-5" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round" 
+                          strokeWidth={2} 
+                          d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" 
+                        />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+
+                {/* Collapse Button */}
                 <button
                   onClick={handleToggleCollapse}
                   className="text-gray-400 hover:text-gray-600 transition-colors duration-200 p-1 rounded-full hover:bg-gray-100"
@@ -300,6 +488,21 @@ const StickyQuickNavigation: React.FC<StickyQuickNavigationProps> = ({
       <style dangerouslySetInnerHTML={{__html: `
         .hide-scrollbar::-webkit-scrollbar {
           display: none;
+        }
+        
+        @keyframes expand-width {
+          from {
+            width: 0;
+            opacity: 0;
+          }
+          to {
+            width: auto;
+            opacity: 1;
+          }
+        }
+        
+        .animate-expand-width {
+          animation: expand-width 0.3s ease-in-out;
         }
       `}} />
     </div>

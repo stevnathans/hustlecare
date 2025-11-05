@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Package } from 'lucide-react';
 
 interface BusinessHeaderProps {
   businessName: string;
@@ -68,6 +67,11 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
     return Math.round(price * budgetScales[budgetScale].multiplier);
   };
 
+  const smallScaleLow = calculateScaledPrice(unfilteredLowPrice * 0.6);
+  const smallScaleHigh = calculateScaledPrice(unfilteredHighPrice * 0.6);
+  const largeScaleLow = calculateScaledPrice(unfilteredLowPrice * 1.5);
+  const largeScaleHigh = calculateScaledPrice(unfilteredHighPrice * 1.5);
+
   const generateBusinessSchema = (): BusinessSchema => {
     const schema: BusinessSchema = {
       "@context": "https://schema.org",
@@ -105,7 +109,7 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(generateBusinessSchema()) }}
       />
 
-      <div>
+      <header>
         <div>
           <div className="text-center mb-6 sm:mb-8">
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 leading-tight mb-3 sm:mb-4 tracking-tight">
@@ -113,28 +117,30 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
               <span className="bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
                 {businessName}
               </span>
-              {' '}Business
+              {' '}Business in Kenya
             </h1>
 
             <p className="text-base sm:text-lg text-slate-600 leading-relaxed">
-              Complete requirements, cost estimates, and essential resources to start a succesful {businessName} business.
+              Complete requirements, cost estimates, and essential resources to start a successful {businessName} business in Kenya.
             </p>
           </div>
 
-          <div className="mb-5 sm:mb-6">
+          <nav className="mb-5 sm:mb-6" aria-label="Budget scenarios">
             <div className="bg-slate-50 rounded-lg p-4 sm:p-5 shadow-sm">
-              <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-3 sm:mb-4 text-center">
+              <h2 className="text-base sm:text-lg font-semibold text-slate-900 mb-3 sm:mb-4 text-center">
                 Adjust Your Budget Scenario
-              </h3>
+              </h2>
               <div className="grid grid-cols-3 gap-2 mb-3 sm:mb-4">
                 {(Object.keys(budgetScales) as Array<keyof typeof budgetScales>).map(scale => (
                   <button
                     key={scale}
                     onClick={() => setBudgetScale(scale)}
+                    aria-pressed={budgetScale === scale}
+                    aria-label={`Select ${budgetScales[scale].label} budget scenario`}
                     className={`px-2 sm:px-4 py-2 sm:py-3 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 ${
                       budgetScale === scale
                         ? 'bg-emerald-600 text-white shadow-md'
-                        : 'bg-white text-slate-700 hover:bg-slate-100'
+                        : 'bg-white text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
                     }`}
                   >
                     {budgetScales[scale].label}
@@ -152,66 +158,84 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
                 </div>
               )}
             </div>
-          </div>
+          </nav>
 
-          <div className="mb-5 sm:mb-6">
-            <div className="bg-white rounded-lg p-0 sm:p-6 shadow-sm border border-slate-200">
-              <div className="flex items-start gap-3 sm:gap-4">
-                <div className="p-2 bg-gradient-to-br from-emerald-50 to-blue-50 rounded-lg flex-shrink-0">
-                  <Package className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-xs sm:text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2 sm:mb-3">
-                    Requirements Breakdown
-                  </h3>
-                  <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-xl sm:text-2xl font-bold text-blue-600">{totalRequirements}</span>
-                      <span className="text-xs sm:text-sm text-slate-500">Total</span>
+          <section className="mb-5 sm:mb-6" aria-labelledby="requirements-breakdown">
+            <div className="bg-white rounded-xl p-4 sm:p-6 shadow-md border border-slate-200">
+              <div className="text-center">
+                <h2 id="requirements-breakdown" className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3 sm:mb-4">
+                  Requirements Breakdown
+                </h2>
+                <div className="grid grid-cols-3 gap-3 sm:gap-4">
+                  <div className="text-center p-3 bg-slate-50 rounded-lg">
+                    <div className="text-xl sm:text-2xl font-bold text-blue-600 mb-1">
+                      {totalRequirements}
                     </div>
-                    <div className="w-px h-6 bg-slate-200" />
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-xl sm:text-2xl font-bold text-emerald-600">{requiredCount}</span>
-                      <span className="text-xs sm:text-sm text-slate-500">Essential</span>
+                    <div className="text-xs sm:text-sm text-slate-600 font-medium">
+                      Total
                     </div>
-                    <div className="w-px h-6 bg-slate-200" />
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-xl sm:text-2xl font-bold text-amber-600">{optionalCount}</span>
-                      <span className="text-xs sm:text-sm text-slate-500">Optional</span>
+                  </div>
+                  <div className="text-center p-3 bg-emerald-50 rounded-lg">
+                    <div className="text-xl sm:text-2xl font-bold text-emerald-600 mb-1">
+                      {requiredCount}
+                    </div>
+                    <div className="text-xs sm:text-sm text-slate-600 font-medium">
+                      Essential
+                    </div>
+                  </div>
+                  <div className="text-center p-3 bg-amber-50 rounded-lg">
+                    <div className="text-xl sm:text-2xl font-bold text-amber-600 mb-1">
+                      {optionalCount}
+                    </div>
+                    <div className="text-xs sm:text-sm text-slate-600 font-medium">
+                      Optional
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+          </section>
 
-          <div className="px-2 sm:px-3">
+          <article className="px-2 sm:px-3">
             <div className="text-center mb-5 sm:mb-6">
               <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 mb-3 sm:mb-4">
-                How Much Do You Need To Start a {businessName} Business?
+                How Much Does It Cost to Start a {businessName} Business in Kenya?
               </h2>
               <div className="w-16 sm:w-20 h-1 bg-gradient-to-r from-emerald-500 to-blue-500 mx-auto rounded-full" />
             </div>
 
             <div className="space-y-4 sm:space-y-5 text-slate-700 leading-relaxed">
-              <p className="text-sm sm:text-base">
-                {hasPricing ? (
-                  <>
-                    You need around{' '}
-                    <span className="font-bold text-emerald-700">{priceRange}</span> to start a sucessful {businessName} business. This cost covers up to {' '}
-                  </>
-                ) : (
-                  "You need up to "
-                )}
-                <span className="font-bold text-blue-700">{totalRequirements} requirements</span>, including{' '}
-                <span className="font-bold text-emerald-700">{requiredCount} essential</span> and{' '}
-                <span className="font-bold text-amber-700">{optionalCount} optional ones</span>. The actual cost of starting a {businessName} business may be higher or lower depending on your specific requirements.
-              </p>
+            
+              {hasPricing ? (
+                <>
+                  <p className="text-sm sm:text-base">
+                    You will need approximately{' '}
+                    <span className="font-bold text-emerald-700">{formatPrice(smallScaleLow)} to {formatPrice(smallScaleHigh)}</span> to start a <strong>small-scale {businessName.toLocaleLowerCase()} business</strong>.{' '}
+                    A <strong>medium-scale operation</strong> typically requires between{' '}
+                    <span className="font-bold text-emerald-700">{priceRange}</span>, while a{' '}
+                    <strong>large-scale {businessName.toLocaleLowerCase()} business</strong> may cost around{' '}
+                    <span className="font-bold text-emerald-700">{formatPrice(largeScaleLow)} to {formatPrice(largeScaleHigh)}</span>.
+                  </p>
 
+                  <p className="text-sm sm:text-base">
+                    These startup costs cover up to{' '}
+                    <span className="font-bold text-blue-700">{totalRequirements} requirements</span>, including{' '}
+                    <span className="font-bold text-emerald-700">{requiredCount} mandatory items</span> and{' '}
+                    <span className="font-bold text-amber-700">{optionalCount} optional ones.</span> The actual cost of starting a {businessName.toLocaleLowerCase()} business may vary depending on your location, business model, target market, and the requirements you need.
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm sm:text-base">
+                  To successfully start a {businessName.toLocaleLowerCase()} business in Kenya, you need up to{' '}
+                  <span className="font-bold text-blue-700">{totalRequirements} key requirements</span>, which include{' '}
+                  <span className="font-bold text-emerald-700">{requiredCount} essential items</span> and{' '}
+                  <span className="font-bold text-amber-700">{optionalCount} optional ones</span>. The actual startup cost will depend on your chosen business scale, location within Kenya, and specific operational needs.
+                </p>
+              )}
             </div>
-          </div>
+          </article>
         </div>
-      </div>
+      </header>
     </>
   );
 };
