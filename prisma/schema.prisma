@@ -9,29 +9,37 @@ datasource db {
 }
 
 model User {
-  id                  String     @id @default(uuid())
+  id                  String      @id @default(uuid())
   name                String
-  email               String     @unique
+  email               String      @unique
   phone               String?
   password            String?
   emailVerified       DateTime?
   image               String?
-  role                String     @default("user")
+  role                String      @default("user") // user, author, editor, reviewer, admin
   
   // Notification preferences
-  emailNotifications  Boolean    @default(true)
-  pushNotifications   Boolean    @default(false)
-  marketingEmails     Boolean    @default(true)
+  emailNotifications  Boolean     @default(true)
+  pushNotifications   Boolean     @default(false)
+  marketingEmails     Boolean     @default(true)
+  
+  // Admin tracking
+  lastLoginAt         DateTime?
+  isActive            Boolean     @default(true)
   
   carts               Cart[]
-  businesses          Business[] // Track which businesses user has interacted with
+  businesses          Business[]
   comments            Comment[]
   reviews             Review[]
-  accounts            Account[]  // For NextAuth adapter
-  sessions            Session[]  // For NextAuth adapter
-  searches            SearchLog[] // Track user searches
-  createdAt           DateTime   @default(now())
-  updatedAt           DateTime   @updatedAt
+  accounts            Account[]
+  sessions            Session[]
+  searches            SearchLog[]
+  auditLogs           AuditLog[]  // Track admin actions
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  
+  @@index([email])
+  @@index([role])
 }
 
 model Account {
@@ -76,26 +84,29 @@ model Cart {
   businessId Int
   user       User       @relation(fields: [userId], references: [id])
   business   Business   @relation(fields: [businessId], references: [id])
-  items      CartItem[] // each cart has many items
-  totalCost  Float? // computed and stored when saving
+  items      CartItem[]
+  totalCost  Float?
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 
-  @@unique([userId, businessId]) // Prevent duplicate carts per business
+  @@unique([userId, businessId])
+  @@index([userId])
+  @@index([businessId])
 }
 
 model CartItem {
-  id        String @id @default(uuid())
-  cartId    String
-  productId Int
-  quantity  Int    @default(1)
-  unitPrice Float // price at the time of adding to cart
+  id              String   @id @default(uuid())
+  cartId          String
+  productId       Int
+  quantity        Int      @default(1)
+  unitPrice       Float
   category        String?  @default("Uncategorized")
   requirementName String?  @default("Unspecified Requirement")
-  cart    Cart    @relation(fields: [cartId], references: [id])
-  product Product @relation(fields: [productId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  cart            Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product         Product  @relation(fields: [productId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
   @@unique([cartId, productId])
   @@index([cartId])
 }
@@ -106,16 +117,18 @@ model Business {
   name         String
   description  String?
   image        String?
-  published    Boolean       @default(true) 
+  published    Boolean       @default(true)
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   requirements Requirement[]
-  carts         Cart[]
-  searches      SearchLog[]
+  carts        Cart[]
+  searches     SearchLog[]
   user         User?         @relation(fields: [userId], references: [id])
   userId       String?
 
   @@index([name])
+  @@index([slug])
+  @@index([published])
 }
 
 model Requirement {
@@ -124,13 +137,16 @@ model Requirement {
   description String?
   image       String?
   category    String?
-  necessity   String
+  necessity   String    // Required, Optional
   businessId  Int
   
-  business    Business  @relation(fields: [businessId], references: [id])
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
   comments    Comment[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  
+  @@index([businessId])
+  @@index([category])
 }
 
 model Comment {
@@ -138,10 +154,15 @@ model Comment {
   content       String
   requirementId Int
   userId        String
-  requirement   Requirement @relation(fields: [requirementId], references: [id])
-  user          User        @relation(fields: [userId], references: [id])
+  isApproved    Boolean     @default(false) // For moderation
+  requirement   Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
+  
+  @@index([requirementId])
+  @@index([userId])
+  @@index([isApproved])
 }
 
 model Product {
@@ -150,25 +171,33 @@ model Product {
   description String?
   price       Float?
   image       String?
-  url         String?    // Added product URL field
+  url         String?
   vendorId    Int?
   vendor      Vendor?    @relation(fields: [vendorId], references: [id])
   cartItems   CartItem[]
   reviews     Review[]
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
+  
+  @@index([vendorId])
+  @@index([name])
 }
 
 model Review {
-  id        String   @id @default(uuid())
-  product   Product  @relation(fields: [productId], references: [id])
-  productId Int
-  user      User     @relation(fields: [userId], references: [id])
-  userId    String
-  rating    Int
-  comment   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(uuid())
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId  Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  rating     Int
+  comment    String
+  isApproved Boolean  @default(false) // For moderation
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@index([productId])
+  @@index([userId])
+  @@index([isApproved])
 }
 
 model Vendor {
@@ -181,22 +210,42 @@ model Vendor {
   updatedAt DateTime  @updatedAt
 
   @@unique([name, website])
+  @@index([name])
 }
 
-// New model for tracking searches
 model SearchLog {
-  id         String    @id @default(uuid())
-  keyword    String
-  location   String?
-  userId     String?   // Optional - for logged in users
-  businessId Int?      // Track which business was clicked from search
-  ipAddress  String?   // For anonymous tracking
-  userAgent  String?   // Browser info
-  resultCount Int?     // How many results were returned
-  user       User?     @relation(fields: [userId], references: [id])
-  business   Business? @relation(fields: [businessId], references: [id])
-  createdAt  DateTime  @default(now())
+  id          String    @id @default(uuid())
+  keyword     String
+  location    String?
+  userId      String?
+  businessId  Int?
+  ipAddress   String?
+  userAgent   String?
+  resultCount Int?
+  user        User?     @relation(fields: [userId], references: [id])
+  business    Business? @relation(fields: [businessId], references: [id])
+  createdAt   DateTime  @default(now())
 
-  @@index([keyword]) // Index for analytics queries
-  @@index([createdAt]) // Index for time-based queries
+  @@index([keyword])
+  @@index([createdAt])
+  @@index([userId])
+}
+
+// New: Audit Log for tracking admin actions
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action      String   // CREATE, UPDATE, DELETE, VIEW
+  entity      String   // Business, Product, User, etc.
+  entityId    String   // ID of the affected entity
+  changes     Json?    // Store before/after values
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+  
+  @@index([userId])
+  @@index([entity])
+  @@index([action])
+  @@index([createdAt])
 }

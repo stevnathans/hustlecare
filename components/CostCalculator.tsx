@@ -429,7 +429,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
             <div className="flex justify-between items-center">
               <div className="flex items-center space-x-3">
                 <div className="bg-white bg-opacity-20 p-2 rounded-lg">
-                  <FiShoppingCart className="text-white" size={20} />
+                  <FiShoppingCart className="text-emerald-600" size={20} />
                 </div>
                 <div>
                   <span className="text-white text-sm font-medium block">{formatItemCount(overallTotalItems)}</span>
@@ -438,7 +438,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
               </div>
               <div className="text-right">
                 <span className="text-white font-bold text-xl block">KSh {formatCurrency(totalCost)}</span>
-                <p className="text-white text-opacity-80 text-xs">Total Cost</p>
+                <p className="text-white text-opacity-80 text-xs">Total Estimated Cost</p>
               </div>
             </div>
             
@@ -560,78 +560,84 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
                         </div>
                         <div className="space-y-2">
                           {products.map((item) => (
-                            <div key={item.productId} className="flex items-center py-2.5 px-2 bg-white rounded-md border border-gray-100 hover:border-emerald-200 transition-colors">
-                              {item.image && (
-                                <div className="relative h-14 w-14 mr-3 flex-shrink-0 rounded-md overflow-hidden border border-gray-200">
-                                  <Image
-                                    src={item.image}
-                                    alt={item.name}
-                                    fill
-                                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                                    className="object-contain"
-                                    onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/56x56/f3f4f6/9ca3af?text=No+Image';}}
-                                  />
-                                </div>
-                              )}
-                              <div className="flex-grow min-w-0">
-                                <h5 className="font-medium text-sm text-gray-800 truncate">{item.name}</h5>
-                                <p className="text-xs text-gray-500 mt-0.5">KSh {formatCurrency(item.price)}</p>
-                        
-                              </div>
-                              <div className="flex items-center space-x-1.5 ml-3">
-                                <button
-                                  onClick={() => handleQuantityChange(item.productId as number, item.quantity - 1)}
-                                  className="p-1.5 text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-                                  aria-label="Decrease quantity"
-                                >
-                                  <FiMinus size={14} />
-                                </button>
-                                {editingQuantity === item.productId as number ? (
-                                  <div className="flex items-center space-x-1">
-                                    <input
-                                      type="number"
-                                      value={quantityInputValue}
-                                      onChange={(e) => setQuantityInputValue(e.target.value)}
-                                      onKeyDown={(e) => handleQuantityInputKeyDown(e, item.productId as number)}
-                                      onBlur={() => handleQuantitySave(item.productId as number)}
-                                      className="w-12 text-center text-sm font-medium text-gray-700 border border-emerald-400 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                                      autoFocus
-                                      min="1"
-                                    />
-                                    <button
-                                      onClick={() => handleQuantitySave(item.productId as number)}
-                                      className="p-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors"
-                                      aria-label="Save quantity"
-                                    >
-                                      <FiCheck size={14} />
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <button
-                                    onClick={() => handleQuantityEdit(item.productId as number, item.quantity)}
-                                    className="w-10 text-center text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded px-2 py-1 transition-colors group"
-                                    title="Click to edit quantity"
-                                  >
-                                    <span className="group-hover:hidden">{item.quantity}</span>
-                                    <FiEdit2 className="hidden group-hover:inline mx-auto" size={12} />
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => handleQuantityChange(item.productId as number, item.quantity + 1)}
-                                  className="p-1.5 text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-                                  aria-label="Increase quantity"
-                                >
-                                  <FiPlus size={14} />
-                                </button>
-                                <button
-                                  onClick={() => removeFromCart(item.productId)}
-                                  className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-100 rounded-md transition-colors ml-1"
-                                  aria-label="Remove item"
-                                >
-                                  <FiTrash2 size={14} />
-                                </button>
-                              </div>
-                            </div>
+                           <div key={item.productId} className="flex flex-col sm:flex-row sm:items-center py-2.5 px-2 bg-white rounded-md border border-gray-100 hover:border-emerald-200 transition-colors">
+  {/* Top row: Image and product details */}
+  <div className="flex items-center flex-grow min-w-0 mb-2 sm:mb-0">
+    {item.image && (
+      <div className="relative h-12 w-12 sm:h-14 sm:w-14 mr-2 sm:mr-3 flex-shrink-0 rounded-md overflow-hidden border border-gray-200">
+        <Image
+          src={item.image}
+          alt={item.name}
+          fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          className="object-contain"
+          onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/56x56/f3f4f6/9ca3af?text=No+Image';}}
+        />
+      </div>
+    )}
+    <div className="flex-grow min-w-0 mr-2">
+      <h5 className="font-medium text-xs sm:text-sm text-gray-800 truncate">{item.name}</h5>
+      <p className="text-xs text-gray-500 mt-0.5">KSh {formatCurrency(item.price)}</p>
+    </div>
+  </div>
+  
+  {/* Bottom row (mobile) / Right side (desktop): Quantity controls */}
+  <div className="flex items-center justify-between sm:justify-end space-x-1.5 sm:ml-3 w-full sm:w-auto border-t sm:border-t-0 border-gray-100 pt-2 sm:pt-0">
+    <div className="flex items-center space-x-1.5">
+      <button
+        onClick={() => handleQuantityChange(item.productId as number, item.quantity - 1)}
+        className="p-1.5 text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+        aria-label="Decrease quantity"
+      >
+        <FiMinus size={14} />
+      </button>
+      {editingQuantity === item.productId as number ? (
+        <div className="flex items-center space-x-1">
+          <input
+            type="number"
+            value={quantityInputValue}
+            onChange={(e) => setQuantityInputValue(e.target.value)}
+            onKeyDown={(e) => handleQuantityInputKeyDown(e, item.productId as number)}
+            onBlur={() => handleQuantitySave(item.productId as number)}
+            className="w-12 text-center text-sm font-medium text-gray-700 border border-emerald-400 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            autoFocus
+            min="1"
+          />
+          <button
+            onClick={() => handleQuantitySave(item.productId as number)}
+            className="p-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors"
+            aria-label="Save quantity"
+          >
+            <FiCheck size={14} />
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => handleQuantityEdit(item.productId as number, item.quantity)}
+          className="w-10 text-center text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded px-2 py-1 transition-colors group"
+          title="Click to edit quantity"
+        >
+          <span className="group-hover:hidden">{item.quantity}</span>
+          <FiEdit2 className="hidden group-hover:inline mx-auto" size={12} />
+        </button>
+      )}
+      <button
+        onClick={() => handleQuantityChange(item.productId as number, item.quantity + 1)}
+        className="p-1.5 text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+        aria-label="Increase quantity"
+      >
+        <FiPlus size={14} />
+      </button>
+    </div>
+    <button
+      onClick={() => removeFromCart(item.productId)}
+      className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-100 rounded-md transition-colors"
+      aria-label="Remove item"
+    >
+      <FiTrash2 size={14} />
+    </button>
+  </div>
+</div>
                           ))}
                         </div>
                       </div>
@@ -642,20 +648,20 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
             ))}
           </div>
           
-          <div className="border-t border-gray-200 pt-5 bg-gradient-to-r from-emerald-50 to-green-50 -mx-6 px-6 py-5 rounded-lg">
-            <div className="flex justify-between items-center">
-              <div>
-                <span className="text-sm text-gray-600 block mb-1">Total Estimated Cost</span>
-                <span className="text-3xl font-bold text-emerald-700">KSh {formatCurrency(totalCost)}</span>
-              </div>
-               <div className="flex items-center">
-                <span className="bg-emerald-100 text-emerald-800 rounded-full px-4 py-2 text-sm font-semibold flex items-center shadow-sm">
-                  <FiShoppingCart className="mr-2" size={16} />
-                  {formatItemCount(overallTotalItems)}
-                </span>
-              </div>
-            </div>
-          </div>
+         <div className="border-t border-gray-200 pt-5 bg-gradient-to-r from-emerald-50 to-green-50 -mx-6 px-6 py-5 rounded-lg">
+  <div className="flex justify-between items-center">
+    <div>
+      <span className="text-sm text-gray-600 block mb-1">Total Estimated Cost</span>
+      <span className="text-3xl sm:text-2xl font-bold text-emerald-700">KSh {formatCurrency(totalCost)}</span>
+    </div>
+    <div className="flex items-center">
+      <span className="bg-emerald-100 text-emerald-800 rounded-full px-4 py-2 text-sm font-semibold flex items-center shadow-sm">
+        <FiShoppingCart className="mr-2" size={16} />
+        {formatItemCount(overallTotalItems)}
+      </span>
+    </div>
+  </div>
+</div>
           
           <div className="mt-6 border-t border-gray-200 pt-6 space-y-4">
             {/* Show success message and share link above the heading */}
