@@ -1,3 +1,4 @@
+// middleware.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
@@ -71,8 +72,9 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(new URL(`/auth/signin?callbackUrl=${callbackUrl}`, req.url));
     }
     
+    // Redirect to homepage if user doesn't have admin access
     if (!canAccessAdmin(userRole)) {
-      return NextResponse.redirect(new URL('/unauthorized', req.url));
+      return NextResponse.redirect(new URL('/', req.url));
     }
     
     // Check specific admin permissions
@@ -91,7 +93,8 @@ export async function middleware(req: NextRequest) {
       if (path.startsWith(route)) {
         const hasRequiredPerm = perms.some(perm => hasPermission(userRole, perm));
         if (!hasRequiredPerm) {
-          return NextResponse.redirect(new URL('/admin/unauthorized', req.url));
+          // Redirect to homepage for insufficient permissions
+          return NextResponse.redirect(new URL('/', req.url));
         }
       }
     }
