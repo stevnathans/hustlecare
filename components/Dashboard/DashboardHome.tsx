@@ -113,7 +113,7 @@ export default function DashboardHome({ user, stats, recentActivity }: Dashboard
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Value</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                KSh {stats.totalCost.toLocaleString()}
+                ${stats.totalCost.toLocaleString()}
               </p>
             </div>
             <div className="p-3 bg-purple-100 dark:bg-purple-900 rounded-full">
@@ -163,7 +163,7 @@ export default function DashboardHome({ user, stats, recentActivity }: Dashboard
                   </div>
                   <div className="text-right">
                     <p className="font-medium text-gray-900 dark:text-white">
-                      KSh {activity.price.toLocaleString()}
+                      ${activity.price.toLocaleString()}
                     </p>
                     <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
                       <Clock className="w-3 h-3" />

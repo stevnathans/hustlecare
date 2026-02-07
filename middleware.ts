@@ -44,14 +44,14 @@ function hasPermission(userRole: string, requiredPermission: string): boolean {
 }
 
 // Check if role can access admin area
-function canAccessAdmin(role: "author" | "editor" | "reviewer" | "admin"): boolean {
-  return [ROLES.AUTHOR, ROLES.EDITOR, ROLES.REVIEWER, ROLES.ADMIN].includes(role);
+function canAccessAdmin(role: string): boolean {
+  return [ROLES.AUTHOR, ROLES.EDITOR, ROLES.REVIEWER, ROLES.ADMIN].includes(role as any);
 }
 
 export async function middleware(req: NextRequest) {
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
   const isAuthenticated = !!token;
-  const userRole = (token?.role as string) || ROLES.USER;
+  const userRole = ((token?.role as string) || ROLES.USER) as "author" | "editor" | "reviewer" | "admin" | "user";
   
   const path = req.nextUrl.pathname;
   

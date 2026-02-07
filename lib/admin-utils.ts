@@ -65,7 +65,7 @@ export function hasRole(userRole: string, requiredRoles: Role[]): boolean {
 // Check if user has required permission
 export function hasPermission(userRole: string, permission: Permission): boolean {
   const allowedRoles = PERMISSIONS[permission] || [];
-  return allowedRoles.includes(userRole)
+  return (allowedRoles as readonly string[]).includes(userRole);
 }
 
 // Check if user can access admin area

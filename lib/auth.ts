@@ -1,14 +1,16 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // lib/auth.ts
 import { getServerSession } from "next-auth";
-import type { NextAuthOptions } from 'next-auth';
+import type { NextAuthOptions, User, Session } from 'next-auth';
+import type { JWT } from 'next-auth/jwt';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import GoogleProvider from 'next-auth/providers/google';
 import { PrismaAdapter } from '@auth/prisma-adapter';
-import { prisma } from '@/lib/prisma'; // Using the shared prisma instance
+import { prisma } from '@/lib/prisma';
 import { compare } from 'bcrypt';
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  adapter: PrismaAdapter(prisma) as any, // Type assertion needed for adapter compatibility
   session: {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60, // 30 days
@@ -68,7 +70,7 @@ export const authOptions: NextAuthOptions = {
         // Return user without password
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { password, ...safeUser } = user;
-        return safeUser;
+        return safeUser as User;
       },
     }),
   ],
@@ -92,13 +94,13 @@ export const authOptions: NextAuthOptions = {
               data: {
                 email: profile.email,
                 name: profile.name,
-                image: profile.image as string || null,
+                image: (profile.image as string) || null,
                 emailVerified: new Date(),
                 role: 'user',
                 emailNotifications: true,
                 pushNotifications: false,
                 marketingEmails: true,
-                isActive: true, // From file2 - default active for new users
+                isActive: true,
               },
             });
             
@@ -156,7 +158,7 @@ export const authOptions: NextAuthOptions = {
                 where: { id: existingUser.id },
                 data: {
                   name: profile.name,
-                  image: profile.image as string || existingUser.image,
+                  image: (profile.image as string) || existingUser.image,
                 },
               });
             }
@@ -173,16 +175,21 @@ export const authOptions: NextAuthOptions = {
       
       return true;
     },
-    async jwt({ token, user, trigger, session }) {
+    async jwt({ token, user, trigger, session }: { 
+      token: JWT; 
+      user?: User; 
+      trigger?: 'signIn' | 'signUp' | 'update'; 
+      session?: { user?: { role?: string; name?: string; image?: string } } 
+    }) {
       // Initial sign in
       if (user) {
         token.id = user.id;
-        token.role = user.role;
+        token.role = ((user as { role?: string }).role || 'user') as any;
       }
 
       // Handle session update (from file2)
       if (trigger === 'update' && session) {
-        token.role = session.user?.role || token.role;
+        token.role = (session.user?.role as any as any) || token.role;
         token.name = session.user?.name || token.name;
         token.image = session.user?.image || token.image;
       }
@@ -205,7 +212,7 @@ export const authOptions: NextAuthOptions = {
 
           if (dbUser) {
             token.id = dbUser.id;
-            token.role = dbUser.role;
+            token.role = dbUser.role as any;
             token.isActive = dbUser.isActive;
             token.name = dbUser.name;
             token.image = dbUser.image;
@@ -218,13 +225,13 @@ export const authOptions: NextAuthOptions = {
       
       return token;
     },
-    async session({ session, token }) {
+    async session({ session, token }: { session: Session; token: JWT }) {
       if (token?.id && session.user) {
         session.user.id = token.id as string;
-        session.user.role = token.role as string;
-        session.user.name = token.name as string;
-        session.user.email = token.email as string;
-        session.user.image = token.image as string;
+        session.user.role = (token.role as string) as any;
+        session.user.name = (token.name as string) || '';
+        session.user.email = (token.email as string) || '';
+        session.user.image = (token.image as string) || '';
       }
       return session;
     },

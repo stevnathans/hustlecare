@@ -203,7 +203,7 @@ export default function ProductsPage() {
                         {renderVendorInfo(product)}
                       </td>
                       <td className="px-4 py-4">
-                        <span className="font-semibold text-gray-900">KES {product.price?.toLocaleString()}</span>
+                        <span className="font-semibold text-gray-900">${product.price?.toLocaleString()}</span>
                       </td>
                       <td className="px-4 py-4">
                         {product.url ? (

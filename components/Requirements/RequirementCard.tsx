@@ -140,7 +140,7 @@ export default function RequirementCard({
             Starting from
           </div>
           <div className="text-lg font-bold text-emerald-600">
-            KSh {lowestPrice.toLocaleString()}
+            ${lowestPrice.toLocaleString()}
           </div>
         </div>
       </div>

@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "About Hustlecare - Simplifying Business Launches",
     description: "Discover how we're helping thousands of entrepreneurs start their businesses with confidence.",
-    url: "https://hustlecare.com/about",
+    url: "https://hustlecare.net/about",
     type: "website",
   },
   twitter: {
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     description: "Learn how we're revolutionizing business startups in Africa",
   },
   alternates: {
-    canonical: "https://hustlecare.com/about",
+    canonical: "https://hustlecare.net/about",
   },
 };
 

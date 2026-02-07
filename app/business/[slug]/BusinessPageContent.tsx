@@ -94,7 +94,7 @@ export default function BusinessPage({ params }: BusinessPageProps) {
     "@type": "LocalBusiness",
     "name": business.name,
     "description": business.description || `${business.name} business requirements and cost calculator`,
-    "url": `https://yoursite.com/business/${slug}`,
+    "url": `https://hustlecare.net/business/${slug}`,
     "image": business.image || "/images/default-business.jpg",
     "priceRange": unfilteredLowPrice && unfilteredHighPrice ? `$${unfilteredLowPrice}-$${unfilteredHighPrice}` : undefined,
     "aggregateRating": business.rating ? {

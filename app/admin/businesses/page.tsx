@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, useMemo } from "react";
+import BusinessCSVImport from '@/components/BusinessCSVImport'; 
 import Image from "next/image";
 import {
   Search,
@@ -249,30 +250,31 @@ export default function BusinessesAdminPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {selectedIds.length > 0 && (
-            <button
-              onClick={handleBulkDelete}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete {selectedIds.length}
-            </button>
-          )}
-          <button
-            onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-          >
-            <Download className="h-4 w-4" />
-            Export
-          </button>
-          <button
-            onClick={openModal}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            Add Business
-          </button>
-        </div>
+  {selectedIds.length > 0 && (
+    <button
+      onClick={handleBulkDelete}
+      className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+    >
+      <Trash2 className="h-4 w-4" />
+      Delete {selectedIds.length}
+    </button>
+  )}
+  <BusinessCSVImport onImportComplete={fetchBusinesses} />
+  <button
+    onClick={handleExport}
+    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+  >
+    <Download className="h-4 w-4" />
+    Export
+  </button>
+  <button
+    onClick={openModal}
+    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+  >
+    <Plus className="h-4 w-4" />
+    Add Business
+  </button>
+</div>
       </div>
 
       <div className="relative">

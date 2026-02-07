@@ -44,9 +44,9 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
   const [budgetScale, setBudgetScale] = useState<'small' | 'medium' | 'large'>('medium');
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-KE', {
+    return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'KES',
+      currency: 'USD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(price);
@@ -95,7 +95,7 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
         "@type": "Offer",
         "description": `Startup cost estimate for ${businessName} business`,
         "priceRange": priceRange,
-        "priceCurrency": "KES"
+        "priceCurrency": "USD"
       };
     }
 

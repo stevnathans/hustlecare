@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
+import RequirementCSVImport from '@/components/RequirementCSVImport'; 
 
 type Requirement = {
   id: number
@@ -159,18 +160,21 @@ export default function RequirementsPage() {
         <div className="mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-slate-900 mb-1">Requirements</h1>
-              <p className="text-slate-600">Manage your business requirements and dependencies</p>
-            </div>
-            <button
-              onClick={openNewModal}
-              className="inline-flex items-center justify-center px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm hover:shadow-md font-medium"
-            >
-              <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add Requirement
-            </button>
+  <h1 className="text-3xl font-bold text-slate-900 mb-1">Requirements</h1>
+  <p className="text-slate-600">Manage your business requirements and dependencies</p>
+</div>
+<div className="flex items-center gap-3">
+  <RequirementCSVImport onImportComplete={fetchRequirements} />
+  <button
+    onClick={openNewModal}
+    className="inline-flex items-center justify-center px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm hover:shadow-md font-medium"
+  >
+    <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+    </svg>
+    Add Requirement
+  </button>
+</div>
           </div>
           
           {/* Search Bar */}
