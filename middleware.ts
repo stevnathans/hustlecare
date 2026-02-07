@@ -50,11 +50,16 @@ function canAccessAdmin(role: string): boolean {
 }
 
 export async function middleware(req: NextRequest) {
+  const path = req.nextUrl.pathname;
+  
+  // Skip middleware for NextAuth API routes
+  if (path.startsWith('/api/auth')) {
+    return NextResponse.next();
+  }
+  
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
   const isAuthenticated = !!token;
   const userRole = ((token?.role as string) || ROLES.USER) as "author" | "editor" | "reviewer" | "admin" | "user";
-  
-  const path = req.nextUrl.pathname;
   
   // Define route patterns
   const protectedRoutes = ['/dashboard', '/profile', '/settings'];
