@@ -175,6 +175,19 @@ export const authOptions: NextAuthOptions = {
       
       return true;
     },
+    
+    // 🔥 CRITICAL FIX: Add redirect callback for OAuth
+    async redirect({ url, baseUrl }) {
+      // Allows relative callback URLs
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      
+      // Allows callback URLs on the same origin
+      if (new URL(url).origin === baseUrl) return url;
+      
+      // For OAuth callbacks, return to the callbackUrl or home
+      return baseUrl;
+    },
+    
     async jwt({ token, user, trigger, session }: { 
       token: JWT; 
       user?: User; 
@@ -225,6 +238,7 @@ export const authOptions: NextAuthOptions = {
       
       return token;
     },
+    
     async session({ session, token }: { session: Session; token: JWT }) {
       if (token?.id && session.user) {
         session.user.id = token.id as string;
