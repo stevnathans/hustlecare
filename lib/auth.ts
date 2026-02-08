@@ -6,21 +6,18 @@ import type { NextAuthOptions, User, Session } from 'next-auth';
 import type { JWT } from 'next-auth/jwt';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import GoogleProvider from 'next-auth/providers/google';
-import { PrismaAdapter } from '@auth/prisma-adapter';
 import { prisma } from '@/lib/prisma';
 import { compare } from 'bcrypt';
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma) as any,
   session: {
     strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    maxAge: 30 * 24 * 60 * 60,
   },
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-      allowDangerousEmailAccountLinking: true,
     }),
     CredentialsProvider({
       name: 'Credentials',
@@ -68,164 +65,166 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async signIn({ user, account, profile }) {
-      console.log("=== SIGN IN CALLBACK ===");
+      console.log("\n\n========================================");
+      console.log("🔐 SIGN IN CALLBACK TRIGGERED");
+      console.log("========================================");
       console.log("Provider:", account?.provider);
       console.log("User email:", user?.email);
+      console.log("Profile email:", profile?.email);
+      console.log("Account type:", account?.type);
+      console.log("========================================\n");
       
       if (account?.provider === "google") {
-        try {
-          const email = user.email || profile?.email;
-          if (!email) {
-            console.error("No email provided");
-            return false;
-          }
+        const email = user.email || profile?.email;
+        
+        if (!email) {
+          console.error("❌ FATAL: No email provided by Google");
+          return false;
+        }
 
-          let existingUser = await prisma.user.findUnique({
+        try {
+          console.log("🔍 Looking for user in database:", email);
+          
+          let dbUser = await prisma.user.findUnique({
             where: { email },
           });
 
-          if (!existingUser) {
-            console.log("Creating new user:", email);
-            
-            existingUser = await prisma.user.create({
+          if (!dbUser) {
+            console.log("📝 User not found - creating new user");
+            dbUser = await prisma.user.create({
               data: {
                 email,
-                name: user.name || profile?.name || email.split('@')[0],
+                name: user.name || (profile as any)?.name || email.split('@')[0],
                 image: user.image || (profile as any)?.picture || null,
                 emailVerified: new Date(),
                 role: 'user',
+                isActive: true,
                 emailNotifications: true,
                 pushNotifications: false,
                 marketingEmails: true,
-                isActive: true,
               },
             });
-            
-            console.log("User created with ID:", existingUser.id);
+            console.log("✅ New user created with ID:", dbUser.id);
+            console.log("   Role:", dbUser.role);
+            console.log("   Active:", dbUser.isActive);
           } else {
-            console.log("Existing user found:", email);
-            console.log("User role:", existingUser.role);
-            console.log("User active:", existingUser.isActive);
+            console.log("✅ Existing user found with ID:", dbUser.id);
+            console.log("   Role:", dbUser.role);
+            console.log("   Active:", dbUser.isActive);
             
-            if (!existingUser.isActive) {
-              console.error("User is inactive");
+            if (!dbUser.isActive) {
+              console.error("❌ FATAL: User account is inactive");
               return false;
             }
             
-            // Update last login
+            console.log("📝 Updating last login timestamp");
             await prisma.user.update({
-              where: { id: existingUser.id },
+              where: { id: dbUser.id },
               data: { lastLoginAt: new Date() }
             });
           }
           
-          // Set the user ID
-          user.id = existingUser.id;
+          // Check for existing account link
+          console.log("🔍 Checking for existing account link");
+          const existingAccount = await prisma.account.findUnique({
+            where: {
+              provider_providerAccountId: {
+                provider: account.provider,
+                providerAccountId: account.providerAccountId,
+              },
+            },
+          });
+
+          if (!existingAccount) {
+            console.log("🔗 Creating new account link");
+            await prisma.account.create({
+              data: {
+                userId: dbUser.id,
+                type: account.type,
+                provider: account.provider,
+                providerAccountId: account.providerAccountId,
+                access_token: account.access_token,
+                expires_at: account.expires_at,
+                token_type: account.token_type,
+                scope: account.scope,
+                id_token: account.id_token,
+                refresh_token: account.refresh_token,
+              },
+            });
+            console.log("✅ Account link created");
+          } else {
+            console.log("✅ Account link already exists");
+          }
           
-          console.log("Sign in successful");
+          user.id = dbUser.id;
+          (user as any).role = dbUser.role;
+          
+          console.log("========================================");
+          console.log("✅ SIGN IN CALLBACK: SUCCESS");
+          console.log("========================================\n\n");
           return true;
         } catch (error) {
-          console.error("Error in sign in callback:", error);
+          console.error("\n========================================");
+          console.error("❌ SIGN IN CALLBACK: ERROR");
+          console.error("========================================");
+          console.error("Error details:", error);
+          console.error("========================================\n\n");
           return false;
         }
       }
       
+      console.log("ℹ️  Non-Google provider, allowing sign in");
       return true;
     },
     
-    async redirect({ url, baseUrl }) {
-      console.log("=== REDIRECT CALLBACK ===");
-      console.log("URL:", url);
-      console.log("BaseURL:", baseUrl);
+    async jwt({ token, user }) {
+      console.log("\n--- JWT CALLBACK ---");
       
-      // Handle relative URLs
-      if (url.startsWith("/")) {
-        return `${baseUrl}${url}`;
-      }
-      
-      // Handle same-origin URLs
-      try {
-        const urlObj = new URL(url);
-        const baseUrlObj = new URL(baseUrl);
-        
-        if (urlObj.origin === baseUrlObj.origin) {
-          return url;
-        }
-      } catch (error) {
-        console.error("Error parsing URL:", error);
-      }
-      
-      return baseUrl;
-    },
-    
-    async jwt({ token, user, account, trigger, session }) {
-      console.log("=== JWT CALLBACK ===");
-      console.log("Token email:", token.email);
-      
-      // Initial sign in
       if (user) {
-        console.log("Setting initial token for user:", user.email);
+        console.log("💾 First time JWT - storing user data");
+        console.log("   User ID:", user.id);
+        console.log("   Email:", user.email);
         token.id = user.id;
         token.email = user.email;
         token.name = user.name;
         token.image = user.image;
         token.role = (user as any).role || 'user';
+        console.log("   Role stored:", token.role);
       }
 
-      // Handle session updates
-      if (trigger === 'update' && session) {
-        token.role = session.user?.role || token.role;
-        token.name = session.user?.name || token.name;
-        token.image = session.user?.image || token.image;
-      }
-
-      // Fetch fresh user data on each request
       if (token.email) {
         try {
           const dbUser = await prisma.user.findUnique({
             where: { email: token.email as string },
-            select: {
-              id: true,
-              role: true,
-              isActive: true,
-              name: true,
-              image: true,
-              email: true,
-            }
+            select: { id: true, role: true, isActive: true, name: true, image: true, email: true }
           });
 
           if (dbUser) {
             token.id = dbUser.id;
             token.role = dbUser.role as any;
             token.isActive = dbUser.isActive;
-            token.name = dbUser.name;
-            token.image = dbUser.image;
-          } else {
-            console.error("User not found in database");
+            console.log("   Fresh role from DB:", token.role);
           }
         } catch (error) {
-          console.error("Error fetching user in JWT callback:", error);
+          console.error("   Error fetching user:", error);
         }
       }
       
-      console.log("Token role:", token.role);
+      console.log("--- JWT CALLBACK END ---\n");
       return token;
     },
     
     async session({ session, token }) {
-      console.log("=== SESSION CALLBACK ===");
-      console.log("Token:", token.email);
-      
+      console.log("\n--- SESSION CALLBACK ---");
       if (token && session.user) {
         session.user.id = token.id as string;
-        session.user.role = token.role as any;
+        session.user.role = token.role as any || 'user';
         session.user.name = token.name as string || '';
         session.user.email = token.email as string || '';
         session.user.image = token.image as string || '';
-        
-        console.log("Session role set to:", session.user.role);
+        console.log("   Session role:", session.user.role);
       }
-      
+      console.log("--- SESSION CALLBACK END ---\n");
       return session;
     },
   },
