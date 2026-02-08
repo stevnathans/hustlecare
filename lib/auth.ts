@@ -1,8 +1,8 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // lib/auth.ts
 import { getServerSession } from "next-auth";
 import type { NextAuthOptions, User, Session } from 'next-auth';
-import type { JWT } from 'next-auth/jwt';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import GoogleProvider from 'next-auth/providers/google';
 import { PrismaAdapter } from '@auth/prisma-adapter';
@@ -10,9 +10,9 @@ import { prisma } from '@/lib/prisma';
 import { compare } from 'bcrypt';
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma) as any, // Type assertion needed for adapter compatibility
+  adapter: PrismaAdapter(prisma) as any,
   session: {
-    strategy: 'jwt',
+    strategy: 'database', // Changed from 'jwt' to 'database' for better OAuth support
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   providers: [
@@ -25,7 +25,8 @@ export const authOptions: NextAuthOptions = {
           access_type: "offline",
           response_type: "code"
         }
-      }
+      },
+      allowDangerousEmailAccountLinking: true,
     }),
     CredentialsProvider({
       name: 'Credentials',
@@ -50,7 +51,6 @@ export const authOptions: NextAuthOptions = {
           throw new Error('This account was registered using a social provider. Please sign in with Google.');
         }
 
-        // Check if user is active (from file2)
         if (!user.isActive) {
           throw new Error('Account is inactive');
         }
@@ -61,13 +61,11 @@ export const authOptions: NextAuthOptions = {
           throw new Error('Invalid password');
         }
 
-        // Update last login (from file2)
         await prisma.user.update({
           where: { id: user.id },
           data: { lastLoginAt: new Date() }
         });
 
-        // Return user without password
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { password, ...safeUser } = user;
         return safeUser as User;
@@ -76,7 +74,9 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async signIn({ user, account, profile }) {
-      console.log("Sign in callback triggered for:", profile?.email);
+      console.log("=== SIGN IN CALLBACK START ===");
+      console.log("User email:", user.email);
+      console.log("Provider:", account?.provider);
       
       if (account?.provider === "google" && profile?.email) {
         try {
@@ -85,11 +85,13 @@ export const authOptions: NextAuthOptions = {
           });
 
           if (!existingUser) {
-            // Validate required fields
             if (!profile.name) {
+              console.error("Google profile missing name field");
               throw new Error('Google profile is missing required name field');
             }
 
+            console.log("Creating new user for:", profile.email);
+            
             existingUser = await prisma.user.create({
               data: {
                 email: profile.email,
@@ -104,149 +106,93 @@ export const authOptions: NextAuthOptions = {
               },
             });
             
-            if (account) {
-              await prisma.account.create({
-                data: {
-                  userId: existingUser.id,
-                  type: account.type,
-                  provider: account.provider,
-                  providerAccountId: account.providerAccountId,
-                  access_token: account.access_token,
-                  refresh_token: account.refresh_token,
-                  expires_at: account.expires_at,
-                  token_type: account.token_type,
-                  scope: account.scope,
-                  id_token: account.id_token,
-                },
-              });
-            }
+            console.log("New user created with ID:", existingUser.id);
           } else {
-            // Update last login for Google sign-in (from file2)
-            await prisma.user.update({
-              where: { id: existingUser.id },
-              data: { lastLoginAt: new Date() }
-            });
-
-            if (account && !await prisma.account.findFirst({ 
-              where: { 
-                userId: existingUser.id,
-                provider: account.provider,
-                providerAccountId: account.providerAccountId 
-              }
-            })) {
-              await prisma.account.create({
-                data: {
-                  userId: existingUser.id,
-                  type: account.type,
-                  provider: account.provider,
-                  providerAccountId: account.providerAccountId,
-                  access_token: account.access_token,
-                  refresh_token: account.refresh_token,
-                  expires_at: account.expires_at,
-                  token_type: account.token_type,
-                  scope: account.scope,
-                  id_token: account.id_token,
-                },
-              });
-            }
-
-            if (existingUser && (
-              (profile.name && existingUser.name !== profile.name) || 
-              (profile.image && existingUser.image !== profile.image)
-            )) {
-              await prisma.user.update({
-                where: { id: existingUser.id },
-                data: {
-                  name: profile.name,
-                  image: (profile.image as string) || existingUser.image,
-                },
-              });
+            console.log("User already exists:", profile.email);
+            console.log("User role:", existingUser.role);
+            console.log("User isActive:", existingUser.isActive);
+            
+            // Check if user is active
+            if (!existingUser.isActive) {
+              console.error("User account is inactive");
+              return false;
             }
             
-            if (existingUser && user) {
+            // Update last login and profile info
+            await prisma.user.update({
+              where: { id: existingUser.id },
+              data: { 
+                lastLoginAt: new Date(),
+                name: profile.name || existingUser.name,
+                image: (profile.image as string) || existingUser.image,
+              }
+            });
+            
+            console.log("User updated successfully");
+            
+            // Update user object with existing user ID
+            if (user) {
               user.id = existingUser.id;
             }
           }
+          
+          console.log("=== SIGN IN CALLBACK SUCCESS ===");
+          return true;
         } catch (error) {
-          console.error("Error in Google sign-in process:", error);
+          console.error("=== SIGN IN CALLBACK ERROR ===");
+          console.error("Error details:", error);
           return false;
         }
       }
       
+      console.log("=== SIGN IN CALLBACK END (non-Google) ===");
       return true;
     },
     
-    // 🔥 CRITICAL FIX: Add redirect callback for OAuth
     async redirect({ url, baseUrl }) {
+      console.log("=== REDIRECT CALLBACK ===");
+      console.log("URL:", url);
+      console.log("Base URL:", baseUrl);
+      
       // Allows relative callback URLs
-      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      if (url.startsWith("/")) {
+        const redirectUrl = `${baseUrl}${url}`;
+        console.log("Redirecting to (relative):", redirectUrl);
+        return redirectUrl;
+      }
       
       // Allows callback URLs on the same origin
-      if (new URL(url).origin === baseUrl) return url;
+      try {
+        const urlObj = new URL(url);
+        if (urlObj.origin === baseUrl) {
+          console.log("Redirecting to (same origin):", url);
+          return url;
+        }
+      } catch (e) {
+        console.error("Error parsing URL:", e);
+      }
       
-      // For OAuth callbacks, return to the callbackUrl or home
+      // Default to base URL
+      console.log("Redirecting to (default):", baseUrl);
       return baseUrl;
     },
     
-    async jwt({ token, user, trigger, session }: { 
-      token: JWT; 
-      user?: User; 
-      trigger?: 'signIn' | 'signUp' | 'update'; 
-      session?: { user?: { role?: string; name?: string; image?: string } } 
-    }) {
-      // Initial sign in
-      if (user) {
-        token.id = user.id;
-        token.role = ((user as { role?: string }).role || 'user') as any;
-      }
-
-      // Handle session update (from file2)
-      if (trigger === 'update' && session) {
-        token.role = (session.user?.role as any as any) || token.role;
-        token.name = session.user?.name || token.name;
-        token.image = session.user?.image || token.image;
-      }
-
-      // Fetch fresh user data from database on each request (from file2)
-      // This ensures role changes and active status are reflected immediately
-      if (token.email) {
-        try {
-          const dbUser = await prisma.user.findUnique({
-            where: { email: token.email as string },
-            select: {
-              id: true,
-              role: true,
-              isActive: true,
-              name: true,
-              image: true,
-              email: true,
-            }
-          });
-
-          if (dbUser) {
-            token.id = dbUser.id;
-            token.role = dbUser.role as any;
-            token.isActive = dbUser.isActive;
-            token.name = dbUser.name;
-            token.image = dbUser.image;
-            token.email = dbUser.email;
-          }
-        } catch (error) {
-          console.error("Error fetching fresh user data in JWT callback:", error);
-        }
+    async session({ session, user }: { session: Session; user: any }) {
+      console.log("=== SESSION CALLBACK ===");
+      console.log("Session user email:", session.user?.email);
+      console.log("DB user ID:", user?.id);
+      
+      // With database sessions, user comes from database
+      if (user && session.user) {
+        session.user.id = user.id;
+        session.user.role = user.role;
+        session.user.name = user.name;
+        session.user.email = user.email;
+        session.user.image = user.image;
+        
+        console.log("Session updated with role:", user.role);
       }
       
-      return token;
-    },
-    
-    async session({ session, token }: { session: Session; token: JWT }) {
-      if (token?.id && session.user) {
-        session.user.id = token.id as string;
-        session.user.role = (token.role as string) as any;
-        session.user.name = (token.name as string) || '';
-        session.user.email = (token.email as string) || '';
-        session.user.image = (token.image as string) || '';
-      }
       return session;
     },
   },
@@ -255,7 +201,24 @@ export const authOptions: NextAuthOptions = {
     error: '/signin',
   },
   secret: process.env.NEXTAUTH_SECRET,
-  debug: process.env.NODE_ENV === 'development',
+  debug: true, // Enable detailed logging
+  events: {
+    async signIn(message) {
+      console.log("✅ SIGN IN EVENT - User:", message.user.email);
+    },
+    async signOut(message) {
+      console.log("🚪 SIGN OUT EVENT");
+    },
+    async createUser(message) {
+      console.log("👤 CREATE USER EVENT - User:", message.user.email);
+    },
+    async linkAccount(message) {
+      console.log("🔗 LINK ACCOUNT EVENT - User:", message.user.email);
+    },
+    async session(message) {
+      console.log("📋 SESSION EVENT");
+    },
+  },
 };
 
 export const getCurrentUser = async () => {
