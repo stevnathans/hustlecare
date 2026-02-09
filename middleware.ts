@@ -76,7 +76,7 @@ export async function middleware(req: NextRequest) {
 
     if (!isAuthenticated) {
       const callbackUrl = encodeURIComponent(path);
-      return NextResponse.redirect(new URL(`/auth/signin?callbackUrl=${callbackUrl}`, req.url));
+      return NextResponse.redirect(new URL(`/signin?callbackUrl=${callbackUrl}`, req.url));
     }
 
     if (!canAccessAdmin(userRole)) {
