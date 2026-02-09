@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+// middleware.ts
 import { NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import type { NextRequest } from 'next/server';
@@ -45,7 +46,6 @@ function canAccessAdmin(role: string): boolean {
 }
 
 export async function middleware(req: NextRequest) {
-
   const path = req.nextUrl.pathname;
 
   // 🚨 VERY IMPORTANT: Skip NextAuth routes completely
@@ -53,7 +53,13 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  // Get token with proper secret
+  const token = await getToken({ 
+    req, 
+    secret: process.env.NEXTAUTH_SECRET,
+    secureCookie: process.env.NODE_ENV === 'production'
+  });
+  
   const isAuthenticated = !!token;
   const userRole = ((token?.role as string) || ROLES.USER) as
     | 'author'
@@ -71,9 +77,13 @@ export async function middleware(req: NextRequest) {
   const isAuthRoute = authRoutes.some(route => path === route);
   const isAdminRoute = adminRoutes.some(route => path.startsWith(route));
 
+  // 🔐 Handle auth routes - redirect authenticated users away from signin/signup
+  if (isAuthRoute && isAuthenticated) {
+    return NextResponse.redirect(new URL('/dashboard', req.url));
+  }
+
   // 🔐 Handle admin routes
   if (isAdminRoute) {
-
     if (!isAuthenticated) {
       const callbackUrl = encodeURIComponent(path);
       return NextResponse.redirect(new URL(`/signin?callbackUrl=${callbackUrl}`, req.url));
@@ -114,12 +124,8 @@ export async function middleware(req: NextRequest) {
   // 🔐 Handle regular protected routes
   if (isProtectedRoute && !isAuthenticated) {
     const callbackUrl = encodeURIComponent(path);
-    return NextResponse.redirect(new URL(`/auth/signin?callbackUrl=${callbackUrl}`, req.url));
-  }
-
-  // 🔐 Handle auth routes
-  if (isAuthRoute && isAuthenticated) {
-    return NextResponse.redirect(new URL('/dashboard', req.url));
+    // FIXED: Changed from /auth/signin to /signin to match your pages config
+    return NextResponse.redirect(new URL(`/signin?callbackUrl=${callbackUrl}`, req.url));
   }
 
   return NextResponse.next();
@@ -130,6 +136,8 @@ export const config = {
     '/dashboard/:path*',
     '/profile/:path*',
     '/settings/:path*',
-    '/admin/:path*'
+    '/admin/:path*',
+    '/signin',
+    '/signup'
   ],
 };
