@@ -18,6 +18,13 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+      authorization: {
+        params: {
+          prompt: "consent",
+          access_type: "offline",
+          response_type: "code"
+        }
+      }
     }),
     CredentialsProvider({
       name: 'Credentials',
@@ -161,6 +168,7 @@ export const authOptions: NextAuthOptions = {
           
           console.log("========================================");
           console.log("✅ SIGN IN CALLBACK: SUCCESS");
+          console.log("   Returning TRUE - user should be signed in");
           console.log("========================================\n\n");
           return true;
         } catch (error) {
@@ -168,6 +176,7 @@ export const authOptions: NextAuthOptions = {
           console.error("❌ SIGN IN CALLBACK: ERROR");
           console.error("========================================");
           console.error("Error details:", error);
+          console.error("Stack trace:", (error as Error).stack);
           console.error("========================================\n\n");
           return false;
         }
@@ -177,8 +186,9 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
     
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       console.log("\n--- JWT CALLBACK ---");
+      console.log("Account present:", !!account);
       
       if (user) {
         console.log("💾 First time JWT - storing user data");

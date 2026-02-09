@@ -1,4 +1,5 @@
 'use client'
+//app/signup/page.jsx
 
 import { signIn, getSession } from "next-auth/react"
 import { useState, useEffect } from "react"
