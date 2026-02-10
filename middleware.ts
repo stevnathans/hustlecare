@@ -48,7 +48,7 @@ function canAccessAdmin(role: string): boolean {
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
 
-  // 🚨 VERY IMPORTANT: Skip NextAuth routes completely
+  // 🚨 CRITICAL: Skip ALL NextAuth routes (including callback routes)
   if (path.startsWith('/api/auth')) {
     return NextResponse.next();
   }
@@ -78,8 +78,16 @@ export async function middleware(req: NextRequest) {
   const isAdminRoute = adminRoutes.some(route => path.startsWith(route));
 
   // 🔐 Handle auth routes - redirect authenticated users away from signin/signup
+  // BUT: Only redirect if this is a direct visit, not part of OAuth flow
   if (isAuthRoute && isAuthenticated) {
-    return NextResponse.redirect(new URL('/dashboard', req.url));
+    // Check if there's a callbackUrl or error parameter (OAuth flow indicators)
+    const hasCallbackUrl = req.nextUrl.searchParams.has('callbackUrl');
+    const hasError = req.nextUrl.searchParams.has('error');
+    
+    // Don't redirect during OAuth flow
+    if (!hasCallbackUrl && !hasError) {
+      return NextResponse.redirect(new URL('/dashboard', req.url));
+    }
   }
 
   // 🔐 Handle admin routes
@@ -124,7 +132,6 @@ export async function middleware(req: NextRequest) {
   // 🔐 Handle regular protected routes
   if (isProtectedRoute && !isAuthenticated) {
     const callbackUrl = encodeURIComponent(path);
-    // FIXED: Changed from /auth/signin to /signin to match your pages config
     return NextResponse.redirect(new URL(`/signin?callbackUrl=${callbackUrl}`, req.url));
   }
 
