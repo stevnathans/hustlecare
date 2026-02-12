@@ -38,7 +38,7 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    "middleware.ts",
+    "proxy.ts",
     "app/layout.js",
     "app/api/cart/item/route.js",
     "app/api/cart/route.ts",

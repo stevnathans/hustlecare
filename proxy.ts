@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// middleware.ts
+// proxy.ts
 import { NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import type { NextRequest } from 'next/server';
@@ -45,7 +45,7 @@ function canAccessAdmin(role: string): boolean {
   return [ROLES.AUTHOR, ROLES.EDITOR, ROLES.REVIEWER, ROLES.ADMIN].includes(role as any);
 }
 
-export async function middleware(req: NextRequest) {
+export async function proxy (req: NextRequest) {
   const path = req.nextUrl.pathname;
 
   // 🚨 CRITICAL: Skip ALL NextAuth routes (including callback routes)
