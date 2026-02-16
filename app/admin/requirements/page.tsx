@@ -284,7 +284,7 @@ export default function RequirementsPage() {
                   <th className="text-left px-6 py-4 text-xs font-semibold text-slate-700 uppercase tracking-wider">Category</th>
                   <th className="text-left px-6 py-4 text-xs font-semibold text-slate-700 uppercase tracking-wider">Business</th>
                   <th className="text-left px-6 py-4 text-xs font-semibold text-slate-700 uppercase tracking-wider">Necessity</th>
-                  <th className="text-right px-6 py-4 text-xs font-semibold text-slate-700 uppercase tracking-wider">Actions</th>
+                  <th className="text-left px-6 py-4 text-xs font-semibold text-slate-700 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-200">
@@ -340,13 +340,7 @@ export default function RequirementsPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm text-slate-600">{req.productCount}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-slate-600">{req.commentCount}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center gap-2">
                         <button
                           onClick={() => openEditModal(req)}
                           className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
