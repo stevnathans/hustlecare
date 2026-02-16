@@ -23,7 +23,7 @@ type RequirementCSVImportProps = {
   onImportComplete: () => void;
 };
 
-const CATEGORIES = ['Equipment', 'Software', 'Documents', 'Legal', 'Branding Resources', 'Operating Expenses'];
+const CATEGORIES = ['Equipment', 'Software', 'Documents', 'Legal', 'Branding', 'Operating Expenses'];
 
 export default function RequirementCSVImport({ onImportComplete }: RequirementCSVImportProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -211,7 +211,7 @@ export default function RequirementCSVImport({ onImportComplete }: RequirementCS
 Point of Sale System,Equipment,Required,Modern POS system with inventory tracking,https://example.com/pos.jpg
 Accounting Software,Software,Required,Cloud-based accounting solution,
 Business License,Legal,Required,State business operating license,
-Logo Design,Branding Resources,Optional,Professional logo package,`;
+Logo Design,Branding,Optional,Professional logo package,`;
     
     const blob = new Blob([template], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);

@@ -51,6 +51,7 @@ export default function RequirementsPage() {
   const [editingRequirement, setEditingRequirement] = useState<number | null>(null)
   const [search, setSearch] = useState('')
   const [businessOptions, setBusinessOptions] = useState<Business[]>([])
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     fetchRequirements()
@@ -120,6 +121,44 @@ export default function RequirementsPage() {
     fetchRequirements()
   }
 
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return
+    
+    if (!confirm(`Are you sure you want to delete ${selectedIds.size} requirement(s)?`)) return
+    
+    try {
+      await Promise.all(
+        Array.from(selectedIds).map(id =>
+          fetch(`/api/requirements/${id}`, {
+            method: 'DELETE',
+          })
+        )
+      )
+      setSelectedIds(new Set())
+      fetchRequirements()
+    } catch (error) {
+      console.error("Failed to delete requirements:", error)
+    }
+  }
+
+  const toggleSelection = (id: number) => {
+    const newSelected = new Set(selectedIds)
+    if (newSelected.has(id)) {
+      newSelected.delete(id)
+    } else {
+      newSelected.add(id)
+    }
+    setSelectedIds(newSelected)
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filtered.map(req => req.id)))
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
   
@@ -153,6 +192,9 @@ export default function RequirementsPage() {
     }
   };
 
+  const allSelected = filtered.length > 0 && selectedIds.size === filtered.length
+  const someSelected = selectedIds.size > 0 && selectedIds.size < filtered.length
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="max-w-7xl mx-auto p-6 lg:p-8">
@@ -160,26 +202,26 @@ export default function RequirementsPage() {
         <div className="mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-  <h1 className="text-3xl font-bold text-slate-900 mb-1">Requirements</h1>
-  <p className="text-slate-600">Manage your business requirements and dependencies</p>
-</div>
-<div className="flex items-center gap-3">
-  <RequirementCSVImport onImportComplete={fetchRequirements} />
-  <button
-    onClick={openNewModal}
-    className="inline-flex items-center justify-center px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm hover:shadow-md font-medium"
-  >
-    <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-    </svg>
-    Add Requirement
-  </button>
-</div>
+              <h1 className="text-3xl font-bold text-slate-900 mb-1">Requirements</h1>
+              <p className="text-slate-600">Manage your business requirements and dependencies</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <RequirementCSVImport onImportComplete={fetchRequirements} />
+              <button
+                onClick={openNewModal}
+                className="inline-flex items-center justify-center px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm hover:shadow-md font-medium"
+              >
+                <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Requirement
+              </button>
+            </div>
           </div>
           
-          {/* Search Bar */}
-          <div className="mt-6">
-            <div className="relative max-w-md">
+          {/* Search Bar and Bulk Actions */}
+          <div className="mt-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+            <div className="relative max-w-md flex-1">
               <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
@@ -191,6 +233,29 @@ export default function RequirementsPage() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
+            
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-3 bg-blue-50 px-4 py-2 rounded-lg border border-blue-200">
+                <span className="text-sm font-medium text-blue-900">
+                  {selectedIds.size} selected
+                </span>
+                <button
+                  onClick={handleBulkDelete}
+                  className="inline-flex items-center px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors font-medium"
+                >
+                  <svg className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete Selected
+                </button>
+                <button
+                  onClick={() => setSelectedIds(new Set())}
+                  className="text-slate-600 hover:text-slate-800 text-sm font-medium"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -200,6 +265,19 @@ export default function RequirementsPage() {
             <table className="min-w-full divide-y divide-slate-200">
               <thead className="bg-slate-50">
                 <tr>
+                  <th className="px-6 py-4 w-12">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      ref={input => {
+                        if (input) {
+                          input.indeterminate = someSelected
+                        }
+                      }}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                  </th>
                   <th className="text-left px-6 py-4 text-xs font-semibold text-slate-700 uppercase tracking-wider">Name</th>
                   <th className="text-left px-6 py-4 text-xs font-semibold text-slate-700 uppercase tracking-wider">Description</th>
                   <th className="text-left px-6 py-4 text-xs font-semibold text-slate-700 uppercase tracking-wider">Image</th>
@@ -211,7 +289,20 @@ export default function RequirementsPage() {
               </thead>
               <tbody className="bg-white divide-y divide-slate-200">
                 {filtered.map((req) => (
-                  <tr key={req.id} className="hover:bg-slate-50 transition-colors">
+                  <tr 
+                    key={req.id} 
+                    className={`transition-colors ${
+                      selectedIds.has(req.id) ? 'bg-blue-50' : 'hover:bg-slate-50'
+                    }`}
+                  >
+                    <td className="px-6 py-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(req.id)}
+                        onChange={() => toggleSelection(req.id)}
+                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </td>
                     <td className="px-6 py-4">
                       <div className="font-medium text-slate-900">{req.name}</div>
                     </td>
