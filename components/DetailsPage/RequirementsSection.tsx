@@ -119,8 +119,8 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
     const requirementsSchema = {
       "@context": "https://schema.org",
       "@type": "ItemList",
-      name: `Complete Requirements for Starting a ${businessName} Business in Kenya`,
-      description: `Comprehensive list of all requirements needed to start a ${businessName} business in Kenya, organized by category.`,
+      name: `Complete Requirements for Starting a ${businessName} Business`,
+      description: `Comprehensive list of all requirements needed to start a ${businessName} business, organized by category.`,
       numberOfItems: totalRequirements,
       itemListElement: sortedCategories.map((category, categoryIndex) => ({
         "@type": "ListItem",

@@ -77,7 +77,7 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
       "@context": "https://schema.org",
       "@type": "Service",
       "name": `${businessName} Business Startup Guide`,
-      "description": `Complete guide to starting a ${businessName} business in Kenya with detailed requirements and cost estimates.`,
+      "description": `Complete guide to starting a ${businessName} business with detailed requirements and cost estimates.`,
       "provider": {
         "@type": "Organization",
         "name": "Hustlecare",
@@ -85,8 +85,8 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
       },
       "areaServed": {
         "@type": "Country",
-        "name": "Kenya",
-        "sameAs": "https://en.wikipedia.org/wiki/Kenya"
+        "name": "United States",
+        "sameAs": "https://en.wikipedia.org/wiki/United_States"
       }
     };
 
@@ -117,11 +117,11 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
               <span className="bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
                 {businessName}
               </span>
-              {' '}Business in Kenya
+              {' '}Business
             </h1>
 
             <p className="text-base sm:text-lg text-slate-600 leading-relaxed">
-              Complete requirements, cost estimates, and essential resources to start a successful {businessName} business in Kenya.
+              Complete requirements, cost estimates, and essential resources to start a successful {businessName} business.
             </p>
           </div>
 
@@ -199,7 +199,7 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
           <article className="px-2 sm:px-3">
             <div className="text-center mb-5 sm:mb-6">
               <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 mb-3 sm:mb-4">
-                How Much Does It Cost to Start a {businessName} Business in Kenya?
+                How Much Does It Cost to Start a {businessName} Business?
               </h2>
               <div className="w-16 sm:w-20 h-1 bg-gradient-to-r from-emerald-500 to-blue-500 mx-auto rounded-full" />
             </div>
@@ -226,10 +226,10 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
                 </>
               ) : (
                 <p className="text-sm sm:text-base">
-                  To successfully start a {businessName.toLocaleLowerCase()} business in Kenya, you need up to{' '}
+                  To successfully start a {businessName.toLocaleLowerCase()} business, you need up to{' '}
                   <span className="font-bold text-blue-700">{totalRequirements} key requirements</span>, which include{' '}
                   <span className="font-bold text-emerald-700">{requiredCount} essential items</span> and{' '}
-                  <span className="font-bold text-amber-700">{optionalCount} optional ones</span>. The actual startup cost will depend on your chosen business scale, location within Kenya, and specific operational needs.
+                  <span className="font-bold text-amber-700">{optionalCount} optional ones</span>. The actual startup cost will depend on your chosen business scale, location, and specific operational needs.
                 </p>
               )}
             </div>

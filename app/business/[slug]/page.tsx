@@ -56,11 +56,11 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
       };
     }
 
-    const title = `${business.name} Business in Kenya - Complete Requirements & Cost Calculations`;
+    const title = `${business.name} Business - Complete Requirements & Total Costs`;
     const description = business.description || 
       `Explore ${business.name} business requirements, pricing, and use our cost calculator to estimate your investment. Get detailed insights and planning tools.`;
     
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://yoursite.com';
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net/';
     const pageUrl = `${siteUrl}/business/${slug}`;
     
     return {
