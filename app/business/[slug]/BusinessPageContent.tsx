@@ -130,7 +130,7 @@ export default function BusinessPage({ params }: BusinessPageProps) {
         {/* Main heading for SEO */}
         <header className="mb-8">
           <h1 className="sr-only">
-            {business.name} in Kenya - Complete Requirements and Costs
+            {business.name} - Complete Requirements and Total Costs
           </h1>
         </header>
 
