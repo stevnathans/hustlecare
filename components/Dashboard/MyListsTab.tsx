@@ -209,7 +209,7 @@ export default function MyListsTab() {
         ))}
 
         {/* Add New Business Card */}
-        <Link href="/business">
+        <Link href="/businesses">
           <div className="bg-white dark:bg-gray-800 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 p-6 hover:border-emerald-500 dark:hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-colors cursor-pointer">
             <div className="flex flex-col items-center justify-center h-full min-h-[200px]">
               <div className="p-3 bg-gray-100 dark:bg-gray-700 rounded-full mb-4">
