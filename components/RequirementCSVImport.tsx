@@ -30,6 +30,7 @@ export default function RequirementCSVImport({ onImportComplete }: RequirementCS
   const [requirements, setRequirements] = useState<CSVRequirement[]>([]);
   const [loading, setLoading] = useState(false);
   const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [selectedBusinessId, setSelectedBusinessId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -46,6 +47,10 @@ export default function RequirementCSVImport({ onImportComplete }: RequirementCS
         // Filter only published businesses
         const published = data.filter((b: Business) => b.published);
         setBusinesses(published);
+        // Auto-select first business if available
+        if (published.length > 0) {
+          setSelectedBusinessId(published[0].id);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch businesses:', error);
@@ -61,11 +66,15 @@ export default function RequirementCSVImport({ onImportComplete }: RequirementCS
 
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
     
-    // Validate required headers
-    const requiredHeaders = ['name', 'category', 'business', 'necessity'];
+    // Validate required headers (removed 'business' requirement)
+    const requiredHeaders = ['name', 'category', 'necessity'];
     const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
     if (missingHeaders.length > 0) {
       throw new Error(`Missing required columns: ${missingHeaders.join(', ')}`);
+    }
+
+    if (!selectedBusinessId) {
+      throw new Error('Please select a business before uploading CSV');
     }
 
     const requirements: CSVRequirement[] = [];
@@ -87,15 +96,6 @@ export default function RequirementCSVImport({ onImportComplete }: RequirementCS
             throw new Error(`Row ${i + 1}: Invalid category "${value}". Must be one of: ${CATEGORIES.join(', ')}`);
           }
           requirement[header] = value;
-        } else if (header === 'business') {
-          // Find business by name (case-insensitive)
-          const business = businesses.find(
-            b => b.name.toLowerCase() === value.toLowerCase()
-          );
-          if (!business) {
-            throw new Error(`Row ${i + 1}: Business "${value}" not found or not published`);
-          }
-          requirement.businessId = business.id;
         } else if (header === 'necessity') {
           const normalizedValue = value.toLowerCase();
           if (normalizedValue === 'required' || normalizedValue === 'req') {
@@ -108,15 +108,15 @@ export default function RequirementCSVImport({ onImportComplete }: RequirementCS
         }
       });
 
+      // Use selected business ID for all requirements
+      requirement.businessId = selectedBusinessId;
+
       // Validate required fields
       if (!requirement.name) {
         throw new Error(`Row ${i + 1}: Missing required field: name`);
       }
       if (!requirement.category) {
         throw new Error(`Row ${i + 1}: Missing required field: category`);
-      }
-      if (!requirement.businessId) {
-        throw new Error(`Row ${i + 1}: Missing required field: business`);
       }
       if (!requirement.necessity) {
         throw new Error(`Row ${i + 1}: Missing required field: necessity`);
@@ -137,8 +137,8 @@ export default function RequirementCSVImport({ onImportComplete }: RequirementCS
       return;
     }
 
-    if (businesses.length === 0) {
-      toast.error('No published businesses available. Please publish at least one business first.');
+    if (!selectedBusinessId) {
+      toast.error('Please select a business first');
       return;
     }
 
@@ -207,13 +207,11 @@ export default function RequirementCSVImport({ onImportComplete }: RequirementCS
   };
 
   const downloadTemplate = () => {
-    const exampleBusiness = businesses.length > 0 ? businesses[0].name : 'Example Business';
-    
-    const template = `name,category,business,necessity,description,image
-Point of Sale System,Equipment,${exampleBusiness},Required,Modern POS system with inventory tracking,https://example.com/pos.jpg
-Accounting Software,Software,${exampleBusiness},Required,Cloud-based accounting solution,
-Business License,Legal,${exampleBusiness},Required,State business operating license,
-Logo Design,Branding Resources,${exampleBusiness},Optional,Professional logo package,`;
+    const template = `name,category,necessity,description,image
+Point of Sale System,Equipment,Required,Modern POS system with inventory tracking,https://example.com/pos.jpg
+Accounting Software,Software,Required,Cloud-based accounting solution,
+Business License,Legal,Required,State business operating license,
+Logo Design,Branding Resources,Optional,Professional logo package,`;
     
     const blob = new Blob([template], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -235,6 +233,7 @@ Logo Design,Branding Resources,${exampleBusiness},Optional,Professional logo pac
   const closeModal = () => {
     setIsModalOpen(false);
     setRequirements([]);
+    setSelectedBusinessId(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -277,7 +276,6 @@ Logo Design,Branding Resources,${exampleBusiness},Optional,Professional logo pac
                 <ul className="text-sm text-blue-700 list-disc list-inside space-y-1">
                   <li><strong>name</strong> (required) - Requirement name</li>
                   <li><strong>category</strong> (required) - One of: {CATEGORIES.join(', ')}</li>
-                  <li><strong>business</strong> (required) - Business name (must match a published business exactly)</li>
                   <li><strong>necessity</strong> (required) - &quot;Required&quot; or &quot;Optional&quot;</li>
                   <li><strong>description</strong> (optional) - Requirement description</li>
                   <li><strong>image</strong> (optional) - Image URL</li>
@@ -287,20 +285,45 @@ Logo Design,Branding Resources,${exampleBusiness},Optional,Professional logo pac
                     ⚠️ No published businesses found. Please publish at least one business before importing requirements.
                   </p>
                 )}
-                {businesses.length > 0 && (
-                  <div className="mt-3">
-                    <p className="text-sm text-blue-800 font-semibold mb-1">Available Published Businesses:</p>
-                    <p className="text-sm text-blue-700">{businesses.map(b => b.name).join(', ')}</p>
-                  </div>
-                )}
                 <button
                   onClick={downloadTemplate}
-                  disabled={businesses.length === 0}
-                  className="mt-3 flex items-center gap-2 text-sm text-blue-700 hover:text-blue-900 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="mt-3 flex items-center gap-2 text-sm text-blue-700 hover:text-blue-900 font-medium"
                 >
                   <Download className="h-4 w-4" />
                   Download Template CSV
                 </button>
+              </div>
+
+              {/* Business Selection Dropdown */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Business <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={selectedBusinessId || ''}
+                  onChange={(e) => {
+                    setSelectedBusinessId(Number(e.target.value));
+                    // Clear any loaded requirements when changing business
+                    setRequirements([]);
+                    if (fileInputRef.current) {
+                      fileInputRef.current.value = '';
+                    }
+                  }}
+                  disabled={businesses.length === 0}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed bg-white"
+                >
+                  <option value="">-- Select a business --</option>
+                  {businesses.map((business) => (
+                    <option key={business.id} value={business.id}>
+                      {business.name}
+                    </option>
+                  ))}
+                </select>
+                {businesses.length > 0 && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    All requirements will be imported to the selected business
+                  </p>
+                )}
               </div>
 
               <div className="mb-6">
@@ -312,9 +335,14 @@ Logo Design,Branding Resources,${exampleBusiness},Optional,Professional logo pac
                   type="file"
                   accept=".csv"
                   onChange={handleFileChange}
-                  disabled={businesses.length === 0}
+                  disabled={!selectedBusinessId}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
+                {!selectedBusinessId && (
+                  <p className="mt-1 text-xs text-amber-600">
+                    Please select a business first
+                  </p>
+                )}
               </div>
 
               {requirements.length > 0 && (
