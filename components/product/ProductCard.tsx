@@ -1,3 +1,4 @@
+// This component represents a product card that can be used to display products related to business requirements. It includes functionality to add/remove products from the cart, view product details, and visit the vendor's shop. It also handles user authentication for adding items to the cart.
 "use client";
 
 import React, { useState } from "react";

@@ -10,6 +10,7 @@ import ProfileTab from "@/components/Dashboard/ProfileTab";
 import MyListsTab from "@/components/Dashboard/MyListsTab";
 import SettingsTab from "@/components/Dashboard/SettingsTab";
 import HelpTab from "@/components/Dashboard/HelpTab";
+import CommunityTab from "@/components/Dashboard/CommunityTab";
 
 interface User {
   id: string;
@@ -57,6 +58,8 @@ export default function DashboardClient({ user, stats, recentActivity }: Dashboa
         return <ProfileTab user={user} />;
       case "my-lists":
         return <MyListsTab />;
+      case "community":
+        return <CommunityTab />;
       case "settings":
         return <SettingsTab user={user} theme={theme} setTheme={setTheme} />;
       case "help":

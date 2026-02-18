@@ -28,6 +28,10 @@ model User {
   lastLoginAt         DateTime?
   isActive            Boolean     @default(true)
   
+  // Community features
+  isVerified          Boolean     @default(false) // For verified badge
+  verifiedAt          DateTime?
+  
   carts               Cart[]
   businesses          Business[]
   comments            Comment[]
@@ -36,6 +40,11 @@ model User {
   sessions            Session[]
   searches            SearchLog[]
   auditLogs           AuditLog[]  // Track admin actions
+  
+  // Community sharing relations
+  sharedBusinesses    SharedBusiness[]
+  copiedBusinesses    BusinessCopyActivity[]
+  
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
   
@@ -126,6 +135,9 @@ model Business {
   searches     SearchLog[]
   user         User?         @relation(fields: [userId], references: [id])
   userId       String?
+  
+  // Community sharing relation
+  sharedBusinesses SharedBusiness[]
 
   @@index([name])
   @@index([slug])
@@ -232,7 +244,7 @@ model SearchLog {
   @@index([userId])
 }
 
-// New: Audit Log for tracking admin actions
+// Audit Log for tracking admin actions
 model AuditLog {
   id          String   @id @default(uuid())
   userId      String
@@ -249,4 +261,56 @@ model AuditLog {
   @@index([entity])
   @@index([action])
   @@index([createdAt])
+}
+
+// ============================================
+// COMMUNITY SHARING FEATURE MODELS
+// ============================================
+
+// SharedBusiness: Tracks publicly shared business setups
+model SharedBusiness {
+  id          Int      @id @default(autoincrement())
+  userId      String   // The user who shared the business
+  businessId  Int      // The business being shared
+  name        String   // Cached business name for quick access
+  description String?  @db.Text // Optional description/notes about this setup
+  isActive    Boolean  @default(true) // Can be toggled on/off (public/private)
+  viewCount   Int      @default(0) // Track how many times previewed
+  copyCount   Int      @default(0) // Track how many times copied
+  
+  // Featured/quality control
+  isFeatured  Boolean  @default(false) // Staff picks
+  featuredAt  DateTime?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Track who copied this business
+  copies   BusinessCopyActivity[]
+
+  @@unique([userId, businessId]) // One shared business per user per business type
+  @@index([isActive, viewCount])
+  @@index([isActive, copyCount])
+  @@index([isActive, createdAt])
+  @@index([isFeatured])
+}
+
+// BusinessCopyActivity: Track when users copy shared businesses (for analytics)
+model BusinessCopyActivity {
+  id               Int      @id @default(autoincrement())
+  sharedBusinessId Int
+  copiedByUserId   String
+  copiedAt         DateTime @default(now())
+
+  // Relations
+  sharedBusiness SharedBusiness @relation(fields: [sharedBusinessId], references: [id], onDelete: Cascade)
+  copiedByUser   User           @relation(fields: [copiedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([sharedBusinessId])
+  @@index([copiedByUserId])
+  @@index([copiedAt])
 }

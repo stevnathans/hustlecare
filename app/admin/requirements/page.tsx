@@ -52,6 +52,9 @@ export default function RequirementsPage() {
   const [search, setSearch] = useState('')
   const [businessOptions, setBusinessOptions] = useState<Business[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
 
   useEffect(() => {
     fetchRequirements()
@@ -113,18 +116,29 @@ export default function RequirementsPage() {
     setIsOpen(true)
   }
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this requirement?')) return
-    await fetch(`/api/requirements/${id}`, {
+  const openDeleteConfirm = (id: number) => {
+    setDeletingId(id)
+    setDeleteConfirmOpen(true)
+  }
+
+  const handleDelete = async () => {
+    if (deletingId === null) return
+    
+    await fetch(`/api/requirements/${deletingId}`, {
       method: 'DELETE',
     })
+    setDeleteConfirmOpen(false)
+    setDeletingId(null)
     fetchRequirements()
+  }
+
+  const openBulkDeleteConfirm = () => {
+    if (selectedIds.size === 0) return
+    setBulkDeleteConfirmOpen(true)
   }
 
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return
-    
-    if (!confirm(`Are you sure you want to delete ${selectedIds.size} requirement(s)?`)) return
     
     try {
       await Promise.all(
@@ -135,6 +149,7 @@ export default function RequirementsPage() {
         )
       )
       setSelectedIds(new Set())
+      setBulkDeleteConfirmOpen(false)
       fetchRequirements()
     } catch (error) {
       console.error("Failed to delete requirements:", error)
@@ -195,6 +210,8 @@ export default function RequirementsPage() {
   const allSelected = filtered.length > 0 && selectedIds.size === filtered.length
   const someSelected = selectedIds.size > 0 && selectedIds.size < filtered.length
 
+  const deletingRequirement = deletingId ? requirements.find(r => r.id === deletingId) : null
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="max-w-7xl mx-auto p-6 lg:p-8">
@@ -240,7 +257,7 @@ export default function RequirementsPage() {
                   {selectedIds.size} selected
                 </span>
                 <button
-                  onClick={handleBulkDelete}
+                  onClick={openBulkDeleteConfirm}
                   className="inline-flex items-center px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors font-medium"
                 >
                   <svg className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -351,7 +368,7 @@ export default function RequirementsPage() {
                           </svg>
                         </button>
                         <button
-                          onClick={() => handleDelete(req.id)}
+                          onClick={() => openDeleteConfirm(req.id)}
                           className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="Delete"
                         >
@@ -375,7 +392,7 @@ export default function RequirementsPage() {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Create/Edit Modal */}
       {isOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsOpen(false)} />
@@ -428,7 +445,7 @@ export default function RequirementsPage() {
                     required
                   >
                     <option value="">Select Category</option>
-                    {['Equipment', 'Software', 'Documents', 'Legal', 'Branding Resources', 'Operating Expenses'].map((cat) => (
+                    {['Equipment', 'Software', 'Documents', 'Legal', 'Branding', 'Operating Expenses'].map((cat) => (
                       <option key={cat} value={cat}>
                         {cat}
                       </option>
@@ -497,6 +514,74 @@ export default function RequirementsPage() {
                     {editingRequirement ? 'Update Requirement' : 'Create Requirement'}
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setDeleteConfirmOpen(false)} />
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="relative bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+              <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
+                <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 text-center mb-2">Delete Requirement</h3>
+              <p className="text-slate-600 text-center mb-6">
+                Are you sure you want to delete <span className="font-semibold text-slate-900">{deletingRequirement?.name}</span>? This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setDeleteConfirmOpen(false)}
+                  className="px-5 py-2.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="px-5 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {bulkDeleteConfirmOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setBulkDeleteConfirmOpen(false)} />
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="relative bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+              <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
+                <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 text-center mb-2">Delete Multiple Requirements</h3>
+              <p className="text-slate-600 text-center mb-6">
+                Are you sure you want to delete <span className="font-semibold text-slate-900">{selectedIds.size} requirement{selectedIds.size !== 1 ? 's' : ''}</span>? This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setBulkDeleteConfirmOpen(false)}
+                  className="px-5 py-2.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleBulkDelete}
+                  className="px-5 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                >
+                  Delete {selectedIds.size} Requirement{selectedIds.size !== 1 ? 's' : ''}
+                </button>
               </div>
             </div>
           </div>

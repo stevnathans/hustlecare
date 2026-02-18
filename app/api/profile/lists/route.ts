@@ -1,52 +1,76 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { NextResponse } from "next/server";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
 
-  if (!session || !session.user?.email) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  try {
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-      select: { id: true },
-    });
-
-    if (!user) {
-      return NextResponse.json({ message: 'User not found' }, { status: 404 });
-    }
-
-    const carts = await prisma.cart.findMany({
-      where: { userId: user.id },
-      include: {
-        business: {
-          select: { id: true, name: true, image: true, slug: true },
+  const user = await prisma.user.findUnique({
+    where: { email: session.user.email },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      image: true,
+      carts: {
+        orderBy: { updatedAt: "desc" },
+        select: {
+          id: true,
+          updatedAt: true,
+          items: true,
+          business: {
+            select: {
+              id: true,
+              slug: true,
+              name: true,
+            },
+          },
         },
-        items: true,
       },
-      orderBy: {
-        updatedAt: 'desc',
-      },
-    });
+    },
+  });
 
-    const formattedLists = carts.map((cart) => ({
-      cartId: cart.id,
-      businessId: cart.business.id,
-      businessName: cart.business.name,
-      businessImage: cart.business.image,
-      businessSlug: cart.business.slug,
-      totalItems: cart.items.length,
-      totalCost: cart.totalCost ?? 0,
-      updatedAt: cart.updatedAt,
-    }));
-
-    return NextResponse.json({ lists: formattedLists });
-  } catch (error) {
-    console.error('Error fetching profile lists:', error);
-    return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
+  if (!user) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
+
+  const cartsWithShareStatus = await Promise.all(
+    user.carts.map(async (cart) => {
+      const sharedBusiness = await prisma.sharedBusiness.findFirst({
+        where: {
+          userId: user.id,
+          businessId: cart.business.id,
+        },
+        select: {
+          isActive: true,
+          viewCount: true,
+          copyCount: true,
+        },
+      });
+
+      return {
+        businessId: cart.business.id.toString(),
+        businessName: cart.business.name,
+        businessSlug: cart.business.slug,
+        totalCost: cart.items.reduce(
+          (sum, item) => sum + item.unitPrice * item.quantity,
+          0
+        ),
+        totalItems: cart.items.length,
+        updatedAt: cart.updatedAt.toISOString(),
+        isShared: sharedBusiness?.isActive || false,
+        viewCount: sharedBusiness?.viewCount || 0,
+        copyCount: sharedBusiness?.copyCount || 0,
+      };
+    })
+  );
+
+  return NextResponse.json({
+    lists: cartsWithShareStatus,
+  });
 }

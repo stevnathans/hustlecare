@@ -3,7 +3,19 @@
 
 import { useEffect, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { ShoppingBag, DollarSign, Package, Plus, Calendar, TrendingUp } from "lucide-react";
+import { 
+  ShoppingBag, 
+  DollarSign, 
+  Package, 
+  Plus, 
+  Calendar, 
+  TrendingUp, 
+  Globe, 
+  Lock,
+  Eye,
+  Copy,
+  Check
+} from "lucide-react";
 import Link from "next/link";
 
 interface SavedBusiness {
@@ -13,6 +25,9 @@ interface SavedBusiness {
   itemsCount: number;
   lastUpdated: string;
   slug: string;
+  isShared: boolean;
+  viewCount?: number;
+  copyCount?: number;
 }
 
 // Add interface for the API response structure
@@ -23,6 +38,9 @@ interface ApiBusinessList {
   totalItems: number;
   updatedAt: string;
   businessSlug: string;
+  isShared: boolean;
+  viewCount?: number;
+  copyCount?: number;
 }
 
 interface ApiResponse {
@@ -33,6 +51,8 @@ export default function MyListsTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [businesses, setBusinesses] = useState<SavedBusiness[]>([]);
+  const [sharingStates, setSharingStates] = useState<Record<string, boolean>>({});
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [totalStats, setTotalStats] = useState({
     totalBusinesses: 0,
     totalItems: 0,
@@ -58,6 +78,9 @@ export default function MyListsTab() {
           itemsCount: list.totalItems,
           lastUpdated: list.updatedAt,
           slug: list.businessSlug,
+          isShared: list.isShared || false,
+          viewCount: list.viewCount || 0,
+          copyCount: list.copyCount || 0,
         }));
 
         setBusinesses(mappedBusinesses);
@@ -81,6 +104,46 @@ export default function MyListsTab() {
 
     fetchSavedBusinesses();
   }, []);
+
+  const toggleShare = async (businessId: string, currentState: boolean) => {
+    setSharingStates(prev => ({ ...prev, [businessId]: true }));
+
+    try {
+      const response = await fetch(`/api/profile/lists/${businessId}/share`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isShared: !currentState }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update sharing status');
+      }
+
+      // Update local state
+      setBusinesses(prev =>
+        prev.map(b =>
+          b.id === businessId ? { ...b, isShared: !currentState } : b
+        )
+      );
+    } catch (error) {
+      console.error('Error toggling share:', error);
+      alert('Failed to update sharing status. Please try again.');
+    } finally {
+      setSharingStates(prev => ({ ...prev, [businessId]: false }));
+    }
+  };
+
+  const copyShareLink = async (business: SavedBusiness) => {
+    const shareUrl = `${window.location.origin}/community/${business.id}`;
+    
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopiedUrl(business.id);
+      setTimeout(() => setCopiedUrl(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy link:', error);
+    }
+  };
 
   if (loading) {
     return (
@@ -121,7 +184,7 @@ export default function MyListsTab() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">My Lists</h1>
         <p className="text-gray-600 dark:text-gray-400 mt-2">
-          Manage your saved business lists and track your shopping preferences
+          Manage your saved business lists and share them with the community
         </p>
       </div>
 
@@ -169,11 +232,31 @@ export default function MyListsTab() {
       {/* Business Lists */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {businesses.map((business) => (
-          <Link key={business.id} href={`/business/${business.slug}`}>
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-lg transition-shadow cursor-pointer">
+          <div key={business.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg transition-shadow">
+            {/* Share Status Banner */}
+            {business.isShared && (
+              <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 flex items-center justify-between">
+                <div className="flex items-center text-white text-sm font-medium">
+                  <Globe className="w-4 h-4 mr-2" />
+                  Public
+                </div>
+                <div className="flex items-center space-x-3 text-white text-xs">
+                  <span className="flex items-center">
+                    <Eye className="w-3 h-3 mr-1" />
+                    {business.viewCount || 0}
+                  </span>
+                  <span className="flex items-center">
+                    <Copy className="w-3 h-3 mr-1" />
+                    {business.copyCount || 0}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="p-6">
               <div className="flex items-start justify-between mb-4">
                 <div className="p-3 bg-emerald-100 dark:bg-emerald-900 rounded-full">
-                  <ShoppingBag className="w-6 h-6 text-emerald-600 dark:text-blue-400" />
+                  <ShoppingBag className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
                 </div>
                 <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                   <Calendar className="w-4 h-4 mr-1" />
@@ -185,7 +268,7 @@ export default function MyListsTab() {
                 {business.name}
               </h3>
               
-              <div className="space-y-2">
+              <div className="space-y-2 mb-4">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600 dark:text-gray-400">Items</span>
                   <span className="font-medium text-gray-900 dark:text-white">{business.itemsCount}</span>
@@ -197,15 +280,66 @@ export default function MyListsTab() {
                   </span>
                 </div>
               </div>
-              
-              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <div className="flex items-center text-emerald-600 dark:text-emerald-400 text-sm font-medium">
-                  <TrendingUp className="w-4 h-4 mr-2" />
-                  View Details
-                </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <Link href={`/business/${business.slug}`}>
+                  <button className="w-full flex items-center justify-center px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors text-sm font-medium">
+                    <TrendingUp className="w-4 h-4 mr-2" />
+                    View Details
+                  </button>
+                </Link>
+
+                {/* Share Toggle */}
+                <button
+                  onClick={() => toggleShare(business.id, business.isShared)}
+                  disabled={sharingStates[business.id]}
+                  className={`w-full flex items-center justify-center px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
+                    business.isShared
+                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30'
+                  }`}
+                >
+                  {sharingStates[business.id] ? (
+                    <>
+                      <div className="animate-spin mr-2 h-4 w-4 border-2 border-current border-t-transparent rounded-full"></div>
+                      Updating...
+                    </>
+                  ) : business.isShared ? (
+                    <>
+                      <Lock className="w-4 h-4 mr-2" />
+                      Make Private
+                    </>
+                  ) : (
+                    <>
+                      <Globe className="w-4 h-4 mr-2" />
+                      Share Publicly
+                    </>
+                  )}
+                </button>
+
+                {/* Copy Link Button (only show if shared) */}
+                {business.isShared && (
+                  <button
+                    onClick={() => copyShareLink(business)}
+                    className="w-full flex items-center justify-center px-4 py-2 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-sm font-medium"
+                  >
+                    {copiedUrl === business.id ? (
+                      <>
+                        <Check className="w-4 h-4 mr-2 text-green-600" />
+                        Link Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4 mr-2" />
+                        Copy Link
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
-          </Link>
+          </div>
         ))}
 
         {/* Add New Business Card */}

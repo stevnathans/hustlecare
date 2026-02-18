@@ -1,3 +1,4 @@
+// components/Requirements/RequirementCard.tsx
 "use client";
 import { useState } from "react";
 import ProductCard from "@/components/product/ProductCard";
