@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Bars3Icon, CogIcon, FolderIcon, HomeIcon, QuestionMarkCircleIcon, UserIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { UsersIcon } from "lucide-react";
 
 interface MobileHeaderProps {
   activeTab: string;
@@ -15,6 +16,7 @@ export default function MobileHeader({ activeTab, setActiveTab }: MobileHeaderPr
     { id: "dashboard", name: "Dashboard", icon: HomeIcon },
     { id: "profile", name: "Profile", icon: UserIcon },
     { id: "my-lists", name: "My Lists", icon: FolderIcon },
+      { id: "community", name: 'Community', icon: UsersIcon },
     { id: "settings", name: "Settings", icon: CogIcon },
     { id: "help", name: "Help", icon: QuestionMarkCircleIcon },
   ];
