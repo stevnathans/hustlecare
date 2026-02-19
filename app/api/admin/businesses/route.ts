@@ -7,10 +7,13 @@ import { requirePermission, createAuditLog } from '@/lib/admin-utils';
 async function resolveCategoryId(categoryName?: string): Promise<number | undefined> {
   if (!categoryName || !categoryName.trim()) return undefined;
 
+  const trimmedName = categoryName.trim();
+  const slug = trimmedName.toLowerCase().replace(/\s+/g, '-');
+
   const category = await prisma.businessCategory.upsert({
-    where: { name: categoryName.trim() },
+    where: { name: trimmedName },
     update: {},
-    create: { name: categoryName.trim() },
+    create: { name: trimmedName, slug },
   });
 
   return category.id;

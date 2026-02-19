@@ -17,7 +17,8 @@ import {
   Shield,
   LogOut,
   Settings,
-  FileText
+  FileText,
+  LayoutGrid
 } from "lucide-react";
 
 interface NavItem {
@@ -44,6 +45,12 @@ const navItems: NavItem[] = [
     name: "Businesses", 
     href: "/admin/businesses", 
     icon: Building, 
+    requiredRoles: ["author", "editor", "admin"] 
+  },
+  { 
+    name: "Categories", 
+    href: "/admin/categories", 
+    icon: LayoutGrid, 
     requiredRoles: ["author", "editor", "admin"] 
   },
   { 
