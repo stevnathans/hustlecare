@@ -3,35 +3,48 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requirePermission, createAuditLog } from '@/lib/admin-utils';
 
+// Helper: resolve categoryName → categoryId (upsert)
+async function resolveCategoryId(categoryName?: string): Promise<number | undefined> {
+  if (!categoryName || !categoryName.trim()) return undefined;
+
+  const category = await prisma.businessCategory.upsert({
+    where: { name: categoryName.trim() },
+    update: {},
+    create: { name: categoryName.trim() },
+  });
+
+  return category.id;
+}
+
 // GET - Fetch all businesses with counts
 export async function GET() {
   try {
-    // Verify user has permission to view businesses
     await requirePermission('businesses.view');
-    
+
     const businesses = await prisma.business.findMany({
       include: {
         _count: {
-          select: { 
+          select: {
             requirements: true,
             carts: true,
-            searches: true
-          }
+            searches: true,
+          },
         },
         user: {
           select: {
             name: true,
-            email: true
-          }
-        }
+            email: true,
+          },
+        },
+        category: true,
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
 
     return NextResponse.json(businesses);
   } catch (error) {
     console.error('Error fetching businesses:', error);
-    
+
     if (error instanceof Error) {
       if (error.message.includes('Unauthorized') || error.message.includes('Forbidden')) {
         return NextResponse.json(
@@ -40,7 +53,7 @@ export async function GET() {
         );
       }
     }
-    
+
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -51,13 +64,11 @@ export async function GET() {
 // POST - Create new business
 export async function POST(req: NextRequest) {
   try {
-    // Verify user has permission to create businesses
     const user = await requirePermission('businesses.create');
-    
-    const body = await req.json();
-    const { name, slug, description, image, published = true } = body;
 
-    // Validate required fields
+    const body = await req.json();
+    const { name, slug, description, image, published = true, categoryName } = body;
+
     if (!name || !slug) {
       return NextResponse.json(
         { error: 'Name and slug are required' },
@@ -65,11 +76,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if slug already exists
-    const existingBusiness = await prisma.business.findUnique({
-      where: { slug }
-    });
-
+    const existingBusiness = await prisma.business.findUnique({ where: { slug } });
     if (existingBusiness) {
       return NextResponse.json(
         { error: 'A business with this slug already exists' },
@@ -77,7 +84,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create the business
+    const categoryId = await resolveCategoryId(categoryName);
+
     const business = await prisma.business.create({
       data: {
         name,
@@ -86,15 +94,14 @@ export async function POST(req: NextRequest) {
         image,
         published,
         userId: user.id,
+        ...(categoryId ? { categoryId } : {}),
       },
       include: {
-        _count: {
-          select: { requirements: true }
-        }
-      }
+        _count: { select: { requirements: true } },
+        category: true,
+      },
     });
 
-    // Log the action
     await createAuditLog({
       action: 'CREATE',
       entity: 'Business',
@@ -103,16 +110,17 @@ export async function POST(req: NextRequest) {
         created: {
           name: business.name,
           slug: business.slug,
-          published: business.published
-        }
+          published: business.published,
+          category: business.category?.name ?? null,
+        },
       },
-      req
+      req,
     });
 
     return NextResponse.json(business, { status: 201 });
   } catch (error) {
     console.error('Error creating business:', error);
-    
+
     if (error instanceof Error) {
       if (error.message.includes('Unauthorized') || error.message.includes('Forbidden')) {
         return NextResponse.json(
@@ -121,7 +129,7 @@ export async function POST(req: NextRequest) {
         );
       }
     }
-    
+
     return NextResponse.json(
       { error: 'Failed to create business' },
       { status: 500 }
@@ -132,11 +140,10 @@ export async function POST(req: NextRequest) {
 // PATCH - Update existing business
 export async function PATCH(req: NextRequest) {
   try {
-    // Verify user has permission to update businesses
     await requirePermission('businesses.update');
-    
+
     const body = await req.json();
-    const { id, ...updateData } = body;
+    const { id, categoryName, ...updateData } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -145,24 +152,19 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    // Get existing business for audit log
     const oldBusiness = await prisma.business.findUnique({
-      where: { id: Number(id) }
+      where: { id: Number(id) },
+      include: { category: true },
     });
 
     if (!oldBusiness) {
-      return NextResponse.json(
-        { error: 'Business not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 });
     }
 
-    // Check if slug is being changed and if it's already taken
     if (updateData.slug && updateData.slug !== oldBusiness.slug) {
       const slugExists = await prisma.business.findUnique({
-        where: { slug: updateData.slug }
+        where: { slug: updateData.slug },
       });
-
       if (slugExists) {
         return NextResponse.json(
           { error: 'A business with this slug already exists' },
@@ -171,41 +173,56 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    // Update the business
+    // Resolve category: if categoryName is explicitly passed (even as empty string)
+    // we handle it — empty string clears the category.
+    let categoryUpdate: { categoryId?: number | null } = {};
+    if (categoryName !== undefined) {
+      if (!categoryName || !categoryName.trim()) {
+        categoryUpdate = { categoryId: null };
+      } else {
+        const categoryId = await resolveCategoryId(categoryName);
+        categoryUpdate = { categoryId };
+      }
+    }
+
     const business = await prisma.business.update({
       where: { id: Number(id) },
-      data: updateData,
+      data: { ...updateData, ...categoryUpdate },
       include: {
-        _count: {
-          select: { requirements: true }
-        }
-      }
+        _count: { select: { requirements: true } },
+        category: true,
+      },
     });
 
-    // Determine what changed
+    // Build audit diff
     const changes: Record<string, { old: unknown; new: unknown }> = {};
     for (const key in updateData) {
       if (oldBusiness[key as keyof typeof oldBusiness] !== updateData[key]) {
         changes[key] = {
           old: oldBusiness[key as keyof typeof oldBusiness],
-          new: updateData[key]
+          new: updateData[key],
         };
       }
     }
+    if (categoryName !== undefined && oldBusiness.category?.name !== categoryName) {
+      changes['category'] = {
+        old: oldBusiness.category?.name ?? null,
+        new: categoryName || null,
+      };
+    }
 
-    // Log the action
     await createAuditLog({
       action: 'UPDATE',
       entity: 'Business',
       entityId: id.toString(),
       changes,
-      req
+      req,
     });
 
     return NextResponse.json(business);
   } catch (error) {
     console.error('Error updating business:', error);
-    
+
     if (error instanceof Error) {
       if (error.message.includes('Unauthorized') || error.message.includes('Forbidden')) {
         return NextResponse.json(
@@ -214,7 +231,7 @@ export async function PATCH(req: NextRequest) {
         );
       }
     }
-    
+
     return NextResponse.json(
       { error: 'Failed to update business' },
       { status: 500 }
@@ -225,9 +242,8 @@ export async function PATCH(req: NextRequest) {
 // DELETE - Delete business
 export async function DELETE(req: NextRequest) {
   try {
-    // Verify user has permission to delete businesses
     await requirePermission('businesses.delete');
-    
+
     const body = await req.json();
     const { id } = body;
 
@@ -238,31 +254,23 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    // Get business details before deletion
     const business = await prisma.business.findUnique({
       where: { id: Number(id) },
       include: {
         _count: {
-          select: {
-            requirements: true,
-            carts: true
-          }
-        }
-      }
+          select: { requirements: true, carts: true },
+        },
+      },
     });
 
     if (!business) {
-      return NextResponse.json(
-        { error: 'Business not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 });
     }
 
-    // Check if business has dependencies
     if (business._count.requirements > 0) {
       return NextResponse.json(
-        { 
-          error: `Cannot delete business with ${business._count.requirements} requirements. Delete requirements first.` 
+        {
+          error: `Cannot delete business with ${business._count.requirements} requirements. Delete requirements first.`,
         },
         { status: 400 }
       );
@@ -270,39 +278,29 @@ export async function DELETE(req: NextRequest) {
 
     if (business._count.carts > 0) {
       return NextResponse.json(
-        { 
-          error: `Cannot delete business with ${business._count.carts} active carts.` 
+        {
+          error: `Cannot delete business with ${business._count.carts} active carts.`,
         },
         { status: 400 }
       );
     }
 
-    // Delete the business
-    await prisma.business.delete({
-      where: { id: Number(id) }
-    });
+    await prisma.business.delete({ where: { id: Number(id) } });
 
-    // Log the action
     await createAuditLog({
       action: 'DELETE',
       entity: 'Business',
       entityId: id.toString(),
       changes: {
-        deleted: {
-          name: business.name,
-          slug: business.slug
-        }
+        deleted: { name: business.name, slug: business.slug },
       },
-      req
+      req,
     });
 
-    return NextResponse.json(
-      { message: 'Business deleted successfully' },
-      { status: 200 }
-    );
+    return NextResponse.json({ message: 'Business deleted successfully' }, { status: 200 });
   } catch (error) {
     console.error('Error deleting business:', error);
-    
+
     if (error instanceof Error) {
       if (error.message.includes('Unauthorized') || error.message.includes('Forbidden')) {
         return NextResponse.json(
@@ -311,7 +309,7 @@ export async function DELETE(req: NextRequest) {
         );
       }
     }
-    
+
     return NextResponse.json(
       { error: 'Failed to delete business' },
       { status: 500 }

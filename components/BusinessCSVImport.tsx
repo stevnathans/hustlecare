@@ -10,6 +10,7 @@ type CSVBusiness = {
   image?: string;
   slug: string;
   published: boolean;
+  categoryName?: string;
 };
 
 type BusinessCSVImportProps = {
@@ -22,12 +23,11 @@ export default function BusinessCSVImport({ onImportComplete }: BusinessCSVImpor
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const generateSlug = (name: string) => {
-    return name
+  const generateSlug = (name: string) =>
+    name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
-  };
 
   const parseCSV = (text: string): CSVBusiness[] => {
     const lines = text.split('\n').filter(line => line.trim());
@@ -36,8 +36,7 @@ export default function BusinessCSVImport({ onImportComplete }: BusinessCSVImpor
     }
 
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-    
-    // Validate required headers
+
     const requiredHeaders = ['name'];
     const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
     if (missingHeaders.length > 0) {
@@ -45,37 +44,36 @@ export default function BusinessCSVImport({ onImportComplete }: BusinessCSVImpor
     }
 
     const businesses: CSVBusiness[] = [];
-    
+
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim());
+      // Handle quoted values that may contain commas
+      const values = parseCSVLine(lines[i]);
       const business: any = {};
-      
+
       headers.forEach((header, index) => {
-        const value = values[index] || '';
-        
+        const value = values[index]?.trim() || '';
+
         if (header === 'name') {
-          business[header] = value;
+          business.name = value;
         } else if (header === 'slug') {
-          // Allow manual slug override if provided
-          business[header] = value || undefined;
+          business.slug = value || undefined;
         } else if (header === 'description' || header === 'image') {
           business[header] = value || undefined;
         } else if (header === 'published') {
-          business[header] = value.toLowerCase() === 'true' || value.toLowerCase() === 'yes' || value === '1';
+          business.published = value.toLowerCase() === 'true' || value.toLowerCase() === 'yes' || value === '1';
+        } else if (header === 'category') {
+          business.categoryName = value || undefined;
         }
       });
 
-      // Set defaults
       if (!business.hasOwnProperty('published')) {
         business.published = true;
       }
 
-      // Auto-generate slug from name if not provided
       if (!business.slug && business.name) {
         business.slug = generateSlug(business.name);
       }
 
-      // Validate required fields
       if (!business.name) {
         throw new Error(`Row ${i + 1}: Missing required field: name`);
       }
@@ -84,6 +82,32 @@ export default function BusinessCSVImport({ onImportComplete }: BusinessCSVImpor
     }
 
     return businesses;
+  };
+
+  // Simple CSV line parser that handles double-quoted fields
+  const parseCSVLine = (line: string): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current);
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current);
+    return result;
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -127,14 +151,15 @@ export default function BusinessCSVImport({ onImportComplete }: BusinessCSVImpor
           const res = await fetch('/api/admin/businesses', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(business),
+            body: JSON.stringify(business), // categoryName is included here automatically
           });
 
           if (res.ok) {
             successCount++;
           } else {
             failCount++;
-            console.error(`Failed to import ${business.name}`);
+            const data = await res.json().catch(() => ({}));
+            console.error(`Failed to import ${business.name}:`, data.error);
           }
         } catch (error) {
           failCount++;
@@ -147,7 +172,7 @@ export default function BusinessCSVImport({ onImportComplete }: BusinessCSVImpor
         onImportComplete();
         closeModal();
       }
-      
+
       if (failCount > 0) {
         toast.error(`Failed to import ${failCount} businesses`);
       }
@@ -160,7 +185,13 @@ export default function BusinessCSVImport({ onImportComplete }: BusinessCSVImpor
   };
 
   const downloadTemplate = () => {
-    const template = 'name,description,image,published\nExample Business,This is a description,https://example.com/image.jpg,true\nAnother Business,Another description,,false\nThird Business,No image provided,,yes';
+    const template = [
+      'name,description,image,published,category',
+      'Example Business,This is a description,https://example.com/image.jpg,true,Retail',
+      'Another Business,Another description,,false,Technology',
+      'Third Business,No image or category,,,',
+    ].join('\n');
+
     const blob = new Blob([template], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -172,18 +203,14 @@ export default function BusinessCSVImport({ onImportComplete }: BusinessCSVImpor
 
   const openModal = () => {
     setBusinesses([]);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
     setIsModalOpen(true);
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
     setBusinesses([]);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const removeBusiness = (index: number) => {
@@ -202,10 +229,7 @@ export default function BusinessCSVImport({ onImportComplete }: BusinessCSVImpor
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div
-            className="fixed inset-0 bg-black bg-opacity-50"
-            onClick={closeModal}
-          />
+          <div className="fixed inset-0 bg-black bg-opacity-50" onClick={closeModal} />
           <div className="flex min-h-full items-center justify-center p-4">
             <div className="relative bg-white rounded-xl p-6 w-full max-w-3xl shadow-xl">
               <h2 className="text-xl font-bold text-gray-900 mb-4">
@@ -217,11 +241,15 @@ export default function BusinessCSVImport({ onImportComplete }: BusinessCSVImpor
                   <strong>CSV Format:</strong> Your file must include these columns:
                 </p>
                 <ul className="text-sm text-blue-700 list-disc list-inside space-y-1">
-                  <li><strong>name</strong> (required) - Business name (slug will be auto-generated)</li>
-                  <li><strong>description</strong> (optional) - Business description</li>
-                  <li><strong>image</strong> (optional) - Image URL</li>
-                  <li><strong>published</strong> (optional) - true/false or yes/no (default: true)</li>
-                  <li><strong>slug</strong> (optional) - Custom URL-friendly identifier (auto-generated if not provided)</li>
+                  <li><strong>name</strong> (required) — Business name</li>
+                  <li><strong>description</strong> (optional) — Business description</li>
+                  <li><strong>image</strong> (optional) — Image URL</li>
+                  <li><strong>published</strong> (optional) — true/false or yes/no (default: true)</li>
+                  <li><strong>slug</strong> (optional) — Custom URL slug (auto-generated if omitted)</li>
+                  <li>
+                    <strong>category</strong> (optional) — Category name; existing categories are matched
+                    by name, new ones are created automatically
+                  </li>
                 </ul>
                 <button
                   onClick={downloadTemplate}
@@ -256,6 +284,7 @@ export default function BusinessCSVImport({ onImportComplete }: BusinessCSVImpor
                         <tr>
                           <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Name</th>
                           <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Slug</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Category</th>
                           <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Status</th>
                           <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Action</th>
                         </tr>
@@ -265,6 +294,15 @@ export default function BusinessCSVImport({ onImportComplete }: BusinessCSVImpor
                           <tr key={index} className="hover:bg-gray-50">
                             <td className="px-3 py-2 text-gray-900">{business.name}</td>
                             <td className="px-3 py-2 text-gray-600">{business.slug}</td>
+                            <td className="px-3 py-2">
+                              {business.categoryName ? (
+                                <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800">
+                                  {business.categoryName}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400">—</span>
+                              )}
+                            </td>
                             <td className="px-3 py-2">
                               <span className={`inline-block px-2 py-0.5 rounded-full text-xs ${
                                 business.published

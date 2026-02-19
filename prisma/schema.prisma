@@ -128,6 +128,8 @@ model Business {
   description  String?
   image        String?
   published    Boolean       @default(true)
+  categoryId   Int?
+  category     BusinessCategory? @relation(fields: [categoryId], references: [id])
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   requirements Requirement[]
@@ -142,6 +144,16 @@ model Business {
   @@index([name])
   @@index([slug])
   @@index([published])
+}
+
+model BusinessCategory {
+  id         Int        @id @default(autoincrement())
+  name       String     @unique
+  businesses Business[]
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@index([name])
 }
 
 model Requirement {

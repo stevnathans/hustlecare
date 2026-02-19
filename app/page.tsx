@@ -119,7 +119,7 @@ export default function Home() {
               whileInView={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6 }}
               viewport={{ once: true }}
-              className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-700 to-emerald-600"
+              className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-700 to-emerald-600"
             >
               Popular Now
             </motion.h2>

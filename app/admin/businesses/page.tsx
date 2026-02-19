@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, useMemo } from "react";
-import BusinessCSVImport from '@/components/BusinessCSVImport'; 
+import BusinessCSVImport from '@/components/BusinessCSVImport';
 import Image from "next/image";
 import {
   Search,
@@ -9,9 +9,15 @@ import {
   Trash2,
   Eye,
   EyeOff,
-  Download
+  Download,
+  Tag,
 } from "lucide-react";
 import { toast, Toaster } from "react-hot-toast";
+
+type Category = {
+  id: number;
+  name: string;
+};
 
 type Business = {
   id: number;
@@ -20,18 +26,27 @@ type Business = {
   image?: string;
   slug: string;
   published: boolean;
+  category?: Category | null;
   _count?: {
     requirements: number;
   };
 };
 
+const CREATE_NEW = "__CREATE_NEW__";
+
 export default function BusinessesAdminPage() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBusiness, setEditingBusiness] = useState<Business | null>(null);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Category dropdown state
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
+  const [newCategoryName, setNewCategoryName] = useState("");
+
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -42,6 +57,7 @@ export default function BusinessesAdminPage() {
 
   useEffect(() => {
     fetchBusinesses();
+    fetchCategories();
   }, []);
 
   const filteredBusinesses = useMemo(() => {
@@ -49,7 +65,8 @@ export default function BusinessesAdminPage() {
     return businesses.filter(
       (b) =>
         b.name.toLowerCase().includes(search.toLowerCase()) ||
-        b.description?.toLowerCase().includes(search.toLowerCase())
+        b.description?.toLowerCase().includes(search.toLowerCase()) ||
+        b.category?.name.toLowerCase().includes(search.toLowerCase())
     );
   }, [businesses, search]);
 
@@ -66,15 +83,41 @@ export default function BusinessesAdminPage() {
     }
   };
 
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch("/api/admin/categories");
+      if (res.ok) {
+        const data = await res.json();
+        setCategories(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch categories:", error);
+    }
+  };
+
+  // Derive the categoryName to send to the API based on dropdown state
+  const resolveCategoryName = (): string => {
+    if (selectedCategoryId === CREATE_NEW) return newCategoryName.trim();
+    if (selectedCategoryId === "") return "";
+    return categories.find((c) => c.id === Number(selectedCategoryId))?.name ?? "";
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (selectedCategoryId === CREATE_NEW && !newCategoryName.trim()) {
+      toast.error("Please enter a name for the new category");
+      return;
+    }
+
     setLoading(true);
 
     try {
+      const categoryName = resolveCategoryName();
       const method = editingBusiness ? "PATCH" : "POST";
       const body = editingBusiness
-        ? { ...formData, id: editingBusiness.id }
-        : formData;
+        ? { ...formData, id: editingBusiness.id, categoryName }
+        : { ...formData, categoryName };
 
       const res = await fetch("/api/admin/businesses", {
         method,
@@ -85,12 +128,11 @@ export default function BusinessesAdminPage() {
       if (!res.ok) throw new Error("Failed to save business");
 
       toast.success(
-        editingBusiness
-          ? "Business updated successfully!"
-          : "Business created successfully!"
+        editingBusiness ? "Business updated successfully!" : "Business created successfully!"
       );
       closeModal();
       fetchBusinesses();
+      fetchCategories(); // refresh in case a new category was created
     } catch (error) {
       console.error(error);
       toast.error("Something went wrong!");
@@ -109,12 +151,15 @@ export default function BusinessesAdminPage() {
         body: JSON.stringify({ id }),
       });
 
-      if (!res.ok) throw new Error("Failed to delete business");
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete business");
+      }
       toast.success("Business deleted successfully!");
       fetchBusinesses();
     } catch (error) {
       console.error(error);
-      toast.error("Failed to delete business");
+      toast.error(error instanceof Error ? error.message : "Failed to delete business");
     }
   };
 
@@ -147,16 +192,11 @@ export default function BusinessesAdminPage() {
       const res = await fetch("/api/admin/businesses", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: business.id,
-          published: !business.published,
-        }),
+        body: JSON.stringify({ id: business.id, published: !business.published }),
       });
 
       if (!res.ok) throw new Error("Failed to update");
-      toast.success(
-        business.published ? "Business unpublished" : "Business published"
-      );
+      toast.success(business.published ? "Business unpublished" : "Business published");
       fetchBusinesses();
     } catch (error) {
       console.error(error);
@@ -166,17 +206,18 @@ export default function BusinessesAdminPage() {
 
   const handleExport = () => {
     const csv = [
-      ["ID", "Name", "Slug", "Description", "Published", "Requirements"],
+      ["ID", "Name", "Slug", "Category", "Description", "Published", "Requirements"],
       ...filteredBusinesses.map((b) => [
         b.id,
         b.name,
         b.slug,
+        b.category?.name || "",
         b.description || "",
         b.published ? "Yes" : "No",
         b._count?.requirements || 0,
       ]),
     ]
-      .map((row) => row.join(","))
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
       .join("\n");
 
     const blob = new Blob([csv], { type: "text/csv" });
@@ -188,21 +229,26 @@ export default function BusinessesAdminPage() {
     toast.success("Exported successfully!");
   };
 
+  const resetCategoryState = (business?: Business) => {
+    if (business?.category) {
+      setSelectedCategoryId(String(business.category.id));
+    } else {
+      setSelectedCategoryId("");
+    }
+    setNewCategoryName("");
+  };
+
   const openModal = () => {
-    setFormData({
-      name: "",
-      description: "",
-      image: "",
-      slug: "",
-      published: true,
-    });
+    setFormData({ name: "", description: "", image: "", slug: "", published: true });
     setEditingBusiness(null);
+    resetCategoryState();
     setIsModalOpen(true);
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingBusiness(null);
+    resetCategoryState();
   };
 
   const openEditModal = (business: Business) => {
@@ -214,15 +260,15 @@ export default function BusinessesAdminPage() {
       published: business.published,
     });
     setEditingBusiness(business);
+    resetCategoryState(business);
     setIsModalOpen(true);
   };
 
-  const generateSlug = (name: string) => {
-    return name
+  const generateSlug = (name: string) =>
+    name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
-  };
 
   const toggleSelectAll = () => {
     if (selectedIds.length === filteredBusinesses.length) {
@@ -250,38 +296,38 @@ export default function BusinessesAdminPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-  {selectedIds.length > 0 && (
-    <button
-      onClick={handleBulkDelete}
-      className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-    >
-      <Trash2 className="h-4 w-4" />
-      Delete {selectedIds.length}
-    </button>
-  )}
-  <BusinessCSVImport onImportComplete={fetchBusinesses} />
-  <button
-    onClick={handleExport}
-    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-  >
-    <Download className="h-4 w-4" />
-    Export
-  </button>
-  <button
-    onClick={openModal}
-    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-  >
-    <Plus className="h-4 w-4" />
-    Add Business
-  </button>
-</div>
+          {selectedIds.length > 0 && (
+            <button
+              onClick={handleBulkDelete}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete {selectedIds.length}
+            </button>
+          )}
+          <BusinessCSVImport onImportComplete={() => { fetchBusinesses(); fetchCategories(); }} />
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          >
+            <Download className="h-4 w-4" />
+            Export
+          </button>
+          <button
+            onClick={openModal}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Add Business
+          </button>
+        </div>
       </div>
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
         <input
           type="text"
-          placeholder="Search businesses..."
+          placeholder="Search businesses or categories..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -304,32 +350,18 @@ export default function BusinessesAdminPage() {
                     className="rounded border-gray-300"
                   />
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Image
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Name
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Slug
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Requirements
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
-                  Actions
-                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Image</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Name</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Slug</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Category</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Requirements</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {filteredBusinesses.map((business) => (
-                <tr
-                  key={business.id}
-                  className="hover:bg-gray-50 transition-colors"
-                >
+                <tr key={business.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-4">
                     <input
                       type="checkbox"
@@ -355,9 +387,7 @@ export default function BusinessesAdminPage() {
                   </td>
                   <td className="px-4 py-4">
                     <div>
-                      <p className="font-semibold text-gray-900">
-                        {business.name}
-                      </p>
+                      <p className="font-semibold text-gray-900">{business.name}</p>
                       {business.description && (
                         <p className="text-sm text-gray-500 truncate max-w-xs">
                           {business.description}
@@ -371,6 +401,16 @@ export default function BusinessesAdminPage() {
                     </code>
                   </td>
                   <td className="px-4 py-4">
+                    {business.category ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                        <Tag className="h-3 w-3" />
+                        {business.category.name}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 text-sm">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-4">
                     <button
                       onClick={() => handleTogglePublish(business)}
                       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
@@ -380,15 +420,9 @@ export default function BusinessesAdminPage() {
                       }`}
                     >
                       {business.published ? (
-                        <>
-                          <Eye className="h-3 w-3" />
-                          Published
-                        </>
+                        <><Eye className="h-3 w-3" /> Published</>
                       ) : (
-                        <>
-                          <EyeOff className="h-3 w-3" />
-                          Draft
-                        </>
+                        <><EyeOff className="h-3 w-3" /> Draft</>
                       )}
                     </button>
                   </td>
@@ -430,91 +464,102 @@ export default function BusinessesAdminPage() {
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div
-            className="fixed inset-0 bg-black bg-opacity-50"
-            onClick={closeModal}
-          />
+          <div className="fixed inset-0 bg-black bg-opacity-50" onClick={closeModal} />
           <div className="flex min-h-full items-center justify-center p-4">
             <div className="relative bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
               <h2 className="text-xl font-bold text-gray-900 mb-4">
                 {editingBusiness ? "Edit Business" : "Add Business"}
               </h2>
               <div className="space-y-4">
+                {/* Name */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Name
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
                   <input
                     type="text"
                     value={formData.name}
                     onChange={(e) => {
                       const name = e.target.value;
-                      setFormData({
-                        ...formData,
-                        name,
-                        slug: generateSlug(name),
-                      });
+                      setFormData({ ...formData, name, slug: generateSlug(name) });
                     }}
                     className="w-full border border-gray-300 px-3 py-2 rounded-lg"
                   />
                 </div>
 
+                {/* Slug */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Slug
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Slug</label>
                   <input
                     type="text"
                     value={formData.slug}
-                    onChange={(e) =>
-                      setFormData({ ...formData, slug: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
                     className="w-full border border-gray-300 px-3 py-2 rounded-lg"
                   />
                 </div>
 
+                {/* Category */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Description
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <select
+                    value={selectedCategoryId}
+                    onChange={(e) => {
+                      setSelectedCategoryId(e.target.value);
+                      if (e.target.value !== CREATE_NEW) setNewCategoryName("");
+                    }}
+                    className="w-full border border-gray-300 px-3 py-2 rounded-lg bg-white"
+                  >
+                    <option value="">— No category —</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={String(c.id)}>
+                        {c.name}
+                      </option>
+                    ))}
+                    <option value={CREATE_NEW}>＋ Create new category…</option>
+                  </select>
+
+                  {selectedCategoryId === CREATE_NEW && (
+                    <input
+                      type="text"
+                      placeholder="New category name"
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      className="mt-2 w-full border border-purple-300 px-3 py-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      autoFocus
+                    />
+                  )}
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                   <textarea
                     value={formData.description}
-                    onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     rows={3}
                     className="w-full border border-gray-300 px-3 py-2 rounded-lg"
                   />
                 </div>
 
+                {/* Image URL */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Image URL
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
                   <input
                     type="text"
                     value={formData.image}
-                    onChange={(e) =>
-                      setFormData({ ...formData, image: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, image: e.target.value })}
                     className="w-full border border-gray-300 px-3 py-2 rounded-lg"
                   />
                 </div>
 
+                {/* Published */}
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
                     id="published"
                     checked={formData.published}
-                    onChange={(e) =>
-                      setFormData({ ...formData, published: e.target.checked })
-                    }
+                    onChange={(e) => setFormData({ ...formData, published: e.target.checked })}
                     className="rounded border-gray-300"
                   />
-                  <label
-                    htmlFor="published"
-                    className="text-sm font-medium text-gray-700"
-                  >
+                  <label htmlFor="published" className="text-sm font-medium text-gray-700">
                     Publish immediately
                   </label>
                 </div>
