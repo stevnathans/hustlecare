@@ -1,502 +1,406 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Users, 
-  ShoppingCart, 
-  Building, 
-  Star, 
-  MessageSquare, 
-  TrendingUp,
-  DollarSign,
-  Eye,
-  Activity,
-  ArrowUpRight,
-  Clock,
-  AlertCircle
+import {
+  Users, ShoppingCart, Building, Star, MessageSquare,
+  TrendingUp, DollarSign, Eye, Activity, ArrowUpRight,
+  Clock, AlertCircle, RefreshCw
 } from 'lucide-react';
 
+/* ─── Types ────────────────────────────────────────────────────── */
 interface Stats {
-  users: {
-    total: number;
-    activeToday: number;
-    newThisWeek: number;
-    trend: number;
-  };
-  businesses: {
-    total: number;
-    published: number;
-    draft: number;
-  };
-  products: {
-    total: number;
-    averagePrice: number;
-    byVendor: number;
-  };
-  requirements: {
-    total: number;
-    required: number;
-    optional: number;
-  };
-  comments: {
-    total: number;
-    pending: number;
-    approved: number;
-  };
-  reviews: {
-    total: number;
-    averageRating: number;
-    pending: number;
-  };
-  searches: {
-    total: number;
-    uniqueKeywords: number;
-    topKeyword: string;
-  };
-  carts: {
-    total: number;
-    totalValue: number;
-    averageValue: number;
-  };
+  users:        { total: number; activeToday: number; newThisWeek: number; trend: number };
+  businesses:   { total: number; published: number; draft: number };
+  products:     { total: number; averagePrice: number; byVendor: number };
+  requirements: { total: number; required: number; optional: number };
+  comments:     { total: number; pending: number; approved: number };
+  reviews:      { total: number; averageRating: number; pending: number };
+  searches:     { total: number; uniqueKeywords: number; topKeyword: string };
+  carts:        { total: number; totalValue: number; averageValue: number };
 }
-
 interface RecentActivity {
-  id: string;
-  action: string;
-  entity: string;
-  user: string;
-  timestamp: string;
+  id: string; action: string; entity: string; user: string; timestamp: string;
 }
 
-interface QuickStat {
-  label: string;
-  value: number;
-  change: number;
-}
+/* ─── Shared dark-theme styles ─────────────────────────────────── */
+const S = `
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap');
 
-export default function AdminDashboard() {
-  const router = useRouter();
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
-  const [quickStats, setQuickStats] = useState<QuickStat[]>([]);
-  const [loading, setLoading] = useState(true);
+  .adm { font-family:'Sora',sans-serif; color:#f0f0f5; }
+  .adm-mono { font-family:'DM Mono',monospace; }
 
-  useEffect(() => {
-    fetchDashboardData();
-    // Refresh stats every 30 seconds
-    const interval = setInterval(fetchDashboardData, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  /* stat cards */
+  .sc {
+    background:#13131a; border:1px solid rgba(255,255,255,0.07);
+    border-radius:14px; padding:1.25rem 1.5rem;
+    transition:all 0.2s; cursor:pointer; position:relative; overflow:hidden;
+    display:flex; flex-direction:column; gap:0.75rem;
+  }
+  .sc::before {
+    content:''; position:absolute; inset:0;
+    background:rgba(255,255,255,0); transition:background 0.2s;
+  }
+  .sc:hover::before { background:rgba(255,255,255,0.02); }
+  .sc:hover { border-color:rgba(255,255,255,0.12); transform:translateY(-1px); box-shadow:0 8px 32px rgba(0,0,0,0.3); }
 
-  const fetchDashboardData = async () => {
-    try {
-      const [statsRes, activityRes] = await Promise.all([
-        fetch('/api/admin/stats'),
-        fetch('/api/admin/activity')
-      ]);
+  .sc-icon {
+    width:40px; height:40px; border-radius:10px;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .sc-value { font-size:1.75rem; font-weight:700; color:#f0f0f5; line-height:1; }
+  .sc-label { font-size:0.75rem; font-weight:600; color:#55556e; text-transform:uppercase; letter-spacing:0.07em; }
+  .sc-sub { font-size:0.78rem; color:#9494b0; }
+  .sc-trend { display:flex; align-items:center; gap:0.3rem; font-size:0.75rem; font-weight:600; }
 
-      if (statsRes.ok) {
-        const statsData = await statsRes.json();
-        setStats(statsData);
-        
-        // Set quick stats for mini charts
-        setQuickStats([
-          { label: 'Users', value: statsData.users.total, change: statsData.users.trend },
-          { label: 'Businesses', value: statsData.businesses.total, change: 5 },
-          { label: 'Products', value: statsData.products.total, change: 12 },
-          { label: 'Revenue', value: statsData.carts.totalValue, change: 8 },
-        ]);
-      }
+  /* alert cards */
+  .alert-panel {
+    background:#13131a; border:1px solid rgba(245,158,11,0.2);
+    border-radius:14px; padding:1.25rem 1.5rem;
+  }
+  .alert-item {
+    background:#1a1a24; border-radius:10px; padding:0.85rem 1rem;
+    border:1px solid rgba(255,255,255,0.06);
+    display:flex; align-items:center; justify-content:space-between;
+    cursor:pointer; transition:all 0.15s;
+  }
+  .alert-item:hover { border-color:rgba(255,255,255,0.12); background:#1f1f2e; }
 
-      if (activityRes.ok) {
-        const activityData = await activityRes.json();
-        setRecentActivity(activityData);
-      }
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  /* activity feed */
+  .feed-card {
+    background:#13131a; border:1px solid rgba(255,255,255,0.07);
+    border-radius:14px; overflow:hidden;
+  }
+  .feed-item {
+    padding:0.9rem 1.25rem; border-bottom:1px solid rgba(255,255,255,0.04);
+    transition:background 0.15s;
+  }
+  .feed-item:last-child { border-bottom:none; }
+  .feed-item:hover { background:rgba(255,255,255,0.02); }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
+  /* mini panels */
+  .mini-panel {
+    background:#13131a; border:1px solid rgba(255,255,255,0.07);
+    border-radius:14px; padding:1.25rem;
+  }
+  .mini-row {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0.55rem 0.75rem; border-radius:8px;
+    transition:background 0.15s; cursor:pointer;
+  }
+  .mini-row:hover { background:rgba(255,255,255,0.04); }
+  .mini-row span:first-child { font-size:0.82rem; color:#9494b0; }
+  .mini-row span:last-child { font-size:0.85rem; font-weight:700; color:#f0f0f5; }
+
+  /* section header */
+  .sec-hd { font-size:0.65rem; font-weight:700; color:#55556e; text-transform:uppercase; letter-spacing:0.12em; margin-bottom:0.75rem; }
+
+  /* quick-stat row */
+  .qs-card {
+    background:#13131a; border:1px solid rgba(255,255,255,0.07);
+    border-radius:12px; padding:1rem 1.25rem;
   }
 
-  const StatCard = ({ 
-    title, 
-    value, 
-    icon: Icon, 
-    subtitle, 
-    trend, 
-    color = "blue",
-    onClick
-  }: { 
-    title: string; 
-    value: string | number; 
-    icon: React.ElementType; 
-    subtitle?: string; 
-    trend?: number;
-    color?: string;
-    onClick?: () => void;
-  }) => {
-    const colorClasses: Record<string, string> = {
-      blue: 'bg-blue-500 group-hover:bg-blue-600',
-      green: 'bg-green-500 group-hover:bg-green-600',
-      purple: 'bg-purple-500 group-hover:bg-purple-600',
-      orange: 'bg-orange-500 group-hover:bg-orange-600',
-      red: 'bg-red-500 group-hover:bg-red-600',
-      indigo: 'bg-indigo-500 group-hover:bg-indigo-600',
-      pink: 'bg-pink-500 group-hover:bg-pink-600',
-      yellow: 'bg-yellow-500 group-hover:bg-yellow-600',
-    };
+  /* refresh button */
+  .refresh-btn {
+    display:inline-flex; align-items:center; gap:0.4rem;
+    padding:0.5rem 1rem; border-radius:9px;
+    background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.25);
+    color:#818cf8; font-size:0.82rem; font-weight:600;
+    font-family:'Sora',sans-serif; cursor:pointer; transition:all 0.15s;
+  }
+  .refresh-btn:hover { background:rgba(99,102,241,0.25); color:#a5b4fc; }
+  .refresh-btn.spinning svg { animation:spin 0.8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
 
-    return (
-      <button
-        onClick={onClick}
-        className="group bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-lg hover:border-gray-300 transition-all text-left w-full relative overflow-hidden"
-      >
-        {/* Hover effect overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-transparent to-gray-50 opacity-0 group-hover:opacity-100 transition-opacity" />
-        
-        <div className="flex items-start justify-between relative z-10">
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-sm font-medium text-gray-600">{title}</p>
-              <ArrowUpRight className="h-4 w-4 text-gray-400 group-hover:text-blue-600 transition-colors" />
-            </div>
-            <h3 className="text-3xl font-bold text-gray-900 mb-2">{value}</h3>
-            {subtitle && (
-              <p className="text-sm text-gray-500">{subtitle}</p>
-            )}
-            {trend !== undefined && (
-              <div className="flex items-center mt-2">
-                <TrendingUp className={`h-4 w-4 mr-1 ${trend >= 0 ? 'text-green-500' : 'text-red-500'}`} />
-                <span className={`text-sm font-medium ${trend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {trend >= 0 ? '+' : ''}{trend}% from last week
-                </span>
-              </div>
-            )}
-          </div>
-          <div className={`${colorClasses[color]} p-3 rounded-lg transition-colors`}>
-            <Icon className="h-6 w-6 text-white" />
-          </div>
-        </div>
-      </button>
-    );
-  };
+  /* skeleton */
+  .skel {
+    background:linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.08) 50%,rgba(255,255,255,0.04) 75%);
+    background-size:200% 100%; animation:shimmer 1.4s infinite; border-radius:6px;
+  }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
 
-  const AlertCard = ({ 
-    title, 
-    count, 
-    color, 
-    onClick 
-  }: { 
-    title: string; 
-    count: number; 
-    color: string; 
-    onClick: () => void;
-  }) => {
-    if (count === 0) return null;
-    
-    return (
-      <button
-        onClick={onClick}
-        className="flex items-center justify-between p-4 bg-white border-l-4 border-gray-200 rounded-lg hover:shadow-md transition-shadow"
-        style={{ borderLeftColor: color }}
-      >
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg" style={{ backgroundColor: `${color}15` }}>
-            <AlertCircle className="h-5 w-5" style={{ color }} />
-          </div>
-          <div className="text-left">
-            <p className="text-sm font-medium text-gray-900">{title}</p>
-            <p className="text-xs text-gray-500">Needs attention</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-2xl font-bold text-gray-900">{count}</span>
-          <ArrowUpRight className="h-4 w-4 text-gray-400" />
-        </div>
-      </button>
-    );
-  };
+  /* separator */
+  .divider { height:1px; background:rgba(255,255,255,0.06); margin:0.25rem 0; }
+`;
 
+/* ─── Color maps ───────────────────────────────────────────────── */
+const ICON_COLORS: Record<string,string> = {
+  blue:   'rgba(99,102,241,0.15)',   purple: 'rgba(139,92,246,0.15)',
+  green:  'rgba(16,185,129,0.15)',   orange: 'rgba(245,158,11,0.15)',
+  red:    'rgba(239,68,68,0.15)',    indigo: 'rgba(99,102,241,0.15)',
+  pink:   'rgba(236,72,153,0.15)',   yellow: 'rgba(234,179,8,0.15)',
+};
+const ICON_FG: Record<string,string> = {
+  blue:'#818cf8', purple:'#a78bfa', green:'#34d399', orange:'#fbbf24',
+  red:'#f87171', indigo:'#818cf8', pink:'#f472b6', yellow:'#facc15',
+};
+
+/* ─── Sub-components ───────────────────────────────────────────── */
+function StatCard({
+  title, value, icon: Icon, subtitle, trend, color='blue', onClick
+}: {
+  title:string; value:string|number; icon:React.ElementType;
+  subtitle?:string; trend?:number; color?:string; onClick?:()=>void;
+}) {
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard Overview</h1>
-          <p className="text-gray-500 mt-1">Welcome back! Here&apos;s what&apos;s happening with Hustlecare today.</p>
+    <button onClick={onClick} className="sc" style={{ textAlign:'left', width:'100%' }}>
+      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'0.5rem' }}>
+        <div style={{ flex:1 }}>
+          <div className="sc-label" style={{ marginBottom:'0.5rem' }}>{title}</div>
+          <div className="sc-value">{value}</div>
         </div>
-        <button
-          onClick={fetchDashboardData}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Activity className="h-4 w-4" />
-          Refresh
-        </button>
+        <div className="sc-icon" style={{ background:ICON_COLORS[color] }}>
+          <Icon size={18} color={ICON_FG[color]} />
+        </div>
       </div>
-
-      {/* Alerts Section - Things that need attention */}
-      {((stats?.comments.pending || 0) > 0 || (stats?.reviews.pending || 0) > 0 || (stats?.businesses.draft || 0) > 0) && (
-        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <AlertCircle className="h-5 w-5 text-amber-600" />
-            <h2 className="text-lg font-semibold text-amber-900">Pending Actions</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <AlertCard
-              title="Pending Comments"
-              count={stats?.comments.pending || 0}
-              color="#f59e0b"
-              onClick={() => router.push('/admin/comments')}
-            />
-            <AlertCard
-              title="Pending Reviews"
-              count={stats?.reviews.pending || 0}
-              color="#f59e0b"
-              onClick={() => router.push('/admin/reviews')}
-            />
-            <AlertCard
-              title="Draft Businesses"
-              count={stats?.businesses.draft || 0}
-              color="#6366f1"
-              onClick={() => router.push('/admin/businesses')}
-            />
-          </div>
+      {subtitle && <div className="sc-sub">{subtitle}</div>}
+      {trend !== undefined && (
+        <div className="sc-trend" style={{ color: trend>=0 ? '#34d399' : '#f87171' }}>
+          <TrendingUp size={12} style={{ transform: trend<0 ? 'rotate(180deg)' : 'none' }} />
+          {trend>=0?'+':''}{trend}% this week
         </div>
       )}
+      <ArrowUpRight size={14} color="#55556e" style={{ position:'absolute', top:'1rem', right:'1rem' }} />
+    </button>
+  );
+}
 
-      {/* Main Stats Grid - Clickable */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          title="Total Users"
-          value={stats?.users.total.toLocaleString() || '0'}
-          icon={Users}
-          subtitle={`${stats?.users.activeToday || 0} active today`}
-          trend={stats?.users.trend}
-          color="blue"
-          onClick={() => router.push('/admin/users')}
-        />
-        
-        <StatCard
-          title="Businesses"
-          value={stats?.businesses.total || '0'}
-          icon={Building}
-          subtitle={`${stats?.businesses.published || 0} published`}
-          color="purple"
-          onClick={() => router.push('/admin/businesses')}
-        />
-        
-        <StatCard
-          title="Products"
-          value={stats?.products.total.toLocaleString() || '0'}
-          icon={ShoppingCart}
-          subtitle={`Avg: KES ${stats?.products.averagePrice.toLocaleString() || 0}`}
-          color="green"
-          onClick={() => router.push('/admin/products')}
-        />
-        
-        <StatCard
-          title="Total Cart Value"
-          value={`KES ${stats?.carts.totalValue.toLocaleString() || 0}`}
-          icon={DollarSign}
-          subtitle={`${stats?.carts.total || 0} active carts`}
-          color="orange"
-          onClick={() => router.push('/admin')}
-        />
+function AlertItem({ title, count, color, onClick }: { title:string; count:number; color:string; onClick:()=>void }) {
+  if (count === 0) return null;
+  return (
+    <button onClick={onClick} className="alert-item" style={{ width:'100%', border:'none' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:'0.75rem' }}>
+        <div style={{ padding:'0.5rem', borderRadius:'8px', background:`${color}18` }}>
+          <AlertCircle size={16} color={color} />
+        </div>
+        <div style={{ textAlign:'left' }}>
+          <div style={{ fontSize:'0.85rem', fontWeight:600, color:'#f0f0f5' }}>{title}</div>
+          <div style={{ fontSize:'0.72rem', color:'#9494b0' }}>Needs attention</div>
+        </div>
       </div>
-
-      {/* Secondary Stats Grid - Clickable */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          title="Requirements"
-          value={stats?.requirements.total || '0'}
-          icon={Eye}
-          subtitle={`${stats?.requirements.required || 0} required`}
-          color="indigo"
-          onClick={() => router.push('/admin/requirements')}
-        />
-        
-        <StatCard
-          title="Reviews"
-          value={stats?.reviews.total || '0'}
-          icon={Star}
-          subtitle={`Avg rating: ${stats?.reviews.averageRating.toFixed(1) || '0.0'} stars`}
-          color="yellow"
-          onClick={() => router.push('/admin/reviews')}
-        />
-        
-        <StatCard
-          title="Comments"
-          value={stats?.comments.total || '0'}
-          icon={MessageSquare}
-          subtitle={`${stats?.comments.pending || 0} pending approval`}
-          color="pink"
-          onClick={() => router.push('/admin/comments')}
-        />
-        
-        <StatCard
-          title="Searches"
-          value={stats?.searches.total.toLocaleString() || '0'}
-          icon={TrendingUp}
-          subtitle={`Top: ${stats?.searches.topKeyword || 'N/A'}`}
-          color="red"
-          onClick={() => router.push('/admin')}
-        />
+      <div style={{ display:'flex', alignItems:'center', gap:'0.5rem' }}>
+        <span style={{ fontSize:'1.4rem', fontWeight:700, color:'#f0f0f5', fontFamily:'DM Mono,monospace' }}>{count}</span>
+        <ArrowUpRight size={14} color="#55556e" />
       </div>
+    </button>
+  );
+}
 
-      {/* Quick Insights Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {quickStats.map((stat, index) => (
-          <div key={index} className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-600">{stat.label}</span>
-              <div className={`flex items-center text-xs font-medium ${stat.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                <TrendingUp className={`h-3 w-3 mr-1 ${stat.change < 0 ? 'rotate-180' : ''}`} />
-                {stat.change >= 0 ? '+' : ''}{stat.change}%
-              </div>
-            </div>
-            <p className="text-2xl font-bold text-gray-900">{stat.value.toLocaleString()}</p>
+function Skeleton() {
+  return (
+    <div style={{ display:'grid', gap:'1.5rem' }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'1rem' }}>
+        {Array.from({length:4}).map((_,i)=>(
+          <div key={i} className="sc">
+            <div className="skel" style={{ height:14, width:'50%' }} />
+            <div className="skel" style={{ height:32, width:'60%' }} />
+            <div className="skel" style={{ height:12, width:'80%' }} />
           </div>
         ))}
       </div>
+    </div>
+  );
+}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Activity */}
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200">
-          <div className="p-6 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Recent Activity</h2>
-                <p className="text-sm text-gray-500 mt-1">Latest admin actions across the platform</p>
-              </div>
-              <button
-                onClick={() => router.push('/admin/audit')}
-                className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
-              >
-                View All
-                <ArrowUpRight className="h-4 w-4" />
-              </button>
-            </div>
+/* ─── Main component ───────────────────────────────────────────── */
+export default function AdminDashboard() {
+  const router = useRouter();
+  const [stats, setStats] = useState<Stats|null>(null);
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchData = async (isRefresh=false) => {
+    if (isRefresh) setRefreshing(true);
+    try {
+      const [sRes, aRes] = await Promise.all([
+        fetch('/api/admin/stats'), fetch('/api/admin/activity')
+      ]);
+      if (sRes.ok) setStats(await sRes.json());
+      if (aRes.ok) setRecentActivity(await aRes.json());
+    } catch(e) { console.error(e); }
+    finally { setLoading(false); setRefreshing(false); }
+  };
+
+  useEffect(() => {
+    fetchData();
+    const t = setInterval(() => fetchData(true), 30000);
+    return () => clearInterval(t);
+  }, []);
+
+  const hasPending =
+    (stats?.comments.pending||0)>0 ||
+    (stats?.reviews.pending||0)>0 ||
+    (stats?.businesses.draft||0)>0;
+
+  return (
+    <>
+      <style>{S}</style>
+      <div className="adm" style={{ minHeight:'100vh', padding:'0.25rem 0' }}>
+
+        {/* ── Header ── */}
+        <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:'1.75rem', flexWrap:'wrap', gap:'1rem' }}>
+          <div>
+            <h1 style={{ fontSize:'1.75rem', fontWeight:700, letterSpacing:'-0.03em', color:'#f0f0f5', marginBottom:'0.25rem' }}>
+              Dashboard Overview
+            </h1>
+            <p style={{ fontSize:'0.85rem', color:'#55556e' }}>
+              Welcome back — here&apos;s what&apos;s happening with Hustlecare today.
+            </p>
           </div>
-          
-          <div className="divide-y divide-gray-200 max-h-96 overflow-y-auto">
-            {recentActivity.length > 0 ? (
-              recentActivity.map((activity) => (
-                <div key={activity.id} className="p-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">
-                        {activity.action}
-                      </p>
-                      <p className="text-sm text-gray-500 mt-1">
-                        {activity.entity} • by {activity.user}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-gray-400">
-                      <Clock className="h-3 w-3" />
-                      {new Date(activity.timestamp).toLocaleTimeString()}
-                    </div>
-                  </div>
+          <button className={`refresh-btn${refreshing?' spinning':''}`} onClick={()=>fetchData(true)}>
+            <RefreshCw size={14} />
+            {refreshing ? 'Refreshing…' : 'Refresh'}
+          </button>
+        </div>
+
+        {loading ? <Skeleton /> : (
+          <div style={{ display:'flex', flexDirection:'column', gap:'1.5rem' }}>
+
+            {/* ── Pending alerts ── */}
+            {hasPending && (
+              <div className="alert-panel">
+                <div style={{ display:'flex', alignItems:'center', gap:'0.5rem', marginBottom:'1rem' }}>
+                  <AlertCircle size={16} color="#f59e0b" />
+                  <span style={{ fontSize:'0.85rem', fontWeight:700, color:'#fbbf24' }}>Pending Actions</span>
                 </div>
-              ))
-            ) : (
-              <div className="p-8 text-center text-gray-500">
-                <Activity className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                <p>No recent activity</p>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))', gap:'0.75rem' }}>
+                  <AlertItem title="Pending Comments" count={stats?.comments.pending||0} color="#f59e0b" onClick={()=>router.push('/admin/comments')} />
+                  <AlertItem title="Pending Reviews"  count={stats?.reviews.pending||0}  color="#f59e0b" onClick={()=>router.push('/admin/reviews')} />
+                  <AlertItem title="Draft Businesses" count={stats?.businesses.draft||0}  color="#6366f1" onClick={()=>router.push('/admin/businesses')} />
+                </div>
               </div>
             )}
-          </div>
-        </div>
 
-        {/* Quick Stats Summary */}
-        <div className="space-y-4">
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
-            <h3 className="text-sm font-semibold text-blue-900 mb-4">Content Overview</h3>
-            <div className="space-y-3">
-              <button
-                onClick={() => router.push('/admin/businesses')}
-                className="w-full flex justify-between items-center hover:bg-blue-200 p-2 rounded transition-colors"
-              >
-                <span className="text-sm text-blue-700">Businesses</span>
-                <span className="text-sm font-bold text-blue-900">{stats?.businesses.total || 0}</span>
-              </button>
-              <button
-                onClick={() => router.push('/admin/requirements')}
-                className="w-full flex justify-between items-center hover:bg-blue-200 p-2 rounded transition-colors"
-              >
-                <span className="text-sm text-blue-700">Requirements</span>
-                <span className="text-sm font-bold text-blue-900">{stats?.requirements.total || 0}</span>
-              </button>
-              <button
-                onClick={() => router.push('/admin/products')}
-                className="w-full flex justify-between items-center hover:bg-blue-200 p-2 rounded transition-colors"
-              >
-                <span className="text-sm text-blue-700">Products</span>
-                <span className="text-sm font-bold text-blue-900">{stats?.products.total || 0}</span>
-              </button>
+            {/* ── Primary stats ── */}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))', gap:'1rem' }}>
+              <StatCard title="Total Users"      value={stats?.users.total.toLocaleString()||'0'}        icon={Users}       subtitle={`${stats?.users.activeToday||0} active today`}                       trend={stats?.users.trend} color="blue"   onClick={()=>router.push('/admin/users')} />
+              <StatCard title="Businesses"       value={stats?.businesses.total||'0'}                     icon={Building}    subtitle={`${stats?.businesses.published||0} published`}                        color="purple" onClick={()=>router.push('/admin/businesses')} />
+              <StatCard title="Products"         value={stats?.products.total.toLocaleString()||'0'}      icon={ShoppingCart} subtitle={`Avg KES ${stats?.products.averagePrice.toLocaleString()||0}`}      color="green"  onClick={()=>router.push('/admin/products')} />
+              <StatCard title="Total Cart Value" value={`KES ${stats?.carts.totalValue.toLocaleString()||0}`} icon={DollarSign} subtitle={`${stats?.carts.total||0} active carts`}                         color="orange" onClick={()=>router.push('/admin')} />
             </div>
-          </div>
 
-          <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
-            <h3 className="text-sm font-semibold text-green-900 mb-4">User Engagement</h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-green-700">Active Carts</span>
-                <span className="text-sm font-bold text-green-900">{stats?.carts.total || 0}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-green-700">Searches Today</span>
-                <span className="text-sm font-bold text-green-900">{stats?.searches.total || 0}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-green-700">Reviews</span>
-                <span className="text-sm font-bold text-green-900">{stats?.reviews.total || 0}</span>
-              </div>
+            {/* ── Secondary stats ── */}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))', gap:'1rem' }}>
+              <StatCard title="Requirements" value={stats?.requirements.total||'0'}  icon={Eye}          subtitle={`${stats?.requirements.required||0} required`}                          color="indigo" onClick={()=>router.push('/admin/requirements')} />
+              <StatCard title="Reviews"      value={stats?.reviews.total||'0'}        icon={Star}         subtitle={`Avg ${stats?.reviews.averageRating.toFixed(1)||'0.0'} ★`}              color="yellow" onClick={()=>router.push('/admin/reviews')} />
+              <StatCard title="Comments"     value={stats?.comments.total||'0'}       icon={MessageSquare} subtitle={`${stats?.comments.pending||0} pending`}                              color="pink"   onClick={()=>router.push('/admin/comments')} />
+              <StatCard title="Searches"     value={stats?.searches.total.toLocaleString()||'0'} icon={TrendingUp} subtitle={`Top: ${stats?.searches.topKeyword||'N/A'}`}               color="red"    onClick={()=>router.push('/admin')} />
             </div>
-          </div>
 
-          <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200">
-            <h3 className="text-sm font-semibold text-purple-900 mb-4">Moderation Queue</h3>
-            <div className="space-y-3">
-              <button
-                onClick={() => router.push('/admin/comments')}
-                className="w-full flex justify-between items-center hover:bg-purple-200 p-2 rounded transition-colors"
-              >
-                <span className="text-sm text-purple-700">Pending Comments</span>
-                <span className={`text-sm font-bold ${stats?.comments.pending ? 'text-purple-900' : 'text-purple-600'}`}>
-                  {stats?.comments.pending || 0}
-                </span>
-              </button>
-              <button
-                onClick={() => router.push('/admin/reviews')}
-                className="w-full flex justify-between items-center hover:bg-purple-200 p-2 rounded transition-colors"
-              >
-                <span className="text-sm text-purple-700">Pending Reviews</span>
-                <span className={`text-sm font-bold ${stats?.reviews.pending ? 'text-purple-900' : 'text-purple-600'}`}>
-                  {stats?.reviews.pending || 0}
-                </span>
-              </button>
-              <button
-                onClick={() => router.push('/admin/businesses')}
-                className="w-full flex justify-between items-center hover:bg-purple-200 p-2 rounded transition-colors"
-              >
-                <span className="text-sm text-purple-700">Draft Businesses</span>
-                <span className={`text-sm font-bold ${stats?.businesses.draft ? 'text-purple-900' : 'text-purple-600'}`}>
-                  {stats?.businesses.draft || 0}
-                </span>
-              </button>
+            {/* ── Quick insights row ── */}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))', gap:'0.75rem' }}>
+              {[
+                { label:'Users',      value:stats?.users.total||0,          change:stats?.users.trend||0 },
+                { label:'Businesses', value:stats?.businesses.total||0,     change:5 },
+                { label:'Products',   value:stats?.products.total||0,       change:12 },
+                { label:'Revenue',    value:stats?.carts.totalValue||0,     change:8 },
+              ].map(s=>(
+                <div key={s.label} className="qs-card">
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'0.5rem' }}>
+                    <span style={{ fontSize:'0.75rem', color:'#9494b0', fontWeight:600 }}>{s.label}</span>
+                    <span style={{ fontSize:'0.7rem', fontWeight:700, color:s.change>=0?'#34d399':'#f87171', display:'flex', alignItems:'center', gap:'0.2rem' }}>
+                      <TrendingUp size={10} style={{ transform:s.change<0?'rotate(180deg)':'none' }} />
+                      {s.change>=0?'+':''}{s.change}%
+                    </span>
+                  </div>
+                  <div className="adm-mono" style={{ fontSize:'1.4rem', fontWeight:700, color:'#f0f0f5' }}>
+                    {s.value.toLocaleString()}
+                  </div>
+                </div>
+              ))}
             </div>
+
+            {/* ── Bottom row: Activity + Panels ── */}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 320px', gap:'1.25rem', alignItems:'start' }}>
+
+              {/* Activity feed */}
+              <div className="feed-card">
+                <div style={{ padding:'1rem 1.25rem', borderBottom:'1px solid rgba(255,255,255,0.06)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <div>
+                    <div style={{ fontWeight:700, fontSize:'0.95rem', color:'#f0f0f5' }}>Recent Activity</div>
+                    <div style={{ fontSize:'0.75rem', color:'#55556e', marginTop:'0.15rem' }}>Latest admin actions across the platform</div>
+                  </div>
+                  <button onClick={()=>router.push('/admin/audit')} style={{ display:'flex', alignItems:'center', gap:'0.3rem', fontSize:'0.78rem', fontWeight:600, color:'#818cf8', background:'none', border:'none', cursor:'pointer', fontFamily:'Sora,sans-serif' }}>
+                    View All <ArrowUpRight size={13} />
+                  </button>
+                </div>
+                <div style={{ maxHeight:360, overflowY:'auto' }}>
+                  {recentActivity.length>0 ? recentActivity.map(a=>(
+                    <div key={a.id} className="feed-item">
+                      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'0.5rem' }}>
+                        <div>
+                          <div style={{ fontSize:'0.84rem', fontWeight:600, color:'#f0f0f5' }}>{a.action}</div>
+                          <div style={{ fontSize:'0.75rem', color:'#9494b0', marginTop:'0.2rem' }}>{a.entity} · by {a.user}</div>
+                        </div>
+                        <div style={{ display:'flex', alignItems:'center', gap:'0.3rem', fontSize:'0.72rem', color:'#55556e', whiteSpace:'nowrap', flexShrink:0 }}>
+                          <Clock size={11} />
+                          {new Date(a.timestamp).toLocaleTimeString()}
+                        </div>
+                      </div>
+                    </div>
+                  )) : (
+                    <div style={{ textAlign:'center', padding:'3rem 1rem', color:'#3a3a56' }}>
+                      <Activity size={32} style={{ margin:'0 auto 0.75rem', display:'block' }} />
+                      <div style={{ fontSize:'0.85rem' }}>No recent activity</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Right panels */}
+              <div style={{ display:'flex', flexDirection:'column', gap:'0.75rem' }}>
+
+                {/* Content overview */}
+                <div className="mini-panel">
+                  <div className="sec-hd">Content Overview</div>
+                  {[
+                    { label:'Businesses',   val:stats?.businesses.total||0,   href:'/admin/businesses' },
+                    { label:'Requirements', val:stats?.requirements.total||0, href:'/admin/requirements' },
+                    { label:'Products',     val:stats?.products.total||0,     href:'/admin/products' },
+                  ].map(r=>(
+                    <button key={r.label} className="mini-row" style={{ width:'100%', border:'none', background:'transparent', fontFamily:'Sora,sans-serif' }} onClick={()=>router.push(r.href)}>
+                      <span>{r.label}</span>
+                      <span className="adm-mono">{r.val}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Engagement */}
+                <div className="mini-panel">
+                  <div className="sec-hd">User Engagement</div>
+                  {[
+                    { label:'Active Carts',    val:stats?.carts.total||0 },
+                    { label:'Searches Today',  val:stats?.searches.total||0 },
+                    { label:'Reviews',         val:stats?.reviews.total||0 },
+                  ].map(r=>(
+                    <div key={r.label} className="mini-row" style={{ cursor:'default' }}>
+                      <span>{r.label}</span>
+                      <span className="adm-mono">{r.val}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Moderation */}
+                <div className="mini-panel">
+                  <div className="sec-hd">Moderation Queue</div>
+                  {[
+                    { label:'Pending Comments', val:stats?.comments.pending||0,  href:'/admin/comments',    warn:true },
+                    { label:'Pending Reviews',  val:stats?.reviews.pending||0,   href:'/admin/reviews',     warn:true },
+                    { label:'Draft Businesses', val:stats?.businesses.draft||0,  href:'/admin/businesses',  warn:false },
+                  ].map(r=>(
+                    <button key={r.label} className="mini-row" style={{ width:'100%', border:'none', background:'transparent', fontFamily:'Sora,sans-serif' }} onClick={()=>router.push(r.href)}>
+                      <span>{r.label}</span>
+                      <span className="adm-mono" style={{ color: r.val>0&&r.warn ? '#fbbf24' : '#f0f0f5' }}>{r.val}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
           </div>
-        </div>
+        )}
       </div>
-    </div>
+    </>
   );
 }

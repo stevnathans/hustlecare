@@ -86,6 +86,7 @@ export const useBusinessData = (slug: string) => {
           createdAt: businessData.createdAt ? new Date(businessData.createdAt) : new Date(),
           updatedAt: businessData.updatedAt ? new Date(businessData.updatedAt) : new Date(),
           userId: businessData.userId ?? null,
+          categoryId: businessData.categoryId ?? null,
         };
         
         setBusiness(transformedBusiness);
