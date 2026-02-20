@@ -1,6 +1,5 @@
 'use client';
 import React from 'react';
-import { use } from 'react';
 import CostCalculator from '@/components/CostCalculator';
 import BusinessHeader from '@/components/DetailsPage/BusinessHeader';
 import RequirementsSection from '@/components/DetailsPage/RequirementsSection';
@@ -8,22 +7,21 @@ import { useBusinessData } from 'hooks/useBusinessData';
 import { useFilterState } from 'hooks/useFilterState';
 import Link from 'next/link';
 
-interface BusinessPageProps {
-  params: Promise<{
-    slug: string;
-  }>;
+interface BusinessPageContentProps {
+  // Receives the plain resolved slug string from the server component.
+  // Do NOT pass the raw params Promise — it causes double-unwrapping
+  // and intermittent "business not found" errors.
+  slug: string;
 }
 
-export default function BusinessPage({ params }: BusinessPageProps) {
-  const { slug } = use(params);
-  
+export default function BusinessPageContent({ slug }: BusinessPageContentProps) {
   const {
     business,
     requirements,
     products,
     error,
     groupedRequirements,
-    sortedCategories
+    sortedCategories,
   } = useBusinessData(slug);
 
   const {
@@ -42,10 +40,11 @@ export default function BusinessPage({ params }: BusinessPageProps) {
     toggleCategorySearch,
     toggleFilter,
     setFilter,
-    handleCategorySearchChange
+    handleCategorySearchChange,
   } = useFilterState(requirements, products, groupedRequirements, sortedCategories);
 
-  // Handle 404 case - only show when error explicitly says "not found"
+  // ── Error states ──────────────────────────────────────────────────────────
+
   if (error === 'Business not found') {
     return (
       <div className="container mx-auto px-4 py-8 text-center">
@@ -60,7 +59,6 @@ export default function BusinessPage({ params }: BusinessPageProps) {
     );
   }
 
-  // Handle other errors
   if (error) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -72,7 +70,8 @@ export default function BusinessPage({ params }: BusinessPageProps) {
     );
   }
 
-  // Show loading state while data is being fetched
+  // ── Loading skeleton ──────────────────────────────────────────────────────
+
   if (!business) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -88,95 +87,56 @@ export default function BusinessPage({ params }: BusinessPageProps) {
     );
   }
 
-  // Structured data for SEO
-  const structuredData = {
-    "@context": "https://schema.org",
-    "@type": "LocalBusiness",
-    "name": business.name,
-    "description": business.description || `${business.name} business requirements and cost calculator`,
-    "url": `https://hustlecare.net/business/${slug}`,
-    "image": business.image || "/images/default-business.jpg",
-    "priceRange": unfilteredLowPrice && unfilteredHighPrice ? `$${unfilteredLowPrice}-$${unfilteredHighPrice}` : undefined,
-    "aggregateRating": business.rating ? {
-      "@type": "AggregateRating",
-      "ratingValue": business.rating,
-      "reviewCount": business.reviewCount || 1
-    } : undefined,
-    "address": business.address ? {
-      "@type": "PostalAddress",
-      "streetAddress": business.address.street,
-      "addressLocality": business.address.city,
-      "addressRegion": business.address.state,
-      "postalCode": business.address.zip,
-      "addressCountry": business.address.country || "US"
-    } : undefined,
-    "telephone": business.phone,
-    "email": business.email,
-    "openingHours": business.hours,
-    "sameAs": business.socialLinks || []
-  };
+  // ── Main render ───────────────────────────────────────────────────────────
 
   return (
-    <>
-      {/* Structured Data */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(structuredData),
-        }}
-      />
-      
-      <div className="container mx-auto px-4 py-8">
-        {/* Main heading for SEO */}
-        <header className="mb-8">
-          <h1 className="sr-only">
-            {business.name} - Complete Requirements and Total Costs
-          </h1>
-        </header>
+    <div className="container mx-auto px-4 py-8">
+      {/* sr-only h1 mirrors the browser tab title for screen readers & crawlers.
+          The visible heading lives inside BusinessHeader. */}
+      <header className="mb-8">
+        <h1 className="sr-only">
+          {totalRequirements > 0
+            ? `${totalRequirements} Requirements To Start a ${business.name} Business in ${new Date().getFullYear()} (Plus Total Cost Calculations)`
+            : `${business.name} Business - Complete Requirements & Total Costs`}
+        </h1>
+      </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <main className="md:col-span-2">
-            {/* Header Section */}
-            <BusinessHeader
-              businessSlug={slug}
-              totalRequirements={totalRequirements}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <main className="md:col-span-2">
+          <BusinessHeader
+            businessSlug={slug}
+            totalRequirements={totalRequirements}
+            businessName={business.name}
+            unfilteredLowPrice={unfilteredLowPrice}
+            unfilteredHighPrice={unfilteredHighPrice}
+            requiredCount={requiredCount}
+            optionalCount={optionalCount}
+          />
+
+          <section aria-label="Business requirements">
+            <RequirementsSection
               businessName={business.name}
-              unfilteredLowPrice={unfilteredLowPrice}
-              unfilteredHighPrice={unfilteredHighPrice}
-              requiredCount={requiredCount}
-              optionalCount={optionalCount}
+              sortedCategories={filteredCategories}
+              groupedRequirements={groupedRequirements}
+              products={products}
+              categoryStates={categoryStates}
+              globalSearchQuery={globalSearchQuery}
+              globalFilter={globalFilter}
+              setGlobalSearchQuery={setGlobalSearchQuery}
+              setGlobalFilter={setGlobalFilter}
+              onToggleCategorySearch={toggleCategorySearch}
+              onToggleFilter={toggleFilter}
+              onCategorySearchChange={handleCategorySearchChange}
+              onSetFilter={setFilter}
+              getFilteredRequirements={getFilteredRequirements}
             />
+          </section>
+        </main>
 
-
-            {/* Requirements Sections */}
-            <section aria-label="Business requirements">
-              <RequirementsSection
-                businessName={business.name}
-                sortedCategories={filteredCategories}
-                groupedRequirements={groupedRequirements}
-                products={products}
-                categoryStates={categoryStates}
-                globalSearchQuery={globalSearchQuery}
-                globalFilter={globalFilter}
-                setGlobalSearchQuery={setGlobalSearchQuery}
-                setGlobalFilter={setGlobalFilter}
-                onToggleCategorySearch={toggleCategorySearch}
-                onToggleFilter={toggleFilter}
-                onCategorySearchChange={handleCategorySearchChange}
-                onSetFilter={setFilter}
-                getFilteredRequirements={getFilteredRequirements}
-                 
-              />
-            </section>
-          </main>
-
-          {/* Cost Calculator Sidebar */}
-          <aside className="sticky top-8 self-start" aria-label="Cost calculator">
-            <CostCalculator 
-            business={business} />
-          </aside>
-        </div>
-      </div> 
-    </>
+        <aside className="sticky top-8 self-start" aria-label="Cost calculator">
+          <CostCalculator business={business} />
+        </aside>
+      </div>
+    </div>
   );
 }

@@ -5,24 +5,37 @@ import BusinessPageContent from './BusinessPageContent';
 import { prisma } from '@/lib/prisma';
 
 interface BusinessPageProps {
-  params: Promise<{
-    slug: string;
-  }>;
+  params: Promise<{ slug: string }>;
 }
 
-// Server-side function to fetch business data for metadata
-async function fetchBusinessForMetadata(slug: string) {
+// ── Data Fetching ─────────────────────────────────────────────────────────────
+
+async function fetchBusinessWithRequirements(slug: string) {
   const business = await prisma.business.findUnique({
     where: { slug },
+    include: {
+      // Adjust relation name to match your Prisma schema
+      requirements: { select: { id: true } },
+    },
   });
   return business;
 }
 
-// Generate metadata for SEO
+// ── Title Builder ─────────────────────────────────────────────────────────────
+
+function buildTitle(businessName: string, requirementCount: number): string {
+  const year = new Date().getFullYear();
+  if (requirementCount > 0) {
+    return `${requirementCount} Requirements To Start a ${businessName} Business in ${year} (Plus Total Cost Calculations)`;
+  }
+  return `${businessName} Business - Complete Requirements & Total Costs`;
+}
+
+// ── SEO Metadata ──────────────────────────────────────────────────────────────
+
 export async function generateMetadata({ params }: BusinessPageProps): Promise<Metadata> {
   const { slug } = await params;
-
-  const business = await fetchBusinessForMetadata(slug);
+  const business = await fetchBusinessWithRequirements(slug);
 
   if (!business) {
     return {
@@ -32,54 +45,50 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
     };
   }
 
-  const title = `${business.name} Business - Complete Requirements & Total Costs`;
+  const requirementCount = business.requirements?.length ?? 0;
+  const title = buildTitle(business.name, requirementCount);
   const description =
     business.description ||
-    `Explore ${business.name} business requirements, pricing, and use our cost calculator to estimate your investment. Get detailed insights and planning tools.`;
+    `Explore all ${requirementCount} requirements to start a ${business.name} business. Use our cost calculator to estimate your total investment and get a complete launch plan.`;
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
   const pageUrl = `${siteUrl}/business/${slug}`;
+  const ogImage = business.image || `${siteUrl}/images/default-business.jpg`;
 
   return {
     title,
     description,
     keywords: [
-      business.name,
-      'business requirements',
-      'cost calculator',
+      `how to start a ${business.name} business`,
+      `${business.name} business requirements`,
+      `${business.name} startup cost`,
+      `${business.name} cost calculator`,
       'business planning',
       'investment calculator',
-      'business',
+      'business requirements checklist',
     ].join(', '),
 
-    authors: [{ name: 'Your Company Name' }],
-    creator: 'Your Company Name',
-    publisher: 'Your Company Name',
+    authors: [{ name: 'HustleCare' }],
+    creator: 'HustleCare',
+    publisher: 'HustleCare',
 
     openGraph: {
       title,
       description,
       url: pageUrl,
-      siteName: 'Your Site Name',
+      siteName: 'HustleCare',
       type: 'website',
       locale: 'en_US',
-      images: [
-        {
-          url: business.image || `${siteUrl}/images/default-business.jpg`,
-          width: 1200,
-          height: 630,
-          alt: `${business.name} business overview`,
-        },
-      ],
+      images: [{ url: ogImage, width: 1200, height: 630, alt: `${business.name} business overview` }],
     },
 
     twitter: {
       card: 'summary_large_image',
       title,
       description,
-      images: [business.image || `${siteUrl}/images/default-business.jpg`],
-      creator: '@yourhandle',
-      site: '@yourhandle',
+      images: [ogImage],
+      creator: '@HustleCare',
+      site: '@HustleCare',
     },
 
     robots: {
@@ -107,55 +116,70 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
   };
 }
 
-// Generate static params for better SEO and performance
+// ── Static Params ─────────────────────────────────────────────────────────────
+
 export async function generateStaticParams() {
   try {
-    const businesses = await prisma.business.findMany({
-      select: { slug: true },
-    });
-    return businesses.map((business) => ({ slug: business.slug }));
+    const businesses = await prisma.business.findMany({ select: { slug: true } });
+    return businesses.map((b) => ({ slug: b.slug }));
   } catch (error) {
     console.error('Error generating static params:', error);
     return [];
   }
 }
 
-// Main page component (Server Component)
+// ── Page Component ────────────────────────────────────────────────────────────
+
 export default async function BusinessPage({ params }: BusinessPageProps) {
   const { slug } = await params;
 
-  // Fetch business — let errors bubble up naturally without swallowing them
-  const business = await fetchBusinessForMetadata(slug);
+  const business = await fetchBusinessWithRequirements(slug);
 
   if (!business) {
     notFound();
   }
 
+  const requirementCount = business.requirements?.length ?? 0;
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
 
+  // Rich structured data for Google search results
   const structuredData = {
     '@context': 'https://schema.org',
-    '@type': 'LocalBusiness',
-    name: business.name,
+    '@type': 'Article',
+    headline: buildTitle(business.name, requirementCount),
     description:
       business.description ||
-      `${business.name} business requirements and cost calculator`,
+      `Complete guide to starting a ${business.name} business with ${requirementCount} requirements and cost calculator.`,
     url: `${siteUrl}/business/${slug}`,
-    image: business.image || '/images/default-business.jpg',
+    image: business.image || `${siteUrl}/images/default-business.jpg`,
+    author: { '@type': 'Organization', name: 'HustleCare', url: siteUrl },
+    publisher: {
+      '@type': 'Organization',
+      name: 'HustleCare',
+      url: siteUrl,
+      logo: { '@type': 'ImageObject', url: `${siteUrl}/images/logo.png` },
+    },
+    dateModified: new Date().toISOString(),
+    mainEntityOfPage: { '@type': 'WebPage', '@id': `${siteUrl}/business/${slug}` },
+    breadcrumb: {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
+        { '@type': 'ListItem', position: 2, name: 'Businesses', item: `${siteUrl}/businesses` },
+        { '@type': 'ListItem', position: 3, name: business.name, item: `${siteUrl}/business/${slug}` },
+      ],
+    },
   };
 
   return (
     <>
-      {/* Structured Data */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(structuredData),
-        }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
 
-      {/* Pass the params object to the client component */}
-      <BusinessPageContent params={params} />
+      {/* Pass resolved slug string — NOT the params Promise */}
+      <BusinessPageContent slug={slug} />
     </>
   );
 }
