@@ -1,7 +1,13 @@
 import { Suspense } from "react";
 import BusinessesContent from "./BusinessesContent";
 
-export default function BusinessesPage() {
+interface BusinessesPageProps {
+  params: Promise<{ slug: string }>;
+}
+
+export default async function BusinessesPage({ params }: BusinessesPageProps) {
+  const { slug } = await params;
+  
   return (
     <Suspense
       fallback={
@@ -13,7 +19,7 @@ export default function BusinessesPage() {
         </div>
       }
     >
-      <BusinessesContent />
+      <BusinessesContent slug={slug} />
     </Suspense>
   );
 }
