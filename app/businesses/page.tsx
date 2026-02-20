@@ -1,13 +1,9 @@
 import { Suspense } from "react";
 import BusinessesContent from "./BusinessesContent";
 
-interface BusinessesPageProps {
-  params: Promise<{ slug: string }>;
-}
-
-export default async function BusinessesPage({ params }: BusinessesPageProps) {
-  const { slug } = await params;
-  
+// This is a static route (/businesses) — it has no dynamic [slug] segment,
+// so there are no params to read. Removing params entirely fixes the error.
+export default function BusinessesPage() {
   return (
     <Suspense
       fallback={
@@ -19,7 +15,8 @@ export default async function BusinessesPage({ params }: BusinessesPageProps) {
         </div>
       }
     >
-      <BusinessesContent slug={slug} />
+      {/* No slug prop — BusinessesContent fetches all businesses on its own */}
+      <BusinessesContent />
     </Suspense>
   );
 }
