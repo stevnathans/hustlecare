@@ -4,15 +4,18 @@ import GlobalSearchFilter from "./GlobalSearchFilter";
 import StickyQuickNavigation from "./StickyQuickNavigation";
 import BusinessCard from "../business/BusinessCards";
 import { Product } from "@/types";
-import { Requirement } from "@prisma/client";
 
+// All nullable fields match what useBusinessData returns after resolving
+// BusinessRequirement → RequirementTemplate. category and description
+// come from the database and can be null.
 interface RequirementLocal {
   id: number;
+  templateId?: number;
   name: string;
-  description?: string;
-  category?: string;
+  description?: string | null;
+  category?: string | null;
   necessity: string;
-  image?: string;
+  image?: string | null;
 }
 
 interface CategoryState {
@@ -45,8 +48,8 @@ interface RequirementsSectionProps {
 
 type Business = {
   sortedCategories: string[];
-  groupedRequirements: Record<string, Requirement[]>;
-  requirements: Requirement[];
+  groupedRequirements: Record<string, RequirementLocal[]>;
+  requirements: RequirementLocal[];
   id: string;
   name: string;
   image: string;
@@ -73,14 +76,12 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
   const [similarBusinesses, setSimilarBusinesses] = useState<Business[]>([]);
   const [loadingBusinesses, setLoadingBusinesses] = useState(true);
 
-  // Fetch latest businesses
   useEffect(() => {
     const fetchSimilarBusinesses = async () => {
       try {
         const res = await fetch("/api/businesses");
         if (!res.ok) throw new Error("Failed to fetch businesses");
         const data = await res.json();
-        // Get 3 latest businesses
         setSimilarBusinesses(data.slice(0, 3));
       } catch (error) {
         console.error("Error fetching similar businesses:", error);
@@ -92,25 +93,20 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
     fetchSimilarBusinesses();
   }, []);
 
-  // Check if global filters are active
   const hasGlobalFilters = globalSearchQuery || globalFilter !== "all";
 
-  // Calculate if there are any visible categories with results
   const hasAnyResults = sortedCategories.some((category) => {
     const filteredReqs = getFilteredRequirements(category);
     return filteredReqs.length > 0;
   });
 
-  // Determine if we should show the global no results message
   const showGlobalNoResults = hasGlobalFilters && !hasAnyResults;
 
-  // Prepare category data for navigation
   const categoryInfo = sortedCategories.map((category) => ({
     name: category,
     count: groupedRequirements[category]?.length || 0,
   }));
 
-  // Generate overall requirements structured data
   const generateRequirementsSchema = () => {
     const totalRequirements = sortedCategories.reduce((total, category) => {
       return total + (groupedRequirements[category]?.length || 0);
@@ -160,7 +156,6 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
     );
   };
 
-  // Global No Results Component
   const GlobalNoResults = () => {
     const getNoResultsMessage = () => {
       if (globalSearchQuery && globalFilter !== "all") {
@@ -188,15 +183,12 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
             d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
           />
         </svg>
-
         <h3 className="text-xl font-semibold text-gray-800 mb-2">
           No Requirements Found
         </h3>
-
         <p className="text-gray-600 mb-6 max-w-md mx-auto">
           {getNoResultsMessage()}
         </p>
-
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <button
             onClick={() => {
@@ -220,7 +212,6 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
             </svg>
             Clear All Filters
           </button>
-
           <a
             href="/businesses"
             className="inline-flex items-center justify-center px-6 py-3 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors font-medium"
@@ -228,7 +219,6 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
             Browse Other Businesses
           </a>
         </div>
-
         <div className="mt-6 text-sm text-gray-500">
           <p className="mb-2">Try adjusting your search terms or filters, or</p>
           <a
@@ -242,7 +232,6 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
     );
   };
 
-  // Similar Businesses Section Component
   const SimilarBusinessesSection = () => {
     if (loadingBusinesses) {
       return (
@@ -252,10 +241,7 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
           </h3>
           <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide">
             {[...Array(3)].map((_, index) => (
-              <div
-                key={index}
-                className="flex-shrink-0 w-full sm:w-80 snap-center"
-              >
+              <div key={index} className="flex-shrink-0 w-full sm:w-80 snap-center">
                 <div className="bg-white rounded-xl p-4 shadow-sm animate-pulse">
                   <div className="h-40 bg-gray-200 rounded-lg mb-4"></div>
                   <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
@@ -268,9 +254,7 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
       );
     }
 
-    if (similarBusinesses.length === 0) {
-      return null;
-    }
+    if (similarBusinesses.length === 0) return null;
 
     return (
       <div className="bg-gradient-to-r from-blue-50 to-emerald-50 rounded-lg p-6 border border-blue-200">
@@ -283,34 +267,17 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
             className="text-emerald-600 hover:text-emerald-700 font-medium text-sm flex items-center gap-1"
           >
             View All
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5l7 7-7 7"
-              />
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </a>
         </div>
-
         <p className="text-gray-700 mb-6">
-          Discover other business opportunities with detailed requirements and
-          cost calculators.
+          Discover other business opportunities with detailed requirements and cost calculators.
         </p>
-
-        {/* Horizontal scrollable list */}
         <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide -mx-2 px-2">
           {similarBusinesses.map((business) => (
-            <div
-              key={business.id}
-              className="flex-shrink-0 w-full sm:w-80 snap-center"
-            >
+            <div key={business.id} className="flex-shrink-0 w-full sm:w-80 snap-center">
               <BusinessCard
                 id={business.id}
                 name={business.name}
@@ -323,21 +290,15 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
             </div>
           ))}
         </div>
-
-        {/* Mobile scroll indicator */}
         <div className="flex justify-center gap-2 mt-4 sm:hidden">
           {similarBusinesses.map((_, index) => (
-            <div
-              key={index}
-              className="w-2 h-2 rounded-full bg-emerald-300"
-            ></div>
+            <div key={index} className="w-2 h-2 rounded-full bg-emerald-300"></div>
           ))}
         </div>
       </div>
     );
   };
 
-  // Show loading skeleton while data is being fetched
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -358,7 +319,6 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
     );
   }
 
-  // Only show "No Requirements" when data has loaded AND there are truly no requirements
   if (!isLoading && sortedCategories.length === 0) {
     return (
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-8 text-center">
@@ -409,7 +369,6 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
         role="main"
         aria-label={`Requirements for ${businessName} business`}
       >
-        {/* Section Introduction - No border/background on mobile */}
         <div className="p-4 sm:p-6">
           <h2 className="text-2xl font-bold text-gray-900 mb-3">
             Complete List of Requirements For {businessName} Business
@@ -423,7 +382,6 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
           </p>
         </div>
 
-        {/* Sticky Quick Navigation */}
         <StickyQuickNavigation
           categories={categoryInfo}
           businessName={businessName}
@@ -433,7 +391,6 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
           setGlobalFilter={setGlobalFilter}
         />
 
-        {/* Search and Filters Section */}
         <section aria-label="Business search and filters">
           <GlobalSearchFilter
             globalSearchQuery={globalSearchQuery}
@@ -443,12 +400,10 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
           />
         </section>
 
-        {/* Show Global No Results if applicable */}
         {showGlobalNoResults ? (
           <GlobalNoResults />
         ) : (
           <>
-            {/* Category Sections - Only render categories with results when global filters are active */}
             {sortedCategories.map((category) => {
               const filteredReqs = getFilteredRequirements(category);
               const categoryState = categoryStates[category] || {
@@ -471,15 +426,12 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
                   globalFilter={globalFilter}
                   onToggleSearch={() => onToggleCategorySearch(category)}
                   onToggleFilter={() => onToggleFilter(category)}
-                  onSearchChange={(query) =>
-                    onCategorySearchChange(category, query)
-                  }
+                  onSearchChange={(query) => onCategorySearchChange(category, query)}
                   onFilterChange={(filter) => onSetFilter(category, filter)}
                 />
               );
             })}
 
-            {/* Similar Businesses Section - Only show when there are results */}
             {hasAnyResults && <SimilarBusinessesSection />}
           </>
         )}

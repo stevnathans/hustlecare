@@ -7,8 +7,19 @@ import HomeSearch from "@/components/ui/homeSearch";
 import BusinessCard from "@/components/business/BusinessCards";
 import Skeleton from "react-loading-skeleton";
 import { motion } from "framer-motion";
-import { WhatWeDoSection } from "@/components/WhatWeDo"; 
-import { Requirement } from "@prisma/client";
+import { WhatWeDoSection } from "@/components/WhatWeDo";
+
+// Requirements no longer come from @prisma/client directly.
+// The /api/businesses endpoint resolves them from BusinessRequirement + template
+// and returns this flat shape.
+type Requirement = {
+  id: number;
+  templateId: number;
+  name: string;
+  category: string;
+  image: string | null;
+  necessity: string;
+};
 
 type Business = {
   sortedCategories: string[];
@@ -81,7 +92,7 @@ export default function Home() {
                 borderColor: "border-emerald-400"
               }
             ].map((step, index) => (
-              <div 
+              <div
                 key={index}
                 className={`p-8 rounded-xl border-t-4 ${step.borderColor} bg-white shadow-sm hover:shadow-md transition-shadow`}
               >
@@ -108,13 +119,13 @@ export default function Home() {
         </div>
       </section>
 
-      <WhatWeDoSection />  
+      <WhatWeDoSection />
 
       {/* Business Cards Section with enhanced styling */}
       <section className="bg-gradient-to-b from-white to-slate-50 py-20" aria-label="Popular Businesses">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center mb-12">
-            <motion.h2 
+            <motion.h2
               initial={{ opacity: 0, x: -20 }}
               whileInView={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6 }}
@@ -129,8 +140,8 @@ export default function Home() {
               transition={{ duration: 0.6 }}
               viewport={{ once: true }}
             >
-              <Link 
-                href="/businesses" 
+              <Link
+                href="/businesses"
                 className="inline-flex items-center text-emerald-600 hover:text-emerald-700 font-semibold text-lg group transition-colors duration-300"
               >
                 All Businesses
@@ -162,8 +173,8 @@ export default function Home() {
               ))
             ) : (
               [...Array(3)].map((_, index) => (
-                <motion.div 
-                  key={index} 
+                <motion.div
+                  key={index}
                   className="w-full"
                   initial={{ y: 30, opacity: 0 }}
                   whileInView={{ y: 0, opacity: 1 }}

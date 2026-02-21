@@ -12,7 +12,7 @@ interface Stats {
   users:        { total: number; activeToday: number; newThisWeek: number; trend: number };
   businesses:   { total: number; published: number; draft: number };
   products:     { total: number; averagePrice: number; byVendor: number };
-  requirements: { total: number; required: number; optional: number };
+  requirements: { total: number; templates: number; businessLinks: number; required: number; optional: number };
   comments:     { total: number; pending: number; approved: number };
   reviews:      { total: number; averageRating: number; pending: number };
   searches:     { total: number; uniqueKeywords: number; topKeyword: string };
@@ -282,7 +282,15 @@ export default function AdminDashboard() {
 
             {/* ── Secondary stats ── */}
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))', gap:'1rem' }}>
-              <StatCard title="Requirements" value={stats?.requirements.total||'0'}  icon={Eye}          subtitle={`${stats?.requirements.required||0} required`}                          color="indigo" onClick={()=>router.push('/admin/requirements')} />
+              <StatCard
+  title="Requirements"
+  value={stats?.requirements.templates || '0'}
+  icon={Eye}
+  subtitle={`${stats?.requirements.businessLinks || 0} business links · ${stats?.requirements.required || 0} required`}
+  color="indigo"
+  onClick={() => router.push('/admin/requirements')}
+/>
+
               <StatCard title="Reviews"      value={stats?.reviews.total||'0'}        icon={Star}         subtitle={`Avg ${stats?.reviews.averageRating.toFixed(1)||'0.0'} ★`}              color="yellow" onClick={()=>router.push('/admin/reviews')} />
               <StatCard title="Comments"     value={stats?.comments.total||'0'}       icon={MessageSquare} subtitle={`${stats?.comments.pending||0} pending`}                              color="pink"   onClick={()=>router.push('/admin/comments')} />
               <StatCard title="Searches"     value={stats?.searches.total.toLocaleString()||'0'} icon={TrendingUp} subtitle={`Top: ${stats?.searches.topKeyword||'N/A'}`}               color="red"    onClick={()=>router.push('/admin')} />
@@ -356,7 +364,9 @@ export default function AdminDashboard() {
                   <div className="sec-hd">Content Overview</div>
                   {[
                     { label:'Businesses',   val:stats?.businesses.total||0,   href:'/admin/businesses' },
-                    { label:'Requirements', val:stats?.requirements.total||0, href:'/admin/requirements' },
+                    { label:'Req. Templates', val:stats?.requirements.templates||0, href:'/admin/requirements' },
+{ label:'Req. Links',     val:stats?.requirements.businessLinks||0, href:'/admin/requirements' },
+
                     { label:'Products',     val:stats?.products.total||0,     href:'/admin/products' },
                   ].map(r=>(
                     <button key={r.label} className="mini-row" style={{ width:'100%', border:'none', background:'transparent', fontFamily:'Sora,sans-serif' }} onClick={()=>router.push(r.href)}>

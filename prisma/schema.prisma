@@ -29,7 +29,7 @@ model User {
   isActive            Boolean     @default(true)
   
   // Community features
-  isVerified          Boolean     @default(false) // For verified badge
+  isVerified          Boolean     @default(false)
   verifiedAt          DateTime?
   
   carts               Cart[]
@@ -39,7 +39,7 @@ model User {
   accounts            Account[]
   sessions            Session[]
   searches            SearchLog[]
-  auditLogs           AuditLog[]  // Track admin actions
+  auditLogs           AuditLog[]
   
   // Community sharing relations
   sharedBusinesses    SharedBusiness[]
@@ -122,23 +122,25 @@ model CartItem {
 }
 
 model Business {
-  id           Int           @id @default(autoincrement())
-  slug         String        @unique
+  id           Int                @id @default(autoincrement())
+  slug         String             @unique
   name         String
   description  String?
   image        String?
-  published    Boolean       @default(true)
+  published    Boolean            @default(true)
   categoryId   Int?
-  category     BusinessCategory? @relation(fields: [categoryId], references: [id])
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  requirements Requirement[]
+  category     BusinessCategory?  @relation(fields: [categoryId], references: [id])
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  
+  // Requirements now come through the link table
+  requirements BusinessRequirement[]
+  
   carts        Cart[]
   searches     SearchLog[]
-  user         User?         @relation(fields: [userId], references: [id])
+  user         User?              @relation(fields: [userId], references: [id])
   userId       String?
   
-  // Community sharing relation
   sharedBusinesses SharedBusiness[]
 
   @@index([name])
@@ -158,55 +160,117 @@ model BusinessCategory {
   @@index([slug])                        
 }
 
-model Requirement {
+// ============================================
+// REQUIREMENT LIBRARY SYSTEM
+// ============================================
+
+// RequirementTemplate — the canonical library record.
+// Lives independently of any business.
+// Descriptions use [businessName] as a token that resolves at display time.
+model RequirementTemplate {
   id          Int       @id @default(autoincrement())
   name        String
+  // Description uses [businessName] token e.g. "You need a business permit to operate your [businessName]."
   description String?
   image       String?
-  category    String?
+  category    String    // Equipment, Software, Documents, Legal, Branding, Operating Expenses
   necessity   String    // Required, Optional
-  businessId  Int
   
-  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  comments    Comment[]
+  // Soft delete — deprecated templates are hidden from new linking but
+  // existing BusinessRequirement links continue to work.
+  isDeprecated  Boolean   @default(false)
+  deprecatedAt  DateTime?
+
+  // Relations
+  businesses  BusinessRequirement[]
+  products    Product[]             // Products belong to templates, not to link records
+  
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  
-  @@index([businessId])
+
   @@index([category])
+  @@index([necessity])
+  @@index([isDeprecated])
+  @@index([name])
 }
 
-model Comment {
-  id            Int         @id @default(autoincrement())
-  content       String
-  requirementId Int
-  userId        String
-  isApproved    Boolean     @default(false) // For moderation
-  requirement   Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+// BusinessRequirement — the link between a template and a business.
+// One template can be linked to many businesses.
+// One business + one template = exactly one link (enforced by @@unique).
+model BusinessRequirement {
+  id          Int      @id @default(autoincrement())
   
-  @@index([requirementId])
+  businessId  Int
+  templateId  Int
+  
+  business    Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  template    RequirementTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+
+  // Optional override fields — null means "inherit from template"
+  // Admins can customize the description for a specific business without
+  // touching the library record.
+  descriptionOverride String?
+
+  // Behavioural fields
+  isActive      Boolean  @default(true)
+  displayOrder  Int      @default(0)
+  
+  // Audit: how was this link created?
+  // "auto"  = system created (e.g. CSV import, universal requirement)
+  // "admin" = manually linked by admin
+  source        String   @default("admin") // auto | admin
+
+  comments      Comment[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // One requirement per business — attempting to link again returns 409
+  @@unique([businessId, templateId])
+  @@index([businessId])
+  @@index([templateId])
+  @@index([isActive])
+}
+
+// Comments now attach to a BusinessRequirement (the link record),
+// so they are scoped to a specific business's version of a requirement.
+model Comment {
+  id                    Int                 @id @default(autoincrement())
+  content               String
+  businessRequirementId Int
+  userId                String
+  isApproved            Boolean             @default(false)
+  businessRequirement   BusinessRequirement @relation(fields: [businessRequirementId], references: [id], onDelete: Cascade)
+  user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  
+  @@index([businessRequirementId])
   @@index([userId])
   @@index([isApproved])
 }
 
 model Product {
-  id          Int        @id @default(autoincrement())
+  id          Int                  @id @default(autoincrement())
   name        String
   description String?
   price       Float?
   image       String?
   url         String?
   vendorId    Int?
-  vendor      Vendor?    @relation(fields: [vendorId], references: [id])
+  
+  // Products belong to a template (requirement type), not to a link
+  templateId  Int?
+  
+  vendor      Vendor?              @relation(fields: [vendorId], references: [id])
+  template    RequirementTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   cartItems   CartItem[]
   reviews     Review[]
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
   
   @@index([vendorId])
+  @@index([templateId])
   @@index([name])
 }
 
@@ -218,7 +282,7 @@ model Review {
   userId     String
   rating     Int
   comment    String
-  isApproved Boolean  @default(false) // For moderation
+  isApproved Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   
@@ -258,15 +322,14 @@ model SearchLog {
   @@index([userId])
 }
 
-// Audit Log for tracking admin actions
 model AuditLog {
   id          String   @id @default(uuid())
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   action      String   // CREATE, UPDATE, DELETE, VIEW
-  entity      String   // Business, Product, User, etc.
-  entityId    String   // ID of the affected entity
-  changes     Json?    // Store before/after values
+  entity      String   // Business, Product, User, RequirementTemplate, BusinessRequirement, etc.
+  entityId    String
+  changes     Json?
   ipAddress   String?
   userAgent   String?
   createdAt   DateTime @default(now())
@@ -281,46 +344,37 @@ model AuditLog {
 // COMMUNITY SHARING FEATURE MODELS
 // ============================================
 
-// SharedBusiness: Tracks publicly shared business setups
 model SharedBusiness {
   id          Int      @id @default(autoincrement())
-  userId      String   // The user who shared the business
-  businessId  Int      // The business being shared
-  name        String   // Cached business name for quick access
-  description String?  @db.Text // Optional description/notes about this setup
-  isActive    Boolean  @default(true) // Can be toggled on/off (public/private)
-  viewCount   Int      @default(0) // Track how many times previewed
-  copyCount   Int      @default(0) // Track how many times copied
-  
-  // Featured/quality control
-  isFeatured  Boolean  @default(false) // Staff picks
+  userId      String
+  businessId  Int
+  name        String
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  viewCount   Int      @default(0)
+  copyCount   Int      @default(0)
+  isFeatured  Boolean  @default(false)
   featuredAt  DateTime?
-  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // Relations
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  
-  // Track who copied this business
   copies   BusinessCopyActivity[]
 
-  @@unique([userId, businessId]) // One shared business per user per business type
+  @@unique([userId, businessId])
   @@index([isActive, viewCount])
   @@index([isActive, copyCount])
   @@index([isActive, createdAt])
   @@index([isFeatured])
 }
 
-// BusinessCopyActivity: Track when users copy shared businesses (for analytics)
 model BusinessCopyActivity {
   id               Int      @id @default(autoincrement())
   sharedBusinessId Int
   copiedByUserId   String
   copiedAt         DateTime @default(now())
 
-  // Relations
   sharedBusiness SharedBusiness @relation(fields: [sharedBusinessId], references: [id], onDelete: Cascade)
   copiedByUser   User           @relation(fields: [copiedByUserId], references: [id], onDelete: Cascade)
 

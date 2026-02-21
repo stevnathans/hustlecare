@@ -22,8 +22,11 @@ export async function GET(request: NextRequest) {
     // Log the search for analytics
     await logSearch(keyword, location, request)
 
-    // Search businesses with Prisma
+    // Requirements are now in RequirementTemplate, linked via BusinessRequirement.
+    // To search by requirement name/category we go:
+    //   Business.requirements (BusinessRequirement) → template (RequirementTemplate)
     const searchConditions = {
+      published: true,
       OR: [
         {
           name: {
@@ -37,22 +40,32 @@ export async function GET(request: NextRequest) {
             mode: 'insensitive' as const,
           },
         },
+        // Search through linked requirement templates by name
         {
           requirements: {
             some: {
-              name: {
-                contains: keyword,
-                mode: 'insensitive' as const,
+              isActive: true,
+              template: {
+                isDeprecated: false,
+                name: {
+                  contains: keyword,
+                  mode: 'insensitive' as const,
+                },
               },
             },
           },
         },
+        // Search through linked requirement templates by category
         {
           requirements: {
             some: {
-              category: {
-                contains: keyword,
-                mode: 'insensitive' as const,
+              isActive: true,
+              template: {
+                isDeprecated: false,
+                category: {
+                  contains: keyword,
+                  mode: 'insensitive' as const,
+                },
               },
             },
           },
@@ -65,37 +78,50 @@ export async function GET(request: NextRequest) {
       prisma.business.findMany({
         where: searchConditions,
         include: {
+          // Include the link + template so we can group by category in the response
           requirements: {
-            select: {
-              id: true,
-              name: true,
-              category: true,
+            where: {
+              isActive: true,
+              template: { isDeprecated: false },
             },
+            include: {
+              template: {
+                select: {
+                  id: true,
+                  name: true,
+                  category: true,
+                },
+              },
+            },
+            orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
           },
         },
         orderBy: [
-          {
-            name: 'asc',
-          },
-          {
-            createdAt: 'desc',
-          },
+          { name: 'asc' },
+          { createdAt: 'desc' },
         ],
         take: limit,
-        skip: skip,
+        skip,
       }),
       prisma.business.count({
         where: searchConditions,
       }),
     ])
 
-    // Transform the data to match expected format
+    // Transform the data to match expected format.
+    // groupedRequirements shape is unchanged — callers get the same structure as before.
     const transformedBusinesses = businesses.map(business => ({
       id: business.id.toString(),
       name: business.name,
       image: business.image,
       slug: business.slug,
-      groupedRequirements: groupRequirementsByCategory(business.requirements),
+      groupedRequirements: groupRequirementsByCategory(
+        business.requirements.map(link => ({
+          id: link.id,
+          name: link.template.name,
+          category: link.template.category,
+        }))
+      ),
     }))
 
     return NextResponse.json({
@@ -112,22 +138,16 @@ export async function GET(request: NextRequest) {
       { error: 'Failed to search businesses' },
       { status: 500 }
     )
-  } finally {
-    // Don't disconnect here when using singleton
   }
 }
 
-// Helper function to log searches for analytics
+// Helper: log searches for analytics
 async function logSearch(keyword: string, location: string | null, request: NextRequest) {
   try {
-    // Get IP address and user agent for analytics
     const ipAddress = request.headers.get('x-forwarded-for') || 
-                     request.headers.get('x-real-ip') || 
-                     'unknown'
+                      request.headers.get('x-real-ip') || 
+                      'unknown'
     const userAgent = request.headers.get('user-agent') || 'unknown'
-
-    // You might want to get userId from session/auth here
-    // const userId = await getUserIdFromSession(request)
 
     await prisma.searchLog.create({
       data: {
@@ -135,17 +155,18 @@ async function logSearch(keyword: string, location: string | null, request: Next
         location,
         ipAddress,
         userAgent,
-        // userId, // Add this when you have user authentication
       },
     })
   } catch (error) {
     console.error('Failed to log search:', error)
-    // Don't throw error here to avoid breaking the search functionality
+    // Don't throw — a logging failure should never break search
   }
 }
 
-// Helper function to group requirements by category
-function groupRequirementsByCategory(requirements: { id: number; name: string; category: string | null }[]) {
+// Helper: group a flat list of requirements by category
+function groupRequirementsByCategory(
+  requirements: { id: number; name: string; category: string }[]
+) {
   return requirements.reduce((acc, req) => {
     const category = req.category || 'General'
     if (!acc[category]) {

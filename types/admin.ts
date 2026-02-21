@@ -3,7 +3,17 @@
  * TypeScript type definitions for Hustlecare Admin Dashboard
  */
 
-import { User, Business, Product, Requirement, Vendor, Comment, Review, AuditLog } from '@prisma/client';
+import {
+  User,
+  Business,
+  Product,
+  RequirementTemplate,
+  BusinessRequirement,
+  Vendor,
+  Comment,
+  Review,
+  AuditLog,
+} from '@prisma/client';
 
 // ============================================================================
 // Role & Permission Types
@@ -34,6 +44,7 @@ export type Permission =
   | 'comments.moderate'
   | 'reviews.moderate'
   | 'audit.view'
+  | 'stats.view'
   | 'settings.manage';
 
 // ============================================================================
@@ -42,7 +53,7 @@ export type Permission =
 
 export type BusinessWithRelations = Business & {
   _count?: {
-    requirements?: number;
+    requirements?: number; // counts BusinessRequirement links
     carts?: number;
     searches?: number;
   };
@@ -50,11 +61,14 @@ export type BusinessWithRelations = Business & {
     name: string;
     email: string;
   } | null;
-  requirements?: Requirement[];
+  // requirements on Business are BusinessRequirement links, not templates directly
+  requirements?: BusinessRequirement[];
 };
 
 export type ProductWithRelations = Product & {
   vendor?: Vendor | null;
+  // Product.templateId links to RequirementTemplate
+  template?: RequirementTemplate | null;
   _count?: {
     reviews?: number;
     cartItems?: number;
@@ -62,7 +76,29 @@ export type ProductWithRelations = Product & {
   reviews?: Review[];
 };
 
-export type RequirementWithRelations = Requirement & {
+// The old RequirementWithRelations referenced the deleted Requirement model.
+// We now have two separate concepts:
+
+// A library template — exists independently of any business
+export type RequirementTemplateWithRelations = RequirementTemplate & {
+  _count?: {
+    businesses?: number; // number of BusinessRequirement links
+    products?: number;
+  };
+  businesses?: BusinessRequirementWithRelations[];
+  products?: Product[];
+};
+
+// A link between a template and a business
+export type BusinessRequirementWithRelations = BusinessRequirement & {
+  template: {
+    id: number;
+    name: string;
+    category: string;
+    necessity: string;
+    description?: string | null;
+    image?: string | null;
+  };
   business: {
     id: number;
     name: string;
@@ -74,6 +110,10 @@ export type RequirementWithRelations = Requirement & {
   comments?: Comment[];
 };
 
+// Keep a convenience alias for code that used RequirementWithRelations
+// and primarily cares about the resolved name + business context
+export type RequirementWithRelations = BusinessRequirementWithRelations;
+
 export type CommentWithRelations = Comment & {
   user: {
     id: string;
@@ -81,9 +121,13 @@ export type CommentWithRelations = Comment & {
     email: string;
     image?: string | null;
   };
-  requirement: {
+  // Comment is now on BusinessRequirement, not Requirement directly
+  businessRequirement: {
     id: number;
-    name: string;
+    template: {
+      id: number;
+      name: string;
+    };
     business: {
       id: number;
       name: string;
@@ -165,6 +209,11 @@ export interface DashboardStats {
     byVendor: number;
   };
   requirements: {
+    // Library templates (unique requirement types)
+    templates: number;
+    // Total active BusinessRequirement links across all businesses
+    businessLinks: number;
+    // Kept for backward compat — same value as templates
     total: number;
     required: number;
     optional: number;
@@ -218,16 +267,31 @@ export interface ProductFormData {
   image?: string;
   url?: string;
   vendorId?: number | null;
+  templateId?: number | null;
 }
 
-export interface RequirementFormData {
+// Form data for creating/editing a library template
+export interface RequirementTemplateFormData {
   name: string;
   description?: string;
   image?: string;
   category: string;
   necessity: 'Required' | 'Optional';
-  businessId: number;
 }
+
+// Form data for linking a template to a business (or creating + linking)
+export interface BusinessRequirementFormData {
+  templateId?: number;       // provide to link existing
+  name?: string;             // provide instead to create new template
+  description?: string;
+  image?: string;
+  category?: string;
+  necessity?: 'Required' | 'Optional';
+  descriptionOverride?: string;
+}
+
+// Keep old name as alias so existing form code doesn't break immediately
+export type RequirementFormData = RequirementTemplateFormData;
 
 export interface VendorFormData {
   name: string;
@@ -305,7 +369,15 @@ export interface ExportResult {
 // ============================================================================
 
 export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'VIEW' | 'EXPORT' | 'APPROVE' | 'REJECT';
-export type AuditEntity = 'Business' | 'Product' | 'Requirement' | 'Vendor' | 'User' | 'Comment' | 'Review';
+export type AuditEntity =
+  | 'Business'
+  | 'Product'
+  | 'RequirementTemplate'
+  | 'BusinessRequirement'
+  | 'Vendor'
+  | 'User'
+  | 'Comment'
+  | 'Review';
 
 export interface AuditLogFilter {
   userId?: string;

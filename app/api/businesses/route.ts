@@ -1,18 +1,50 @@
+// app/api/businesses/route.ts
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
-// Fetch all businesses with their grouped requirements
+// Fetch all businesses with their grouped requirements.
+// Requirements now live in RequirementTemplate, linked via BusinessRequirement.
+// We join through to get name and category from the template.
 export async function GET() {
   try {
     const businesses = await prisma.business.findMany({
+      where: { published: true },
       include: {
-        requirements: true,
+        requirements: {
+          where: {
+            isActive: true,
+            template: { isDeprecated: false },
+          },
+          include: {
+            template: {
+              select: {
+                id: true,
+                name: true,
+                category: true,
+                image: true,
+                necessity: true,
+              },
+            },
+          },
+          orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+        },
       },
     });
 
     const businessesWithGroupedRequirements = businesses.map((business) => {
-      const groupedRequirements = business.requirements.reduce(
-        (groups: Record<string, typeof business.requirements>, req) => {
+      // Resolve each link into a flat requirement shape, then group by category.
+      // descriptionOverride takes precedence over the template description.
+      const resolved = business.requirements.map((link) => ({
+        id: link.id,
+        templateId: link.template.id,
+        name: link.template.name,
+        category: link.template.category,
+        image: link.template.image,
+        necessity: link.template.necessity,
+      }));
+
+      const groupedRequirements = resolved.reduce(
+        (groups: Record<string, typeof resolved>, req) => {
           const category = req.category || "Uncategorized";
           if (!groups[category]) {
             groups[category] = [];
@@ -28,7 +60,7 @@ export async function GET() {
         name: business.name,
         image: business.image,
         slug: business.slug,
-        groupedRequirements: groupedRequirements,
+        groupedRequirements,
       };
     });
 

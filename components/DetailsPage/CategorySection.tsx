@@ -5,13 +5,17 @@ import CategorySearchFilter from './CategorySearchFilter';
 import { Link } from 'lucide-react';
 import { Product } from '@/types';
 
+// Matches the resolved shape from /api/business/[slug]/requirements.
+// image is string | null (not string | undefined) because the template
+// field comes from the database which returns null for missing values.
 interface Requirement {
   id: number;
+  templateId?: number;
   name: string;
-  description?: string;
-  category?: string;
+  description?: string | null;
+  category?: string | null;
   necessity: string;
-  image?: string;
+  image?: string | null;
 }
 
 interface CategoryState {
@@ -54,13 +58,11 @@ const CategorySection: React.FC<CategorySectionProps> = ({
   const requiredItems = filteredRequirements.filter(req => req.necessity.toLowerCase() === 'required');
   const optionalItems = filteredRequirements.filter(req => req.necessity.toLowerCase() === 'optional');
 
-  // Don't render this category if there are no filtered results AND there are active global filters
   const hasGlobalFilters = globalSearchQuery || globalFilter !== 'all';
   if (filteredRequirements.length === 0 && hasGlobalFilters) {
     return null;
   }
 
-  // Generate category-specific structured data
   const generateCategorySchema = () => {
     const categorySchema = {
       "@context": "https://schema.org",
@@ -103,12 +105,10 @@ const CategorySection: React.FC<CategorySectionProps> = ({
         itemScope
         itemType="https://schema.org/ItemList"
       >
-        {/* Hidden structured data for search engines */}
         <meta itemProp="name" content={`${category} Requirements for ${businessName} Business`} />
         <meta itemProp="description" content={`${category} requirements needed to start a ${businessName} business in Kenya`} />
         <meta itemProp="numberOfItems" content={filteredRequirements.length.toString()} />
 
-        {/* Always show the header - it contains the search/filter controls */}
         <CategorySectionHeader
           category={category}
           filteredCount={filteredRequirements.length}
@@ -119,7 +119,6 @@ const CategorySection: React.FC<CategorySectionProps> = ({
           onToggleFilter={onToggleFilter}
         />
 
-        {/* Always show the search/filter controls if they're active */}
         <CategorySearchFilter
           category={category}
           showSearch={categoryState.showSearch}
@@ -133,7 +132,6 @@ const CategorySection: React.FC<CategorySectionProps> = ({
         <div className="p-2 sm:p-6">
           {filteredRequirements.length > 0 ? (
             <>
-              {/* Category Introduction */}
               <div className="mb-4 sm:mb-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-2">
                   {category} Requirements for Your {businessName} Business
@@ -149,7 +147,6 @@ const CategorySection: React.FC<CategorySectionProps> = ({
                 </p>
               </div>
 
-              {/* Required Items Section */}
               {requiredItems.length > 0 && (
                 <div className="mb-6 sm:mb-8">
                   <h4 className="text-md font-semibold text-green-700 mb-3 sm:mb-4 flex items-center">
@@ -164,7 +161,9 @@ const CategorySection: React.FC<CategorySectionProps> = ({
                         <RequirementCard
                           requirement={{
                             ...requirement,
-                            category: requirement.category || category
+                            category: requirement.category || category,
+                            image: requirement.image ?? undefined,
+                            description: requirement.description ?? undefined,
                           }}
                           products={products[requirement.name] || []}
                         />
@@ -174,7 +173,6 @@ const CategorySection: React.FC<CategorySectionProps> = ({
                 </div>
               )}
 
-              {/* Optional Items Section */}
               {optionalItems.length > 0 && (
                 <div>
                   <h4 className="text-md font-semibold text-yellow-700 mb-3 sm:mb-4 flex items-center">
@@ -192,7 +190,9 @@ const CategorySection: React.FC<CategorySectionProps> = ({
                         <RequirementCard
                           requirement={{
                             ...requirement,
-                            category: requirement.category || category
+                            category: requirement.category || category,
+                            image: requirement.image ?? undefined,
+                            description: requirement.description ?? undefined,
                           }}
                           products={products[requirement.name] || []}
                         />
@@ -203,7 +203,6 @@ const CategorySection: React.FC<CategorySectionProps> = ({
               )}
             </>
           ) : (
-            /* No Results Section - Only show when no global filters are active */
             <div className="text-center py-8 sm:py-12">
               <svg className="w-10 h-10 sm:w-12 sm:h-12 text-gray-400 mx-auto mb-3 sm:mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6-4h6m2 5.291A7.962 7.962 0 0112 15c-2.34 0-4.29-1.175-5.5-2.958A7.963 7.963 0 016 12c0-1.657.5-3.2 1.357-4.48A7.955 7.955 0 0112 9c2.34 0 4.29 1.175 5.5 2.958A7.963 7.963 0 0118 12c0 1.657-.5 3.2-1.357 4.48z" />
@@ -215,7 +214,6 @@ const CategorySection: React.FC<CategorySectionProps> = ({
                 This category doesn&apos;t have any requirements yet, or they may be categorized differently.
               </p>
               
-              {/* Show clear filters button if there are category-level filters */}
               {(categoryState.searchQuery || categoryState.filter !== 'all') && (
                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center mb-4">
                   <button 
@@ -230,7 +228,6 @@ const CategorySection: React.FC<CategorySectionProps> = ({
                 </div>
               )}
               
-              {/* Helpful suggestions */}
               <div className="mt-4">
                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center">
                   <Link 
@@ -251,10 +248,8 @@ const CategorySection: React.FC<CategorySectionProps> = ({
           )}
         </div>
 
-        {/* Category Summary for SEO - Always show, but adapt message based on results */}
         <div className="bg-gray-100 px-4 py-3 sm:px-6 sm:py-4 border-t">
           <div className="flex flex-col xs:flex-row xs:items-center xs:justify-between text-sm text-gray-600 gap-2 xs:gap-0">
-           
             <a 
               href={`#${categoryId}`}
               className="text-blue-600 hover:text-blue-800 hover:underline text-center"

@@ -2,13 +2,13 @@
 // scripts/setup-admin-dashboard.ts
 /**
  * Hustlecare Admin Dashboard Setup Script
- * 
+ *
  * This script:
  * 1. Creates the first admin user
  * 2. Seeds sample data if needed
  * 3. Verifies database schema
  * 4. Tests permissions
- * 
+ *
  * Usage:
  * npx tsx scripts/setup-admin-dashboard.ts
  */
@@ -21,41 +21,35 @@ const prisma = new PrismaClient();
 
 const rl = readline.createInterface({
   input: process.stdin,
-  output: process.stdout
+  output: process.stdout,
 });
 
 function question(query: string): Promise<string> {
-  return new Promise(resolve => rl.question(query, resolve));
+  return new Promise((resolve) => rl.question(query, resolve));
 }
 
 async function createAdminUser() {
   console.log('\n📝 Creating Admin User\n');
-  
-  const email = await question('Admin email: ') || 'admin@hustlecare.com';
-  const name = await question('Admin name: ') || 'Admin User';
-  const password = await question('Admin password (min 8 chars): ') || 'ChangeMe123!';
+
+  const email = (await question('Admin email: ')) || 'admin@hustlecare.com';
+  const name = (await question('Admin name: ')) || 'Admin User';
+  const password = (await question('Admin password (min 8 chars): ')) || 'ChangeMe123!';
 
   if (password.length < 8) {
     console.error('❌ Password must be at least 8 characters long');
     process.exit(1);
   }
 
-  // Check if user already exists
-  const existingUser = await prisma.user.findUnique({
-    where: { email }
-  });
+  const existingUser = await prisma.user.findUnique({ where: { email } });
 
   if (existingUser) {
     console.log(`\n⚠️  User with email ${email} already exists`);
     const update = await question('Update to admin role? (y/n): ');
-    
+
     if (update.toLowerCase() === 'y') {
       const updated = await prisma.user.update({
         where: { email },
-        data: { 
-          role: 'admin',
-          isActive: true
-        }
+        data: { role: 'admin', isActive: true },
       });
       console.log(`✅ Updated ${updated.email} to admin role`);
       return updated;
@@ -65,10 +59,8 @@ async function createAdminUser() {
     }
   }
 
-  // Hash password
   const hashedPassword = await bcrypt.hash(password, 12);
 
-  // Create admin user
   const admin = await prisma.user.create({
     data: {
       email,
@@ -80,30 +72,30 @@ async function createAdminUser() {
       emailNotifications: true,
       pushNotifications: false,
       marketingEmails: false,
-    }
+    },
   });
 
   console.log('\n✅ Admin user created successfully!');
   console.log(`📧 Email: ${admin.email}`);
   console.log(`🔑 Role: ${admin.role}`);
   console.log(`🆔 ID: ${admin.id}`);
-  
+
   return admin;
 }
 
 async function createSampleRoleUsers() {
   console.log('\n📝 Creating Sample Role Users\n');
-  
+
   const createSample = await question('Create sample users for testing roles? (y/n): ');
-  
+
   if (createSample.toLowerCase() !== 'y') {
     console.log('Skipping sample users');
     return;
   }
 
   const roles = [
-    { role: 'editor', email: 'editor@hustlecare.com', name: 'Editor User' },
-    { role: 'author', email: 'author@hustlecare.com', name: 'Author User' },
+    { role: 'editor',   email: 'editor@hustlecare.com',   name: 'Editor User' },
+    { role: 'author',   email: 'author@hustlecare.com',   name: 'Author User' },
     { role: 'reviewer', email: 'reviewer@hustlecare.com', name: 'Reviewer User' },
   ];
 
@@ -118,10 +110,10 @@ async function createSampleRoleUsers() {
           password: hashedPassword,
           emailVerified: new Date(),
           isActive: true,
-        }
+        },
       });
       console.log(`✅ Created ${user.role}: ${user.email}`);
-    } catch (error) {
+    } catch {
       console.log(`⚠️  User ${roleData.email} might already exist`);
     }
   }
@@ -133,49 +125,43 @@ async function verifySchema() {
   console.log('\n🔍 Verifying Database Schema\n');
 
   try {
-    // Check if AuditLog table exists
     const auditLogCount = await prisma.auditLog.count();
     console.log(`✅ AuditLog table exists (${auditLogCount} records)`);
 
-    // Check User fields
     const user = await prisma.user.findFirst({
-      select: {
-        id: true,
-        role: true,
-        isActive: true,
-        lastLoginAt: true,
-      }
+      select: { id: true, role: true, isActive: true, lastLoginAt: true },
     });
-    
+
     if (user && 'role' in user && 'isActive' in user) {
       console.log('✅ User table has required fields');
     }
 
-    // Check Business published field
-    const business = await prisma.business.findFirst({
-      select: { published: true }
-    });
+    await prisma.business.findFirst({ select: { published: true } });
     console.log('✅ Business table has published field');
 
-    // Check Comment/Review moderation fields
-    const comment = await prisma.comment.findFirst({
-      select: { isApproved: true }
-    });
+    await prisma.comment.findFirst({ select: { isApproved: true } });
     console.log('✅ Comment table has isApproved field');
+
+    // Verify the new requirement library models exist
+    await prisma.requirementTemplate.count();
+    console.log('✅ RequirementTemplate table exists');
+
+    await prisma.businessRequirement.count();
+    console.log('✅ BusinessRequirement table exists');
 
     console.log('\n✅ Schema verification complete');
   } catch (error) {
     console.error('\n❌ Schema verification failed:', error);
-    console.log('\n💡 Run: npx prisma migrate dev');
+    console.log('\n💡 Run: npx prisma generate && npx prisma migrate dev');
     process.exit(1);
   }
 }
 
 async function seedSampleData() {
   console.log('\n📦 Sample Data Seeding\n');
-  
+
   const seed = await question('Seed sample data? (y/n): ');
-  
+
   if (seed.toLowerCase() !== 'y') {
     console.log('Skipping sample data');
     return;
@@ -184,18 +170,13 @@ async function seedSampleData() {
   try {
     // Create sample vendor
     const vendor = await prisma.vendor.upsert({
-      where: { 
-        name_website: { 
-          name: 'Sample Vendor', 
-          website: 'https://example.com' 
-        } 
-      },
+      where: { name_website: { name: 'Sample Vendor', website: 'https://example.com' } },
       update: {},
       create: {
         name: 'Sample Vendor',
         website: 'https://example.com',
-        logo: 'https://via.placeholder.com/150'
-      }
+        logo: 'https://via.placeholder.com/150',
+      },
     });
     console.log('✅ Created sample vendor');
 
@@ -208,33 +189,45 @@ async function seedSampleData() {
         slug: 'sample-business',
         description: 'A sample business for testing',
         image: 'https://via.placeholder.com/400',
-        published: true
-      }
+        published: true,
+      },
     });
     console.log('✅ Created sample business');
 
-    // Create sample requirement
-    const requirement = await prisma.requirement.create({
+    // Create a sample requirement template in the library
+    // (The old prisma.requirement.create no longer exists — requirements are
+    // now RequirementTemplate records linked to businesses via BusinessRequirement)
+    const template = await prisma.requirementTemplate.create({
       data: {
         name: 'Sample Requirement',
-        description: 'A sample requirement for testing',
+        description: 'A sample requirement for testing [businessName].',
         category: 'Equipment',
         necessity: 'Required',
-        businessId: business.id
-      }
+      },
     });
-    console.log('✅ Created sample requirement');
+    console.log('✅ Created sample requirement template');
 
-    // Create sample product
-    const product = await prisma.product.create({
+    // Link the template to the sample business
+    await prisma.businessRequirement.create({
+      data: {
+        businessId: business.id,
+        templateId: template.id,
+        source: 'auto',
+      },
+    });
+    console.log('✅ Linked requirement template to sample business');
+
+    // Create sample product (linked to the template)
+    await prisma.product.create({
       data: {
         name: 'Sample Product',
         description: 'A sample product for testing',
         price: 1000,
         image: 'https://via.placeholder.com/300',
         url: 'https://example.com/product',
-        vendorId: vendor.id
-      }
+        vendorId: vendor.id,
+        templateId: template.id,
+      },
     });
     console.log('✅ Created sample product');
 
@@ -249,20 +242,25 @@ async function displaySummary() {
   console.log('🎉 SETUP COMPLETE!');
   console.log('='.repeat(50));
 
-  const stats = await Promise.all([
-    prisma.user.count({ where: { role: 'admin' } }),
-    prisma.user.count(),
-    prisma.business.count(),
-    prisma.product.count(),
-    prisma.requirement.count(),
-  ]);
+  const [adminCount, userCount, businessCount, productCount, templateCount, linkCount] =
+    await Promise.all([
+      prisma.user.count({ where: { role: 'admin' } }),
+      prisma.user.count(),
+      prisma.business.count(),
+      prisma.product.count(),
+      // Requirement library: templates (unique requirement types)
+      prisma.requirementTemplate.count({ where: { isDeprecated: false } }),
+      // Requirement library: business links
+      prisma.businessRequirement.count({ where: { isActive: true } }),
+    ]);
 
   console.log('\n📊 Current Database State:');
-  console.log(`   Admin users: ${stats[0]}`);
-  console.log(`   Total users: ${stats[1]}`);
-  console.log(`   Businesses: ${stats[2]}`);
-  console.log(`   Products: ${stats[3]}`);
-  console.log(`   Requirements: ${stats[4]}`);
+  console.log(`   Admin users:          ${adminCount}`);
+  console.log(`   Total users:          ${userCount}`);
+  console.log(`   Businesses:           ${businessCount}`);
+  console.log(`   Products:             ${productCount}`);
+  console.log(`   Req. templates:       ${templateCount}`);
+  console.log(`   Business-req. links:  ${linkCount}`);
 
   console.log('\n📝 Next Steps:');
   console.log('   1. Start your development server: npm run dev');
@@ -275,7 +273,7 @@ async function displaySummary() {
   console.log('   - Enable HTTPS in production');
   console.log('   - Review and adjust role permissions');
   console.log('   - Monitor audit logs regularly');
-  
+
   console.log('\n✨ Happy managing!\n');
 }
 
@@ -285,21 +283,11 @@ async function main() {
   console.log('='.repeat(50) + '\n');
 
   try {
-    // Step 1: Verify schema
     await verifySchema();
-
-    // Step 2: Create admin user
     await createAdminUser();
-
-    // Step 3: Create sample role users
     await createSampleRoleUsers();
-
-    // Step 4: Seed sample data (optional)
     await seedSampleData();
-
-    // Step 5: Display summary
     await displaySummary();
-
   } catch (error) {
     console.error('\n❌ Setup failed:', error);
     process.exit(1);
@@ -309,5 +297,4 @@ async function main() {
   }
 }
 
-// Run the setup
 main();

@@ -1,12 +1,15 @@
 import { useState, useMemo } from 'react';
 
+// Matches the resolved shape from useBusinessData / /api/business/[slug]/requirements.
+// description, category, and image come from the database and can be null.
 interface Requirement {
   id: number;
+  templateId?: number;
   name: string;
-  description?: string;
-  category?: string;
+  description?: string | null;
+  category?: string | null;
   necessity: string;
-  image?: string;
+  image?: string | null;
 }
 
 interface Product {
@@ -34,12 +37,10 @@ export const useFilterState = (
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [globalFilter, setGlobalFilter] = useState<'all' | 'required' | 'optional'>('all');
 
-  // Header statistics - unfiltered counts and cost estimates
   const { requiredCount, optionalCount, unfilteredLowPrice, unfilteredHighPrice } = useMemo(() => {
     const required = requirements.filter(req => req.necessity.toLowerCase() === 'required').length;
     const optional = requirements.filter(req => req.necessity.toLowerCase() === 'optional').length;
-    
-    // Calculate unfiltered cost estimates
+
     let minTotal = 0;
     let maxTotal = 0;
 
@@ -51,12 +52,12 @@ export const useFilterState = (
         maxTotal += Math.max(...prices);
       }
     });
-    
+
     return {
       requiredCount: required,
       optionalCount: optional,
       unfilteredLowPrice: minTotal,
-      unfilteredHighPrice: maxTotal
+      unfilteredHighPrice: maxTotal,
     };
   }, [requirements, products]);
 
@@ -70,8 +71,8 @@ export const useFilterState = (
         ? req.name.toLowerCase().includes(globalSearchQuery.toLowerCase()) ||
           (req.description && req.description.toLowerCase().includes(globalSearchQuery.toLowerCase()))
         : true;
-      const matchesGlobalFilter = globalFilter === 'all' ||
-        req.necessity.toLowerCase() === globalFilter;
+      const matchesGlobalFilter =
+        globalFilter === 'all' || req.necessity.toLowerCase() === globalFilter;
       return matchesGlobalSearch && matchesGlobalFilter;
     });
 
@@ -88,35 +89,46 @@ export const useFilterState = (
     return {
       totalRequirements: total,
       lowPrice: minTotal,
-      highPrice: maxTotal
+      highPrice: maxTotal,
     };
   }, [requirements, products, globalSearchQuery, globalFilter]);
 
-  // FIXED: Always show all categories, don't filter them out
   const filteredCategories = useMemo(() => {
-    // Return all categories - let the individual category sections handle showing "no results"
     return sortedCategories;
   }, [sortedCategories]);
 
-  // Helper function to get filtered requirements for a specific category
-  const getFilteredRequirements = (category: string) => {
-    return groupedRequirements[category]?.filter(req => {
-      const matchesGlobalSearch = globalSearchQuery
-        ? req.name.toLowerCase().includes(globalSearchQuery.toLowerCase()) ||
-          (req.description && req.description.toLowerCase().includes(globalSearchQuery.toLowerCase()))
-        : true;
-      const matchesGlobalFilter = globalFilter === 'all' ||
-        req.necessity.toLowerCase() === globalFilter;
-      const matchesCategorySearch = categoryStates[category]?.searchQuery
-        ? req.name.toLowerCase().includes(categoryStates[category].searchQuery.toLowerCase()) ||
-          (req.description && req.description.toLowerCase().includes(categoryStates[category].searchQuery.toLowerCase()))
-        : true;
-      const matchesCategoryFilter = !categoryStates[category]?.filter ||
-        categoryStates[category]?.filter === 'all' ||
-        req.necessity.toLowerCase() === categoryStates[category]?.filter;
+  const getFilteredRequirements = (category: string): Requirement[] => {
+    return (
+      groupedRequirements[category]?.filter(req => {
+        const matchesGlobalSearch = globalSearchQuery
+          ? req.name.toLowerCase().includes(globalSearchQuery.toLowerCase()) ||
+            (req.description &&
+              req.description.toLowerCase().includes(globalSearchQuery.toLowerCase()))
+          : true;
+        const matchesGlobalFilter =
+          globalFilter === 'all' || req.necessity.toLowerCase() === globalFilter;
+        const matchesCategorySearch = categoryStates[category]?.searchQuery
+          ? req.name
+              .toLowerCase()
+              .includes(categoryStates[category].searchQuery.toLowerCase()) ||
+            (req.description &&
+              req.description
+                .toLowerCase()
+                .includes(categoryStates[category].searchQuery.toLowerCase()))
+          : true;
+        const matchesCategoryFilter =
+          !categoryStates[category]?.filter ||
+          categoryStates[category]?.filter === 'all' ||
+          req.necessity.toLowerCase() === categoryStates[category]?.filter;
 
-      return matchesGlobalSearch && matchesGlobalFilter && matchesCategorySearch && matchesCategoryFilter;
-    }) || [];
+        return (
+          matchesGlobalSearch &&
+          matchesGlobalFilter &&
+          matchesCategorySearch &&
+          matchesCategoryFilter
+        );
+      }) || []
+    );
   };
 
   const toggleCategorySearch = (category: string) => {
@@ -126,8 +138,8 @@ export const useFilterState = (
         ...prev[category],
         showSearch: !prev[category]?.showSearch,
         showFilter: false,
-        searchQuery: prev[category]?.searchQuery || ''
-      }
+        searchQuery: prev[category]?.searchQuery || '',
+      },
     }));
   };
 
@@ -137,8 +149,8 @@ export const useFilterState = (
       [category]: {
         ...prev[category],
         showFilter: !prev[category]?.showFilter,
-        showSearch: false
-      }
+        showSearch: false,
+      },
     }));
   };
 
@@ -147,8 +159,8 @@ export const useFilterState = (
       ...prev,
       [category]: {
         ...prev[category],
-        filter
-      }
+        filter,
+      },
     }));
   };
 
@@ -157,8 +169,8 @@ export const useFilterState = (
       ...prev,
       [category]: {
         ...prev[category],
-        searchQuery: query
-      }
+        searchQuery: query,
+      },
     }));
   };
 
@@ -176,10 +188,10 @@ export const useFilterState = (
     lowPrice,
     highPrice,
     filteredCategories,
-    getFilteredRequirements, // NEW: Export this helper function
+    getFilteredRequirements,
     toggleCategorySearch,
     toggleFilter,
     setFilter,
-    handleCategorySearchChange
+    handleCategorySearchChange,
   };
 };

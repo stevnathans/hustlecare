@@ -25,47 +25,53 @@ export async function GET(request: Request, { params }: RouteParams) {
             business: {
               select: {
                 name: true,
-                slug: true
-              }
-            }
+                slug: true,
+              },
+            },
           },
           orderBy: { createdAt: 'desc' },
-          take: 50 // Limit to recent items
+          take: 50,
         },
         comments: {
           include: {
-            requirement: {
+            // Comments now belong to BusinessRequirement, not Requirement directly.
+            // We go: Comment → BusinessRequirement → template (name) + business (name, slug)
+            businessRequirement: {
               select: {
-                name: true,
+                template: {
+                  select: {
+                    name: true,
+                  },
+                },
                 business: {
                   select: {
                     name: true,
-                    slug: true
-                  }
-                }
-              }
-            }
+                    slug: true,
+                  },
+                },
+              },
+            },
           },
           orderBy: { createdAt: 'desc' },
-          take: 50
+          take: 50,
         },
         reviews: {
           include: {
             product: {
               select: {
                 name: true,
-                image: true
-              }
-            }
+                image: true,
+              },
+            },
           },
           orderBy: { createdAt: 'desc' },
-          take: 50
+          take: 50,
         },
         searches: {
           orderBy: { createdAt: 'desc' },
-          take: 100
-        }
-      }
+          take: 100,
+        },
+      },
     });
 
     if (!user) {
@@ -75,10 +81,29 @@ export async function GET(request: Request, { params }: RouteParams) {
       );
     }
 
-    // Remove sensitive data
-    const { password, ...userWithoutPassword } = user;
+    // Shape comments so the response format stays the same as before —
+    // callers expecting { name, business } on each comment still get it,
+    // just sourced from businessRequirement.template and businessRequirement.business.
+    const shapedComments = user.comments.map((comment) => ({
+      id: comment.id,
+      content: comment.content,
+      isApproved: comment.isApproved,
+      createdAt: comment.createdAt,
+      updatedAt: comment.updatedAt,
+      businessRequirementId: comment.businessRequirementId,
+      // Flattened for easy consumption by the UI
+      requirementName: comment.businessRequirement.template.name,
+      businessName: comment.businessRequirement.business.name,
+      businessSlug: comment.businessRequirement.business.slug,
+    }));
 
-    return NextResponse.json(userWithoutPassword);
+    // Remove sensitive data
+    const { password, comments: _comments, ...rest } = user as typeof user & { password?: string };
+
+    return NextResponse.json({
+      ...rest,
+      comments: shapedComments,
+    });
   } catch (error) {
     console.error('Error fetching user activity:', error);
     
