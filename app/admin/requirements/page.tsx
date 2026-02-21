@@ -5,8 +5,6 @@ import { useEffect, useState, useMemo } from 'react';
 import Image from 'next/image';
 import RequirementCSVImport from '@/components/RequirementCSVImport';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
 type Template = {
   id: number;
   name: string;
@@ -38,9 +36,8 @@ type SortField = 'name' | 'category' | 'necessity' | 'productCount' | 'businessC
 type SortDir = 'asc' | 'desc';
 type ViewMode = 'table' | 'cards';
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-
 const CATEGORIES = ['Equipment', 'Software', 'Documents', 'Legal', 'Branding', 'Operating Expenses'];
+const PAGE_SIZE = 10;
 
 const CAT_COLORS: Record<string, [string, string]> = {
   Equipment:            ['rgba(99,102,241,0.12)',  '#818cf8'],
@@ -53,13 +50,10 @@ const CAT_COLORS: Record<string, [string, string]> = {
 
 const defaultForm = { name: '', description: '', image: '', category: '', necessity: 'Required' as 'Required' | 'Optional' };
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
 const S = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap');
   .adm { font-family:'Sora',sans-serif; color:#f0f0f5; }
   .adm-mono { font-family:'DM Mono',monospace; }
-
   .r-table { width:100%; border-collapse:collapse; }
   .r-table th { padding:0.65rem 1rem; text-align:left; font-size:0.7rem; font-weight:700; color:#55556e; text-transform:uppercase; letter-spacing:0.08em; border-bottom:1px solid rgba(255,255,255,0.06); white-space:nowrap; cursor:pointer; background:#13131a; transition:color 0.15s; }
   .r-table th:hover { color:#a5b4fc; }
@@ -68,22 +62,19 @@ const S = `
   .r-table tbody tr:hover { background:rgba(255,255,255,0.025); }
   .r-table tbody tr.sel { background:rgba(99,102,241,0.06); }
   .r-table th.no-sort { cursor:default; }
-
   .u-input { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.09); border-radius:9px; padding:0.55rem 0.9rem 0.55rem 2.4rem; color:#f0f0f5; font-family:'Sora',sans-serif; font-size:0.84rem; outline:none; transition:border-color 0.2s,box-shadow 0.2s; width:100%; box-sizing:border-box; }
   .u-input::placeholder { color:#3a3a56; }
   .u-input:focus { border-color:rgba(99,102,241,0.5); box-shadow:0 0 0 3px rgba(99,102,241,0.1); }
   .u-select { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.09); border-radius:9px; padding:0.55rem 2rem 0.55rem 0.85rem; color:#f0f0f5; font-family:'Sora',sans-serif; font-size:0.82rem; outline:none; cursor:pointer; appearance:none; background-image:url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%2355556e' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 0.7rem center; }
   .u-select:focus { border-color:rgba(99,102,241,0.5); }
   .u-select option { background:#1a1a24; }
-
   .btn { display:inline-flex; align-items:center; gap:0.4rem; padding:0.5rem 1rem; border-radius:9px; font-family:'Sora',sans-serif; font-size:0.82rem; font-weight:600; cursor:pointer; border:none; transition:all 0.15s; white-space:nowrap; }
   .btn-primary { background:linear-gradient(135deg,#6366f1,#4f46e5); color:#fff; box-shadow:0 4px 14px rgba(99,102,241,0.3); }
   .btn-primary:hover { transform:translateY(-1px); box-shadow:0 6px 18px rgba(99,102,241,0.4); }
   .btn-primary:disabled { opacity:0.5; transform:none; cursor:not-allowed; }
-  .btn-success { background:rgba(16,185,129,0.12); color:#34d399; border:1px solid rgba(16,185,129,0.22); }
-  .btn-success:hover { background:rgba(16,185,129,0.22); }
   .btn-danger { background:rgba(239,68,68,0.12); color:#f87171; border:1px solid rgba(239,68,68,0.2); }
   .btn-danger:hover { background:rgba(239,68,68,0.22); }
+  .btn-danger:disabled { opacity:0.5; cursor:not-allowed; }
   .btn-ghost { background:rgba(255,255,255,0.06); color:#9494b0; border:1px solid rgba(255,255,255,0.09); }
   .btn-ghost:hover { background:rgba(255,255,255,0.1); color:#f0f0f5; }
   .btn-accent { background:rgba(139,92,246,0.12); color:#a78bfa; border:1px solid rgba(139,92,246,0.22); }
@@ -93,19 +84,15 @@ const S = `
   .btn-icon { padding:0.45rem; border-radius:8px; }
   .btn-view { padding:0.45rem; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.09); color:#9494b0; cursor:pointer; transition:all 0.15s; }
   .btn-view.active { background:rgba(99,102,241,0.15); color:#a5b4fc; border-color:rgba(99,102,241,0.3); }
-
   .stat-pill { display:inline-flex; align-items:center; gap:0.4rem; padding:0.4rem 1rem; border-radius:10px; }
   .bulk-bar { display:flex; align-items:center; gap:0.75rem; padding:0.6rem 1rem; background:rgba(99,102,241,0.07); border-bottom:1px solid rgba(99,102,241,0.15); font-size:0.82rem; color:#a5b4fc; }
   .filter-panel { background:#1a1a24; border:1px solid rgba(255,255,255,0.07); border-radius:12px; padding:1rem 1.25rem; margin-bottom:1rem; }
-
   .r-card { background:#13131a; border:1px solid rgba(255,255,255,0.07); border-radius:13px; overflow:hidden; transition:all 0.2s; }
   .r-card:hover { border-color:rgba(99,102,241,0.25); transform:translateY(-2px); box-shadow:0 8px 32px rgba(0,0,0,0.3); }
-
   .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:9999; display:flex; align-items:center; justify-content:center; padding:1rem; backdrop-filter:blur(4px); overflow-y:auto; }
   .modal-box { background:#1a1a24; border:1px solid rgba(255,255,255,0.09); border-radius:16px; padding:1.75rem; width:100%; max-width:520px; box-shadow:0 24px 80px rgba(0,0,0,0.6); margin:auto; }
   .modal-lg { max-width:640px; }
   .modal-sm { max-width:400px; }
-
   .f-label { display:block; font-size:0.76rem; font-weight:600; color:#9494b0; margin-bottom:0.35rem; }
   .f-input { width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.09); border-radius:8px; padding:0.6rem 0.85rem; color:#f0f0f5; font-family:'Sora',sans-serif; font-size:0.84rem; outline:none; transition:border-color 0.2s; box-sizing:border-box; }
   .f-input::placeholder { color:#3a3a56; }
@@ -118,35 +105,34 @@ const S = `
   .f-textarea:focus { border-color:rgba(99,102,241,0.5); }
   .f-hint { font-size:0.72rem; color:#55556e; margin-top:0.3rem; }
   .f-hint.highlight { color:#a78bfa; }
-
   .nec-opt { flex:1; display:flex; align-items:center; justify-content:center; gap:0.5rem; padding:0.65rem; border-radius:9px; border:2px solid rgba(255,255,255,0.07); cursor:pointer; transition:all 0.15s; font-size:0.84rem; font-weight:600; }
-
   .biz-check-row { display:flex; align-items:center; gap:0.75rem; padding:0.65rem 0.85rem; border-radius:8px; border:1px solid rgba(255,255,255,0.07); transition:all 0.15s; cursor:pointer; }
   .biz-check-row:hover { background:rgba(255,255,255,0.04); border-color:rgba(99,102,241,0.25); }
   .biz-check-row.selected { background:rgba(99,102,241,0.08); border-color:rgba(99,102,241,0.3); }
-  .biz-check-row.already-linked { opacity:0.5; cursor:not-allowed; background:rgba(255,255,255,0.02); }
-
-  .linked-biz-row { display:flex; align-items:center; justify-content:space-between; padding:0.6rem 0.85rem; border-radius:8px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); }
-
+  .linked-biz-row { display:flex; align-items:center; justify-content:space-between; padding:0.6rem 0.85rem; border-radius:8px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); cursor:pointer; transition:all 0.15s; }
+  .linked-biz-row:hover { background:rgba(255,255,255,0.05); }
+  .linked-biz-row.sel-unlink { background:rgba(239,68,68,0.07); border-color:rgba(239,68,68,0.25); }
   .dep-badge { display:inline-flex; align-items:center; gap:0.3rem; padding:0.2rem 0.6rem; border-radius:100px; font-size:0.68rem; font-weight:700; background:rgba(239,68,68,0.1); color:#f87171; border:1px solid rgba(239,68,68,0.2); }
-
+  .modal-search { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.09); border-radius:8px; padding:0.5rem 2rem 0.5rem 2.1rem; color:#f0f0f5; font-family:'Sora',sans-serif; font-size:0.82rem; outline:none; width:100%; box-sizing:border-box; }
+  .modal-search::placeholder { color:#3a3a56; }
+  .modal-search:focus { border-color:rgba(99,102,241,0.5); }
+  .pg-btn { display:inline-flex; align-items:center; justify-content:center; min-width:32px; height:32px; padding:0 0.5rem; border-radius:7px; font-family:'Sora',sans-serif; font-size:0.78rem; font-weight:600; cursor:pointer; border:1px solid rgba(255,255,255,0.09); background:rgba(255,255,255,0.04); color:#9494b0; transition:all 0.15s; }
+  .pg-btn:hover:not(:disabled) { background:rgba(255,255,255,0.09); color:#f0f0f5; }
+  .pg-btn.pg-active { background:rgba(99,102,241,0.2); border-color:rgba(99,102,241,0.4); color:#a5b4fc; }
+  .pg-btn:disabled { opacity:0.35; cursor:not-allowed; }
   .scroll::-webkit-scrollbar { width:4px; height:4px; }
   .scroll::-webkit-scrollbar-track { background:transparent; }
   .scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:2px; }
 `;
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function catColor(cat: string): [string, string] {
   return CAT_COLORS[cat] ?? ['rgba(148,148,176,0.1)', '#9494b0'];
 }
-
 function necStyle(nec: string) {
   return nec === 'Required'
     ? { bg: 'rgba(16,185,129,0.1)', color: '#34d399' }
     : { bg: 'rgba(245,158,11,0.1)', color: '#fbbf24' };
 }
-
 function SortArrow({ field, sortField, sortDir }: { field: string; sortField: string; sortDir: SortDir }) {
   if (sortField !== field) return <svg width="10" height="12" viewBox="0 0 10 12" fill="none" style={{ marginLeft: 4, opacity: 0.25 }}><path d="M5 1v10M2 4l3-3 3 3M2 8l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>;
   return sortDir === 'asc'
@@ -154,14 +140,9 @@ function SortArrow({ field, sortField, sortDir }: { field: string; sortField: st
     : <svg width="10" height="7" viewBox="0 0 10 7" fill="none" style={{ marginLeft: 4, color: '#818cf8' }}><path d="M5 6L1 1H9L5 6Z" fill="currentColor" /></svg>;
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
-
 export default function RequirementsPage() {
-  // Data
   const [templates, setTemplates] = useState<Template[]>([]);
   const [businesses, setBusinesses] = useState<Business[]>([]);
-
-  // UI state
   const [search, setSearch] = useState('');
   const [filterCat, setFilterCat] = useState('');
   const [filterNec, setFilterNec] = useState('');
@@ -171,29 +152,28 @@ export default function RequirementsPage() {
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-
-  // Toast
+  const [currentPage, setCurrentPage] = useState(1);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
-
-  // Create/Edit modal
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState(defaultForm);
   const [formLoading, setFormLoading] = useState(false);
-
-  // Add to Business modal (from requirement side)
   const [addBizModalOpen, setAddBizModalOpen] = useState(false);
   const [addBizTemplate, setAddBizTemplate] = useState<Template | null>(null);
   const [linkedBusinesses, setLinkedBusinesses] = useState<LinkedBusiness[]>([]);
   const [selectedBizIds, setSelectedBizIds] = useState<Set<number>>(new Set());
   const [addBizLoading, setAddBizLoading] = useState(false);
   const [linkedLoading, setLinkedLoading] = useState(false);
-
-  // Delete confirm
+  // NEW: business search + multi-unlink state
+  const [bizSearch, setBizSearch] = useState('');
+  const [unlinkSelectedIds, setUnlinkSelectedIds] = useState<Set<number>>(new Set());
+  const [unlinkLoading, setUnlinkLoading] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [bulkConfirm, setBulkConfirm] = useState(false);
 
   useEffect(() => { fetchTemplates(); fetchBusinesses(); }, []);
+  // Reset page on filter/sort changes
+  useEffect(() => { setCurrentPage(1); }, [search, filterCat, filterNec, showDeprecated, sortField, sortDir]);
 
   function showToast(msg: string, type: 'success' | 'error' = 'success') {
     setToast({ msg, type });
@@ -224,10 +204,9 @@ export default function RequirementsPage() {
     finally { setLinkedLoading(false); }
   }
 
-  // ── Filtering + Sorting ───────────────────────────────────────────────────
-
   const activeFilterCount = [filterCat, filterNec].filter(Boolean).length + (showDeprecated ? 1 : 0);
 
+  // FIX: showDeprecated=true → show ALL (inc. deprecated); false → only non-deprecated
   const filtered = useMemo(() => {
     return templates
       .filter(t => showDeprecated ? true : !t.isDeprecated)
@@ -246,32 +225,48 @@ export default function RequirementsPage() {
       });
   }, [templates, search, filterCat, filterNec, showDeprecated, sortField, sortDir]);
 
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  function goToPage(p: number) { setCurrentPage(Math.max(1, Math.min(p, totalPages))); }
+
+  function pageRange(): (number | '…')[] {
+    const pages: (number | '…')[] = [];
+    let last = 0;
+    for (let i = 1; i <= totalPages; i++) {
+      if (i === 1 || i === totalPages || Math.abs(i - currentPage) <= 1) {
+        if (last && i - last > 1) pages.push('…');
+        pages.push(i);
+        last = i;
+      }
+    }
+    return pages;
+  }
+
   function handleSort(field: SortField) {
     if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortField(field); setSortDir('asc'); }
   }
 
-  // ── Create / Edit ─────────────────────────────────────────────────────────
-
   function openNew() { setFormData(defaultForm); setEditingId(null); setFormOpen(true); }
-  function openEdit(t: Template) { setFormData({ name: t.name, description: t.description ?? '', image: t.image ?? '', category: t.category, necessity: t.necessity }); setEditingId(t.id); setFormOpen(true); }
+  function openEdit(t: Template) {
+    setFormData({ name: t.name, description: t.description ?? '', image: t.image ?? '', category: t.category, necessity: t.necessity });
+    setEditingId(t.id); setFormOpen(true);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setFormLoading(true);
+    e.preventDefault(); setFormLoading(true);
     try {
       const method = editingId ? 'PATCH' : 'POST';
       const url = editingId ? `/api/requirements/${editingId}` : '/api/requirements';
       const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
       if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Failed'); }
-      setFormOpen(false);
-      fetchTemplates();
+      setFormOpen(false); fetchTemplates();
       showToast(editingId ? 'Requirement updated — all linked businesses will see the change automatically.' : 'Requirement added to library.');
     } catch (e) { showToast(e instanceof Error ? e.message : 'Failed to save', 'error'); }
     finally { setFormLoading(false); }
   }
-
-  // ── Delete ────────────────────────────────────────────────────────────────
 
   async function handleDelete() {
     if (!deleteId) return;
@@ -279,7 +274,7 @@ export default function RequirementsPage() {
       const r = await fetch(`/api/requirements/${deleteId}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
-      showToast(d.deprecated ? `Requirement deprecated — existing business links preserved.` : 'Requirement permanently deleted.');
+      showToast(d.deprecated ? 'Requirement deprecated — existing business links preserved.' : 'Requirement permanently deleted.');
     } catch (e) { showToast(e instanceof Error ? e.message : 'Failed', 'error'); }
     finally { setDeleteId(null); fetchTemplates(); }
   }
@@ -303,24 +298,43 @@ export default function RequirementsPage() {
     showToast(parts.join(', '), failed > 0 ? 'error' : 'success');
   }
 
-  // ── Add to Business modal ─────────────────────────────────────────────────
-
   function openAddBiz(t: Template) {
     setAddBizTemplate(t);
     setSelectedBizIds(new Set());
+    setUnlinkSelectedIds(new Set());
     setLinkedBusinesses([]);
+    setBizSearch('');
     setAddBizModalOpen(true);
     fetchLinkedBusinesses(t.id);
   }
 
-  function closeAddBiz() { setAddBizModalOpen(false); setAddBizTemplate(null); setSelectedBizIds(new Set()); }
+  function closeAddBiz() {
+    setAddBizModalOpen(false);
+    setAddBizTemplate(null);
+    setSelectedBizIds(new Set());
+    setUnlinkSelectedIds(new Set());
+    setBizSearch('');
+  }
 
   function toggleBizSelect(bizId: number) {
-    const alreadyLinked = linkedBusinesses.some(l => l.businessId === bizId);
-    if (alreadyLinked) return;
+    if (linkedBusinesses.some(l => l.businessId === bizId)) return;
     const s = new Set(selectedBizIds);
     s.has(bizId) ? s.delete(bizId) : s.add(bizId);
     setSelectedBizIds(s);
+  }
+
+  function toggleUnlinkSelect(linkId: number) {
+    const s = new Set(unlinkSelectedIds);
+    s.has(linkId) ? s.delete(linkId) : s.add(linkId);
+    setUnlinkSelectedIds(s);
+  }
+
+  function toggleSelectAllLinked() {
+    setUnlinkSelectedIds(
+      unlinkSelectedIds.size === linkedBusinesses.length
+        ? new Set()
+        : new Set(linkedBusinesses.map(lb => lb.linkId))
+    );
   }
 
   async function handleAddToBusiness() {
@@ -328,21 +342,17 @@ export default function RequirementsPage() {
     setAddBizLoading(true);
     try {
       const r = await fetch(`/api/requirements/${addBizTemplate.id}/businesses`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ businessIds: Array.from(selectedBizIds) }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'Failed');
-
       const { summary } = d;
       const parts = [];
       if (summary.linked > 0) parts.push(`Linked to ${summary.linked} business${summary.linked !== 1 ? 'es' : ''}`);
       if (summary.duplicates > 0) parts.push(`${summary.duplicates} already linked`);
-
       showToast(parts.join(' · '), summary.linked > 0 ? 'success' : 'error');
-      closeAddBiz();
-      fetchTemplates();
+      closeAddBiz(); fetchTemplates();
     } catch (e) { showToast(e instanceof Error ? e.message : 'Failed', 'error'); }
     finally { setAddBizLoading(false); }
   }
@@ -350,23 +360,41 @@ export default function RequirementsPage() {
   async function handleUnlinkBusiness(templateId: number, businessId: number, businessName: string) {
     try {
       const r = await fetch(`/api/requirements/${templateId}/businesses`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ businessId }),
       });
       if (!r.ok) { const d = await r.json(); throw new Error(d.error); }
       showToast(`Unlinked from ${businessName}`);
-      fetchLinkedBusinesses(templateId);
-      fetchTemplates();
+      fetchLinkedBusinesses(templateId); fetchTemplates();
     } catch (e) { showToast(e instanceof Error ? e.message : 'Failed to unlink', 'error'); }
   }
 
-  // ── Selection ─────────────────────────────────────────────────────────────
+  async function handleBulkUnlink() {
+    if (!addBizTemplate || unlinkSelectedIds.size === 0) return;
+    setUnlinkLoading(true);
+    let succeeded = 0, failed = 0;
+    for (const lb of linkedBusinesses.filter(lb => unlinkSelectedIds.has(lb.linkId))) {
+      try {
+        const r = await fetch(`/api/requirements/${addBizTemplate.id}/businesses`, {
+          method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ businessId: lb.businessId }),
+        });
+        r.ok ? succeeded++ : failed++;
+      } catch { failed++; }
+    }
+    setUnlinkSelectedIds(new Set()); setUnlinkLoading(false);
+    fetchLinkedBusinesses(addBizTemplate.id); fetchTemplates();
+    const parts = [];
+    if (succeeded > 0) parts.push(`Unlinked from ${succeeded} business${succeeded !== 1 ? 'es' : ''}`);
+    if (failed > 0) parts.push(`${failed} failed`);
+    showToast(parts.join(' · '), failed > 0 ? 'error' : 'success');
+  }
 
   function toggleSel(id: number) { const s = new Set(selectedIds); s.has(id) ? s.delete(id) : s.add(id); setSelectedIds(s); }
-  function toggleSelAll() { setSelectedIds(selectedIds.size === filtered.length ? new Set() : new Set(filtered.map(t => t.id))); }
-
-  // ── Stats ─────────────────────────────────────────────────────────────────
+  function toggleSelAll() {
+    setSelectedIds(selectedIds.size === paginated.length && paginated.length > 0
+      ? new Set() : new Set(paginated.map(t => t.id)));
+  }
 
   const stats = useMemo(() => ({
     total: templates.filter(t => !t.isDeprecated).length,
@@ -374,16 +402,12 @@ export default function RequirementsPage() {
     required: templates.filter(t => !t.isDeprecated && t.necessity === 'Required').length,
     optional: templates.filter(t => !t.isDeprecated && t.necessity === 'Optional').length,
     totalLinks: templates.reduce((sum, t) => sum + t.businessCount, 0),
-    cats: new Set(templates.filter(t => !t.isDeprecated).map(t => t.category)).size,
   }), [templates]);
-
-  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <>
       <style>{S}</style>
 
-      {/* Toast */}
       {toast && (
         <div style={{ position: 'fixed', top: '1rem', right: '1rem', zIndex: 99999, padding: '0.75rem 1.25rem', borderRadius: 11, fontSize: '0.84rem', fontFamily: 'Sora,sans-serif', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.6rem', boxShadow: '0 8px 32px rgba(0,0,0,0.4)', background: toast.type === 'success' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', border: `1px solid ${toast.type === 'success' ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`, color: toast.type === 'success' ? '#6ee7b7' : '#fca5a5', maxWidth: 420 }}>
           {toast.msg}
@@ -391,7 +415,6 @@ export default function RequirementsPage() {
       )}
 
       <div className="adm" style={{ minHeight: '100vh' }}>
-
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
@@ -461,9 +484,15 @@ export default function RequirementsPage() {
                 <option value="Required">Required</option>
                 <option value="Optional">Optional</option>
               </select>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.82rem', color: '#9494b0', fontFamily: 'Sora,sans-serif' }}>
+              {/* FIX: label color changes to red when active, badge shows count */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.82rem', color: showDeprecated ? '#f87171' : '#9494b0', fontFamily: 'Sora,sans-serif' }}>
                 <input type="checkbox" checked={showDeprecated} onChange={e => setShowDeprecated(e.target.checked)} style={{ accentColor: '#f87171', cursor: 'pointer' }} />
                 Show deprecated
+                {stats.deprecated > 0 && (
+                  <span style={{ fontSize: '0.7rem', background: 'rgba(239,68,68,0.12)', color: '#f87171', borderRadius: 100, padding: '0.1rem 0.4rem' }}>
+                    {stats.deprecated}
+                  </span>
+                )}
               </label>
             </div>
           </div>
@@ -478,9 +507,17 @@ export default function RequirementsPage() {
           </div>
         )}
 
-        {/* Count */}
-        <div style={{ fontSize: '0.75rem', color: '#55556e', marginBottom: '0.75rem' }}>
-          Showing <strong style={{ color: '#9494b0' }}>{filtered.length}</strong> of <strong style={{ color: '#9494b0' }}>{templates.filter(t => !t.isDeprecated).length}</strong> requirements
+        {/* Count + page info */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: '#55556e', marginBottom: '0.75rem' }}>
+          <span>
+            Showing{' '}
+            <strong style={{ color: '#9494b0' }}>
+              {filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)}
+            </strong>{' '}
+            of <strong style={{ color: '#9494b0' }}>{filtered.length}</strong> requirements
+            {showDeprecated && stats.deprecated > 0 && <span style={{ color: '#f87171', marginLeft: '0.5rem' }}>· includes deprecated</span>}
+          </span>
+          {totalPages > 1 && <span>Page {currentPage} of {totalPages}</span>}
         </div>
 
         {/* TABLE VIEW */}
@@ -491,7 +528,7 @@ export default function RequirementsPage() {
                 <thead>
                   <tr>
                     <th className="no-sort" style={{ paddingLeft: '1.25rem', width: 40 }}>
-                      <input type="checkbox" checked={selectedIds.size === filtered.length && filtered.length > 0} onChange={toggleSelAll} style={{ accentColor: '#6366f1', cursor: 'pointer' }} />
+                      <input type="checkbox" checked={selectedIds.size === paginated.length && paginated.length > 0} onChange={toggleSelAll} style={{ accentColor: '#6366f1', cursor: 'pointer' }} />
                     </th>
                     {[['name', 'Name'], ['category', 'Category'], ['necessity', 'Necessity'], ['productCount', 'Products'], ['businessCount', 'Businesses']].map(([f, l]) => (
                       <th key={f} onClick={() => handleSort(f as SortField)} style={{ userSelect: 'none' }}>
@@ -502,9 +539,11 @@ export default function RequirementsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.length === 0 ? (
-                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: '#3a3a56' }}>No requirements found</td></tr>
-                  ) : filtered.map(t => (
+                  {paginated.length === 0 ? (
+                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: '#3a3a56' }}>
+                      {showDeprecated ? 'No requirements found' : 'No requirements found — try enabling "Show deprecated" in filters'}
+                    </td></tr>
+                  ) : paginated.map(t => (
                     <tr key={t.id} className={selectedIds.has(t.id) ? 'sel' : ''} style={{ opacity: t.isDeprecated ? 0.6 : 1 }}>
                       <td style={{ paddingLeft: '1.25rem' }}><input type="checkbox" checked={selectedIds.has(t.id)} onChange={() => toggleSel(t.id)} style={{ accentColor: '#6366f1', cursor: 'pointer' }} /></td>
                       <td>
@@ -520,9 +559,7 @@ export default function RequirementsPage() {
                       <td><span style={{ display: 'inline-flex', padding: '0.2rem 0.6rem', borderRadius: '100px', fontSize: '0.72rem', fontWeight: 700, background: catColor(t.category)[0], color: catColor(t.category)[1] }}>{t.category}</span></td>
                       <td><span style={{ display: 'inline-flex', padding: '0.2rem 0.6rem', borderRadius: '100px', fontSize: '0.72rem', fontWeight: 700, background: necStyle(t.necessity).bg, color: necStyle(t.necessity).color }}>{t.necessity}</span></td>
                       <td><span className="adm-mono" style={{ fontSize: '0.85rem', color: '#9494b0' }}>{t.productCount}</span></td>
-                      <td>
-                        <span className="adm-mono" style={{ fontSize: '0.85rem', color: t.businessCount > 0 ? '#a78bfa' : '#55556e' }}>{t.businessCount}</span>
-                      </td>
+                      <td><span className="adm-mono" style={{ fontSize: '0.85rem', color: t.businessCount > 0 ? '#a78bfa' : '#55556e' }}>{t.businessCount}</span></td>
                       <td style={{ paddingRight: '1.25rem', textAlign: 'right' }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.25rem' }}>
                           {!t.isDeprecated && (
@@ -550,15 +587,13 @@ export default function RequirementsPage() {
         {/* CARDS VIEW */}
         {viewMode === 'cards' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: '0.85rem' }}>
-            {filtered.map(t => (
+            {paginated.map(t => (
               <div key={t.id} className="r-card" style={{ opacity: t.isDeprecated ? 0.65 : 1 }}>
                 <div style={{ padding: '0.9rem 1rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.6rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <input type="checkbox" checked={selectedIds.has(t.id)} onChange={() => toggleSel(t.id)} style={{ accentColor: '#6366f1', cursor: 'pointer' }} />
-                    </div>
+                    <input type="checkbox" checked={selectedIds.has(t.id)} onChange={() => toggleSel(t.id)} style={{ accentColor: '#6366f1', cursor: 'pointer' }} />
                     <div style={{ display: 'flex', gap: '0.2rem' }}>
-                      {!t.isDeprecated && <button className="btn btn-accent btn-icon" style={{ fontSize: '0.7rem', padding: '0.3rem 0.5rem' }} onClick={() => openAddBiz(t)} title="Add to Business">+Biz</button>}
+                      {!t.isDeprecated && <button className="btn btn-accent btn-icon" style={{ fontSize: '0.7rem', padding: '0.3rem 0.5rem' }} onClick={() => openAddBiz(t)}>+Biz</button>}
                       <button className="btn btn-ghost btn-icon" onClick={() => openEdit(t)}><svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>
                       <button className="btn btn-danger btn-icon" onClick={() => setDeleteId(t.id)}><svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /></svg></button>
                     </div>
@@ -582,6 +617,21 @@ export default function RequirementsPage() {
           </div>
         )}
 
+        {/* ── Pagination ── */}
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.35rem', marginTop: '1.25rem', flexWrap: 'wrap' }}>
+            <button className="pg-btn" onClick={() => goToPage(1)} disabled={currentPage === 1} title="First">«</button>
+            <button className="pg-btn" onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} title="Prev">‹</button>
+            {pageRange().map((p, i) =>
+              p === '…'
+                ? <span key={`e${i}`} style={{ color: '#55556e', fontSize: '0.78rem', padding: '0 0.25rem' }}>…</span>
+                : <button key={p} className={`pg-btn${currentPage === p ? ' pg-active' : ''}`} onClick={() => goToPage(p as number)}>{p}</button>
+            )}
+            <button className="pg-btn" onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} title="Next">›</button>
+            <button className="pg-btn" onClick={() => goToPage(totalPages)} disabled={currentPage === totalPages} title="Last">»</button>
+          </div>
+        )}
+
         {/* ── Create / Edit Modal ── */}
         {formOpen && (
           <div className="modal-overlay" onClick={() => setFormOpen(false)}>
@@ -590,13 +640,11 @@ export default function RequirementsPage() {
                 <h2 style={{ fontSize: '1.05rem', fontWeight: 700 }}>{editingId ? 'Edit' : 'New'} Requirement</h2>
                 <button onClick={() => setFormOpen(false)} className="btn btn-ghost btn-icon">×</button>
               </div>
-
               {editingId && (
                 <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 10, padding: '0.75rem 1rem', marginBottom: '1.25rem', fontSize: '0.78rem', color: '#a5b4fc', lineHeight: 1.6 }}>
                   Changes here apply to <strong>all businesses</strong> that have linked this requirement.
                 </div>
               )}
-
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
                 <div>
                   <label className="f-label">Name *</label>
@@ -643,62 +691,90 @@ export default function RequirementsPage() {
         )}
 
         {/* ── Add to Business Modal ── */}
-        {addBizModalOpen && addBizTemplate && (
-          <div className="modal-overlay" onClick={closeAddBiz}>
-            <div className="modal-box modal-lg" onClick={e => e.stopPropagation()}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
-                <div>
-                  <h2 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '0.2rem' }}>Add to Business</h2>
-                  <p style={{ fontSize: '0.8rem', color: '#55556e' }}>
-                    <span style={{ color: '#a5b4fc', fontWeight: 600 }}>{addBizTemplate.name}</span> — select businesses to link
-                  </p>
-                </div>
-                <button onClick={closeAddBiz} className="btn btn-ghost btn-icon">×</button>
-              </div>
+        {addBizModalOpen && addBizTemplate && (() => {
+          const linkedIds = new Set(linkedBusinesses.map(l => l.businessId));
+          const available = businesses.filter(b => !linkedIds.has(b.id));
+          const filteredAvailable = bizSearch
+            ? available.filter(b => b.name.toLowerCase().includes(bizSearch.toLowerCase()))
+            : available;
 
-              {/* Already linked */}
-              {linkedLoading ? (
-                <div style={{ padding: '1rem', textAlign: 'center', color: '#55556e', fontSize: '0.82rem' }}>Loading linked businesses…</div>
-              ) : linkedBusinesses.length > 0 && (
-                <div style={{ marginBottom: '1.25rem' }}>
-                  <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#55556e', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem' }}>
-                    Already linked ({linkedBusinesses.length})
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: 160, overflowY: 'auto' }} className="scroll">
-                    {linkedBusinesses.map(lb => (
-                      <div key={lb.linkId} className="linked-biz-row">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: lb.published ? '#34d399' : '#55556e', flexShrink: 0 }} />
-                          <span style={{ fontSize: '0.84rem', color: '#f0f0f5', fontWeight: 600 }}>{lb.businessName}</span>
-                          {!lb.published && <span style={{ fontSize: '0.7rem', color: '#55556e' }}>draft</span>}
-                        </div>
-                        <button
-                          className="btn btn-danger btn-icon"
-                          style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem' }}
-                          onClick={() => handleUnlinkBusiness(addBizTemplate.id, lb.businessId, lb.businessName)}
-                          title="Unlink"
-                        >
-                          Unlink
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Available businesses to add */}
-              {(() => {
-                const linkedIds = new Set(linkedBusinesses.map(l => l.businessId));
-                const available = businesses.filter(b => !linkedIds.has(b.id));
-                return available.length > 0 ? (
+          return (
+            <div className="modal-overlay" onClick={closeAddBiz}>
+              <div className="modal-box modal-lg" onClick={e => e.stopPropagation()}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
                   <div>
-                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#55556e', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem' }}>
-                      Add to business {selectedBizIds.size > 0 && <span style={{ color: '#a78bfa' }}>({selectedBizIds.size} selected)</span>}
+                    <h2 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '0.2rem' }}>Add to Business</h2>
+                    <p style={{ fontSize: '0.8rem', color: '#55556e' }}>
+                      <span style={{ color: '#a5b4fc', fontWeight: 600 }}>{addBizTemplate.name}</span> — select businesses to link
+                    </p>
+                  </div>
+                  <button onClick={closeAddBiz} className="btn btn-ghost btn-icon">×</button>
+                </div>
+
+                {/* Already linked */}
+                {linkedLoading ? (
+                  <div style={{ padding: '1rem', textAlign: 'center', color: '#55556e', fontSize: '0.82rem' }}>Loading linked businesses…</div>
+                ) : linkedBusinesses.length > 0 && (
+                  <div style={{ marginBottom: '1.25rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#55556e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                          Already linked ({linkedBusinesses.length})
+                        </span>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', fontSize: '0.74rem', color: '#9494b0', fontFamily: 'Sora,sans-serif', userSelect: 'none' }}>
+                          <input
+                            type="checkbox"
+                            checked={unlinkSelectedIds.size === linkedBusinesses.length && linkedBusinesses.length > 0}
+                            onChange={toggleSelectAllLinked}
+                            style={{ accentColor: '#f87171', cursor: 'pointer' }}
+                          />
+                          Select all
+                        </label>
+                      </div>
+                      {unlinkSelectedIds.size > 0 && (
+                        <button className="btn btn-danger" style={{ padding: '0.3rem 0.75rem', fontSize: '0.74rem' }} onClick={handleBulkUnlink} disabled={unlinkLoading}>
+                          {unlinkLoading ? 'Unlinking…' : `Unlink ${unlinkSelectedIds.size} selected`}
+                        </button>
+                      )}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: 240, overflowY: 'auto' }} className="scroll">
-                      {available.map(b => (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: 180, overflowY: 'auto' }} className="scroll">
+                      {linkedBusinesses.map(lb => (
+                        <div key={lb.linkId} className={`linked-biz-row${unlinkSelectedIds.has(lb.linkId) ? ' sel-unlink' : ''}`} onClick={() => toggleUnlinkSelect(lb.linkId)}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
+                            <input type="checkbox" checked={unlinkSelectedIds.has(lb.linkId)} onChange={() => toggleUnlinkSelect(lb.linkId)} onClick={e => e.stopPropagation()} style={{ accentColor: '#f87171', cursor: 'pointer' }} />
+                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: lb.published ? '#34d399' : '#55556e', flexShrink: 0 }} />
+                            <span style={{ fontSize: '0.84rem', color: '#f0f0f5', fontWeight: 600 }}>{lb.businessName}</span>
+                            {!lb.published && <span style={{ fontSize: '0.7rem', color: '#55556e' }}>draft</span>}
+                          </div>
+                          <button className="btn btn-danger btn-icon" style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem', flexShrink: 0 }} onClick={e => { e.stopPropagation(); handleUnlinkBusiness(addBizTemplate.id, lb.businessId, lb.businessName); }}>
+                            Unlink
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Add to business */}
+                {available.length > 0 ? (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#55556e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        Add to business{selectedBizIds.size > 0 && <span style={{ color: '#a78bfa', marginLeft: '0.4rem' }}>({selectedBizIds.size} selected)</span>}
+                      </span>
+                    </div>
+                    {/* Business search */}
+                    <div style={{ position: 'relative', marginBottom: '0.55rem' }}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#55556e" strokeWidth="2" style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
+                      <input type="text" placeholder="Search businesses…" value={bizSearch} onChange={e => setBizSearch(e.target.value)} className="modal-search" />
+                      {bizSearch && <button onClick={() => setBizSearch('')} style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#55556e', cursor: 'pointer', padding: 0, fontSize: '1rem' }}>×</button>}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: 220, overflowY: 'auto' }} className="scroll">
+                      {filteredAvailable.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '1rem', color: '#55556e', fontSize: '0.8rem' }}>No businesses match &ldquo;{bizSearch}&rdquo;</div>
+                      ) : filteredAvailable.map(b => (
                         <div key={b.id} className={`biz-check-row${selectedBizIds.has(b.id) ? ' selected' : ''}`} onClick={() => toggleBizSelect(b.id)}>
-                          <input type="checkbox" checked={selectedBizIds.has(b.id)} onChange={() => toggleBizSelect(b.id)} style={{ accentColor: '#6366f1', cursor: 'pointer' }} />
+                          <input type="checkbox" checked={selectedBizIds.has(b.id)} onChange={() => toggleBizSelect(b.id)} onClick={e => e.stopPropagation()} style={{ accentColor: '#6366f1', cursor: 'pointer' }} />
                           <span style={{ width: 8, height: 8, borderRadius: '50%', background: b.published ? '#34d399' : '#55556e', flexShrink: 0 }} />
                           <span style={{ fontSize: '0.84rem', color: '#f0f0f5', fontWeight: 500 }}>{b.name}</span>
                           {!b.published && <span style={{ fontSize: '0.7rem', color: '#55556e', marginLeft: 'auto' }}>draft</span>}
@@ -706,24 +782,24 @@ export default function RequirementsPage() {
                       ))}
                     </div>
                   </div>
-                ) : (
+                ) : !linkedLoading && (
                   <div style={{ textAlign: 'center', padding: '1.5rem', color: '#55556e', fontSize: '0.82rem' }}>
                     This requirement is already linked to all businesses.
                   </div>
-                );
-              })()}
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '1.25rem' }}>
-                <button className="btn btn-ghost" onClick={closeAddBiz}>Close</button>
-                {selectedBizIds.size > 0 && (
-                  <button className="btn btn-primary" onClick={handleAddToBusiness} disabled={addBizLoading}>
-                    {addBizLoading ? 'Linking…' : `Link to ${selectedBizIds.size} business${selectedBizIds.size !== 1 ? 'es' : ''}`}
-                  </button>
                 )}
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '1.25rem' }}>
+                  <button className="btn btn-ghost" onClick={closeAddBiz}>Close</button>
+                  {selectedBizIds.size > 0 && (
+                    <button className="btn btn-primary" onClick={handleAddToBusiness} disabled={addBizLoading}>
+                      {addBizLoading ? 'Linking…' : `Link to ${selectedBizIds.size} business${selectedBizIds.size !== 1 ? 'es' : ''}`}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ── Delete confirm ── */}
         {deleteId !== null && (
