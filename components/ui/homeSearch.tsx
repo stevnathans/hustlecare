@@ -105,7 +105,7 @@ export default function HomeSearch() {
             >
               <Sparkles className="w-4 h-4 mr-2 text-yellow-500" />
               <span className="text-sm font-semibold">
-                Kenya&apos;s #1 Business Startup Platform
+                Your #1 Business Startup Platform
               </span>
             </motion.div>
 
@@ -125,7 +125,7 @@ export default function HomeSearch() {
             </h1>
 
             <p className="text-xl md:text-2xl mb-10 max-w-2xl opacity-90 leading-relaxed">
-              Discover everything you need to start any business in Kenya -
+              Discover everything you need to start any business -
               requirements, costs, loans, and suppliers - all in one intelligent
               platform.
             </p>

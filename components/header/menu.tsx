@@ -13,7 +13,6 @@ export default function Menu() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const { data: session, status, update } = useSession();
   const router = useRouter();
-  
   const isAuthenticated = status === "authenticated";
 
   // Listen for profile update events
@@ -67,13 +66,19 @@ export default function Menu() {
           {/* Logo */}
           <div className="flex-shrink-0 flex items-center space-x-2">
             <Link href="/" className="flex items-center space-x-2 group">
-              <div className="h-8 w-8 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-lg flex items-center justify-center shadow-md group-hover:shadow-lg transition-all duration-200 group-hover:scale-105">
-                <Sparkles className="h-5 w-5 text-white" />
-              </div>
-              <span className="font-bold text-xl bg-gradient-to-r from-emerald-600 to-emerald-600 bg-clip-text text-transparent group-hover:from-emerald-700 group-hover:to-emerald-700 transition-all duration-200">
-                Hustlecare
-              </span>
-            </Link>
+  <div className="h-8 w-8 flex items-center justify-center group-hover:scale-105 transition-all duration-200">
+    <Image
+      src="/images/Favicon.png"
+      alt="Hustlecare Logo"
+      width={32}
+      height={32}
+      className="h-8 w-8"
+    />
+  </div>
+  <span className="font-bold text-xl bg-gradient-to-r from-emerald-600 to-emerald-600 bg-clip-text text-transparent group-hover:from-emerald-700 group-hover:to-emerald-700 transition-all duration-200">
+    Hustlecare
+  </span>
+</Link>
           </div>
 
           {/* Search Bar - Desktop */}

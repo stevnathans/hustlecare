@@ -76,19 +76,19 @@ export default function Home() {
               {
                 icon: <Search className="w-6 h-6 text-emerald-600" />,
                 title: "1. Discover",
-                description: "Find your perfect business match with our intelligent search",
+                description: "Explore all the legal, equipment, software, branding, and operational requirements your business needs in one structured list.",
                 borderColor: "border-emerald-200"
               },
               {
                 icon: <ClipboardCheck className="w-6 h-6 text-emerald-600" />,
                 title: "2. Customize",
-                description: "Tailor requirements to your specific needs and location",
+                description: "Select and add the specific products or services you want for each requirement to tailor your business setup.",
                 borderColor: "border-emerald-300"
               },
               {
                 icon: <Calculator className="w-6 h-6 text-emerald-600" />,
                 title: "3. Calculate",
-                description: "Get precise cost estimates for your startup budget",
+                description: "Instantly see the total estimated startup cost, broken down by category and overall, to plan your budget effectively",
                 borderColor: "border-emerald-400"
               }
             ].map((step, index) => (

@@ -4,10 +4,6 @@ import { FiArrowRight, FiFileText, FiDollarSign } from 'react-icons/fi';
 import { useMemo } from 'react';
 import Image from 'next/image';
 
-// This type matches the shape returned by /api/businesses after
-// BusinessRequirement → template resolution. It no longer includes
-// businessId, createdAt, or updatedAt — those belonged to the old
-// Requirement model which has been replaced by the library system.
 type Requirement = {
   id: number;
   templateId?: number;
@@ -93,19 +89,20 @@ export default function BusinessCard({
           </h3>
           
           <div className="grid grid-cols-2 gap-4 mb-6 flex-grow">
+            {/* Requirements */}
             <div className="bg-gray-50 rounded-xl p-3 group-hover:bg-emerald-50 transition-colors duration-200">
-              <div className="flex items-center gap-2 mb-1">
-                <FiFileText className="w-4 h-4 text-emerald-600" />
-                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Requirements</span>
+              <div className="flex items-center gap-2 mb-2">
+                <FiFileText className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span className="text-lg font-bold text-gray-900 leading-none">
+                  {totalRequirements}
+                </span>
               </div>
-              <div className="text-lg font-bold text-gray-900">
-                {totalRequirements}
-              </div>
-              <div className="text-xs text-gray-600">
-                {totalRequirements === 1 ? 'item' : 'items'}
+              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Requirements
               </div>
             </div>
             
+            {/* Cost Estimate - original */}
             <div className="bg-gray-50 rounded-xl p-3 group-hover:bg-blue-50 transition-colors duration-200">
               <div className="flex items-center gap-2 mb-1">
                 <FiDollarSign className="w-4 h-4 text-blue-600" />
