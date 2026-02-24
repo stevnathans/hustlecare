@@ -793,6 +793,9 @@ export default function ProductsPage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  // Full vendor list fetched independently so the form always has every vendor,
+  // including those not yet assigned to any product.
+  const [allVendors, setAllVendors] = useState<Vendor[]>([]);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
@@ -815,7 +818,21 @@ export default function ProductsPage() {
     }
   }, []);
 
-  useEffect(() => { fetchProducts(); }, [fetchProducts]);
+  const fetchVendors = useCallback(async () => {
+    try {
+      const res = await fetch('/api/vendors');
+      if (!res.ok) return;
+      const data = await res.json();
+      setAllVendors(Array.isArray(data) ? data : []);
+    } catch {
+      // Non-fatal: vendor dropdown will be empty but the page still works
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchProducts();
+    fetchVendors();
+  }, [fetchProducts, fetchVendors]);
 
   // Reset page when filters change
   useEffect(() => { setPage(1); }, [searchTerm, vendorFilter, priceRangeIdx, sortField, sortDir]);
@@ -832,10 +849,17 @@ export default function ProductsPage() {
     return () => window.removeEventListener('keydown', handler);
   }, [modalOpen]);
 
-  const vendors = useMemo(() => {
-    const set = new Map<string, string>();
-    products.forEach(p => { if (p.vendor) set.set(String(p.vendor.id), p.vendor.name); });
-    return Array.from(set.entries());
+  // [id, name] pairs from ALL vendors — used by the form modal and CSV importer
+  const vendors = useMemo<[string, string][]>(
+    () => allVendors.map(v => [String(v.id), v.name]),
+    [allVendors]
+  );
+
+  // Vendor filter dropdown only shows vendors that appear in existing products
+  const vendorsInProducts = useMemo<[string, string][]>(() => {
+    const seen = new Map<string, string>();
+    products.forEach(p => { if (p.vendor) seen.set(String(p.vendor.id), p.vendor.name); });
+    return Array.from(seen.entries());
   }, [products]);
 
   const priceRange = PRICE_RANGES[priceRangeIdx];
@@ -1480,7 +1504,7 @@ export default function ProductsPage() {
 
               <select value={vendorFilter} onChange={e => setVendorFilter(e.target.value)} className="filter-select">
                 <option value="">All vendors</option>
-                {vendors.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                {vendorsInProducts.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
               </select>
 
               <select value={priceRangeIdx} onChange={e => setPriceRangeIdx(Number(e.target.value))} className="filter-select">
