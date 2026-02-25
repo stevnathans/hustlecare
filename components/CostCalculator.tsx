@@ -1,10 +1,11 @@
+/* eslint-disable react/no-unescaped-entities */
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import { useCart, CartItem } from '@/contexts/CartContext'; 
 import { Business } from '@prisma/client';
-import { FiShoppingCart, FiPlus, FiMinus, FiTrash2, FiChevronDown, FiChevronRight, FiSave, FiCopy, FiShare2, FiX, FiEdit2, FiCheck, FiDownload } from 'react-icons/fi';
+import { FiShoppingCart, FiPlus, FiMinus, FiTrash2, FiChevronDown, FiChevronRight, FiSave, FiCopy, FiShare2, FiX, FiEdit2, FiCheck, FiDownload, FiInfo } from 'react-icons/fi';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -46,6 +47,9 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
 
   const [isMobile, setIsMobile] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // Check if any productless items are in the cart
+  const hasProductlessItems = useMemo(() => items.some((item) => item.isProductless), [items]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -98,7 +102,10 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
 
       acc[category].requirements[requirement].push(item);
       acc[category].categoryTotalItems += item.quantity;
-      acc[category].categorySubtotal += item.price * item.quantity;
+      // Only add to subtotal if not a productless item
+      if (!item.isProductless) {
+        acc[category].categorySubtotal += item.price * item.quantity;
+      }
 
       return acc;
     }, {} as GroupedCartItems);
@@ -106,7 +113,12 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
     // Sort products within each requirement by productId to maintain consistent order
     Object.values(grouped).forEach(category => {
       Object.values(category.requirements).forEach(products => {
-        products.sort((a, b) => Number(a.productId) - Number(b.productId));
+        products.sort((a, b) => {
+          // Productless items go last within their requirement group
+          if (a.isProductless) return 1;
+          if (b.isProductless) return -1;
+          return Number(a.productId) - Number(b.productId);
+        });
       });
     });
 
@@ -225,7 +237,16 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(16, 185, 129);
-      doc.text(`Total Cost: $${formatCurrency(totalCost)}`, margin, yPosition);
+      doc.text(`Total Cost Estimate: $${formatCurrency(totalCost)}`, margin, yPosition);
+
+      // Note if there are productless items
+      if (hasProductlessItems) {
+        yPosition += 7;
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(107, 114, 128);
+        doc.text('* Requirements without products are listed below but not included in the total cost estimate.', margin, yPosition);
+      }
       
       yPosition += 15;
 
@@ -273,43 +294,57 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
           doc.text(`  ${requirementName}`, margin, yPosition);
           yPosition += 7;
 
-          // Products table
-          const tableData = products.map(item => [
-            item.name,
-            item.quantity.toString(),
-            `$${formatCurrency(item.price)}`,
-            `$${formatCurrency(item.price * item.quantity)}`
-          ]);
+          // Check if this is a productless requirement
+          const isProductlessRequirement = products.length === 1 && products[0].isProductless;
 
-          autoTable(doc, {
-            startY: yPosition,
-            head: [['Product', 'Qty', 'Unit Price', 'Subtotal']],
-            body: tableData,
-            theme: 'plain',
-            styles: {
-              fontSize: 9,
-              cellPadding: 3,
-            },
-            headStyles: {
-              fillColor: [249, 250, 251], // gray-50
-              textColor: [75, 85, 99], // gray-600
-              fontStyle: 'bold',
-              fontSize: 8,
-            },
-            columnStyles: {
-              0: { cellWidth: 'auto' },
-              1: { cellWidth: 20, halign: 'center' },
-              2: { cellWidth: 35, halign: 'right' },
-              3: { cellWidth: 35, halign: 'right' },
-            },
-            margin: { left: margin + 5 },
-            didDrawPage: (data) => {
-              yPosition = data.cursor?.y || yPosition;
-            }
-          });
+          if (isProductlessRequirement) {
+            // Render a simple row for productless requirements
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'italic');
+            doc.setTextColor(107, 114, 128);
+            doc.text(`    No products available — cost not included in estimate`, margin, yPosition);
+            yPosition += 10;
+          } else {
+            // Products table
+            const tableData = products
+              .filter((item) => !item.isProductless)
+              .map(item => [
+                item.name,
+                item.quantity.toString(),
+                `$${formatCurrency(item.price)}`,
+                `$${formatCurrency(item.price * item.quantity)}`
+              ]);
 
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          yPosition = (doc as any).lastAutoTable.finalY + 8;
+            autoTable(doc, {
+              startY: yPosition,
+              head: [['Product', 'Qty', 'Unit Price', 'Subtotal']],
+              body: tableData,
+              theme: 'plain',
+              styles: {
+                fontSize: 9,
+                cellPadding: 3,
+              },
+              headStyles: {
+                fillColor: [249, 250, 251], // gray-50
+                textColor: [75, 85, 99], // gray-600
+                fontStyle: 'bold',
+                fontSize: 8,
+              },
+              columnStyles: {
+                0: { cellWidth: 'auto' },
+                1: { cellWidth: 20, halign: 'center' },
+                2: { cellWidth: 35, halign: 'right' },
+                3: { cellWidth: 35, halign: 'right' },
+              },
+              margin: { left: margin + 5 },
+              didDrawPage: (data) => {
+                yPosition = data.cursor?.y || yPosition;
+              }
+            });
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            yPosition = (doc as any).lastAutoTable.finalY + 8;
+          }
         }
 
         yPosition += 5;
@@ -540,113 +575,152 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
                     >
                       <FiTrash2 className="mr-1.5" size={12} /> Clear Category
                     </button>
-                    {Object.entries(category.requirements).map(([requirementName, products]) => (
-                      <div key={requirementName} className="mb-3 last:mb-0 px-3 py-3 bg-gray-50 rounded-lg border border-gray-100">
-                        <div className="flex justify-between items-center mb-2">
-                          <div>
-                            <h4 className="font-semibold text-sm text-gray-800">{requirementName}</h4>
-                            <p className="text-xs text-gray-500 mt-0.5">{products.length} {products.length === 1 ? 'product' : 'products'}</p>
+                    {Object.entries(category.requirements).map(([requirementName, products]) => {
+                      const isProductlessRequirement =
+                        products.length === 1 && products[0].isProductless;
+
+                      return (
+                        <div key={requirementName} className="mb-3 last:mb-0 px-3 py-3 bg-gray-50 rounded-lg border border-gray-100">
+                          <div className="flex justify-between items-center mb-2">
+                            <div>
+                              <h4 className="font-semibold text-sm text-gray-800">{requirementName}</h4>
+                              {isProductlessRequirement ? (
+                                <p className="text-xs text-amber-600 mt-0.5 flex items-center gap-1">
+                                  <FiInfo size={11} />
+                                  No products — not included in total
+                                </p>
+                              ) : (
+                                <p className="text-xs text-gray-500 mt-0.5">{products.length} {products.length === 1 ? 'product' : 'products'}</p>
+                              )}
+                            </div>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleClearRequirement(requirementName, category.name);
+                              }}
+                              className="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded flex items-center transition-colors"
+                              title={`Clear all items for ${requirementName}`}
+                            >
+                              <FiTrash2 className="mr-1" size={11} /> Clear
+                            </button>
                           </div>
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleClearRequirement(requirementName, category.name);
-                            }}
-                            className="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded flex items-center transition-colors"
-                            title={`Clear all items for ${requirementName}`}
-                          >
-                            <FiTrash2 className="mr-1" size={11} /> Clear
-                          </button>
+
+                          {/* Productless requirement row */}
+                          {isProductlessRequirement ? (
+                            <div className="flex items-center justify-between py-2 px-3 bg-amber-50 border border-amber-100 rounded-md">
+                              <span className="text-xs text-amber-700 italic">
+                                Research costs manually — no products listed yet
+                              </span>
+                              <button
+                                onClick={() => removeFromCart(products[0].productId)}
+                                className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-100 rounded-md transition-colors ml-2"
+                                aria-label="Remove requirement"
+                              >
+                                <FiTrash2 size={14} />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              {products.map((item) => (
+                                <div key={item.productId} className="flex flex-col sm:flex-row sm:items-center py-2.5 px-2 bg-white rounded-md border border-gray-100 hover:border-emerald-200 transition-colors">
+                                  {/* Top row: Image and product details */}
+                                  <div className="flex items-center flex-grow min-w-0 mb-2 sm:mb-0">
+                                    {item.image && (
+                                      <div className="relative h-12 w-12 sm:h-14 sm:w-14 mr-2 sm:mr-3 flex-shrink-0 rounded-md overflow-hidden border border-gray-200">
+                                        <Image
+                                          src={item.image}
+                                          alt={item.name}
+                                          fill
+                                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                                          className="object-contain"
+                                          onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/56x56/f3f4f6/9ca3af?text=No+Image';}}
+                                        />
+                                      </div>
+                                    )}
+                                    <div className="flex-grow min-w-0 mr-2">
+                                      <h5 className="font-medium text-xs sm:text-sm text-gray-800 truncate">{item.name}</h5>
+                                      <p className="text-xs text-gray-500 mt-0.5">${formatCurrency(item.price)}</p>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Bottom row (mobile) / Right side (desktop): Quantity controls */}
+                                  <div className="flex items-center justify-between sm:justify-end space-x-1.5 sm:ml-3 w-full sm:w-auto border-t sm:border-t-0 border-gray-100 pt-2 sm:pt-0">
+                                    <div className="flex items-center space-x-1.5">
+                                      <button
+                                        onClick={() => handleQuantityChange(item.productId as number, item.quantity - 1)}
+                                        className="p-1.5 text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                                        aria-label="Decrease quantity"
+                                      >
+                                        <FiMinus size={14} />
+                                      </button>
+                                      {editingQuantity === item.productId as number ? (
+                                        <div className="flex items-center space-x-1">
+                                          <input
+                                            type="number"
+                                            value={quantityInputValue}
+                                            onChange={(e) => setQuantityInputValue(e.target.value)}
+                                            onKeyDown={(e) => handleQuantityInputKeyDown(e, item.productId as number)}
+                                            onBlur={() => handleQuantitySave(item.productId as number)}
+                                            className="w-12 text-center text-sm font-medium text-gray-700 border border-emerald-400 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                            autoFocus
+                                            min="1"
+                                          />
+                                          <button
+                                            onClick={() => handleQuantitySave(item.productId as number)}
+                                            className="p-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors"
+                                            aria-label="Save quantity"
+                                          >
+                                            <FiCheck size={14} />
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          onClick={() => handleQuantityEdit(item.productId as number, item.quantity)}
+                                          className="w-10 text-center text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded px-2 py-1 transition-colors group"
+                                          title="Click to edit quantity"
+                                        >
+                                          <span className="group-hover:hidden">{item.quantity}</span>
+                                          <FiEdit2 className="hidden group-hover:inline mx-auto" size={12} />
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={() => handleQuantityChange(item.productId as number, item.quantity + 1)}
+                                        className="p-1.5 text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                                        aria-label="Increase quantity"
+                                      >
+                                        <FiPlus size={14} />
+                                      </button>
+                                    </div>
+                                    <button
+                                      onClick={() => removeFromCart(item.productId)}
+                                      className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-100 rounded-md transition-colors"
+                                      aria-label="Remove item"
+                                    >
+                                      <FiTrash2 size={14} />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        <div className="space-y-2">
-                          {products.map((item) => (
-                           <div key={item.productId} className="flex flex-col sm:flex-row sm:items-center py-2.5 px-2 bg-white rounded-md border border-gray-100 hover:border-emerald-200 transition-colors">
-  {/* Top row: Image and product details */}
-  <div className="flex items-center flex-grow min-w-0 mb-2 sm:mb-0">
-    {item.image && (
-      <div className="relative h-12 w-12 sm:h-14 sm:w-14 mr-2 sm:mr-3 flex-shrink-0 rounded-md overflow-hidden border border-gray-200">
-        <Image
-          src={item.image}
-          alt={item.name}
-          fill
-          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-          className="object-contain"
-          onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/56x56/f3f4f6/9ca3af?text=No+Image';}}
-        />
-      </div>
-    )}
-    <div className="flex-grow min-w-0 mr-2">
-      <h5 className="font-medium text-xs sm:text-sm text-gray-800 truncate">{item.name}</h5>
-      <p className="text-xs text-gray-500 mt-0.5">${formatCurrency(item.price)}</p>
-    </div>
-  </div>
-  
-  {/* Bottom row (mobile) / Right side (desktop): Quantity controls */}
-  <div className="flex items-center justify-between sm:justify-end space-x-1.5 sm:ml-3 w-full sm:w-auto border-t sm:border-t-0 border-gray-100 pt-2 sm:pt-0">
-    <div className="flex items-center space-x-1.5">
-      <button
-        onClick={() => handleQuantityChange(item.productId as number, item.quantity - 1)}
-        className="p-1.5 text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-        aria-label="Decrease quantity"
-      >
-        <FiMinus size={14} />
-      </button>
-      {editingQuantity === item.productId as number ? (
-        <div className="flex items-center space-x-1">
-          <input
-            type="number"
-            value={quantityInputValue}
-            onChange={(e) => setQuantityInputValue(e.target.value)}
-            onKeyDown={(e) => handleQuantityInputKeyDown(e, item.productId as number)}
-            onBlur={() => handleQuantitySave(item.productId as number)}
-            className="w-12 text-center text-sm font-medium text-gray-700 border border-emerald-400 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-            autoFocus
-            min="1"
-          />
-          <button
-            onClick={() => handleQuantitySave(item.productId as number)}
-            className="p-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors"
-            aria-label="Save quantity"
-          >
-            <FiCheck size={14} />
-          </button>
-        </div>
-      ) : (
-        <button
-          onClick={() => handleQuantityEdit(item.productId as number, item.quantity)}
-          className="w-10 text-center text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded px-2 py-1 transition-colors group"
-          title="Click to edit quantity"
-        >
-          <span className="group-hover:hidden">{item.quantity}</span>
-          <FiEdit2 className="hidden group-hover:inline mx-auto" size={12} />
-        </button>
-      )}
-      <button
-        onClick={() => handleQuantityChange(item.productId as number, item.quantity + 1)}
-        className="p-1.5 text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-        aria-label="Increase quantity"
-      >
-        <FiPlus size={14} />
-      </button>
-    </div>
-    <button
-      onClick={() => removeFromCart(item.productId)}
-      className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-100 rounded-md transition-colors"
-      aria-label="Remove item"
-    >
-      <FiTrash2 size={14} />
-    </button>
-  </div>
-</div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
             ))}
           </div>
+
+          {/* Disclaimer note for productless items */}
+          {hasProductlessItems && (
+            <div className="flex items-start gap-2 mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+              <FiInfo size={14} className="flex-shrink-0 mt-0.5" />
+              <span>
+                Requirements marked <strong>"No products"</strong> are included in your list but not counted in the total cost estimate below. You'll need to research their costs separately.
+              </span>
+            </div>
+          )}
           
          <div className="border-t border-gray-200 pt-5 bg-gradient-to-r from-emerald-50 to-green-50 -mx-6 px-6 py-5 rounded-lg">
   <div className="flex justify-between items-center">

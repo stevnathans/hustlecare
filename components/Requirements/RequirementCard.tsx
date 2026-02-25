@@ -13,7 +13,11 @@ import {
   PhotoIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
+import { FiPlus, FiCheck } from "react-icons/fi";
 import Image from "next/image";
+import { useCart } from "@/contexts/CartContext";
+import { useSession } from "next-auth/react";
+import LoginModal from "@/components/LoginModal";
 
 interface RequirementCardProps {
   requirement: {
@@ -33,11 +37,41 @@ export default function RequirementCard({
 }: RequirementCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isImageOpen, setIsImageOpen] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
+  const { addToCart, removeFromCart, items } = useCart();
+  const { data: session } = useSession();
 
   // Calculate derived values
   const productCount = products?.length || 0;
   const lowestPrice =
     productCount > 0 ? Math.min(...products.map((p) => p.price)) : 0;
+
+  // Productless requirement cart state
+  const productlessId = `req_${requirement.id}`;
+  const isProductlessInCart = items.some(
+    (item) => item.productId === productlessId && item.isProductless
+  );
+
+  const handleAddProductlessToCart = async () => {
+    if (!session) {
+      setShowLoginModal(true);
+      return;
+    }
+    if (isProductlessInCart) {
+      await removeFromCart(productlessId);
+    } else {
+      await addToCart({
+        productId: productlessId,
+        name: requirement.name,
+        price: 0,
+        requirementName: requirement.name,
+        category: requirement.category,
+        isProductless: true,
+        __index: 0,
+      });
+    }
+  };
 
   // Map necessity to status
   const getStatus = () => {
@@ -70,6 +104,15 @@ export default function RequirementCard({
 
   return (
     <>
+      {/* Login Modal */}
+      {showLoginModal && (
+        <LoginModal
+          isOpen={showLoginModal}
+          onClose={() => setShowLoginModal(false)}
+          onLogin={() => setShowLoginModal(false)}
+        />
+      )}
+
       {/* Image Lightbox */}
       {isImageOpen && requirement.image && (
         <div
@@ -212,7 +255,7 @@ export default function RequirementCard({
                     </div>
                   )}
 
-                  {/* Expand Toggle - Desktop */}
+                  {/* Expand Toggle - Desktop (only when products exist) */}
                   {productCount > 0 && (
                     <button
                       onClick={() => setIsExpanded(!isExpanded)}
@@ -228,9 +271,33 @@ export default function RequirementCard({
                       )}
                     </button>
                   )}
+
+                  {/* Add to Calculator Button - Desktop (only when NO products) */}
+                  {productCount === 0 && (
+                    <button
+                      onClick={handleAddProductlessToCart}
+                      className={`hidden sm:flex flex-shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ml-auto ${
+                        isProductlessInCart
+                          ? "bg-green-500 text-white hover:bg-green-600"
+                          : "bg-emerald-500 text-white hover:bg-emerald-600"
+                      }`}
+                    >
+                      {isProductlessInCart ? (
+                        <>
+                          <FiCheck size={16} />
+                          <span>Added</span>
+                        </>
+                      ) : (
+                        <>
+                          <FiPlus size={16} />
+                          <span>Add</span>
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
 
-                {/* Expand Toggle - Mobile (Full Width) */}
+                {/* Expand Toggle - Mobile (only when products exist) */}
                 {productCount > 0 && (
                   <button
                     onClick={() => setIsExpanded(!isExpanded)}
@@ -241,6 +308,30 @@ export default function RequirementCard({
                       <ChevronUpIcon className="h-4 w-4 transition-transform group-hover/button:translate-y-[-1px]" />
                     ) : (
                       <ChevronDownIcon className="h-4 w-4 transition-transform group-hover/button:translate-y-[1px]" />
+                    )}
+                  </button>
+                )}
+
+                {/* Add to Calculator Button - Mobile (only when NO products) */}
+                {productCount === 0 && (
+                  <button
+                    onClick={handleAddProductlessToCart}
+                    className={`sm:hidden w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium text-sm transition-all ${
+                      isProductlessInCart
+                        ? "bg-green-500 text-white hover:bg-green-600"
+                        : "bg-emerald-500 text-white hover:bg-emerald-600"
+                    }`}
+                  >
+                    {isProductlessInCart ? (
+                      <>
+                        <FiCheck size={16} />
+                        <span>Added to Calculator</span>
+                      </>
+                    ) : (
+                      <>
+                        <FiPlus size={16} />
+                        <span>Add to Calculator</span>
+                      </>
                     )}
                   </button>
                 )}

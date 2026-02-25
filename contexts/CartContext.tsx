@@ -14,6 +14,7 @@ export type CartItem = {
   image?: string;
   requirementName: string;  // Add requirement name
   category: string;         // Add category
+  isProductless?: boolean;  // True when requirement has no products
 };
 
 type CartContextType = {
@@ -71,8 +72,12 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
   const [totalItems, setTotalItems] = useState<number>(0);
 
   // Calculate total cost and items whenever items change
+  // Productless items are excluded from total cost but counted in totalItems
   useEffect(() => {
-    const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const total = items.reduce((sum, item) => {
+      if (item.isProductless) return sum; // Exclude productless requirements from cost
+      return sum + item.price * item.quantity;
+    }, 0);
     const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
     setTotalCost(total);
     setTotalItems(itemCount);
@@ -114,6 +119,24 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
       return;
     }
 
+    // Handle productless requirements locally (no server call needed for $0 items)
+    if (product.isProductless) {
+      const existingIndex = items.findIndex(
+        (item) => item.productId === product.productId
+      );
+      if (existingIndex === -1) {
+        // Add it locally with a generated id
+        const newItem: CartItem = {
+          ...product,
+          id: `local_${product.productId}`,
+          quantity: 1,
+          price: 0,
+        };
+        setItems((prev) => [...prev, newItem]);
+      }
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -147,6 +170,13 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
   const removeFromCart = async (productId: string | number) => {
     if (!businessId) {
       setError('No business selected');
+      return;
+    }
+
+    // Handle productless requirements locally
+    const itemToRemove = items.find((item) => item.productId === productId);
+    if (itemToRemove?.isProductless) {
+      setItems((prev) => prev.filter((item) => item.productId !== productId));
       return;
     }
 
@@ -185,6 +215,10 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
       setError('No business selected');
       return;
     }
+
+    // Productless items have no quantity concept — skip
+    const itemToUpdate = items.find((item) => item.productId === productId);
+    if (itemToUpdate?.isProductless) return;
 
     try {
       setLoading(true);
@@ -257,6 +291,11 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
       return;
     }
 
+    // Remove any local productless items for this category first
+    setItems((prev) =>
+      prev.filter((item) => !(item.isProductless && item.category === category))
+    );
+
     try {
       setLoading(true);
       setError(null);
@@ -292,6 +331,14 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
       setError('No business selected');
       return;
     }
+
+    // Remove any local productless item for this requirement first
+    setItems((prev) =>
+      prev.filter(
+        (item) =>
+          !(item.isProductless && item.requirementName === requirementName && item.category === category)
+      )
+    );
 
     try {
       setLoading(true);

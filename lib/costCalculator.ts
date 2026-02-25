@@ -1,4 +1,4 @@
-
+//lib/costCalculator.ts
 interface Requirement {
     id: string;
     name: string;
