@@ -51,6 +51,15 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
   // Check if any productless items are in the cart
   const hasProductlessItems = useMemo(() => items.some((item) => item.isProductless), [items]);
 
+  // Count unique requirements in cart vs those that contributed to cost
+  const requirementCounts = useMemo(() => {
+    const allRequirements = new Set(items.map((item) => item.requirementName));
+    const costingRequirements = new Set(
+      items.filter((item) => !item.isProductless).map((item) => item.requirementName)
+    );
+    return { total: allRequirements.size, costing: costingRequirements.size };
+  }, [items]);
+
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth <= 768);
@@ -727,6 +736,11 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
     <div>
       <span className="text-sm text-gray-600 block mb-1">Total Estimated Cost</span>
       <span className="text-3xl sm:text-2xl font-bold text-emerald-700">${formatCurrency(totalCost)}</span>
+      {hasProductlessItems && (
+        <span className="text-xs text-gray-500 mt-1 block">
+          Based on {requirementCounts.costing} out of {requirementCounts.total} requirements
+        </span>
+      )}
     </div>
     <div className="flex items-center">
       <span className="bg-emerald-100 text-emerald-800 rounded-full px-4 py-2 text-sm font-semibold flex items-center shadow-sm">
@@ -770,6 +784,14 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
               <FiShare2 className="mr-2 text-emerald-600"/>
               Save & Share Your List
             </h3>
+            {hasProductlessItems && (
+              <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
+                <FiInfo size={14} className="flex-shrink-0 mt-0.5" />
+                <span>
+                  <strong>Heads up:</strong> Requirements without products are not saved and will be lost on page refresh. Download your list as a PDF to keep a complete record.
+                </span>
+              </div>
+            )}
             
             <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
               <input

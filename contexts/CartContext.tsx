@@ -63,6 +63,12 @@ type CartProviderProps = {
   initialBusinessId?: number;
 };
 
+// Helper: merge local productless items back into a fresh server response
+function mergeProductlessItems(serverItems: CartItem[], currentItems: CartItem[]): CartItem[] {
+  const productlessItems = currentItems.filter((item) => item.isProductless);
+  return [...serverItems, ...productlessItems];
+}
+
 export const CartProvider = ({ children, initialBusinessId }: CartProviderProps) => {
   const [items, setItems] = useState<CartItem[]>([]);
   const [businessId, setBusinessId] = useState<number | null>(initialBusinessId || null);
@@ -157,7 +163,7 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
       }
      
       const data = await response.json();
-      setItems(data.items);
+      setItems(mergeProductlessItems(data.items, items));
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       console.error('Error adding to cart:', error);
@@ -200,7 +206,7 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
       }
      
       const data = await response.json();
-      setItems(data.items);
+      setItems(mergeProductlessItems(data.items, items));
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       console.error('Error removing from cart:', error);
@@ -241,7 +247,7 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
       }
      
       const data = await response.json();
-      setItems(data.items);
+      setItems(mergeProductlessItems(data.items, items));
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       console.error('Error updating cart:', error);
@@ -275,7 +281,7 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
         throw new Error('Failed to clear cart');
       }
      
-      setItems([]);
+      setItems((prev) => prev.filter((item) => item.isProductless));
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       console.error('Error clearing cart:', error);
@@ -316,7 +322,7 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
       }
      
       const data = await response.json();
-      setItems(data.items);
+      setItems(mergeProductlessItems(data.items, items));
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       console.error('Error clearing category:', error);
@@ -361,7 +367,7 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
       }
      
       const data = await response.json();
-      setItems(data.items);
+      setItems(mergeProductlessItems(data.items, items));
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       console.error('Error clearing requirement:', error);
