@@ -60,15 +60,19 @@ function Portal({ children }: { children: React.ReactNode }) {
   return createPortal(children, portalRoot.current);
 }
 
-// ── Image Lightbox ────────────────────────────────────────────────────────────
+// ── Image Lightbox (updated) ─────────────────────────────────────────────────
 function ImageLightbox({
   src,
   alt,
   onClose,
+  productUrl,
+  vendorName,
 }: {
   src: string;
   alt: string;
   onClose: () => void;
+  productUrl?: string;
+  vendorName?: string;
 }) {
   // Lock body scroll while open
   useEffect(() => {
@@ -83,6 +87,13 @@ function ImageLightbox({
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
+
+  const handleBuyClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (productUrl) {
+      window.open(productUrl, "_blank");
+    }
+  };
 
   return (
     <Portal>
@@ -118,6 +129,18 @@ function ImageLightbox({
           <p className="text-center text-white/80 text-sm mt-3 font-medium drop-shadow">
             {alt}
           </p>
+
+          {/* Buy button – only if a product URL exists */}
+          {productUrl && (
+            <div className="text-center mt-3">
+              <button
+                onClick={handleBuyClick}
+                className="inline-block bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-lg shadow-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+              >
+                Buy on {vendorName || 'Vendor'}
+              </button>
+            </div>
+          )}
         </div>
 
         <style>{`
@@ -224,6 +247,8 @@ const ProductCard: React.FC<ProductCardProps> = ({
           src={product.image}
           alt={product.name}
           onClose={() => setIsImageOpen(false)}
+          productUrl={product.url}
+          vendorName={product.vendor?.name}
         />
       )}
 
