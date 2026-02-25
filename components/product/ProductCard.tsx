@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   FiPlus,
   FiCheck,
@@ -10,9 +11,8 @@ import {
   FiChevronUp,
   FiShoppingBag,
   FiPackage,
-  FiX,
-  FiZoomIn,
 } from "react-icons/fi";
+import { XMarkIcon } from "@heroicons/react/24/outline";
 import Image from "next/image";
 import { useCart } from "@/contexts/CartContext";
 import { useSession } from "next-auth/react";
@@ -37,182 +37,132 @@ interface ProductCardProps {
   category: string;
 }
 
-// ── Image Lightbox ────────────────────────────────────────────────────────────
+// ── Portal wrapper ────────────────────────────────────────────────────────────
+// Renders children directly into document.body so no parent stacking context,
+// overflow:hidden, or z-index can clip or suppress them.
+function Portal({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+  const portalRoot = useRef<HTMLElement | null>(null);
 
+  useEffect(() => {
+    // Reuse a single shared portal root so multiple cards don't litter the DOM
+    let el = document.getElementById("product-card-portal-root");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "product-card-portal-root";
+      document.body.appendChild(el);
+    }
+    portalRoot.current = el;
+    setMounted(true);
+  }, []);
+
+  if (!mounted || !portalRoot.current) return null;
+  return createPortal(children, portalRoot.current);
+}
+
+// ── Image Lightbox ────────────────────────────────────────────────────────────
 function ImageLightbox({
   src,
   alt,
   onClose,
-  originRect,
 }: {
   src: string;
   alt: string;
   onClose: () => void;
-  originRect: DOMRect | null;
 }) {
-  const [phase, setPhase] = useState<"enter" | "open" | "exit">("enter");
-  const overlayRef = useRef<HTMLDivElement>(null);
-
-  // Compute the "from" transform so the image animates out of the thumbnail
-  const fromStyle = (): React.CSSProperties => {
-    if (!originRect) return {};
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const scaleX = originRect.width / Math.min(vw * 0.9, 720);
-    const scaleY = originRect.height / Math.min(vh * 0.8, 720);
-    const scale = Math.max(scaleX, scaleY);
-    const tx = originRect.left + originRect.width / 2 - vw / 2;
-    const ty = originRect.top + originRect.height / 2 - vh / 2;
-    return {
-      transform: `translate(${tx}px, ${ty}px) scale(${scale})`,
-      opacity: 0,
-      borderRadius: "12px",
-    };
-  };
-
-  const openStyle = (): React.CSSProperties => ({
-    transform: "translate(0, 0) scale(1)",
-    opacity: 1,
-    borderRadius: "16px",
-  });
-
-  useEffect(() => {
-    // Tiny delay so browser paints the "from" frame first
-    const raf = requestAnimationFrame(() => {
-      requestAnimationFrame(() => setPhase("open"));
-    });
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  // Close on Escape
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") handleClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
-
-  // Prevent body scroll while open
+  // Lock body scroll while open
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = prev; };
   }, []);
 
-  function handleClose() {
-    setPhase("exit");
-    setTimeout(onClose, 320);
-  }
-
-  const imgStyle: React.CSSProperties =
-    phase === "enter"
-      ? { ...fromStyle(), transition: "none" }
-      : phase === "open"
-      ? { ...openStyle(), transition: "transform 0.35s cubic-bezier(0.34,1.26,0.64,1), opacity 0.25s ease, border-radius 0.35s ease" }
-      : { ...fromStyle(), transition: "transform 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.22s ease, border-radius 0.3s ease" };
-
-  const overlayStyle: React.CSSProperties = {
-    opacity: phase === "open" ? 1 : 0,
-    transition: "opacity 0.28s ease",
-  };
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
 
   return (
-    <div
-      ref={overlayRef}
-      onClick={handleClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 9999,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "1.5rem",
-        backgroundColor: "rgba(0,0,0,0.82)",
-        backdropFilter: "blur(8px)",
-        WebkitBackdropFilter: "blur(8px)",
-        cursor: "zoom-out",
-        ...overlayStyle,
-      }}
-    >
-      {/* Close button */}
-      <button
-        onClick={handleClose}
-        style={{
-          position: "absolute",
-          top: "1rem",
-          right: "1rem",
-          width: 40,
-          height: 40,
-          borderRadius: "50%",
-          background: "rgba(255,255,255,0.12)",
-          border: "1px solid rgba(255,255,255,0.2)",
-          color: "#fff",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: "pointer",
-          opacity: phase === "open" ? 1 : 0,
-          transform: phase === "open" ? "scale(1)" : "scale(0.7)",
-          transition: "opacity 0.25s ease 0.1s, transform 0.3s cubic-bezier(0.34,1.4,0.64,1) 0.1s",
-          zIndex: 1,
-        }}
-        aria-label="Close image"
-      >
-        <FiX size={18} />
-      </button>
-
-      {/* Caption */}
+    <Portal>
       <div
-        style={{
-          position: "absolute",
-          bottom: "1.5rem",
-          left: "50%",
-          transform: "translateX(-50%)",
-          color: "rgba(255,255,255,0.75)",
-          fontSize: "0.85rem",
-          fontWeight: 500,
-          textAlign: "center",
-          maxWidth: "80vw",
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          opacity: phase === "open" ? 1 : 0,
-          transition: "opacity 0.25s ease 0.15s",
-        }}
+        className="fixed inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+        style={{ zIndex: 9999, animation: "pc-fadeIn 0.2s ease-out" }}
+        onClick={onClose}
       >
-        {alt}
-      </div>
+        <div
+          className="relative max-w-lg w-full mx-4"
+          style={{ animation: "pc-scaleIn 0.25s ease-out" }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Close button */}
+          <button
+            onClick={onClose}
+            className="absolute -top-3 -right-3 z-10 w-8 h-8 rounded-full bg-white shadow-lg flex items-center justify-center hover:bg-gray-100 transition-colors duration-200"
+          >
+            <XMarkIcon className="h-5 w-5 text-gray-700" />
+          </button>
 
-      {/* Expanded image */}
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          position: "relative",
-          width: "min(90vw, 720px)",
-          height: "min(80vh, 720px)",
-          cursor: "default",
-          boxShadow: phase === "open" ? "0 32px 80px rgba(0,0,0,0.6)" : "none",
-          ...imgStyle,
-        }}
-      >
-        <Image
-          src={src}
-          alt={alt}
-          fill
-          sizes="(max-width: 720px) 90vw, 720px"
-          className="object-contain"
-          style={{ borderRadius: "inherit" }}
-          priority
-        />
+          <div className="rounded-2xl overflow-hidden shadow-2xl bg-white">
+            <Image
+              src={src}
+              alt={alt}
+              width={600}
+              height={400}
+              className="w-full h-auto object-contain max-h-[70vh]"
+            />
+          </div>
+
+          {/* Caption */}
+          <p className="text-center text-white/80 text-sm mt-3 font-medium drop-shadow">
+            {alt}
+          </p>
+        </div>
+
+        <style>{`
+          @keyframes pc-fadeIn  { from { opacity: 0; }                          to { opacity: 1; } }
+          @keyframes pc-scaleIn { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
+        `}</style>
       </div>
-    </div>
+    </Portal>
   );
 }
 
-// ── Product Card ──────────────────────────────────────────────────────────────
+// ── Login Modal Portal wrapper ────────────────────────────────────────────────
+// Wraps the existing LoginModal in a Portal so it also escapes any stacking context.
+function PortaledLoginModal({
+  isOpen,
+  onClose,
+  onLogin,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onLogin: () => void;
+}) {
+  // Lock body scroll while open
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [isOpen]);
 
+  if (!isOpen) return null;
+
+  return (
+    <Portal>
+      {/* Wrapper that ensures the modal sits above everything */}
+      <div style={{ position: "fixed", inset: 0, zIndex: 9999, pointerEvents: "none" }}>
+        <div style={{ pointerEvents: "auto" }}>
+          <LoginModal isOpen={isOpen} onClose={onClose} onLogin={onLogin} />
+        </div>
+      </div>
+    </Portal>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 const ProductCard: React.FC<ProductCardProps> = ({
   product,
   requirementName,
@@ -221,9 +171,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
   const { addToCart, items, removeFromCart } = useCart();
   const [showDetails, setShowDetails] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [thumbRect, setThumbRect] = useState<DOMRect | null>(null);
-  const thumbRef = useRef<HTMLDivElement>(null);
+  const [isImageOpen, setIsImageOpen] = useState(false);
   const { data: session } = useSession();
 
   const cartItem = items.find((item) => item.productId === product.id);
@@ -268,31 +216,36 @@ const ProductCard: React.FC<ProductCardProps> = ({
     setShowDetails(!showDetails);
   };
 
-  const handleImageClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!product.image) return;
-    if (thumbRef.current) {
-      setThumbRect(thumbRef.current.getBoundingClientRect());
-    }
-    setLightboxOpen(true);
-  };
-
   return (
     <>
+      {/* Lightbox — portaled to body, always above everything */}
+      {isImageOpen && product.image && (
+        <ImageLightbox
+          src={product.image}
+          alt={product.name}
+          onClose={() => setIsImageOpen(false)}
+        />
+      )}
+
+      {/* Login modal — portaled to body, always above everything */}
+      <PortaledLoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        onLogin={() => {}}
+      />
+
+      {/* ── Card ── */}
       <div className="border rounded-xl overflow-hidden bg-white transition-all duration-200">
         <div className="p-3">
           {/* Top Row: Image, Name/Price, Add Button */}
           <div className="flex items-start gap-3 mb-3">
 
-            {/* Image — clickable thumbnail */}
+            {/* Product Image — clickable to open lightbox */}
             <div
-              ref={thumbRef}
-              onClick={handleImageClick}
-              style={{
-                cursor: product.image ? "zoom-in" : "default",
-                position: "relative",
-              }}
-              className="relative w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-gray-50 to-gray-100 flex-shrink-0 rounded-lg overflow-hidden group"
+              className={`group/img relative w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-gray-50 to-gray-100 flex-shrink-0 rounded-lg overflow-hidden ${
+                product.image ? "cursor-pointer" : ""
+              }`}
+              onClick={() => product.image && setIsImageOpen(true)}
               title={product.image ? "Click to expand" : undefined}
             >
               {product.image ? (
@@ -301,14 +254,23 @@ const ProductCard: React.FC<ProductCardProps> = ({
                     src={product.image}
                     alt={product.name}
                     fill
-                    className="object-cover p-2 transition-transform duration-200 group-hover:scale-105"
+                    className="object-cover p-2 transition-transform duration-300 group-hover/img:scale-110"
                   />
-                  {/* Zoom hint overlay */}
-                  <div
-                    className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                    style={{ background: "rgba(0,0,0,0.28)" }}
-                  >
-                    <FiZoomIn size={18} color="#fff" />
+                  {/* Hover overlay with expand icon */}
+                  <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/20 transition-colors duration-200 flex items-center justify-center">
+                    <svg
+                      className="w-5 h-5 text-white opacity-0 group-hover/img:opacity-100 drop-shadow-md transition-opacity duration-200"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"
+                      />
+                    </svg>
                   </div>
                 </>
               ) : (
@@ -317,9 +279,9 @@ const ProductCard: React.FC<ProductCardProps> = ({
                 </div>
               )}
 
-              {/* Vendor Badge on Image */}
+              {/* Vendor logo badge */}
               {product.vendor?.logo && (
-                <div className="absolute bottom-1 right-1 bg-white rounded px-1 py-0.5 shadow-sm">
+                <div className="absolute bottom-1 right-1 bg-white rounded px-1 py-0.5 shadow-sm z-10">
                   <Image
                     src={product.vendor.logo}
                     alt={product.vendor.name}
@@ -331,7 +293,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
               )}
             </div>
 
-            {/* Name and Price Column */}
+            {/* Name and Price */}
             <div className="flex-1 min-w-0">
               <h3 className="text-sm sm:text-base font-semibold text-gray-900 line-clamp-2 leading-snug mb-1">
                 {product.name}
@@ -346,7 +308,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
               </span>
             </div>
 
-            {/* Add Button */}
+            {/* Add / Remove Button */}
             <button
               onClick={isInCart ? handleRemoveFromCart : handleAddToCart}
               className={`flex-shrink-0 flex items-center justify-center w-9 h-9 sm:w-auto sm:h-auto sm:gap-1.5 sm:px-3 sm:py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${
@@ -378,14 +340,14 @@ const ProductCard: React.FC<ProductCardProps> = ({
             </div>
           )}
 
-          {/* Description - Full Width */}
+          {/* Description preview (collapsed state) */}
           {!showDetails && product.description && (
             <p className="text-xs sm:text-sm text-gray-600 line-clamp-2 mb-3">
               {product.description}
             </p>
           )}
 
-          {/* Bottom Row: Action Buttons */}
+          {/* Action Buttons Row */}
           <div className="flex items-center gap-2">
             {product.url && (
               <button
@@ -403,12 +365,16 @@ const ProductCard: React.FC<ProductCardProps> = ({
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 transition font-medium ml-auto"
             >
               <span>{showDetails ? "Less" : "Details"}</span>
-              {showDetails ? <FiChevronUp size={14} /> : <FiChevronDown size={14} />}
+              {showDetails ? (
+                <FiChevronUp size={14} />
+              ) : (
+                <FiChevronDown size={14} />
+              )}
             </button>
           </div>
         </div>
 
-        {/* Expandable Details */}
+        {/* Expandable Details Panel */}
         {showDetails && (
           <div className="px-3 pb-3 pt-2 border-t bg-gray-50">
             <div className="space-y-3 text-sm">
@@ -444,7 +410,9 @@ const ProductCard: React.FC<ProductCardProps> = ({
                     Vendor
                   </h4>
                   <div className="flex items-center gap-2">
-                    <p className="text-gray-700 text-xs sm:text-sm">{product.vendor.name}</p>
+                    <p className="text-gray-700 text-xs sm:text-sm">
+                      {product.vendor.name}
+                    </p>
                     {product.vendor.website && (
                       <a
                         href={product.vendor.website}
@@ -462,23 +430,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
           </div>
         )}
       </div>
-
-      {/* Login Modal */}
-      <LoginModal
-        isOpen={showLoginModal}
-        onClose={() => setShowLoginModal(false)}
-        onLogin={() => {}}
-      />
-
-      {/* Image Lightbox */}
-      {lightboxOpen && product.image && (
-        <ImageLightbox
-          src={product.image}
-          alt={product.name}
-          onClose={() => setLightboxOpen(false)}
-          originRect={thumbRect}
-        />
-      )}
     </>
   );
 };
