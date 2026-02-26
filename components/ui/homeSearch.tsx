@@ -4,9 +4,12 @@ import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
+  Calculator,
+  List,
   Search as SearchIcon,
+  ShoppingBag,
   Sparkles,
-  Target,
+
   TrendingUp,
   Users,
 } from "lucide-react";
@@ -231,19 +234,19 @@ export default function HomeSearch() {
             <div className="relative grid grid-cols-2 gap-6 w-80 h-80 mx-auto">
               {[
                 {
-                  icon: <Target className="w-8 h-8" />,
+                  icon: <List className="w-8 h-8" />,
                   color: "from-yellow-400 to-orange-500",
-                  label: "Goals",
+                  label: "Requirements",
                 },
                 {
-                  icon: <Sparkles className="w-8 h-8" />,
+                  icon: <Calculator className="w-8 h-8" />,
                   color: "from-emerald-400 to-green-500",
-                  label: "Innovation",
+                  label: "Costs",
                 },
                 {
-                  icon: <TrendingUp className="w-8 h-8" />,
+                  icon: <ShoppingBag className="w-8 h-8" />,
                   color: "from-green-400 to-teal-500",
-                  label: "Growth",
+                  label: "Vendors",
                 },
                 {
                   icon: <Users className="w-8 h-8" />,

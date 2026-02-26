@@ -43,6 +43,15 @@ export default function BusinessPageContent({ slug }: BusinessPageContentProps) 
     handleCategorySearchChange,
   } = useFilterState(requirements, products, groupedRequirements, sortedCategories);
 
+  // Count requirements that have at least one product (used for the cost estimate coverage note).
+  // products is Record<string, ProductType[]> keyed by requirement name, so we look up directly.
+  const requirementsWithProducts = requirements
+    ? requirements.filter((req) => {
+        const reqProducts = products[req.name];
+        return Array.isArray(reqProducts) && reqProducts.length > 0;
+      }).length
+    : 0;
+
   // ── Error states ──────────────────────────────────────────────────────────
 
   if (error === 'Business not found') {
@@ -111,6 +120,7 @@ export default function BusinessPageContent({ slug }: BusinessPageContentProps) 
             unfilteredHighPrice={unfilteredHighPrice}
             requiredCount={requiredCount}
             optionalCount={optionalCount}
+            requirementsWithProducts={requirementsWithProducts}
           />
 
           <section aria-label="Business requirements">

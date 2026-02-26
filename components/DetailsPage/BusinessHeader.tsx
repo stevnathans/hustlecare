@@ -1,5 +1,5 @@
+//components/DetailsPage/BusinessHeader.tsx
 import React, { useState } from 'react';
-
 interface BusinessHeaderProps {
   businessName: string;
   businessSlug: string;
@@ -8,6 +8,7 @@ interface BusinessHeaderProps {
   requiredCount: number;
   optionalCount: number;
   totalRequirements: number;
+  requirementsWithProducts: number; // Number of requirements that have at least one product
 }
 
 interface BusinessSchema {
@@ -39,9 +40,11 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
   unfilteredHighPrice,
   requiredCount,
   optionalCount,
-  totalRequirements
+  totalRequirements,
+  requirementsWithProducts,
 }) => {
   const [budgetScale, setBudgetScale] = useState<'small' | 'medium' | 'large'>('medium');
+  const [coverageExpanded, setCoverageExpanded] = useState(false);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -56,6 +59,9 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
   const priceRange = unfilteredLowPrice === unfilteredHighPrice
     ? formatPrice(unfilteredLowPrice)
     : `${formatPrice(unfilteredLowPrice)} - ${formatPrice(unfilteredHighPrice)}`;
+
+  // Only show the "based on X out of Y" note when some requirements lack products
+  const showCoverageNote = hasPricing && requirementsWithProducts < totalRequirements;
 
   const budgetScales = {
     small: { multiplier: 0.6, label: "Small Scale" },
@@ -126,7 +132,7 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
           </div>
 
           <nav className="mb-5 sm:mb-6" aria-label="Budget scenarios">
-            <div className="bg-slate-50 rounded-lg p-4 sm:p-5 shadow-sm">
+            <div className="bg-slate-50 rounded-lg p-4 sm:p-5 shadow-sm relative">
               <h2 className="text-base sm:text-lg font-semibold text-slate-900 mb-3 sm:mb-4 text-center">
                 Adjust Your Budget Scenario
               </h2>
@@ -148,13 +154,45 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
                 ))}
               </div>
               {hasPricing && (
-                <div className="text-center p-3 sm:p-4 bg-gradient-to-r from-emerald-50 to-blue-50 rounded-lg">
+                <div
+                  className="text-center p-3 sm:p-4 bg-gradient-to-r from-emerald-50 to-blue-50 rounded-lg cursor-pointer select-none transition-all duration-200 hover:from-emerald-100 hover:to-blue-100"
+                  onClick={() => showCoverageNote && setCoverageExpanded((v) => !v)}
+                  onMouseEnter={() => showCoverageNote && setCoverageExpanded(true)}
+                  onMouseLeave={() => showCoverageNote && setCoverageExpanded(false)}
+                  title={showCoverageNote ? 'Click to see estimate details' : undefined}
+                >
                   <p className="text-xs sm:text-sm text-slate-600 mb-1">
                     Estimated cost for {budgetScales[budgetScale].label.toLowerCase()} {businessName.toLowerCase()} business
                   </p>
                   <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-emerald-700">
                     {formatPrice(calculateScaledPrice(unfilteredLowPrice))} - {formatPrice(calculateScaledPrice(unfilteredHighPrice))}
                   </p>
+                  {showCoverageNote && (
+                    <div className="mt-2 flex items-center justify-center gap-1">
+                      <p className="text-xs text-slate-500">
+                        Based on{' '}
+                        <span className="font-semibold text-slate-600">{requirementsWithProducts}</span>
+                        {' '}out of{' '}
+                        <span className="font-semibold text-slate-600">{totalRequirements}</span>
+                        {' '}requirements
+                      </p>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        className={`w-3.5 h-3.5 flex-shrink-0 transition-colors duration-200 ${coverageExpanded ? 'text-emerald-600' : 'text-slate-400'}`}
+                      >
+                        <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z" clipRule="evenodd" />
+                      </svg>
+                      {coverageExpanded && (
+                        <span className="absolute mt-16 z-10 w-64 rounded-lg bg-white border border-slate-200 shadow-lg p-3 text-xs text-slate-600 text-left leading-relaxed pointer-events-none">
+                          {totalRequirements - requirementsWithProducts}{' '}
+                          {totalRequirements - requirementsWithProducts === 1 ? 'requirement does' : 'requirements do'} not have products listed yet and{' '}
+                          {totalRequirements - requirementsWithProducts === 1 ? 'is' : 'are'} not included in this estimate. The actual startup cost may be higher.
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
