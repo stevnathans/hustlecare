@@ -12,9 +12,20 @@ interface BusinessPageContentProps {
   // Do NOT pass the raw params Promise — it causes double-unwrapping
   // and intermittent "business not found" errors.
   slug: string;
+  // FIX: accept the server-fetched counts as props so the page renders
+  // meaningful content immediately — before the client hook hydrates.
+  // This prevents Googlebot from seeing "0 Requirements" in the <h1>
+  // during its initial render pass, which could suppress the page in
+  // SERPs or cause a title mismatch with the <title> tag.
+  initialBusinessName: string;
+  initialRequirementCount: number;
 }
 
-export default function BusinessPageContent({ slug }: BusinessPageContentProps) {
+export default function BusinessPageContent({
+  slug,
+  initialBusinessName,
+  initialRequirementCount,
+}: BusinessPageContentProps) {
   const {
     business,
     requirements,
@@ -43,8 +54,6 @@ export default function BusinessPageContent({ slug }: BusinessPageContentProps) 
     handleCategorySearchChange,
   } = useFilterState(requirements, products, groupedRequirements, sortedCategories);
 
-  // Count requirements that have at least one product (used for the cost estimate coverage note).
-  // products is Record<string, ProductType[]> keyed by requirement name, so we look up directly.
   const requirementsWithProducts = requirements
     ? requirements.filter((req) => {
         const reqProducts = products[req.name];
@@ -80,12 +89,28 @@ export default function BusinessPageContent({ slug }: BusinessPageContentProps) 
   }
 
   // ── Loading skeleton ──────────────────────────────────────────────────────
+  //
+  // FIX: the old skeleton rendered nothing meaningful — Googlebot doing a
+  // first-pass render before JS fully executes would see blank grey boxes
+  // and zero content. We now render the <h1> immediately using the
+  // server-provided initial values so crawlers always find real heading text
+  // regardless of hydration timing.
 
   if (!business) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-3/4 mb-4"></div>
+        {/*
+          Render a real, text-bearing h1 during the loading state.
+          This is what Googlebot sees on a fast first render before
+          useBusinessData resolves. It matches the <title> tag exactly.
+        */}
+        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 leading-tight mb-3 sm:mb-4">
+          {initialRequirementCount > 0
+            ? `${initialRequirementCount} Requirements to Start a ${initialBusinessName} Business`
+            : `${initialBusinessName} Business - Complete Requirements & Total Costs`}
+        </h1>
+
+        <div className="animate-pulse mt-6">
           <div className="h-4 bg-gray-200 rounded w-1/2 mb-8"></div>
           <div className="space-y-4">
             <div className="h-32 bg-gray-200 rounded"></div>
@@ -97,21 +122,31 @@ export default function BusinessPageContent({ slug }: BusinessPageContentProps) 
   }
 
   // ── Main render ───────────────────────────────────────────────────────────
+  //
+  // FIX: removed the sr-only <h1> wrapper that previously sat here.
+  //
+  // The old pattern had TWO <h1> elements:
+  //   1. An sr-only <h1> here in BusinessPageContent
+  //   2. A visible <h1> inside BusinessHeader
+  //
+  // Having duplicate <h1> tags causes Google to treat whichever it finds
+  // first as the page title — and since sr-only text differs from visible
+  // text, this created a content mismatch. The sr-only heading also cannot
+  // be seen by users, so it provides no UX value.
+  //
+  // The fix: BusinessHeader renders the single, visible <h1>. The <header>
+  // landmark wrapper here provides the semantic container without a
+  // competing heading.
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* sr-only h1 mirrors the browser tab title for screen readers & crawlers.
-          The visible heading lives inside BusinessHeader. */}
-      <header className="mb-8">
-        <h1 className="sr-only">
-          {totalRequirements > 0
-            ? `${totalRequirements} Requirements To Start a ${business.name} Business in ${new Date().getFullYear()} (Plus Total Cost Calculations)`
-            : `${business.name} Business - Complete Requirements & Total Costs`}
-        </h1>
-      </header>
-
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <main className="md:col-span-2">
+          {/*
+            BusinessHeader owns the page's sole <h1>.
+            It receives live data from useBusinessData post-hydration,
+            and initial server values are used in the loading state above.
+          */}
           <BusinessHeader
             businessSlug={slug}
             totalRequirements={totalRequirements}

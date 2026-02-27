@@ -3,9 +3,6 @@ import { useState, useEffect } from 'react';
 import { useCart } from '@/contexts/CartContext';
 import { Product as ProductType } from '@/types';
 
-// Requirement shape returned by /api/business/[slug]/requirements.
-// Fields come from BusinessRequirement → RequirementTemplate resolution.
-// No businessId, createdAt, or updatedAt — those were on the old Requirement model.
 interface Requirement {
   id: number;
   templateId?: number;
@@ -16,9 +13,6 @@ interface Requirement {
   image?: string | null;
 }
 
-// Local Business type — no longer imported from @prisma/client because the
-// Prisma Business model doesn't include the extra display fields (location,
-// address, etc.) and importing it caused type conflicts after the schema migration.
 interface Business {
   id: number;
   name: string;
@@ -30,7 +24,6 @@ interface Business {
   userId: string | null;
   createdAt: Date;
   updatedAt: Date;
-  // Extra fields returned by the API but not in the Prisma model
   location?: string;
   address?: any;
   phone?: any;
@@ -42,13 +35,13 @@ interface Business {
 }
 
 const CATEGORY_ORDER = [
-  "Legal",
-  "Equipment",
-  "Software",
-  "Documents",
-  "Branding",
-  "Operating Expenses",
-  "Uncategorized",
+  'Legal',
+  'Equipment',
+  'Software',
+  'Documents',
+  'Branding',
+  'Operating Expenses',
+  'Uncategorized',
 ];
 
 export const useBusinessData = (slug: string) => {
@@ -67,7 +60,7 @@ export const useBusinessData = (slug: string) => {
         setIsLoading(true);
         setError(null);
 
-        // ── Business ────────────────────────────────────────────────────────
+        // ── Business ──────────────────────────────────────────────────────────
         const businessResponse = await fetch(`/api/business/${slug}`);
 
         if (businessResponse.status === 404) {
@@ -109,10 +102,7 @@ export const useBusinessData = (slug: string) => {
           switchBusiness(transformedBusiness.id);
         }
 
-        // ── Requirements ─────────────────────────────────────────────────────
-        // The API now returns requirements resolved from BusinessRequirement → template.
-        // Each item has: id (link id), templateId, name, description, category,
-        // necessity, image — all sourced from the template with [businessName] resolved.
+        // ── Requirements ──────────────────────────────────────────────────────
         const requirementsResponse = await fetch(`/api/business/${slug}/requirements`);
         if (!requirementsResponse.ok) {
           throw new Error('Failed to load requirements');
@@ -121,55 +111,80 @@ export const useBusinessData = (slug: string) => {
         const requirementsData: Requirement[] = await requirementsResponse.json();
         setRequirements(requirementsData);
 
-        // Group by category
         const grouped = requirementsData.reduce(
           (groups: Record<string, Requirement[]>, req: Requirement) => {
-            const category = req.category || "Uncategorized";
+            const category = req.category || 'Uncategorized';
             if (!groups[category]) groups[category] = [];
             groups[category].push(req);
             return groups;
           },
-          {}
+          {},
         );
 
         setGroupedRequirements(grouped);
         setSortedCategories(CATEGORY_ORDER.filter((cat) => grouped[cat]));
 
-        // ── Products ─────────────────────────────────────────────────────────
-        const productsByRequirement: Record<string, ProductType[]> = {};
-        for (const requirement of requirementsData) {
-          const productsResponse = await fetch(
-            `/api/products?requirementName=${encodeURIComponent(requirement.name)}`
-          );
-          if (productsResponse.ok) {
-            const productsData = await productsResponse.json();
-            productsByRequirement[requirement.name] = productsData.map(
-              (product: any): ProductType => ({
-                id: product.id,
-                name: product.name,
-                description: product.description || '',
-                price: product.price || 0,
-                image: product.image,
-                unit: product.unit ?? 1,
-                inCart: product.inCart || false,
-                rating: product.rating || 0,
-                reviews: product.reviews || 0,
-                vendorId: product.vendorId,
-                vendor: product.vendor,
-                url: product.url || '',
-                specifications: product.specifications || [],
-                category: product.category || requirement.category || 'Uncategorized',
-                requirementName: product.requirementName || requirement.name,
-                quantity: product.quantity || 1,
-                business: product.business || transformedBusiness.name,
-                createdAt: product.createdAt || new Date().toISOString(),
-                updatedAt: product.updatedAt || new Date().toISOString(),
-              })
-            );
-          }
-        }
-        setProducts(productsByRequirement);
+        // ── Products ──────────────────────────────────────────────────────────
+        //
+        // FIX: previously this fetched products one requirement at a time in a
+        // sequential for-loop. With 20 requirements that's 20 serial round-trips,
+        // each waiting for the previous to finish. This badly hurts Time to
+        // Interactive (TTI) — a Core Web Vitals signal that affects ranking.
+        //
+        // We now fire all fetches concurrently with Promise.allSettled so:
+        //   - Total wait time ≈ slowest single fetch (not sum of all fetches)
+        //   - A single failed product fetch no longer breaks the entire page
+        //   - Partial results are preserved even if some requirements 404
 
+        const productResults = await Promise.allSettled(
+          requirementsData.map((requirement) =>
+            fetch(`/api/products?requirementName=${encodeURIComponent(requirement.name)}`).then(
+              async (res) => {
+                if (!res.ok) return { requirement, productsData: [] };
+                const productsData = await res.json();
+                return { requirement, productsData };
+              },
+            ),
+          ),
+        );
+
+        const productsByRequirement: Record<string, ProductType[]> = {};
+
+        for (const result of productResults) {
+          if (result.status === 'rejected') {
+            // Log but don't surface — partial failure shouldn't break the page
+            console.warn('Failed to load products for a requirement:', result.reason);
+            continue;
+          }
+
+          const { requirement, productsData } = result.value;
+
+          productsByRequirement[requirement.name] = productsData.map(
+            (product: any): ProductType => ({
+              id: product.id,
+              name: product.name,
+              description: product.description || '',
+              price: product.price || 0,
+              image: product.image,
+              unit: product.unit ?? 1,
+              inCart: product.inCart || false,
+              rating: product.rating || 0,
+              reviews: product.reviews || 0,
+              vendorId: product.vendorId,
+              vendor: product.vendor,
+              url: product.url || '',
+              specifications: product.specifications || [],
+              category: product.category || requirement.category || 'Uncategorized',
+              requirementName: product.requirementName || requirement.name,
+              quantity: product.quantity || 1,
+              business: product.business || transformedBusiness.name,
+              createdAt: product.createdAt || new Date().toISOString(),
+              updatedAt: product.updatedAt || new Date().toISOString(),
+            }),
+          );
+        }
+
+        setProducts(productsByRequirement);
         setIsLoading(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An unknown error occurred');

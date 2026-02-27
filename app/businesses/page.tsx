@@ -19,9 +19,9 @@ async function getBusinessCount(): Promise<number> {
 function buildTitle(count: number): string {
   const year = new Date().getFullYear();
   if (count > 0) {
-    return `${count} Best Business Opportunities to Start in ${year} | HustleCare`;
+    return `${count} Profitable Business Ideas to Start in ${year} | HustleCare`;
   }
-  return `Best Business Opportunities to Start in ${year} | HustleCare`;
+  return `Profitable Business Ideas to Start in ${year} | HustleCare`;
 }
 
 // ── SEO Metadata ──────────────────────────────────────────────────────────────
@@ -30,15 +30,15 @@ export async function generateMetadata(): Promise<Metadata> {
   const count = await getBusinessCount();
   const title = buildTitle(count);
   const description =
-    "Discover 100+ verified business opportunities with complete setup guides. Get step-by-step requirements, cost estimates, and launch timelines to start your dream business.";
+    "Discover 100+ verified profitable business ideas with complete setup guides. Get complete list of requirements, cost estimates, and expert guides to start your dream business.";
   const url = "https://hustlecare.net/businesses";
-  const ogImage = "https://hustlecare.net/images/og/business-opportunities-og.jpg";
+  const ogImage = "https://hustlecare.net/public/images/business_ideas_hutlecare";
 
   return {
     title,
     description,
     keywords:
-      "business opportunities, start a business, entrepreneurship, small business ideas, business requirements",
+      "business opportunities, start a business, best business ideas in Kenya, entrepreneurship, small business ideas, profitable business ideas in Kenya, business requirements",
 
     authors: [{ name: "HustleCare" }],
     creator: "HustleCare",
@@ -50,7 +50,7 @@ export async function generateMetadata(): Promise<Metadata> {
       siteName: "HustleCare",
       title,
       description,
-      images: [{ url: ogImage, width: 1200, height: 630, alt: "Business opportunities on HustleCare" }],
+      images: [{ url: ogImage, width: 1200, height: 630, alt: "Business ideas on HustleCare" }],
       locale: "en_US",
     },
 
@@ -91,13 +91,13 @@ async function getStructuredData() {
     "@type": "CollectionPage",
     name: buildTitle(count),
     description:
-      "Discover verified business opportunities with complete setup guides, cost estimates, and launch timelines.",
+      "Discover verified profitable business ideas with complete requirements, cost estimates, and expert guides.",
     url: "https://hustlecare.net/businesses",
     breadcrumb: {
       "@type": "BreadcrumbList",
       itemListElement: [
         { "@type": "ListItem", position: 1, name: "Home", item: "https://hustlecare.net/" },
-        { "@type": "ListItem", position: 2, name: "Business Opportunities", item: "https://hustlecare.net/businesses" },
+        { "@type": "ListItem", position: 2, name: "Business Ideas", item: "https://hustlecare.net/businesses" },
       ],
     },
   };
