@@ -221,7 +221,7 @@ export default function RequirementCard({
                           Starting from
                         </div>
                         <div className="text-lg font-bold text-emerald-600">
-                          ${lowestPrice.toLocaleString()}
+                          KSh {lowestPrice.toLocaleString()}
                         </div>
                       </div>
                     </div>
@@ -325,12 +325,12 @@ export default function RequirementCard({
                     {isProductlessInCart ? (
                       <>
                         <FiCheck size={16} />
-                        <span>Added to Calculator</span>
+                        <span>Added to List</span>
                       </>
                     ) : (
                       <>
                         <FiPlus size={16} />
-                        <span>Add to Calculator</span>
+                        <span>Add to List</span>
                       </>
                     )}
                   </button>

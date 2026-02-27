@@ -246,7 +246,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(16, 185, 129);
-      doc.text(`Total Cost Estimate: $${formatCurrency(totalCost)}`, margin, yPosition);
+      doc.text(`Total Cost Estimate: KSh ${formatCurrency(totalCost)}`, margin, yPosition);
 
       // Note if there are productless items
       if (hasProductlessItems) {
@@ -282,7 +282,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
         doc.setFontSize(9);
         doc.setTextColor(107, 114, 128); // gray-500
         doc.text(
-          `${formatItemCount(category.categoryTotalItems)} | $${formatCurrency(category.categorySubtotal)}`,
+          `${formatItemCount(category.categoryTotalItems)} | KSh ${formatCurrency(category.categorySubtotal)}`,
           pageWidth - margin - 2,
           yPosition,
           { align: 'right' }
@@ -320,8 +320,8 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
               .map(item => [
                 item.name,
                 item.quantity.toString(),
-                `$${formatCurrency(item.price)}`,
-                `$${formatCurrency(item.price * item.quantity)}`
+                `KSh ${formatCurrency(item.price)}`,
+                `KSh ${formatCurrency(item.price * item.quantity)}`
               ]);
 
             autoTable(doc, {
@@ -481,7 +481,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
                 </div>
               </div>
               <div className="text-right">
-                <span className="text-white font-bold text-xl block">${formatCurrency(totalCost)}</span>
+                <span className="text-white font-bold text-xl block">KSh {formatCurrency(totalCost)}</span>
                 <p className="text-white text-opacity-80 text-xs">Total Estimated Cost</p>
               </div>
             </div>
@@ -568,7 +568,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="text-lg font-bold text-emerald-600 block">${formatCurrency(category.categorySubtotal)}</span>
+                    <span className="text-lg font-bold text-emerald-600 block">KSh {formatCurrency(category.categorySubtotal)}</span>
                   </div>
                 </div>
 
@@ -648,7 +648,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
                                     )}
                                     <div className="flex-grow min-w-0 mr-2">
                                       <h5 className="font-medium text-xs sm:text-sm text-gray-800 truncate">{item.name}</h5>
-                                      <p className="text-xs text-gray-500 mt-0.5">${formatCurrency(item.price)}</p>
+                                      <p className="text-xs text-gray-500 mt-0.5">KSh {formatCurrency(item.price)}</p>
                                     </div>
                                   </div>
                                   
@@ -735,7 +735,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
   <div className="flex justify-between items-center">
     <div>
       <span className="text-sm text-gray-600 block mb-1">Total Estimated Cost</span>
-      <span className="text-3xl sm:text-2xl font-bold text-emerald-700">${formatCurrency(totalCost)}</span>
+      <span className="text-3xl sm:text-2xl font-bold text-emerald-700">KSh {formatCurrency(totalCost)}</span>
       {hasProductlessItems && (
         <span className="text-xs text-gray-500 mt-1 block">
           Based on {requirementCounts.costing} out of {requirementCounts.total} requirements

@@ -329,7 +329,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
                 </p>
               )}
               <span className="text-base sm:text-lg font-bold text-gray-900">
-                ${product.price.toLocaleString()}
+                KSh {product.price.toLocaleString()}
               </span>
             </div>
 
