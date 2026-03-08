@@ -4,10 +4,6 @@ import Image from 'next/image';
 import { Plus, Search, Edit2, Trash2, ExternalLink, X, Store, Globe } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
 
-/* ── This page is a complete replacement for the vendors page. ──
-   VendorTable and VendorModal have been inlined so the dark theme
-   is self-contained. Swap the import path in your app router.      */
-
 type Vendor = {
   id: number; name: string; website?: string | null; logo?: string | null;
   _count?: { products: number };
@@ -91,8 +87,8 @@ export default function VendorsPage() {
     e.preventDefault(); setLoading(true);
     try {
       const method = editingVendor ? 'PATCH' : 'POST';
-      const body   = editingVendor ? { ...formData, id:editingVendor.id } : formData;
-      const r = await fetch('/api/vendors', { method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+      const url    = editingVendor ? `/api/vendors/${editingVendor.id}` : '/api/vendors';
+      const r = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(formData) });
       if (!r.ok) throw new Error();
       toast.success(editingVendor ? 'Vendor updated!' : 'Vendor created!');
       closeModal(); fetchVendors();
