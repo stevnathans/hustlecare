@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import {prisma} from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import { Vendor } from '@prisma/client';
 
 // GET all vendors
@@ -7,6 +7,11 @@ export async function GET() {
   try {
     const vendors = await prisma.vendor.findMany({
       orderBy: { name: 'asc' },
+      include: {
+        _count: {
+          select: { products: true },
+        },
+      },
     });
     return NextResponse.json(vendors);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -22,8 +27,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const data: Omit<Vendor, 'id' | 'createdAt' | 'updatedAt'> = await request.json();
-    
-    // Validate required fields
+
     if (!data.name) {
       return NextResponse.json(
         { error: 'Vendor name is required' },
