@@ -14,13 +14,13 @@ export const metadata: Metadata = {
     "revenue projections for new business",
   ],
   alternates: {
-    canonical: "https://www.hustlecare.com/services/financial-projections",
+    canonical: "https://www.hustlecare.net/services/financial-projections",
   },
   openGraph: {
     title: "Financial Projections for Startups & Small Businesses | Hustlecare",
     description:
       "Get professional financial projections for your startup. Understand your startup costs, revenue potential, and profitability before you launch.",
-    url: "https://www.hustlecare.com/services/financial-projections",
+    url: "https://www.hustlecare.net/services/financial-projections",
     siteName: "Hustlecare",
     type: "website",
   },

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Menu as MenuIcon, X, LogIn, Sparkles, Briefcase, Mail, Info, Search } from "lucide-react";
+import { Menu as MenuIcon, X, LogIn, Sparkles, Handshake, Briefcase, Mail, Info, Search } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
@@ -96,6 +96,13 @@ export default function Menu() {
               >
                 <Briefcase className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
                 <span>Businesses</span>
+              </Link>
+              <Link 
+                href="/services" 
+                className="flex items-center space-x-1 text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200 font-medium group"
+              >
+                <Handshake className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
+                <span>Servicess</span>
               </Link>
               
               <Link 

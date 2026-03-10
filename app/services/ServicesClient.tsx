@@ -585,7 +585,7 @@ function CTASection() {
             <ArrowIcon />
           </a>
           <Link
-            href="/"
+            href="/businesses"
             className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-8 py-4 rounded-xl transition-all active:scale-95"
           >
             Find Business Requirements

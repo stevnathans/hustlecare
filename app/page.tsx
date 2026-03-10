@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Search, ClipboardCheck, ArrowRight, Calculator } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import HomeSearch from "@/components/ui/homeSearch";
 import BusinessCard from "@/components/business/BusinessCards";
 import Skeleton from "react-loading-skeleton";
 import { motion } from "framer-motion";
 import { WhatWeDoSection } from "@/components/WhatWeDo";
+import { HomepageServicesSection } from "@/components/Homepageservicessection";
+import { HowItWorksSection } from "@/components/HowItWorksSection";
 
 // Requirements no longer come from @prisma/client directly.
 // The /api/businesses endpoint resolves them from BusinessRequirement + template
@@ -57,67 +59,7 @@ export default function Home() {
       </section>
 
       {/* How it Works Section - Seamlessly connected */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <span className="inline-block px-4 py-2 text-sm font-medium text-emerald-700 bg-emerald-100/50 rounded-full mb-4">
-              Our Process
-            </span>
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Simple <span className="text-emerald-600">3-Step</span> Process
-            </h2>
-            <p className="text-gray-600 max-w-3xl mx-auto text-lg">
-              From idea to launch in the most efficient way possible
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              {
-                icon: <Search className="w-6 h-6 text-emerald-600" />,
-                title: "1. Discover",
-                description: "Explore all the legal, equipment, software, branding, and operational requirements your business needs in one structured list.",
-                borderColor: "border-emerald-200"
-              },
-              {
-                icon: <ClipboardCheck className="w-6 h-6 text-emerald-600" />,
-                title: "2. Customize",
-                description: "Select and add the specific products or services you want for each requirement to tailor your business setup.",
-                borderColor: "border-emerald-300"
-              },
-              {
-                icon: <Calculator className="w-6 h-6 text-emerald-600" />,
-                title: "3. Calculate",
-                description: "Instantly see the total estimated startup cost, broken down by category and overall, to plan your budget effectively",
-                borderColor: "border-emerald-400"
-              }
-            ].map((step, index) => (
-              <div
-                key={index}
-                className={`p-8 rounded-xl border-t-4 ${step.borderColor} bg-white shadow-sm hover:shadow-md transition-shadow`}
-              >
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="p-3 bg-emerald-50 rounded-lg">
-                    {step.icon}
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-900">{step.title}</h3>
-                </div>
-                <p className="text-gray-600 leading-relaxed">{step.description}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-16 text-center">
-            <Link
-              href="/businesses"
-              className="inline-flex items-center px-6 py-3 text-base font-medium rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 transition-colors"
-            >
-              Browse All Businesses
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </div>
-        </div>
-      </section>
+      <HowItWorksSection />
 
       <WhatWeDoSection />
 
@@ -192,6 +134,7 @@ export default function Home() {
           </div>
         </div>
       </section>
+      <HomepageServicesSection />
     </main>
   );
 }

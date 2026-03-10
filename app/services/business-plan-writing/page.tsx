@@ -14,13 +14,13 @@ export const metadata: Metadata = {
     "small business business plan",
   ],
   alternates: {
-    canonical: "https://www.hustlecare.com/services/business-plan-writing",
+    canonical: "https://www.hustlecare.net/services/business-plan-writing",
   },
   openGraph: {
     title: "Business Plan Writing Service for Startups | Hustlecare",
     description:
       "Get a professional business plan for your startup. Includes market research, financial projections, and investor-ready documents.",
-    url: "https://www.hustlecare.com/services/business-plan-writing",
+    url: "https://www.hustlecare.net/services/business-plan-writing",
     siteName: "Hustlecare",
     type: "website",
   },

@@ -49,7 +49,7 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'KES',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(price);
@@ -83,16 +83,16 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
       "@context": "https://schema.org",
       "@type": "Service",
       "name": `${businessName} Business Startup Guide`,
-      "description": `Complete guide to starting a ${businessName} business with detailed requirements and cost estimates.`,
+      "description": `Complete guide to starting a ${businessName} business in Kenya with detailed requirements and cost estimates.`,
       "provider": {
         "@type": "Organization",
         "name": "Hustlecare",
-        "url": "https://hustlecare.com"
+        "url": "https://hustlecare.net"
       },
       "areaServed": {
         "@type": "Country",
-        "name": "United States",
-        "sameAs": "https://en.wikipedia.org/wiki/United_States"
+        "name": "Kenya",
+        "sameAs": "https://en.wikipedia.org/wiki/Kenya"
       }
     };
 
@@ -101,7 +101,7 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
         "@type": "Offer",
         "description": `Startup cost estimate for ${businessName} business`,
         "priceRange": priceRange,
-        "priceCurrency": "USD"
+        "priceCurrency": "KES"
       };
     }
 

@@ -14,13 +14,13 @@ export const metadata: Metadata = {
     "small business website service",
   ],
   alternates: {
-    canonical: "https://www.hustlecare.com/services/website-creation",
+    canonical: "https://www.hustlecare.net/services/website-creation",
   },
   openGraph: {
     title: "Website Creation for Small Businesses | Hustlecare",
     description:
       "Launch a professional website for your business. Hustlecare builds fast, modern websites designed for startups and small businesses.",
-    url: "https://www.hustlecare.com/services/website-creation",
+    url: "https://www.hustlecare.net/services/website-creation",
     siteName: "Hustlecare",
     type: "website",
   },

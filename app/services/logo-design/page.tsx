@@ -14,13 +14,13 @@ export const metadata: Metadata = {
     "custom logo design",
   ],
   alternates: {
-    canonical: "https://www.hustlecare.com/services/logo-design",
+    canonical: "https://www.hustlecare.net/services/logo-design",
   },
   openGraph: {
     title: "Professional Logo Design for Startups | Hustlecare",
     description:
       "Get a professional logo designed for your business. Build a strong brand identity with custom logo design created for startups and small businesses.",
-    url: "https://www.hustlecare.com/services/logo-design",
+    url: "https://www.hustlecare.net/services/logo-design",
     siteName: "Hustlecare",
     type: "website",
   },
