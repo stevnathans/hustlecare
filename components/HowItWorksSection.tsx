@@ -10,15 +10,15 @@ import {
 } from "@heroicons/react/24/outline";
 import { FiPlus, FiCheck, FiShoppingCart, FiChevronDown, FiTrash2 } from "react-icons/fi";
 
-// ─── Shared animation variants ────────────────────────────────────────────────
-const fadeUp = {
-  hidden: { opacity: 0, y: 36 },
-  visible: (delay = 0) => ({
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1], delay },
-  }),
-};
+// ─── Shared animation helper ──────────────────────────────────────────────────
+const easing = [0.22, 1, 0.36, 1] as const;
+function fadeUpProps(delay = 0, inView = true) {
+  return {
+    initial: { opacity: 0, y: 36 },
+    animate: inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 36 },
+    transition: { duration: 0.7, ease: easing, delay },
+  };
+}
 
 // ─── Step pill ────────────────────────────────────────────────────────────────
 function StepPill({ number, label }: { number: string; label: string }) {
@@ -428,30 +428,19 @@ function StepSection({
           reverse ? "lg:items-end lg:text-right" : ""
         }`}
       >
-        <motion.div
-          variants={fadeUp}
-          custom={0}
-          initial="hidden"
-          animate={inView ? "visible" : "hidden"}
-        >
+        <motion.div {...fadeUpProps(0, inView)}>
           <StepPill number={stepNumber} label={stepLabel} />
         </motion.div>
 
         <motion.h2
-          variants={fadeUp}
-          custom={0.1}
-          initial="hidden"
-          animate={inView ? "visible" : "hidden"}
+          {...fadeUpProps(0.1, inView)}
           className="text-3xl sm:text-4xl lg:text-[2.6rem] font-black text-slate-900 leading-tight mb-4 tracking-tight"
         >
           {title}
         </motion.h2>
 
         <motion.p
-          variants={fadeUp}
-          custom={0.2}
-          initial="hidden"
-          animate={inView ? "visible" : "hidden"}
+          {...fadeUpProps(0.2, inView)}
           className="text-slate-500 text-lg leading-relaxed max-w-md"
         >
           {description}
