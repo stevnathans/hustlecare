@@ -22,6 +22,7 @@ export default function BusinessPageContent({ slug }: BusinessPageContentProps) 
     error,
     groupedRequirements,
     sortedCategories,
+    refreshProducts, // ← destructured so we can pass it down as onProductAssigned
   } = useBusinessData(slug);
 
   const {
@@ -139,6 +140,7 @@ export default function BusinessPageContent({ slug }: BusinessPageContentProps) 
               onCategorySearchChange={handleCategorySearchChange}
               onSetFilter={setFilter}
               getFilteredRequirements={getFilteredRequirements}
+              onProductAssigned={refreshProducts} // ← wire up the refresh callback
             />
           </section>
         </main>

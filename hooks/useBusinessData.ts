@@ -1,11 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useCart } from '@/contexts/CartContext';
 import { Product as ProductType } from '@/types';
 
-// Requirement shape returned by /api/business/[slug]/requirements.
-// Fields come from BusinessRequirement → RequirementTemplate resolution.
-// No businessId, createdAt, or updatedAt — those were on the old Requirement model.
 interface Requirement {
   id: number;
   templateId?: number;
@@ -16,9 +13,6 @@ interface Requirement {
   image?: string | null;
 }
 
-// Local Business type — no longer imported from @prisma/client because the
-// Prisma Business model doesn't include the extra display fields (location,
-// address, etc.) and importing it caused type conflicts after the schema migration.
 interface Business {
   id: number;
   name: string;
@@ -30,7 +24,6 @@ interface Business {
   userId: string | null;
   createdAt: Date;
   updatedAt: Date;
-  // Extra fields returned by the API but not in the Prisma model
   location?: string;
   address?: any;
   phone?: any;
@@ -61,13 +54,70 @@ export const useBusinessData = (slug: string) => {
   const [groupedRequirements, setGroupedRequirements] = useState<Record<string, Requirement[]>>({});
   const [sortedCategories, setSortedCategories] = useState<string[]>([]);
 
+  // Extracted into its own function so it can be called both on initial load
+  // and on-demand after an admin assigns a product to a requirement.
+  const fetchProducts = useCallback(async (requirementsData: Requirement[], businessName: string) => {
+    const productsByRequirement: Record<string, ProductType[]> = {};
+
+    for (const requirement of requirementsData) {
+      // Pass templateId (direct DB link) AND requirementName (legacy name-match).
+      // The API merges both result sets and deduplicates by id, so all products
+      // — whether assigned by name-match or explicit assignment — are returned.
+      const params = new URLSearchParams({
+        requirementName: requirement.name,
+      });
+      if (requirement.templateId) {
+        params.set('templateId', String(requirement.templateId));
+      }
+
+      const productsResponse = await fetch(`/api/products?${params.toString()}`);
+      if (productsResponse.ok) {
+        const productsData = await productsResponse.json();
+        productsByRequirement[requirement.name] = productsData.map(
+          (product: any): ProductType => ({
+            id: product.id,
+            name: product.name,
+            description: product.description || '',
+            price: product.price || 0,
+            image: product.image,
+            unit: product.unit ?? 1,
+            inCart: product.inCart || false,
+            rating: product.rating || 0,
+            reviews: product.reviews || 0,
+            vendorId: product.vendorId,
+            vendor: product.vendor,
+            url: product.url || '',
+            specifications: product.specifications || [],
+            category: product.category || requirement.category || 'Uncategorized',
+            requirementName: product.requirementName || requirement.name,
+            quantity: product.quantity || 1,
+            business: product.business || businessName,
+            createdAt: product.createdAt || new Date().toISOString(),
+            updatedAt: product.updatedAt || new Date().toISOString(),
+          })
+        );
+      }
+    }
+
+    setProducts(productsByRequirement);
+  }, []);
+
+  // Called by BusinessPageContent after an admin assigns a product to a requirement.
+  // Re-fetches only the products (not business or requirements) so the UI updates
+  // without a full page reload.
+  const refreshProducts = useCallback(() => {
+    if (requirements.length > 0 && business) {
+      fetchProducts(requirements, business.name);
+    }
+  }, [requirements, business, fetchProducts]);
+
   useEffect(() => {
     const loadBusinessData = async () => {
       try {
         setIsLoading(true);
         setError(null);
 
-        // ── Business ────────────────────────────────────────────────────────
+        // ── Business ──────────────────────────────────────────────────────
         const businessResponse = await fetch(`/api/business/${slug}`);
 
         if (businessResponse.status === 404) {
@@ -109,10 +159,7 @@ export const useBusinessData = (slug: string) => {
           switchBusiness(transformedBusiness.id);
         }
 
-        // ── Requirements ─────────────────────────────────────────────────────
-        // The API now returns requirements resolved from BusinessRequirement → template.
-        // Each item has: id (link id), templateId, name, description, category,
-        // necessity, image — all sourced from the template with [businessName] resolved.
+        // ── Requirements ──────────────────────────────────────────────────
         const requirementsResponse = await fetch(`/api/business/${slug}/requirements`);
         if (!requirementsResponse.ok) {
           throw new Error('Failed to load requirements');
@@ -121,10 +168,9 @@ export const useBusinessData = (slug: string) => {
         const requirementsData: Requirement[] = await requirementsResponse.json();
         setRequirements(requirementsData);
 
-        // Group by category
         const grouped = requirementsData.reduce(
           (groups: Record<string, Requirement[]>, req: Requirement) => {
-            const category = req.category || "Uncategorized";
+            const category = req.category || 'Uncategorized';
             if (!groups[category]) groups[category] = [];
             groups[category].push(req);
             return groups;
@@ -135,40 +181,8 @@ export const useBusinessData = (slug: string) => {
         setGroupedRequirements(grouped);
         setSortedCategories(CATEGORY_ORDER.filter((cat) => grouped[cat]));
 
-        // ── Products ─────────────────────────────────────────────────────────
-        const productsByRequirement: Record<string, ProductType[]> = {};
-        for (const requirement of requirementsData) {
-          const productsResponse = await fetch(
-            `/api/products?requirementName=${encodeURIComponent(requirement.name)}`
-          );
-          if (productsResponse.ok) {
-            const productsData = await productsResponse.json();
-            productsByRequirement[requirement.name] = productsData.map(
-              (product: any): ProductType => ({
-                id: product.id,
-                name: product.name,
-                description: product.description || '',
-                price: product.price || 0,
-                image: product.image,
-                unit: product.unit ?? 1,
-                inCart: product.inCart || false,
-                rating: product.rating || 0,
-                reviews: product.reviews || 0,
-                vendorId: product.vendorId,
-                vendor: product.vendor,
-                url: product.url || '',
-                specifications: product.specifications || [],
-                category: product.category || requirement.category || 'Uncategorized',
-                requirementName: product.requirementName || requirement.name,
-                quantity: product.quantity || 1,
-                business: product.business || transformedBusiness.name,
-                createdAt: product.createdAt || new Date().toISOString(),
-                updatedAt: product.updatedAt || new Date().toISOString(),
-              })
-            );
-          }
-        }
-        setProducts(productsByRequirement);
+        // ── Products ──────────────────────────────────────────────────────
+        await fetchProducts(requirementsData, transformedBusiness.name);
 
         setIsLoading(false);
       } catch (err) {
@@ -179,7 +193,7 @@ export const useBusinessData = (slug: string) => {
     };
 
     loadBusinessData();
-  }, [slug, switchBusiness]);
+  }, [slug, switchBusiness, fetchProducts]);
 
   return {
     business,
@@ -189,5 +203,6 @@ export const useBusinessData = (slug: string) => {
     isLoading,
     groupedRequirements,
     sortedCategories,
+    refreshProducts,
   };
 };

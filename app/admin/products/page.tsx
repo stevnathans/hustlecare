@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import Image from 'next/image';
+import AssignRequirementModal from '@/components/admin/AssignRequirementModal';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -21,6 +22,8 @@ type Product = {
   url: string;
   vendorId: number | null;
   vendor: Vendor | null;
+  templateId: number | null;
+  template: { id: number; name: string } | null;
 };
 
 type SortField = 'name' | 'price' | 'vendor' | 'id';
@@ -64,7 +67,7 @@ type CSVProduct = {
   image?: string;
   url?: string;
   vendorId?: number;
-  _vendorName?: string; // display only
+  _vendorName?: string;
 };
 
 function parseCSVLine(line: string): string[] {
@@ -162,7 +165,6 @@ function ProductCSVImport({ onImportComplete, vendors }: {
       try {
         setErrors([]);
         const parsed = parseProductCSV(ev.target?.result as string);
-        // Resolve vendor IDs from names
         const resolved = parsed.map(p => {
           if (p._vendorName) {
             const match = vendors.find(([, name]) => name.toLowerCase() === p._vendorName!.toLowerCase());
@@ -212,7 +214,6 @@ function ProductCSVImport({ onImportComplete, vendors }: {
     setProducts(prev => prev.filter((_, i) => i !== idx));
   }
 
-  // Close on Escape
   useEffect(() => {
     if (!open) return;
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') closeModal(); };
@@ -222,7 +223,6 @@ function ProductCSVImport({ onImportComplete, vendors }: {
 
   return (
     <>
-      {/* Trigger button */}
       <button className="btn btn-ghost" onClick={openModal}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
@@ -230,12 +230,9 @@ function ProductCSVImport({ onImportComplete, vendors }: {
         Import CSV
       </button>
 
-      {/* Modal */}
       {open && (
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-box" style={{ maxWidth: 740 }} onClick={e => e.stopPropagation()}>
-
-            {/* Header */}
             <div className="modal-header">
               <div>
                 <div className="modal-title">Import Products from CSV</div>
@@ -249,7 +246,6 @@ function ProductCSVImport({ onImportComplete, vendors }: {
             <div className="modal-divider" />
 
             <div className="modal-body">
-              {/* Info panel */}
               <div style={{
                 background: 'rgba(124,106,247,0.07)',
                 border: '1px solid rgba(124,106,247,0.18)',
@@ -291,7 +287,6 @@ function ProductCSVImport({ onImportComplete, vendors }: {
                 </button>
               </div>
 
-              {/* File upload */}
               <div style={{ marginBottom: '1.25rem' }}>
                 <label className="form-label" style={{ display: 'block', marginBottom: '0.4rem' }}>Upload CSV File</label>
                 <input
@@ -314,7 +309,6 @@ function ProductCSVImport({ onImportComplete, vendors }: {
                 />
               </div>
 
-              {/* Errors */}
               {errors.length > 0 && (
                 <div style={{
                   background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
@@ -329,7 +323,6 @@ function ProductCSVImport({ onImportComplete, vendors }: {
                 </div>
               )}
 
-              {/* Preview table */}
               {products.length > 0 && (
                 <div>
                   <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#6b6b8a', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -406,7 +399,6 @@ function ProductCSVImport({ onImportComplete, vendors }: {
               )}
             </div>
 
-            {/* Footer */}
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={closeModal} disabled={loading}>Cancel</button>
               <button
@@ -431,7 +423,6 @@ function ProductCSVImport({ onImportComplete, vendors }: {
         </div>
       )}
 
-      {/* Local toast for the import modal */}
       {toast && (
         <div className={`toast toast-${toast.type}`} style={{ bottom: '5rem' }}>
           {toast.msg}
@@ -441,7 +432,7 @@ function ProductCSVImport({ onImportComplete, vendors }: {
   );
 }
 
-// ─── Product Form Modal (Dark Theme) ─────────────────────────────────────────
+// ─── Product Form Modal ───────────────────────────────────────────────────────
 
 type FormField = { name: string; description: string; price: string; image: string; url: string; vendorId: string };
 const EMPTY_FORM: FormField = { name: '', description: '', price: '', image: '', url: '', vendorId: '' };
@@ -479,7 +470,6 @@ function ProductFormModal({
     }
   }, [open, editingProduct]);
 
-  // Close on Escape
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
@@ -530,7 +520,6 @@ function ProductFormModal({
   return (
     <div className="modal-overlay" onClick={() => setOpen(false)}>
       <div className="modal-box" onClick={e => e.stopPropagation()}>
-        {/* Header */}
         <div className="modal-header">
           <div>
             <div className="modal-title">{isEdit ? 'Edit Product' : 'New Product'}</div>
@@ -543,13 +532,10 @@ function ProductFormModal({
           </button>
         </div>
 
-        {/* Divider */}
         <div className="modal-divider" />
 
-        {/* Body */}
         <div className="modal-body">
           <div className="form-grid">
-            {/* Name */}
             <div className="form-group form-full">
               <label className="form-label">
                 Product Name <span className="form-required">*</span>
@@ -565,7 +551,6 @@ function ProductFormModal({
               {errors.name && <div className="form-error">{errors.name}</div>}
             </div>
 
-            {/* Price & Vendor */}
             <div className="form-group">
               <label className="form-label">
                 Price <span className="form-required">*</span>
@@ -599,7 +584,6 @@ function ProductFormModal({
               </select>
             </div>
 
-            {/* Description */}
             <div className="form-group form-full">
               <label className="form-label">Description</label>
               <textarea
@@ -611,7 +595,6 @@ function ProductFormModal({
               />
             </div>
 
-            {/* Image URL */}
             <div className="form-group form-full">
               <label className="form-label">Image URL</label>
               <div className="url-input-wrap">
@@ -634,7 +617,6 @@ function ProductFormModal({
               )}
             </div>
 
-            {/* Product URL */}
             <div className="form-group form-full">
               <label className="form-label">Product URL</label>
               <div className="url-input-wrap">
@@ -654,7 +636,6 @@ function ProductFormModal({
           </div>
         </div>
 
-        {/* Footer */}
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={() => setOpen(false)} disabled={saving}>Cancel</button>
           <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
@@ -702,7 +683,6 @@ function Pagination({
   const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const end = Math.min(page * pageSize, total);
 
-  // Page window: show up to 7 pages
   const pages: (number | '…')[] = [];
   if (totalPages <= 7) {
     for (let i = 1; i <= totalPages; i++) pages.push(i);
@@ -723,12 +703,7 @@ function Pagination({
       </div>
 
       <div className="pagination-controls">
-        <button
-          className="pg-btn"
-          disabled={page === 1}
-          onClick={() => onPage(page - 1)}
-          aria-label="Previous page"
-        >
+        <button className="pg-btn" disabled={page === 1} onClick={() => onPage(page - 1)} aria-label="Previous page">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
             <path d="M15 18l-6-6 6-6"/>
           </svg>
@@ -738,22 +713,13 @@ function Pagination({
           p === '…' ? (
             <span key={`ellipsis-${i}`} className="pg-ellipsis">…</span>
           ) : (
-            <button
-              key={p}
-              className={`pg-btn ${page === p ? 'pg-active' : ''}`}
-              onClick={() => onPage(p as number)}
-            >
+            <button key={p} className={`pg-btn ${page === p ? 'pg-active' : ''}`} onClick={() => onPage(p as number)}>
               {p}
             </button>
           )
         )}
 
-        <button
-          className="pg-btn"
-          disabled={page === totalPages}
-          onClick={() => onPage(page + 1)}
-          aria-label="Next page"
-        >
+        <button className="pg-btn" disabled={page === totalPages} onClick={() => onPage(page + 1)} aria-label="Next page">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
             <path d="M9 18l6-6-6-6"/>
           </svg>
@@ -788,14 +754,16 @@ export default function ProductsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [priceRangeIdx, setPriceRangeIdx] = useState(0);
   const [vendorFilter, setVendorFilter] = useState<string>('');
+  const [requirementFilter, setRequirementFilter] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  // Full vendor list fetched independently so the form always has every vendor,
-  // including those not yet assigned to any product.
   const [allVendors, setAllVendors] = useState<Vendor[]>([]);
+
+  // ── NEW: Assign-requirement modal state ───────────────────────────────────
+  const [assignModalProduct, setAssignModalProduct] = useState<Product | null>(null);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
@@ -825,7 +793,7 @@ export default function ProductsPage() {
       const data = await res.json();
       setAllVendors(Array.isArray(data) ? data : []);
     } catch {
-      // Non-fatal: vendor dropdown will be empty but the page still works
+      // non-fatal
     }
   }, []);
 
@@ -834,10 +802,8 @@ export default function ProductsPage() {
     fetchVendors();
   }, [fetchProducts, fetchVendors]);
 
-  // Reset page when filters change
-  useEffect(() => { setPage(1); }, [searchTerm, vendorFilter, priceRangeIdx, sortField, sortDir]);
+  useEffect(() => { setPage(1); }, [searchTerm, vendorFilter, requirementFilter, priceRangeIdx, sortField, sortDir]);
 
-  // Keyboard shortcut: N to open new product modal
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'n' && !modalOpen && !e.ctrlKey && !e.metaKey && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
@@ -849,16 +815,23 @@ export default function ProductsPage() {
     return () => window.removeEventListener('keydown', handler);
   }, [modalOpen]);
 
-  // [id, name] pairs from ALL vendors — used by the form modal and CSV importer
   const vendors = useMemo<[string, string][]>(
     () => allVendors.map(v => [String(v.id), v.name]),
     [allVendors]
   );
 
-  // Vendor filter dropdown only shows vendors that appear in existing products
   const vendorsInProducts = useMemo<[string, string][]>(() => {
     const seen = new Map<string, string>();
     products.forEach(p => { if (p.vendor) seen.set(String(p.vendor.id), p.vendor.name); });
+    return Array.from(seen.entries());
+  }, [products]);
+
+  // Unique requirement templates that appear in the product list (for filter dropdown)
+  const requirementsInProducts = useMemo<[string, string][]>(() => {
+    const seen = new Map<string, string>();
+    products.forEach(p => {
+      if (p.template) seen.set(String(p.template.id), p.template.name);
+    });
     return Array.from(seen.entries());
   }, [products]);
 
@@ -870,10 +843,12 @@ export default function ProductsPage() {
       const matchSearch = !q ||
         p.name.toLowerCase().includes(q) ||
         p.description?.toLowerCase().includes(q) ||
-        p.vendor?.name.toLowerCase().includes(q);
+        p.vendor?.name.toLowerCase().includes(q) ||
+        p.template?.name.toLowerCase().includes(q);
       const matchVendor = !vendorFilter || String(p.vendor?.id) === vendorFilter;
+      const matchReq = !requirementFilter || String(p.template?.id) === requirementFilter;
       const matchPrice = p.price >= priceRange.min && p.price < priceRange.max;
-      return matchSearch && matchVendor && matchPrice;
+      return matchSearch && matchVendor && matchReq && matchPrice;
     });
 
     list = [...list].sort((a, b) => {
@@ -887,7 +862,7 @@ export default function ProductsPage() {
       return 0;
     });
     return list;
-  }, [products, searchTerm, vendorFilter, priceRange, sortField, sortDir]);
+  }, [products, searchTerm, vendorFilter, requirementFilter, priceRange, sortField, sortDir]);
 
   const paginated = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -941,15 +916,16 @@ export default function ProductsPage() {
     }
   };
 
-  const clearFilters = () => { setSearchTerm(''); setVendorFilter(''); setPriceRangeIdx(0); };
-  const hasActiveFilters = searchTerm || vendorFilter || priceRangeIdx !== 0;
+  const clearFilters = () => { setSearchTerm(''); setVendorFilter(''); setRequirementFilter(''); setPriceRangeIdx(0); };
+  const hasActiveFilters = searchTerm || vendorFilter || requirementFilter || priceRangeIdx !== 0;
 
-  // Export CSV
   const exportCSV = () => {
     const rows = [
-      ['ID', 'Name', 'Description', 'Price', 'Vendor', 'URL', 'Image'],
+      ['ID', 'Name', 'Description', 'Price', 'Vendor', 'Requirement', 'URL', 'Image'],
       ...filteredAndSorted.map(p => [
-        p.id, p.name, p.description || '', p.price, p.vendor?.name || '', p.url || '', p.image || '',
+        p.id, p.name, p.description || '', p.price,
+        p.vendor?.name || '', p.template?.name || '',
+        p.url || '', p.image || '',
       ])
     ];
     const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -962,6 +938,78 @@ export default function ProductsPage() {
   };
 
   const allOnPageSelected = paginated.length > 0 && paginated.every(p => selectedIds.has(p.id));
+
+  // ── Requirement badge renderer (reused in table + grid) ───────────────────
+  const RequirementBadge = ({ product }: { product: Product }) => {
+    if (!product.template) {
+      return (
+        <button
+          onClick={() => setAssignModalProduct(product)}
+          title="Assign to a requirement"
+          style={{
+            background: 'none',
+            border: '1px dashed rgba(255,255,255,0.1)',
+            borderRadius: 100,
+            padding: '0.15rem 0.55rem',
+            fontSize: '0.7rem',
+            color: '#3a3a56',
+            cursor: 'pointer',
+            fontFamily: "'Sora', sans-serif",
+            transition: 'all 0.15s',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.3rem',
+          }}
+          onMouseOver={e => {
+            e.currentTarget.style.borderColor = 'rgba(124,106,247,0.4)';
+            e.currentTarget.style.color = '#7c6af7';
+          }}
+          onMouseOut={e => {
+            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
+            e.currentTarget.style.color = '#3a3a56';
+          }}
+        >
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M12 4v16m8-8H4"/>
+          </svg>
+          Assign
+        </button>
+      );
+    }
+    return (
+      <button
+        onClick={() => setAssignModalProduct(product)}
+        title={`Assigned to: ${product.template.name} — click to change`}
+        style={{
+          background: 'rgba(124,106,247,0.1)',
+          border: '1px solid rgba(124,106,247,0.22)',
+          borderRadius: 100,
+          padding: '0.15rem 0.6rem',
+          fontSize: '0.72rem',
+          fontWeight: 600,
+          color: '#a89cf7',
+          cursor: 'pointer',
+          fontFamily: "'Sora', sans-serif",
+          transition: 'all 0.15s',
+          maxWidth: 160,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          display: 'inline-block',
+        }}
+        onMouseOver={e => {
+          e.currentTarget.style.background = 'rgba(124,106,247,0.18)';
+          e.currentTarget.style.borderColor = 'rgba(124,106,247,0.4)';
+        }}
+        onMouseOut={e => {
+          e.currentTarget.style.background = 'rgba(124,106,247,0.1)';
+          e.currentTarget.style.borderColor = 'rgba(124,106,247,0.22)';
+        }}
+      >
+        {product.template.name}
+      </button>
+    );
+  };
 
   return (
     <>
@@ -987,7 +1035,6 @@ export default function ProductsPage() {
           backdrop-filter: blur(12px);
         }
 
-        /* ── Header ─────────────────────────────────── */
         .page-header {
           display: flex;
           justify-content: space-between;
@@ -1007,16 +1054,9 @@ export default function ProductsPage() {
           line-height: 1.1;
         }
         .page-subtitle { color: #6b6b8a; font-size: 0.85rem; margin-top: 0.25rem; }
-
         .header-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 
-        /* ── Stats ──────────────────────────────────── */
-        .stats-row {
-          display: flex;
-          gap: 0.75rem;
-          flex-wrap: wrap;
-          margin-bottom: 1.5rem;
-        }
+        .stats-row { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
         .stat-pill {
           background: rgba(124,106,247,0.12);
           border: 1px solid rgba(124,106,247,0.2);
@@ -1030,7 +1070,6 @@ export default function ProductsPage() {
         }
         .stat-pill strong { color: #e2e2ef; font-size: 0.9rem; }
 
-        /* ── Toolbar ────────────────────────────────── */
         .toolbar {
           display: flex;
           align-items: center;
@@ -1040,10 +1079,7 @@ export default function ProductsPage() {
           margin-bottom: 0.5rem;
         }
         .search-wrap { position: relative; flex: 1; min-width: 200px; }
-        .search-icon {
-          position: absolute; left: 12px; top: 50%;
-          transform: translateY(-50%); color: #6b6b8a; pointer-events: none;
-        }
+        .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #6b6b8a; pointer-events: none; }
         .search-input {
           width: 100%;
           background: rgba(255,255,255,0.05);
@@ -1058,8 +1094,6 @@ export default function ProductsPage() {
         }
         .search-input::placeholder { color: #4a4a66; }
         .search-input:focus { border-color: rgba(124,106,247,0.5); box-shadow: 0 0 0 3px rgba(124,106,247,0.1); }
-
-        /* Clear search button inside input */
         .search-clear {
           position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
           background: none; border: none; color: #4a4a66; cursor: pointer; padding: 2px;
@@ -1087,7 +1121,6 @@ export default function ProductsPage() {
         .filter-select:focus { border-color: rgba(124,106,247,0.5); }
         .filter-select option { background: #1a1a26; }
 
-        /* ── Buttons ────────────────────────────────── */
         .btn {
           display: inline-flex; align-items: center; gap: 0.4rem;
           padding: 0.55rem 1.1rem;
@@ -1098,17 +1131,9 @@ export default function ProductsPage() {
           transition: all 0.18s; white-space: nowrap;
         }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
-        .btn-primary {
-          background: linear-gradient(135deg, #7c6af7, #5a47e0);
-          color: #fff;
-          box-shadow: 0 4px 16px rgba(124,106,247,0.3);
-        }
+        .btn-primary { background: linear-gradient(135deg, #7c6af7, #5a47e0); color: #fff; box-shadow: 0 4px 16px rgba(124,106,247,0.3); }
         .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(124,106,247,0.45); }
-        .btn-ghost {
-          background: rgba(255,255,255,0.06);
-          color: #b0b0cc;
-          border: 1px solid rgba(255,255,255,0.1);
-        }
+        .btn-ghost { background: rgba(255,255,255,0.06); color: #b0b0cc; border: 1px solid rgba(255,255,255,0.1); }
         .btn-ghost:hover { background: rgba(255,255,255,0.1); color: #e2e2ef; }
         .btn-danger { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
         .btn-danger:hover { background: rgba(239,68,68,0.25); }
@@ -1123,7 +1148,6 @@ export default function ProductsPage() {
         }
         .filter-tag:hover { background: rgba(124,106,247,0.2); }
 
-        /* ── Bulk bar ───────────────────────────────── */
         .bulk-bar {
           display: flex; align-items: center; gap: 1rem;
           padding: 0.7rem 1.25rem;
@@ -1133,7 +1157,6 @@ export default function ProductsPage() {
           animation: slideDown 0.2s ease;
         }
 
-        /* ── Table ──────────────────────────────────── */
         .products-table { width: 100%; border-collapse: collapse; }
         .products-table th {
           padding: 0.65rem 1rem;
@@ -1158,15 +1181,8 @@ export default function ProductsPage() {
 
         .cb { width: 16px; height: 16px; accent-color: #7c6af7; cursor: pointer; }
 
-        .prod-img {
-          width: 48px; height: 48px; border-radius: 10px; overflow: hidden;
-          background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); flex-shrink: 0;
-        }
-        .prod-img-placeholder {
-          width: 48px; height: 48px; border-radius: 10px;
-          background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.1);
-          display: flex; align-items: center; justify-content: center; color: #3a3a56; flex-shrink: 0;
-        }
+        .prod-img { width: 48px; height: 48px; border-radius: 10px; overflow: hidden; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); flex-shrink: 0; }
+        .prod-img-placeholder { width: 48px; height: 48px; border-radius: 10px; background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; color: #3a3a56; flex-shrink: 0; }
 
         .vendor-badge {
           display: inline-flex; align-items: center; gap: 0.4rem;
@@ -1176,17 +1192,11 @@ export default function ProductsPage() {
           text-decoration: none; max-width: 150px; overflow: hidden;
         }
         .vendor-badge:hover { border-color: rgba(124,106,247,0.4); color: #a89cf7; }
-        .vendor-logo {
-          width: 18px; height: 18px; border-radius: 50%; object-fit: cover;
-          border: 1px solid rgba(255,255,255,0.1); flex-shrink: 0;
-        }
+        .vendor-logo { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(255,255,255,0.1); flex-shrink: 0; }
 
         .price-tag { font-family: 'DM Mono', monospace; font-size: 0.88rem; color: #a4f4b0; font-weight: 500; }
 
-        .url-link {
-          display: inline-flex; align-items: center; gap: 0.3rem;
-          color: #7c6af7; font-size: 0.8rem; text-decoration: none; transition: color 0.15s;
-        }
+        .url-link { display: inline-flex; align-items: center; gap: 0.3rem; color: #7c6af7; font-size: 0.8rem; text-decoration: none; transition: color 0.15s; }
         .url-link:hover { color: #a89cf7; }
 
         .action-btn {
@@ -1199,28 +1209,16 @@ export default function ProductsPage() {
         .action-delete { color: #f87171; }
         .action-delete:hover { background: rgba(239,68,68,0.12); }
 
-        /* ── Empty state ────────────────────────────── */
         .empty-state { text-align: center; padding: 4rem 2rem; color: #3a3a56; }
         .empty-icon { font-size: 3rem; margin-bottom: 1rem; }
         .empty-state p { font-size: 0.9rem; margin-top: 0.4rem; color: #4a4a66; }
 
-        /* ── Grid view ──────────────────────────────── */
-        .grid-view {
-          display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-          gap: 1rem; padding: 1.25rem;
-        }
-        .product-card {
-          background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
-          border-radius: 14px; overflow: hidden; transition: all 0.2s; position: relative; cursor: pointer;
-        }
+        .grid-view { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; padding: 1.25rem; }
+        .product-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; overflow: hidden; transition: all 0.2s; position: relative; cursor: pointer; }
         .product-card:hover { border-color: rgba(124,106,247,0.3); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
         .product-card.selected { border-color: rgba(124,106,247,0.5); background: rgba(124,106,247,0.06); }
         .card-img { width: 100%; aspect-ratio: 16/9; object-fit: cover; background: rgba(255,255,255,0.04); }
-        .card-img-placeholder {
-          width: 100%; aspect-ratio: 16/9;
-          display: flex; align-items: center; justify-content: center;
-          background: rgba(255,255,255,0.03); color: #2a2a3e; font-size: 2rem;
-        }
+        .card-img-placeholder { width: 100%; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); color: #2a2a3e; font-size: 2rem; }
         .card-body { padding: 1rem; }
         .card-name { font-size: 0.92rem; font-weight: 600; color: #e2e2ef; margin-bottom: 0.35rem; line-height: 1.3; }
         .card-desc { font-size: 0.75rem; color: #5a5a7a; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -1233,53 +1231,30 @@ export default function ProductsPage() {
         .card-action-edit:hover { background: #7c6af7; }
         .card-action-del { background: rgba(239,68,68,0.8); color: #fff; }
         .card-action-del:hover { background: #ef4444; }
+        .card-action-req { background: rgba(16,185,129,0.8); color: #fff; }
+        .card-action-req:hover { background: #10b981; }
 
-        /* ── Pagination ─────────────────────────────── */
-        .pagination-bar {
-          display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
-          gap: 0.75rem; padding: 0.85rem 1.25rem;
-          border-top: 1px solid rgba(255,255,255,0.06);
-        }
+        .pagination-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; padding: 0.85rem 1.25rem; border-top: 1px solid rgba(255,255,255,0.06); }
         .pagination-info { font-size: 0.79rem; color: #4a4a66; }
         .pagination-info strong { color: #8080a8; }
         .pagination-controls { display: flex; align-items: center; gap: 0.25rem; }
         .pagination-size { display: flex; align-items: center; gap: 0.5rem; }
-        .pg-btn {
-          min-width: 32px; height: 32px; padding: 0 0.35rem;
-          border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.04);
-          color: #8080a8; font-family: 'DM Mono', monospace; font-size: 0.8rem;
-          cursor: pointer; transition: all 0.15s;
-          display: flex; align-items: center; justify-content: center;
-        }
+        .pg-btn { min-width: 32px; height: 32px; padding: 0 0.35rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.04); color: #8080a8; font-family: 'DM Mono', monospace; font-size: 0.8rem; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
         .pg-btn:hover:not(:disabled) { background: rgba(255,255,255,0.09); color: #e2e2ef; border-color: rgba(255,255,255,0.15); }
         .pg-btn:disabled { opacity: 0.3; cursor: not-allowed; }
         .pg-btn.pg-active { background: rgba(124,106,247,0.2); color: #a89cf7; border-color: rgba(124,106,247,0.4); }
         .pg-ellipsis { padding: 0 0.3rem; color: #3a3a56; font-size: 0.85rem; }
 
-        /* ── Skeleton ───────────────────────────────── */
         .skeleton-row td { padding: 0.85rem 1rem; }
-        .skel {
-          background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%);
-          background-size: 200% 100%;
-          animation: shimmer 1.4s infinite;
-          border-radius: 6px; height: 14px;
-        }
+        .skel { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 6px; height: 14px; }
         @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         .skel-avatar { width: 48px; height: 48px; border-radius: 10px; }
 
-        /* ── Toast ──────────────────────────────────── */
-        .toast {
-          position: fixed; bottom: 1.5rem; right: 1.5rem;
-          padding: 0.75rem 1.25rem; border-radius: 12px;
-          font-size: 0.84rem; font-family: 'Sora', sans-serif;
-          z-index: 9999; animation: toastIn 0.25s ease; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-        }
+        .toast { position: fixed; bottom: 1.5rem; right: 1.5rem; padding: 0.75rem 1.25rem; border-radius: 12px; font-size: 0.84rem; font-family: 'Sora', sans-serif; z-index: 9999; animation: toastIn 0.25s ease; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
         .toast-success { background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3); color: #6ee7b7; }
         .toast-error { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; }
         @keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
-        /* ── Confirm dialog ─────────────────────────── */
         .confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9998; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.15s ease; }
         .confirm-box { background: #1a1a26; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 1.75rem; max-width: 380px; width: 90%; box-shadow: 0 24px 80px rgba(0,0,0,0.6); }
         .confirm-title { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.5rem; }
@@ -1288,125 +1263,49 @@ export default function ProductsPage() {
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideDown { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 
-        /* ── Modal (dark theme) ─────────────────────── */
-        .modal-overlay {
-          position: fixed; inset: 0; background: rgba(0,0,0,0.7);
-          backdrop-filter: blur(6px);
-          z-index: 9000; display: flex; align-items: center; justify-content: center;
-          padding: 1rem;
-          animation: fadeIn 0.18s ease;
-        }
-        .modal-box {
-          background: #13131f;
-          border: 1px solid rgba(255,255,255,0.1);
-          border-radius: 20px;
-          width: 100%; max-width: 560px;
-          box-shadow: 0 40px 120px rgba(0,0,0,0.7), 0 0 0 1px rgba(124,106,247,0.1) inset;
-          animation: modalIn 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
-          display: flex; flex-direction: column;
-          max-height: 92vh;
-          overflow: hidden;
-        }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(6px); z-index: 9000; display: flex; align-items: center; justify-content: center; padding: 1rem; animation: fadeIn 0.18s ease; }
+        .modal-box { background: #13131f; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; width: 100%; max-width: 560px; box-shadow: 0 40px 120px rgba(0,0,0,0.7), 0 0 0 1px rgba(124,106,247,0.1) inset; animation: modalIn 0.22s cubic-bezier(0.34, 1.56, 0.64, 1); display: flex; flex-direction: column; max-height: 92vh; overflow: hidden; }
         @keyframes modalIn { from { opacity: 0; transform: translateY(16px) scale(0.97); } to { opacity: 1; transform: none; } }
-
-        .modal-header {
-          display: flex; align-items: flex-start; justify-content: space-between;
-          padding: 1.5rem 1.75rem 1.25rem;
-          gap: 1rem;
-        }
-        .modal-title {
-          font-size: 1.2rem; font-weight: 700; letter-spacing: -0.02em; color: #f0f0ff;
-        }
+        .modal-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 1.5rem 1.75rem 1.25rem; gap: 1rem; }
+        .modal-title { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.02em; color: #f0f0ff; }
         .modal-subtitle { font-size: 0.8rem; color: #5a5a7a; margin-top: 0.2rem; }
-        .modal-close {
-          background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
-          border-radius: 8px; color: #6b6b8a; cursor: pointer; padding: 0.4rem;
-          display: flex; align-items: center; justify-content: center;
-          transition: all 0.15s; flex-shrink: 0;
-        }
+        .modal-close { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #6b6b8a; cursor: pointer; padding: 0.4rem; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
         .modal-close:hover { background: rgba(255,255,255,0.1); color: #e2e2ef; }
-
         .modal-divider { height: 1px; background: rgba(255,255,255,0.07); margin: 0; }
-
         .modal-body { padding: 1.5rem 1.75rem; overflow-y: auto; flex: 1; }
         .modal-body::-webkit-scrollbar { width: 4px; }
         .modal-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
-
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; }
         .form-full { grid-column: 1 / -1; }
-
         .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
-        .form-label {
-          font-size: 0.76rem; font-weight: 600; color: #6b6b8a; letter-spacing: 0.06em;
-          text-transform: uppercase;
-        }
+        .form-label { font-size: 0.76rem; font-weight: 600; color: #6b6b8a; letter-spacing: 0.06em; text-transform: uppercase; }
         .form-required { color: #f87171; }
-
-        .form-input {
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.1);
-          border-radius: 10px;
-          padding: 0.65rem 0.9rem;
-          color: #e2e2ef;
-          font-family: 'Sora', sans-serif; font-size: 0.87rem;
-          outline: none; width: 100%;
-          transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
-        }
+        .form-input { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 0.65rem 0.9rem; color: #e2e2ef; font-family: 'Sora', sans-serif; font-size: 0.87rem; outline: none; width: 100%; transition: border-color 0.2s, box-shadow 0.2s, background 0.2s; }
         .form-input::placeholder { color: #3a3a58; }
-        .form-input:focus {
-          border-color: rgba(124,106,247,0.6);
-          box-shadow: 0 0 0 3px rgba(124,106,247,0.12);
-          background: rgba(255,255,255,0.07);
-        }
+        .form-input:focus { border-color: rgba(124,106,247,0.6); box-shadow: 0 0 0 3px rgba(124,106,247,0.12); background: rgba(255,255,255,0.07); }
         .form-input-error { border-color: rgba(239,68,68,0.5) !important; }
         .form-input-error:focus { box-shadow: 0 0 0 3px rgba(239,68,68,0.12) !important; }
         .form-error { font-size: 0.74rem; color: #f87171; margin-top: 0.1rem; }
-
         .form-textarea { resize: vertical; min-height: 80px; font-family: 'Sora', sans-serif; }
         .form-select { cursor: pointer; }
         .form-select option { background: #1a1a26; }
-
         .input-prefix-wrap { position: relative; }
-        .input-prefix {
-          position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
-          color: #6b6b8a; font-family: 'DM Mono', monospace; font-size: 0.85rem; pointer-events: none;
-        }
+        .input-prefix { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #6b6b8a; font-family: 'DM Mono', monospace; font-size: 0.85rem; pointer-events: none; }
         .input-with-prefix { padding-left: 1.75rem !important; font-family: 'DM Mono', monospace !important; }
-
         .url-input-wrap { position: relative; }
-        .url-icon {
-          position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
-          color: #5a5a7a; pointer-events: none;
-        }
+        .url-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: #5a5a7a; pointer-events: none; }
         .input-with-icon { padding-left: 2.2rem !important; }
-
         .img-preview-wrap { margin-top: 0.6rem; border-radius: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,0.08); max-height: 100px; }
         .img-preview { width: 100%; height: 100px; object-fit: cover; display: block; }
+        .modal-footer { display: flex; justify-content: flex-end; gap: 0.75rem; padding: 1.1rem 1.75rem; border-top: 1px solid rgba(255,255,255,0.07); background: rgba(255,255,255,0.02); }
 
-        .modal-footer {
-          display: flex; justify-content: flex-end; gap: 0.75rem;
-          padding: 1.1rem 1.75rem;
-          border-top: 1px solid rgba(255,255,255,0.07);
-          background: rgba(255,255,255,0.02);
-        }
-
-        /* Spinner */
         .spin { animation: spin 0.7s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* Shortcut hint */
-        .shortcut-hint {
-          display: inline-flex; align-items: center; gap: 0.3rem;
-          font-size: 0.72rem; color: #3a3a56; font-family: 'DM Mono', monospace;
-        }
-        .kbd {
-          background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
-          border-radius: 4px; padding: 0.1rem 0.35rem; font-size: 0.68rem; color: #5a5a7a;
-        }
-
+        .shortcut-hint { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.72rem; color: #3a3a56; font-family: 'DM Mono', monospace; }
+        .kbd { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); border-radius: 4px; padding: 0.1rem 0.35rem; font-size: 0.68rem; color: #5a5a7a; }
         .divider { width: 1px; height: 24px; background: rgba(255,255,255,0.08); flex-shrink: 0; }
 
-        /* Scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
@@ -1425,9 +1324,7 @@ export default function ProductsPage() {
               </div>
             </div>
             <div className="header-actions">
-              <span className="shortcut-hint">
-                <span className="kbd">N</span> new
-              </span>
+              <span className="shortcut-hint"><span className="kbd">N</span> new</span>
               <ProductCSVImport onImportComplete={fetchProducts} vendors={vendors} />
               <button className="btn btn-ghost" onClick={exportCSV} title="Export filtered products as CSV">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1435,10 +1332,7 @@ export default function ProductsPage() {
                 </svg>
                 Export CSV
               </button>
-              <button
-                className="btn btn-primary"
-                onClick={() => { setEditingProduct(null); setModalOpen(true); }}
-              >
+              <button className="btn btn-primary" onClick={() => { setEditingProduct(null); setModalOpen(true); }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 4v16m8-8H4" />
                 </svg>
@@ -1457,6 +1351,11 @@ export default function ProductsPage() {
               <div className="stat-pill">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
                 Vendors <strong>{vendors.length}</strong>
+              </div>
+              <div className="stat-pill">
+                {/* How many products have a requirement assigned */}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+                Assigned <strong>{products.filter(p => p.templateId).length}</strong>
               </div>
               <div className="stat-pill">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
@@ -1486,7 +1385,7 @@ export default function ProductsPage() {
                 </svg>
                 <input
                   type="text"
-                  placeholder="Search name, description, vendor…"
+                  placeholder="Search name, description, vendor, requirement…"
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
                   className="search-input"
@@ -1505,6 +1404,12 @@ export default function ProductsPage() {
               <select value={vendorFilter} onChange={e => setVendorFilter(e.target.value)} className="filter-select">
                 <option value="">All vendors</option>
                 {vendorsInProducts.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+              </select>
+
+              {/* ── NEW: Requirement filter ── */}
+              <select value={requirementFilter} onChange={e => setRequirementFilter(e.target.value)} className="filter-select">
+                <option value="">All requirements</option>
+                {requirementsInProducts.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
               </select>
 
               <select value={priceRangeIdx} onChange={e => setPriceRangeIdx(Number(e.target.value))} className="filter-select">
@@ -1538,7 +1443,7 @@ export default function ProductsPage() {
               </div>
             )}
 
-            {/* TABLE VIEW */}
+            {/* ── TABLE VIEW ── */}
             {viewMode === 'table' && (
               <div style={{ overflowX: 'auto' }}>
                 <table className="products-table">
@@ -1557,6 +1462,8 @@ export default function ProductsPage() {
                       <th>Description</th>
                       <th className="sortable" onClick={() => handleSort('vendor')}>Vendor <SortIcon field="vendor" sortField={sortField} sortDir={sortDir} /></th>
                       <th className="sortable" onClick={() => handleSort('price')}>Price <SortIcon field="price" sortField={sortField} sortDir={sortDir} /></th>
+                      {/* ── NEW column ── */}
+                      <th>Requirement</th>
                       <th>Link</th>
                       <th>Actions</th>
                     </tr>
@@ -1571,13 +1478,14 @@ export default function ProductsPage() {
                           <td><div className="skel" style={{ width: '90%' }} /></td>
                           <td><div className="skel" style={{ width: '50%' }} /></td>
                           <td><div className="skel" style={{ width: 60 }} /></td>
+                          <td><div className="skel" style={{ width: 90 }} /></td>
                           <td><div className="skel" style={{ width: 40 }} /></td>
                           <td><div className="skel" style={{ width: 80 }} /></td>
                         </tr>
                       ))
                     ) : paginated.length === 0 ? (
                       <tr>
-                        <td colSpan={8}>
+                        <td colSpan={9}>
                           <div className="empty-state">
                             <div className="empty-icon">📦</div>
                             <div style={{ fontSize: '1rem', fontWeight: 600, color: '#6b6b8a' }}>No products found</div>
@@ -1624,6 +1532,10 @@ export default function ProductsPage() {
                             ) : <span style={{ color: '#3a3a56' }}>—</span>}
                           </td>
                           <td><span className="price-tag">${product.price?.toLocaleString() ?? '—'}</span></td>
+
+                          {/* ── NEW: Requirement cell ── */}
+                          <td><RequirementBadge product={product} /></td>
+
                           <td>
                             {product.url ? (
                               <a href={product.url} target="_blank" rel="noopener noreferrer" className="url-link">
@@ -1646,7 +1558,7 @@ export default function ProductsPage() {
               </div>
             )}
 
-            {/* GRID VIEW */}
+            {/* ── GRID VIEW ── */}
             {viewMode === 'grid' && (
               <div className="grid-view">
                 {isLoading ? (
@@ -1675,6 +1587,17 @@ export default function ProductsPage() {
                         <button className="card-action-btn card-action-edit" onClick={() => handleEdit(product)} title="Edit">
                           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                         </button>
+                        {/* ── NEW: Assign requirement button in grid ── */}
+                        <button
+                          className="card-action-btn card-action-req"
+                          onClick={() => setAssignModalProduct(product)}
+                          title={product.template ? `Assigned: ${product.template.name} — click to change` : 'Assign to requirement'}
+                        >
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                            <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
+                            <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
+                          </svg>
+                        </button>
                         <button className="card-action-btn card-action-del" onClick={() => setDeleteConfirmId(product.id)} title="Delete">
                           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
                         </button>
@@ -1690,11 +1613,16 @@ export default function ProductsPage() {
                       </div>
                       <div className="card-footer">
                         <span className="price-tag">${product.price?.toLocaleString() ?? '—'}</span>
-                        {product.vendor && (
+                        {/* Show requirement badge or vendor in grid footer */}
+                        {product.template ? (
+                          <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#a89cf7', background: 'rgba(124,106,247,0.1)', border: '1px solid rgba(124,106,247,0.2)', borderRadius: 100, padding: '0.1rem 0.5rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 110 }}>
+                            {product.template.name}
+                          </span>
+                        ) : product.vendor ? (
                           <span style={{ fontSize: '0.73rem', color: '#5a5a7a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 100 }}>
                             {product.vendor.name}
                           </span>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                   ))
@@ -1716,7 +1644,7 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {/* Delete confirmation modal */}
+      {/* Delete confirmation */}
       {deleteConfirmId !== null && (
         <div className="confirm-overlay" onClick={() => setDeleteConfirmId(null)}>
           <div className="confirm-box" onClick={e => e.stopPropagation()}>
@@ -1741,6 +1669,22 @@ export default function ProductsPage() {
         editingProduct={editingProduct}
         vendors={vendors}
       />
+
+      {/* ── NEW: Assign Requirement Modal ── */}
+      {assignModalProduct && (
+        <AssignRequirementModal
+          productId={assignModalProduct.id}
+          productName={assignModalProduct.name}
+          currentTemplateId={assignModalProduct.templateId ?? null}
+          currentTemplateName={assignModalProduct.template?.name ?? null}
+          isOpen={!!assignModalProduct}
+          onClose={() => setAssignModalProduct(null)}
+          onAssigned={() => {
+            fetchProducts();
+            showToast(`Requirement assigned to "${assignModalProduct.name}"`);
+          }}
+        />
+      )}
     </>
   );
 }

@@ -1,3 +1,8 @@
+// components/Requirements/RequirementsSection.tsx  (updated)
+// Only change: adds optional `onProductAssigned` prop and threads it
+// down to CategorySection so admins can trigger a product list refresh
+// after assigning a product to a requirement.
+
 import React, { useEffect, useState } from "react";
 import CategorySection from "./CategorySection";
 import GlobalSearchFilter from "./GlobalSearchFilter";
@@ -5,9 +10,6 @@ import StickyQuickNavigation from "./StickyQuickNavigation";
 import BusinessCard from "../business/BusinessCards";
 import { Product } from "@/types";
 
-// All nullable fields match what useBusinessData returns after resolving
-// BusinessRequirement → RequirementTemplate. category and description
-// come from the database and can be null.
 interface RequirementLocal {
   id: number;
   templateId?: number;
@@ -44,6 +46,8 @@ interface RequirementsSectionProps {
   ) => void;
   getFilteredRequirements: (category: string) => RequirementLocal[];
   isLoading?: boolean;
+  /** Called after an admin assigns a product to a requirement so the page can re-fetch. */
+  onProductAssigned?: () => void;
 }
 
 type Business = {
@@ -72,6 +76,7 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
   onSetFilter,
   getFilteredRequirements,
   isLoading = false,
+  onProductAssigned,
 }) => {
   const [similarBusinesses, setSimilarBusinesses] = useState<Business[]>([]);
   const [loadingBusinesses, setLoadingBusinesses] = useState(true);
@@ -428,6 +433,7 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
                   onToggleFilter={() => onToggleFilter(category)}
                   onSearchChange={(query) => onCategorySearchChange(category, query)}
                   onFilterChange={(filter) => onSetFilter(category, filter)}
+                  onProductAssigned={onProductAssigned}
                 />
               );
             })}

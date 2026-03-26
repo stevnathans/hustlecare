@@ -1,3 +1,9 @@
+// components/Requirements/CategorySection.tsx
+// Fix: RequirementCardWrapper was defined inside the component body, causing React
+// to treat it as a new component type on every render and unmount/remount it —
+// resetting isExpanded to false whenever products refreshed. Replaced with a
+// direct inline render so RequirementCard is never unmounted on prop changes.
+
 import React from 'react';
 import RequirementCard from '@/components/Requirements/RequirementCard';
 import CategorySectionHeader from './CategorySectionHeader';
@@ -5,9 +11,6 @@ import CategorySearchFilter from './CategorySearchFilter';
 import { Link } from 'lucide-react';
 import { Product } from '@/types';
 
-// Matches the resolved shape from /api/business/[slug]/requirements.
-// image is string | null (not string | undefined) because the template
-// field comes from the database which returns null for missing values.
 interface Requirement {
   id: number;
   templateId?: number;
@@ -38,6 +41,8 @@ interface CategorySectionProps {
   onToggleFilter: () => void;
   onSearchChange: (query: string) => void;
   onFilterChange: (filter: 'all' | 'required' | 'optional') => void;
+  /** Called after a product is successfully assigned so the parent can refresh. */
+  onProductAssigned?: () => void;
 }
 
 const CategorySection: React.FC<CategorySectionProps> = ({
@@ -52,7 +57,8 @@ const CategorySection: React.FC<CategorySectionProps> = ({
   onToggleSearch,
   onToggleFilter,
   onSearchChange,
-  onFilterChange
+  onFilterChange,
+  onProductAssigned,
 }) => {
   const categoryId = category.toLowerCase().replace(/\s+/g, '-');
   const requiredItems = filteredRequirements.filter(req => req.necessity.toLowerCase() === 'required');
@@ -95,10 +101,29 @@ const CategorySection: React.FC<CategorySectionProps> = ({
     );
   };
 
+  // Render a single requirement card inline — no wrapper component so React
+  // never unmounts RequirementCard when the products prop changes, preserving
+  // the isExpanded state across refreshes.
+  const renderRequirementCard = (requirement: Requirement) => (
+    <div key={requirement.id} itemScope itemType="https://schema.org/Product">
+      <RequirementCard
+        requirement={{
+          ...requirement,
+          category: requirement.category || category,
+          image: requirement.image ?? undefined,
+          description: requirement.description ?? undefined,
+          templateId: requirement.templateId,
+        }}
+        products={products[requirement.name] || []}
+        onProductAssigned={onProductAssigned}
+      />
+    </div>
+  );
+
   return (
     <>
       {generateCategorySchema()}
-      
+
       <section
         id={categoryId}
         className="scroll-mt-20 bg-gray-50 rounded-lg overflow-hidden mb-4 sm:mb-6"
@@ -142,7 +167,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
                   {category === 'Software' && `Digital tools and software solutions to streamline your ${businessName} business operations, from management to customer service.`}
                   {category === 'Marketing' && `Marketing materials and strategies to promote your ${businessName} business and attract customers in the Kenyan market.`}
                   {category === 'Documents' && `Important business documents and templates needed for your ${businessName} business operations and compliance.`}
-                  {!['Legal', 'Equipment', 'Software', 'Marketing', 'Documents'].includes(category) && 
+                  {!['Legal', 'Equipment', 'Software', 'Marketing', 'Documents'].includes(category) &&
                     `Important ${category.toLowerCase()} requirements for starting and running your ${businessName} business successfully in Kenya.`}
                 </p>
               </div>
@@ -156,19 +181,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
                     Essential {category} Items ({requiredItems.length})
                   </h4>
                   <div className="space-y-4 sm:space-y-6">
-                    {requiredItems.map((requirement) => (
-                      <div key={requirement.id} itemScope itemType="https://schema.org/Product">
-                        <RequirementCard
-                          requirement={{
-                            ...requirement,
-                            category: requirement.category || category,
-                            image: requirement.image ?? undefined,
-                            description: requirement.description ?? undefined,
-                          }}
-                          products={products[requirement.name] || []}
-                        />
-                      </div>
-                    ))}
+                    {requiredItems.map((requirement) => renderRequirementCard(requirement))}
                   </div>
                 </div>
               )}
@@ -185,19 +198,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
                     These optional items can enhance your {businessName} business but aren&apos;t required to get started.
                   </p>
                   <div className="space-y-4 sm:space-y-6">
-                    {optionalItems.map((requirement) => (
-                      <div key={requirement.id} itemScope itemType="https://schema.org/Product">
-                        <RequirementCard
-                          requirement={{
-                            ...requirement,
-                            category: requirement.category || category,
-                            image: requirement.image ?? undefined,
-                            description: requirement.description ?? undefined,
-                          }}
-                          products={products[requirement.name] || []}
-                        />
-                      </div>
-                    ))}
+                    {optionalItems.map((requirement) => renderRequirementCard(requirement))}
                   </div>
                 </div>
               )}
@@ -213,10 +214,10 @@ const CategorySection: React.FC<CategorySectionProps> = ({
               <p className="text-gray-500 text-sm mb-4">
                 This category doesn&apos;t have any requirements yet, or they may be categorized differently.
               </p>
-              
+
               {(categoryState.searchQuery || categoryState.filter !== 'all') && (
                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center mb-4">
-                  <button 
+                  <button
                     onClick={() => {
                       onSearchChange('');
                       onFilterChange('all');
@@ -227,18 +228,18 @@ const CategorySection: React.FC<CategorySectionProps> = ({
                   </button>
                 </div>
               )}
-              
+
               <div className="mt-4">
                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center">
-                  <Link 
-                    href="/business" 
+                  <Link
+                    href="/business"
                     className="inline-flex items-center px-3 py-2 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
                   >
                     Browse Other Businesses
                   </Link>
-                  <Link 
-                    href="/contact" 
-                    className="inline-flex items-center px-3 py-2 sm:px-4 sm:py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm"
+                  <Link
+                    href="/contact"
+                    className="inline-flex items-center px-3 py-2 sm:px-4 sm:py2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm"
                   >
                     Request Requirements
                   </Link>
@@ -250,7 +251,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 
         <div className="bg-gray-100 px-4 py-3 sm:px-6 sm:py-4 border-t">
           <div className="flex flex-col xs:flex-row xs:items-center xs:justify-between text-sm text-gray-600 gap-2 xs:gap-0">
-            <a 
+            <a
               href={`#${categoryId}`}
               className="text-blue-600 hover:text-blue-800 hover:underline text-center"
               aria-label={`Jump to ${category} requirements section`}
