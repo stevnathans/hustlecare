@@ -1,3 +1,4 @@
+// app/business/[slug]/BusinessPageContent.tsx
 'use client';
 import React from 'react';
 import CostCalculator from '@/components/CostCalculator';
@@ -22,7 +23,7 @@ export default function BusinessPageContent({ slug }: BusinessPageContentProps) 
     error,
     groupedRequirements,
     sortedCategories,
-    refreshProducts, // ← destructured so we can pass it down as onProductAssigned
+    refreshProducts,
   } = useBusinessData(slug);
 
   const {
@@ -45,7 +46,6 @@ export default function BusinessPageContent({ slug }: BusinessPageContentProps) 
   } = useFilterState(requirements, products, groupedRequirements, sortedCategories);
 
   // Count requirements that have at least one product (used for the cost estimate coverage note).
-  // products is Record<string, ProductType[]> keyed by requirement name, so we look up directly.
   const requirementsWithProducts = requirements
     ? requirements.filter((req) => {
         const reqProducts = products[req.name];
@@ -101,15 +101,14 @@ export default function BusinessPageContent({ slug }: BusinessPageContentProps) 
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* sr-only h1 mirrors the browser tab title for screen readers & crawlers.
-          The visible heading lives inside BusinessHeader. */}
-      <header className="mb-8">
-        <h1 className="sr-only">
-          {totalRequirements > 0
-            ? `${totalRequirements} Requirements To Start a ${business.name} Business in ${new Date().getFullYear()} (Plus Total Cost Calculations)`
-            : `${business.name} Business - Complete Requirements & Total Costs`}
-        </h1>
-      </header>
+      {/* sr-only h1 for screen readers and crawlers. The visible heading lives
+          inside BusinessHeader. A lone h1 does not need a <header> landmark —
+          that was adding a redundant ARIA region with no other content. */}
+      <h1 className="sr-only">
+        {totalRequirements > 0
+          ? `${totalRequirements} Requirements To Start a ${business.name} Business in ${new Date().getFullYear()} (Plus Total Cost Calculations)`
+          : `${business.name} Business - Complete Requirements & Total Costs`}
+      </h1>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <main className="md:col-span-2">
@@ -140,7 +139,7 @@ export default function BusinessPageContent({ slug }: BusinessPageContentProps) 
               onCategorySearchChange={handleCategorySearchChange}
               onSetFilter={setFilter}
               getFilteredRequirements={getFilteredRequirements}
-              onProductAssigned={refreshProducts} // ← wire up the refresh callback
+              onProductAssigned={refreshProducts}
             />
           </section>
         </main>

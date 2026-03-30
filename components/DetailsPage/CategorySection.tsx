@@ -1,14 +1,17 @@
-// components/Requirements/CategorySection.tsx
+// DetailsPage/CategorySection.tsx
 // Fix: RequirementCardWrapper was defined inside the component body, causing React
 // to treat it as a new component type on every render and unmount/remount it —
 // resetting isExpanded to false whenever products refreshed. Replaced with a
 // direct inline render so RequirementCard is never unmounted on prop changes.
+//
+// Bug fix: `Link` was incorrectly imported from `lucide-react` (an icon library).
+// It is now correctly imported from `next/link`.
 
 import React from 'react';
+import Link from 'next/link';
 import RequirementCard from '@/components/Requirements/RequirementCard';
 import CategorySectionHeader from './CategorySectionHeader';
 import CategorySearchFilter from './CategorySearchFilter';
-import { Link } from 'lucide-react';
 import { Product } from '@/types';
 
 interface Requirement {
@@ -71,26 +74,26 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 
   const generateCategorySchema = () => {
     const categorySchema = {
-      "@context": "https://schema.org",
-      "@type": "ItemList",
-      "name": `${category} Requirements for ${businessName} Business`,
-      "description": `Essential ${category.toLowerCase()} requirements needed to start a ${businessName} business in Kenya.`,
-      "numberOfItems": filteredRequirements.length,
-      "itemListElement": filteredRequirements.map((requirement, index) => ({
-        "@type": "ListItem",
-        "position": index + 1,
-        "item": {
-          "@type": "Product",
-          "name": requirement.name,
-          "description": requirement.description || `${requirement.name} for ${businessName} business`,
-          "category": category,
-          "additionalProperty": {
-            "@type": "PropertyValue",
-            "name": "necessity",
-            "value": requirement.necessity
-          }
-        }
-      }))
+      '@context': 'https://schema.org',
+      '@type': 'ItemList',
+      'name': `${category} Requirements for ${businessName} Business`,
+      'description': `Essential ${category.toLowerCase()} requirements needed to start a ${businessName} business in Kenya.`,
+      'numberOfItems': filteredRequirements.length,
+      'itemListElement': filteredRequirements.map((requirement, index) => ({
+        '@type': 'ListItem',
+        'position': index + 1,
+        'item': {
+          '@type': 'Product',
+          'name': requirement.name,
+          'description': requirement.description || `${requirement.name} for ${businessName} business`,
+          'category': category,
+          'additionalProperty': {
+            '@type': 'PropertyValue',
+            'name': 'necessity',
+            'value': requirement.necessity,
+          },
+        },
+      })),
     };
 
     return (
@@ -232,7 +235,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
               <div className="mt-4">
                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center">
                   <Link
-                    href="/business"
+                    href="/businesses"
                     className="inline-flex items-center px-3 py-2 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
                   >
                     Browse Other Businesses

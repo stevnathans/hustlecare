@@ -1,4 +1,4 @@
-// components/Requirements/RequirementsSection.tsx  (updated)
+// detailsPage/RequirementsSection.tsx
 // Only change: adds optional `onProductAssigned` prop and threads it
 // down to CategorySection so admins can trigger a product list refresh
 // after assigning a product to a requirement.

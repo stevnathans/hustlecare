@@ -1,5 +1,10 @@
 'use client';
-export const dynamic = "force-dynamic";
+// NOTE: `export const dynamic = "force-dynamic"` has been removed.
+// That directive is a Next.js route segment config and only takes effect in
+// server components or route handlers. Placing it in a client component is
+// silently ignored — it never forced anything dynamic and was misleading.
+// Dynamic data fetching here is already handled by the client-side useEffect.
+
 import { useEffect, useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import BusinessCard from "@/components/business/BusinessCards";
@@ -22,6 +27,7 @@ interface Requirement {
 
 interface Business {
   groupedRequirements: Record<string, Requirement[]>;
+  sortedCategories?: string[];
   id: number;
   name: string;
   image?: string;
@@ -33,10 +39,9 @@ interface Business {
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
-// NOTE: All SEO metadata (title, description, OG tags, etc.) has been moved to
-// page.tsx using Next.js App Router's `export const metadata` API.
-// next/head does not work in client components in the App Router — the browser
-// tab and search engine crawlers will ignore it entirely.
+// NOTE: All SEO metadata (title, description, OG tags, etc.) is in page.tsx
+// using Next.js App Router's `export const metadata` API. next/head does not
+// work in client components in the App Router.
 
 export default function BusinessesContent() {
   const router = useRouter();
@@ -136,13 +141,13 @@ export default function BusinessesContent() {
           <div className="max-w-2xl mx-auto">
             <div className="flex items-center bg-white rounded-xl shadow-xl overflow-hidden">
               <div className="pl-5 pr-3 text-gray-400">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </div>
               <input
                 id="business-search"
-                type="text"
+                type="search"
                 placeholder="Search businesses (e.g. 'restaurant', 'ecommerce')..."
                 className="w-full px-4 py-4 border-0 focus:outline-none focus:ring-0 text-lg placeholder-gray-400"
                 value={searchTerm}
@@ -150,8 +155,12 @@ export default function BusinessesContent() {
                 aria-label="Search business opportunities"
               />
               {searchTerm && (
-                <button className="px-4 text-gray-500 hover:text-gray-700" onClick={() => setSearchTerm("")}>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <button
+                  className="px-4 text-gray-500 hover:text-gray-700"
+                  onClick={() => setSearchTerm("")}
+                  aria-label="Clear search"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -166,7 +175,7 @@ export default function BusinessesContent() {
 
           {/* Category pill strip */}
           {!loading && categories.length > 1 && (
-            <div className="mb-8">
+            <nav aria-label="Filter by category" className="mb-8">
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
                   Browse by category
@@ -187,6 +196,8 @@ export default function BusinessesContent() {
                     <button
                       key={cat}
                       onClick={() => handleCategorySelect(cat)}
+                      aria-pressed={isActive}
+                      aria-label={cat === "all" ? "Show all categories" : `Filter by ${cat}`}
                       className={`
                         inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium
                         border transition-all duration-150 whitespace-nowrap
@@ -197,7 +208,7 @@ export default function BusinessesContent() {
                     >
                       {cat === "all" ? "All" : cat}
                       {isActive && cat !== "all" && (
-                        <X className="w-3 h-3 opacity-70" />
+                        <X className="w-3 h-3 opacity-70" aria-hidden="true" />
                       )}
                     </button>
                   );
@@ -222,7 +233,7 @@ export default function BusinessesContent() {
                   </Link>
                 </div>
               )}
-            </div>
+            </nav>
           )}
 
           {/* Heading + sort controls */}
@@ -240,7 +251,9 @@ export default function BusinessesContent() {
             <div className="w-full md:w-auto flex flex-col sm:flex-row gap-4">
               {/* Category select — mobile fallback */}
               <div className="relative sm:hidden">
+                <label htmlFor="category-select-mobile" className="sr-only">Select category</label>
                 <select
+                  id="category-select-mobile"
                   className="appearance-none bg-white pl-4 pr-10 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-gray-700 w-full"
                   value={selectedCategory}
                   onChange={(e) => handleCategorySelect(e.target.value)}
@@ -251,7 +264,7 @@ export default function BusinessesContent() {
                     </option>
                   ))}
                 </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700" aria-hidden="true">
                   <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
@@ -260,6 +273,7 @@ export default function BusinessesContent() {
 
               {/* Sort */}
               <div className="relative">
+                <label htmlFor="sort-options" className="sr-only">Sort businesses</label>
                 <select
                   id="sort-options"
                   className="appearance-none bg-white pl-4 pr-10 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 text-gray-700"
@@ -272,7 +286,7 @@ export default function BusinessesContent() {
                   <option value="cost-low">Cost (Low to High)</option>
                   <option value="cost-high">Cost (High to Low)</option>
                 </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700" aria-hidden="true">
                   <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
@@ -283,14 +297,15 @@ export default function BusinessesContent() {
 
           {/* Business cards grid */}
           {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8" aria-busy="true" aria-label="Loading businesses">
               {[...Array(6)].map((_, i) => (
                 <div key={i} className="h-96 bg-gray-100 rounded-xl animate-pulse" />
               ))}
             </div>
           ) : (
-            <section aria-labelledby="business-list-heading">
-              <h2 id="business-list-heading" className="sr-only">List of available businesses</h2>
+            // The visible h2 "Business Opportunities" above already labels this
+            // section — the previous sr-only h2 inside was redundant.
+            <section aria-label={`${selectedCategory === "all" ? "All business" : selectedCategory} opportunities`}>
               {filteredBusinesses.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
                   {filteredBusinesses.map((biz) => (
@@ -304,14 +319,19 @@ export default function BusinessesContent() {
                       estimatedCost={biz.estimatedCost}
                       timeToLaunch={biz.timeToLaunch}
                       groupedRequirements={biz.groupedRequirements}
+                      // Pass sortedCategories from API data if available,
+                      // fall back to deriving it from groupedRequirements keys.
+                      sortedCategories={
+                        biz.sortedCategories ??
+                        Object.keys(biz.groupedRequirements ?? {})
+                      }
                       requirements={[]}
-                      sortedCategories={[]}
                     />
                   ))}
                 </div>
               ) : (
                 <div className="text-center py-16 bg-white rounded-xl shadow-sm">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20 mx-auto text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20 mx-auto text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <h2 className="mt-6 text-2xl font-medium text-gray-900">No Matching Businesses Found</h2>
@@ -342,16 +362,28 @@ export default function BusinessesContent() {
               <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
                 We&apos;re constantly adding new business opportunities. Sign up to be notified when we add new ventures.
               </p>
-              <div className="max-w-md mx-auto flex gap-2">
+              {/* Note: wire up an onSubmit handler to this form when your
+                  notification backend is ready. */}
+              <form
+                className="max-w-md mx-auto flex gap-2"
+                aria-label="Notify me about new businesses"
+                onSubmit={(e) => e.preventDefault()}
+              >
+                <label htmlFor="notify-email" className="sr-only">Email address</label>
                 <input
+                  id="notify-email"
                   type="email"
                   placeholder="Enter your email"
                   className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  autoComplete="email"
                 />
-                <button className="px-6 py-3 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors">
+                <button
+                  type="submit"
+                  className="px-6 py-3 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors"
+                >
                   Notify Me
                 </button>
-              </div>
+              </form>
             </div>
           )}
         </div>
