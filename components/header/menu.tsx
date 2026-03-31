@@ -102,7 +102,7 @@ export default function Menu() {
                 className="flex items-center space-x-1 text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200 font-medium group"
               >
                 <Handshake className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
-                <span>Servicess</span>
+                <span>Services</span>
               </Link>
               
               <Link 
@@ -240,6 +240,15 @@ export default function Menu() {
                 >
                   <Briefcase className="h-5 w-5" />
                   <span>Businesses</span>
+                </Link>
+
+                <Link
+                  href="/services"
+                  className="flex items-center space-x-3 px-4 py-3 rounded-xl text-base font-medium text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-all duration-200"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <Handshake className="h-5 w-5" />
+                  <span>Services</span>
                 </Link>
                 
                 <Link

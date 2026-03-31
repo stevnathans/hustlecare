@@ -1,3 +1,4 @@
+// DetailsPage/CategorySectionHeader.tsx
 import React from 'react';
 
 interface CategorySectionHeaderProps {

@@ -374,19 +374,23 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
         role="main"
         aria-label={`Requirements for ${businessName} business`}
       >
-        <div className="p-4 sm:p-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-3">
-            Complete List of Requirements For {businessName} Business
-          </h2>
-          <p className="text-gray-700 leading-relaxed">
-            Below is a categorized list of all the requirements you need to
-            start a profitable {businessName} business. Each category contains
-            both essential and optional requirements. Use the search and filter
-            options to easily find items, and add them to your cost calculator
-            to understand how much you need to start a {businessName} business.
-          </p>
-        </div>
-
+        {/* ── Section heading — styled to match BusinessHeader's cost section:
+            centered, same font size, same gradient underline bar, card panel. */}
+        
+          <div className="mt-6 mb-4">
+            <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-center text-slate-900 mb-3 sm:mb-4">
+              Complete List of Requirements For {businessName} Business
+            </h2>
+            <div className="w-16 sm:w-20 h-1 bg-gradient-to-r from-emerald-500 to-blue-500 mx-auto rounded-full mb-4" />
+            <p className="text-gray-700 leading-relaxed">
+              Below is a categorized list of all the requirements you need to
+              start a profitable {businessName} business. Each category contains
+              both essential and optional requirements. Use the search and filter
+              options to easily find items, and add them to your cost calculator
+              to understand how much you need to start a {businessName} business.
+            </p>
+          </div>
+        
         <StickyQuickNavigation
           categories={categoryInfo}
           businessName={businessName}

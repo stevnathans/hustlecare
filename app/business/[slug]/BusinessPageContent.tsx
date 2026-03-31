@@ -35,6 +35,7 @@ export default function BusinessPageContent({ slug }: BusinessPageContentProps) 
     requiredCount,
     optionalCount,
     unfilteredLowPrice,
+    unfilteredMediumPrice,
     unfilteredHighPrice,
     totalRequirements,
     getFilteredRequirements,
@@ -113,10 +114,10 @@ export default function BusinessPageContent({ slug }: BusinessPageContentProps) 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <main className="md:col-span-2">
           <BusinessHeader
-            businessSlug={slug}
             totalRequirements={totalRequirements}
             businessName={business.name}
             unfilteredLowPrice={unfilteredLowPrice}
+            unfilteredMediumPrice={unfilteredMediumPrice}
             unfilteredHighPrice={unfilteredHighPrice}
             requiredCount={requiredCount}
             optionalCount={optionalCount}
