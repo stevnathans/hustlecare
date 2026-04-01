@@ -292,6 +292,11 @@ export default function HubPageContent({
           </div>
         </section>
 
+         <section aria-labelledby="requirements-heading">
+          <h2 id="requirements-heading" className="text-xl font-bold text-gray-900 mb-5">
+             {name} Business Requirements
+          </h2>
+
         {/* ── Two-column: requirements preview + category breakdown ── */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
 
@@ -300,7 +305,7 @@ export default function HubPageContent({
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
                 <h2 id="preview-heading" className="font-bold text-gray-900 text-base">
-                  Sample Requirements
+                  Popular Requirements
                 </h2>
                 <Link
                   href={`/businesses/${slug}/requirements`}
@@ -353,7 +358,7 @@ export default function HubPageContent({
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden h-full">
               <div className="px-6 py-4 border-b border-gray-100">
                 <h2 id="categories-heading" className="font-bold text-gray-900 text-base">
-                  Requirements by Type
+                  Requirement Categories
                 </h2>
               </div>
               <ul className="divide-y divide-gray-50 px-2 py-2">
@@ -384,6 +389,7 @@ export default function HubPageContent({
             </div>
           </section>
         </div>
+        </section>
 
         {/* ── Bottom CTA ── */}
         <section className="bg-gradient-to-r from-emerald-600 to-teal-500 rounded-2xl p-8 text-center">
