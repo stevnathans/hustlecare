@@ -10,6 +10,7 @@ export async function GET() {
     const businesses = await prisma.business.findMany({
       where: { published: true },
       include: {
+        category: true, // ← was missing; needed for the category pill strip
         requirements: {
           where: {
             isActive: true,
@@ -26,14 +27,12 @@ export async function GET() {
               },
             },
           },
-          orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+          orderBy: [{ displayOrder: "asc" }, { createdAt: "asc" }],
         },
       },
     });
 
     const businessesWithGroupedRequirements = businesses.map((business) => {
-      // Resolve each link into a flat requirement shape, then group by category.
-      // descriptionOverride takes precedence over the template description.
       const resolved = business.requirements.map((link) => ({
         id: link.id,
         templateId: link.template.id,
@@ -46,9 +45,7 @@ export async function GET() {
       const groupedRequirements = resolved.reduce(
         (groups: Record<string, typeof resolved>, req) => {
           const category = req.category || "Uncategorized";
-          if (!groups[category]) {
-            groups[category] = [];
-          }
+          if (!groups[category]) groups[category] = [];
           groups[category].push(req);
           return groups;
         },
@@ -60,7 +57,12 @@ export async function GET() {
         name: business.name,
         image: business.image,
         slug: business.slug,
+        description: business.description,
+        estimatedCost: (business as Record<string, unknown>).estimatedCost as string | undefined,
+        timeToLaunch: (business as Record<string, unknown>).timeToLaunch as string | undefined,
+        category: business.category?.name ?? undefined, // ← flattened for the client
         groupedRequirements,
+        sortedCategories: Object.keys(groupedRequirements),
       };
     });
 

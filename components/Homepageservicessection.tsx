@@ -63,11 +63,9 @@ export function HomepageServicesSection() {
             transition={{ duration: 0.6 }}
             viewport={{ once: true }}
           >
-            <p className="text-xs font-bold tracking-widest uppercase text-emerald-600 mb-1">
-              Startup Services
-            </p>
+            
             <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-700 to-emerald-600">
-              Services to Launch Your Business
+               Startup Services
             </h2>
           </motion.div>
 
