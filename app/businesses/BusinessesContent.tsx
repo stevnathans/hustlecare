@@ -393,8 +393,7 @@ export default function BusinessesContent() {
             )}
           </h1>
           <p className="text-xl text-emerald-100 mb-10 max-w-3xl mx-auto">
-            Browse Kenya&apos;s most comprehensive directory of vetted business
-            opportunities — complete with startup costs, licencing requirements,
+            Browse the most profitable small businesses ideas in Kenya. Discover complete requirements for each business, startup costs,
             time-to-launch estimates, and local suppliers to get you started.
           </p>
 
