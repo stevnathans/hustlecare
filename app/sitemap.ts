@@ -50,7 +50,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'monthly',
       priority: 0.4,
     },
-    // Legal pages — low priority, rarely change, but should be crawlable
     {
       url: `${SITE_URL}/privacy`,
       lastModified: new Date(),
@@ -78,10 +77,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   // ── Dynamic business pages ──────────────────────────────────────────────────
+  // Each business produces:
+  //   /businesses/[slug]              — hub / overview         priority 0.85
+  //   /businesses/[slug]/requirements — requirements checklist priority 0.80
+  //
+  // Add more sub-pages here as you build them out, e.g.:
+  //   /businesses/[slug]/how-to-start
+  //   /businesses/[slug]/costs
+  //   /businesses/[slug]/success-stories
   let businessPages: MetadataRoute.Sitemap = [];
 
   try {
     const businesses = await prisma.business.findMany({
+      where: { published: true },
       select: {
         slug: true,
         updatedAt: true,
@@ -89,36 +97,47 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       orderBy: { updatedAt: 'desc' },
     });
 
-    businessPages = businesses.map((business) => ({
-      url: `${SITE_URL}/business/${business.slug}`,
-      lastModified: business.updatedAt,
-      changeFrequency: 'weekly',
-      priority: 0.8,
-    }));
+    businessPages = businesses.flatMap((business) => [
+      // Hub page — slightly higher priority than sub-pages
+      {
+        url: `${SITE_URL}/businesses/${business.slug}`,
+        lastModified: business.updatedAt,
+        changeFrequency: 'weekly' as const,
+        priority: 0.85,
+      },
+      // Requirements sub-page
+      {
+        url: `${SITE_URL}/businesses/${business.slug}/requirements`,
+        lastModified: business.updatedAt,
+        changeFrequency: 'weekly' as const,
+        priority: 0.80,
+      },
+    ]);
   } catch (error) {
     console.error('Sitemap: failed to fetch businesses from DB:', error);
   }
 
   // ── Dynamic category pages ──────────────────────────────────────────────────
-  // If you have individual /categories/[slug] pages, fetch and include them.
-  // Remove this block if categories don't have their own dedicated pages yet.
   let categoryPages: MetadataRoute.Sitemap = [];
 
   try {
-    const categories = await prisma.business.findMany({
-      select: { category: { select: { name: true } } },
-      distinct: ['categoryId'],
-      where: { categoryId: { not: null } },
+    const categories = await prisma.businessCategory.findMany({
+      select: {
+        name: true,
+        updatedAt: true,
+      },
+      orderBy: { name: 'asc' },
     });
 
-    categoryPages = categories
-      .filter((c) => c.category)
-      .map((c) => ({
-        url: `${SITE_URL}/categories/${c.category!.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`,
-        lastModified: new Date(),
-        changeFrequency: 'weekly' as const,
-        priority: 0.7,
-      }));
+    categoryPages = categories.map((cat) => ({
+      url: `${SITE_URL}/categories/${cat.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')}`,
+      lastModified: cat.updatedAt,
+      changeFrequency: 'weekly' as const,
+      priority: 0.7,
+    }));
   } catch (error) {
     console.error('Sitemap: failed to fetch categories from DB:', error);
   }

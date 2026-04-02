@@ -3,6 +3,7 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import HubPageContent from './HubPageContent';
+import RelatedBusinesses from './RelatedBusinesses';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -166,7 +167,12 @@ export default async function BusinessHubPage({ params }: Props) {
         headline: title,
         description,
         url: pageUrl,
-        image: { '@type': 'ImageObject', url: business.image || `${SITE_URL}/images/default-business.jpg`, width: 1200, height: 630 },
+        image: {
+          '@type': 'ImageObject',
+          url: business.image || `${SITE_URL}/images/default-business.jpg`,
+          width: 1200,
+          height: 630,
+        },
         author: { '@type': 'Organization', name: 'HustleCare', url: SITE_URL },
         publisher: {
           '@type': 'Organization',
@@ -174,7 +180,9 @@ export default async function BusinessHubPage({ params }: Props) {
           url: SITE_URL,
           logo: { '@type': 'ImageObject', url: `${SITE_URL}/images/logo.png` },
         },
-        datePublished: (business as { createdAt?: Date }).createdAt?.toISOString() ?? new Date().toISOString(),
+        datePublished:
+          (business as { createdAt?: Date }).createdAt?.toISOString() ??
+          new Date().toISOString(),
         dateModified: new Date().toISOString(),
         mainEntityOfPage: { '@type': 'WebPage', '@id': pageUrl },
         breadcrumb: { '@id': `${pageUrl}#breadcrumb` },
@@ -189,6 +197,7 @@ export default async function BusinessHubPage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
+
       <HubPageContent
         slug={slug}
         name={name}
@@ -199,6 +208,17 @@ export default async function BusinessHubPage({ params }: Props) {
         categoryBreakdown={categoryBreakdown}
         previewRequirements={previewRequirements}
       />
+
+      {/* Related businesses — only rendered when a category is assigned */}
+      {business.category && (
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+          <RelatedBusinesses
+            categoryId={business.category.id}
+            currentSlug={slug}
+            categoryName={business.category.name}
+          />
+        </div>
+      )}
     </>
   );
 }
