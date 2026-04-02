@@ -3,15 +3,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requirePermission } from '@/lib/admin-utils';
 
-// GET - List all categories with business counts
+// GET - List all categories with business counts and a preview of up to 5 businesses
 export async function GET() {
   try {
     await requirePermission('businesses.view');
 
     const categories = await prisma.businessCategory.findMany({
       orderBy: { name: 'asc' },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        slug: true,
         _count: { select: { businesses: true } },
+        businesses: {
+          where: { published: true },
+          select: { id: true, name: true, slug: true },
+          take: 5,
+          orderBy: { name: 'asc' },
+        },
       },
     });
 
