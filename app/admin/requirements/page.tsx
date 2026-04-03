@@ -123,6 +123,8 @@ const S = `
   .scroll::-webkit-scrollbar { width:4px; height:4px; }
   .scroll::-webkit-scrollbar-track { background:transparent; }
   .scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:2px; }
+  .link-biz-toggle { display:flex; align-items:center; gap:0.6rem; padding:0.75rem 1rem; border-radius:9px; background:rgba(99,102,241,0.06); border:1px solid rgba(99,102,241,0.15); cursor:pointer; font-size:0.82rem; color:#9494b0; transition:all 0.15s; user-select:none; }
+  .link-biz-toggle:hover { background:rgba(99,102,241,0.1); }
 `;
 
 function catColor(cat: string): [string, string] {
@@ -154,25 +156,31 @@ export default function RequirementsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+
+  // Create / Edit form
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState(defaultForm);
   const [formLoading, setFormLoading] = useState(false);
+  // ── NEW: link-to-business on create ──
+  const [formLinkToBiz, setFormLinkToBiz] = useState(false);
+  const [formBizId, setFormBizId] = useState<number | null>(null);
+
+  // Add-to-business modal
   const [addBizModalOpen, setAddBizModalOpen] = useState(false);
   const [addBizTemplate, setAddBizTemplate] = useState<Template | null>(null);
   const [linkedBusinesses, setLinkedBusinesses] = useState<LinkedBusiness[]>([]);
   const [selectedBizIds, setSelectedBizIds] = useState<Set<number>>(new Set());
   const [addBizLoading, setAddBizLoading] = useState(false);
   const [linkedLoading, setLinkedLoading] = useState(false);
-  // NEW: business search + multi-unlink state
   const [bizSearch, setBizSearch] = useState('');
   const [unlinkSelectedIds, setUnlinkSelectedIds] = useState<Set<number>>(new Set());
   const [unlinkLoading, setUnlinkLoading] = useState(false);
+
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [bulkConfirm, setBulkConfirm] = useState(false);
 
   useEffect(() => { fetchTemplates(); fetchBusinesses(); }, []);
-  // Reset page on filter/sort changes
   useEffect(() => { setCurrentPage(1); }, [search, filterCat, filterNec, showDeprecated, sortField, sortDir]);
 
   function showToast(msg: string, type: 'success' | 'error' = 'success') {
@@ -191,7 +199,11 @@ export default function RequirementsPage() {
   async function fetchBusinesses() {
     try {
       const r = await fetch('/api/admin/businesses');
-      if (r.ok) setBusinesses(await r.json());
+      if (r.ok) {
+        const data = await r.json();
+        setBusinesses(data);
+        if (data.length > 0) setFormBizId(data[0].id);
+      }
     } catch { }
   }
 
@@ -206,7 +218,6 @@ export default function RequirementsPage() {
 
   const activeFilterCount = [filterCat, filterNec].filter(Boolean).length + (showDeprecated ? 1 : 0);
 
-  // FIX: showDeprecated=true → show ALL (inc. deprecated); false → only non-deprecated
   const filtered = useMemo(() => {
     return templates
       .filter(t => showDeprecated ? true : !t.isDeprecated)
@@ -225,7 +236,6 @@ export default function RequirementsPage() {
       });
   }, [templates, search, filterCat, filterNec, showDeprecated, sortField, sortDir]);
 
-  // Pagination
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
@@ -249,23 +259,51 @@ export default function RequirementsPage() {
     else { setSortField(field); setSortDir('asc'); }
   }
 
-  function openNew() { setFormData(defaultForm); setEditingId(null); setFormOpen(true); }
+  function openNew() {
+    setFormData(defaultForm);
+    setEditingId(null);
+    setFormLinkToBiz(false);
+    setFormBizId(businesses.length > 0 ? businesses[0].id : null);
+    setFormOpen(true);
+  }
+
   function openEdit(t: Template) {
     setFormData({ name: t.name, description: t.description ?? '', image: t.image ?? '', category: t.category, necessity: t.necessity });
-    setEditingId(t.id); setFormOpen(true);
+    setEditingId(t.id);
+    setFormLinkToBiz(false);
+    setFormBizId(null);
+    setFormOpen(true);
   }
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault(); setFormLoading(true);
+    e.preventDefault();
+    setFormLoading(true);
     try {
       const method = editingId ? 'PATCH' : 'POST';
       const url = editingId ? `/api/requirements/${editingId}` : '/api/requirements';
-      const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
+      const body: typeof formData & { businessId?: number } = { ...formData };
+      // Only pass businessId when creating and the toggle is on
+      if (!editingId && formLinkToBiz && formBizId) body.businessId = formBizId;
+
+      const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Failed'); }
-      setFormOpen(false); fetchTemplates();
-      showToast(editingId ? 'Requirement updated — all linked businesses will see the change automatically.' : 'Requirement added to library.');
-    } catch (e) { showToast(e instanceof Error ? e.message : 'Failed to save', 'error'); }
-    finally { setFormLoading(false); }
+
+      setFormOpen(false);
+      fetchTemplates();
+
+      const linkedBiz = businesses.find(b => b.id === formBizId);
+      showToast(
+        editingId
+          ? 'Requirement updated — all linked businesses will see the change automatically.'
+          : formLinkToBiz && linkedBiz
+            ? `Requirement added to library and linked to ${linkedBiz.name}.`
+            : 'Requirement added to library.'
+      );
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to save', 'error');
+    } finally {
+      setFormLoading(false);
+    }
   }
 
   async function handleDelete() {
@@ -484,7 +522,6 @@ export default function RequirementsPage() {
                 <option value="Required">Required</option>
                 <option value="Optional">Optional</option>
               </select>
-              {/* FIX: label color changes to red when active, badge shows count */}
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.82rem', color: showDeprecated ? '#f87171' : '#9494b0', fontFamily: 'Sora,sans-serif' }}>
                 <input type="checkbox" checked={showDeprecated} onChange={e => setShowDeprecated(e.target.checked)} style={{ accentColor: '#f87171', cursor: 'pointer' }} />
                 Show deprecated
@@ -617,7 +654,7 @@ export default function RequirementsPage() {
           </div>
         )}
 
-        {/* ── Pagination ── */}
+        {/* Pagination */}
         {totalPages > 1 && (
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.35rem', marginTop: '1.25rem', flexWrap: 'wrap' }}>
             <button className="pg-btn" onClick={() => goToPage(1)} disabled={currentPage === 1} title="First">«</button>
@@ -640,21 +677,42 @@ export default function RequirementsPage() {
                 <h2 style={{ fontSize: '1.05rem', fontWeight: 700 }}>{editingId ? 'Edit' : 'New'} Requirement</h2>
                 <button onClick={() => setFormOpen(false)} className="btn btn-ghost btn-icon">×</button>
               </div>
+
+              {/* Edit notice */}
               {editingId && (
                 <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 10, padding: '0.75rem 1rem', marginBottom: '1.25rem', fontSize: '0.78rem', color: '#a5b4fc', lineHeight: 1.6 }}>
                   Changes here apply to <strong>all businesses</strong> that have linked this requirement.
                 </div>
               )}
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                {/* Name */}
                 <div>
                   <label className="f-label">Name *</label>
-                  <input type="text" placeholder="e.g. Business Permit, Laptop, POS System" className="f-input" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} autoFocus />
+                  <input
+                    type="text"
+                    placeholder="e.g. Business Permit, Laptop, POS System"
+                    className="f-input"
+                    value={formData.name}
+                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                    autoFocus
+                  />
                 </div>
+
+                {/* Description */}
                 <div>
                   <label className="f-label">Description</label>
-                  <textarea placeholder="Use [businessName] to personalise — e.g. 'You need a business permit to operate your [businessName].'" className="f-textarea" rows={3} value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
+                  <textarea
+                    placeholder="Use [businessName] to personalise — e.g. 'You need a business permit to operate your [businessName].'"
+                    className="f-textarea"
+                    rows={3}
+                    value={formData.description}
+                    onChange={e => setFormData({ ...formData, description: e.target.value })}
+                  />
                   <div className="f-hint highlight">Tip: [businessName] is replaced with the business name wherever this requirement appears.</div>
                 </div>
+
+                {/* Category + Image */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div>
                     <label className="f-label">Category *</label>
@@ -668,21 +726,85 @@ export default function RequirementsPage() {
                     <input type="text" placeholder="https://…" className="f-input" value={formData.image} onChange={e => setFormData({ ...formData, image: e.target.value })} />
                   </div>
                 </div>
+
+                {/* Necessity */}
                 <div>
                   <label className="f-label">Necessity *</label>
                   <div style={{ display: 'flex', gap: '0.65rem' }}>
                     {(['Required', 'Optional'] as const).map(v => (
-                      <label key={v} className="nec-opt" style={{ borderColor: formData.necessity === v ? (v === 'Required' ? 'rgba(16,185,129,0.5)' : 'rgba(245,158,11,0.5)') : 'rgba(255,255,255,0.07)', background: formData.necessity === v ? (v === 'Required' ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)') : 'transparent', color: formData.necessity === v ? (v === 'Required' ? '#34d399' : '#fbbf24') : '#9494b0' }}>
+                      <label
+                        key={v}
+                        className="nec-opt"
+                        style={{
+                          borderColor: formData.necessity === v ? (v === 'Required' ? 'rgba(16,185,129,0.5)' : 'rgba(245,158,11,0.5)') : 'rgba(255,255,255,0.07)',
+                          background: formData.necessity === v ? (v === 'Required' ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)') : 'transparent',
+                          color: formData.necessity === v ? (v === 'Required' ? '#34d399' : '#fbbf24') : '#9494b0',
+                        }}
+                      >
                         <input type="radio" name="nec" value={v} checked={formData.necessity === v} onChange={() => setFormData({ ...formData, necessity: v })} style={{ display: 'none' }} />
                         {v}
                       </label>
                     ))}
                   </div>
                 </div>
+
+                {/* ── Link to business (create only) ── */}
+                {!editingId && (
+                  <div>
+                    <label
+                      className="link-biz-toggle"
+                      onClick={() => setFormLinkToBiz(!formLinkToBiz)}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={formLinkToBiz}
+                        onChange={() => setFormLinkToBiz(!formLinkToBiz)}
+                        style={{ accentColor: '#6366f1', cursor: 'pointer' }}
+                      />
+                      <span style={{ fontWeight: 600, color: formLinkToBiz ? '#a5b4fc' : '#9494b0' }}>
+                        Also link to a business
+                      </span>
+                      <span style={{ fontSize: '0.72rem', color: '#55556e', marginLeft: 'auto' }}>optional</span>
+                    </label>
+
+                    {formLinkToBiz && (
+                      <div style={{ marginTop: '0.65rem' }}>
+                        <label className="f-label">Select Business</label>
+                        <select
+                          className="f-select"
+                          value={formBizId ?? ''}
+                          onChange={e => setFormBizId(Number(e.target.value))}
+                        >
+                          <option value="">— Select a business —</option>
+                          {businesses.map(b => (
+                            <option key={b.id} value={b.id}>
+                              {b.name}{!b.published ? ' (draft)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="f-hint">
+                          Requirement will be added to the library AND linked to this business.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Footer buttons */}
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.5rem' }}>
                   <button className="btn btn-ghost" onClick={() => setFormOpen(false)}>Cancel</button>
-                  <button className="btn btn-primary" onClick={handleSubmit} disabled={formLoading || !formData.name || !formData.category || !formData.necessity}>
-                    {formLoading ? 'Saving…' : editingId ? 'Update' : 'Create'}
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleSubmit}
+                    disabled={formLoading || !formData.name || !formData.category || !formData.necessity}
+                  >
+                    {formLoading
+                      ? 'Saving…'
+                      : editingId
+                        ? 'Update'
+                        : formLinkToBiz && formBizId
+                          ? 'Create + Link to Biz'
+                          : 'Create'}
                   </button>
                 </div>
               </div>
@@ -763,7 +885,6 @@ export default function RequirementsPage() {
                         Add to business{selectedBizIds.size > 0 && <span style={{ color: '#a78bfa', marginLeft: '0.4rem' }}>({selectedBizIds.size} selected)</span>}
                       </span>
                     </div>
-                    {/* Business search */}
                     <div style={{ position: 'relative', marginBottom: '0.55rem' }}>
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#55556e" strokeWidth="2" style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
                       <input type="text" placeholder="Search businesses…" value={bizSearch} onChange={e => setBizSearch(e.target.value)} className="modal-search" />
