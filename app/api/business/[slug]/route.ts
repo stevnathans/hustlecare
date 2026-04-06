@@ -7,10 +7,8 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    // Await params in Next.js 15+
     const { slug: businessType } = await params;
     
-    // Find business by slug
     const business = await prisma.business.findUnique({
       where: {
         slug: businessType,
@@ -18,8 +16,21 @@ export async function GET(
       select: {
         id: true,
         name: true,
+        slug: true,
         description: true,
         image: true,
+        published: true,
+        categoryId: true,
+        userId: true,
+        createdAt: true,
+        updatedAt: true,
+        costMin: true,
+        costMax: true,
+        timeToLaunchMin: true,
+        timeToLaunchMax: true,
+        profitPotential: true,
+        skillLevel: true,
+        bestLocations: true,
       },
     });
 

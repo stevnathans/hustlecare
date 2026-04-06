@@ -24,6 +24,15 @@ interface Business {
   userId: string | null;
   createdAt: Date;
   updatedAt: Date;
+  // ── New metadata fields ──────────────────────────────────────────
+  costMin: number | null;
+  costMax: number | null;
+  timeToLaunchMin: number | null;
+  timeToLaunchMax: number | null;
+  profitPotential: string | null;
+  skillLevel: string | null;
+  bestLocations: string[];
+  // ── Legacy / optional fields ─────────────────────────────────────
   location?: string;
   address?: any;
   phone?: any;
@@ -54,18 +63,11 @@ export const useBusinessData = (slug: string) => {
   const [groupedRequirements, setGroupedRequirements] = useState<Record<string, Requirement[]>>({});
   const [sortedCategories, setSortedCategories] = useState<string[]>([]);
 
-  // Extracted into its own function so it can be called both on initial load
-  // and on-demand after an admin assigns a product to a requirement.
   const fetchProducts = useCallback(async (requirementsData: Requirement[], businessName: string) => {
     const productsByRequirement: Record<string, ProductType[]> = {};
 
     for (const requirement of requirementsData) {
-      // Pass templateId (direct DB link) AND requirementName (legacy name-match).
-      // The API merges both result sets and deduplicates by id, so all products
-      // — whether assigned by name-match or explicit assignment — are returned.
-      const params = new URLSearchParams({
-        requirementName: requirement.name,
-      });
+      const params = new URLSearchParams({ requirementName: requirement.name });
       if (requirement.templateId) {
         params.set('templateId', String(requirement.templateId));
       }
@@ -102,9 +104,6 @@ export const useBusinessData = (slug: string) => {
     setProducts(productsByRequirement);
   }, []);
 
-  // Called by BusinessPageContent after an admin assigns a product to a requirement.
-  // Re-fetches only the products (not business or requirements) so the UI updates
-  // without a full page reload.
   const refreshProducts = useCallback(() => {
     if (requirements.length > 0 && business) {
       fetchProducts(requirements, business.name);
@@ -133,24 +132,33 @@ export const useBusinessData = (slug: string) => {
         const businessData = await businessResponse.json();
 
         const transformedBusiness: Business = {
-          id: businessData.id,
-          name: businessData.name,
-          slug: businessData.slug,
+          id:          businessData.id,
+          name:        businessData.name,
+          slug:        businessData.slug,
           description: businessData.description ?? null,
-          image: businessData.image ?? null,
-          location: businessData.location,
-          address: businessData.address,
-          phone: businessData.phone,
-          email: businessData.email,
-          hours: businessData.hours,
+          image:       businessData.image ?? null,
+          published:   businessData.published ?? true,
+          createdAt:   businessData.createdAt ? new Date(businessData.createdAt) : new Date(),
+          updatedAt:   businessData.updatedAt ? new Date(businessData.updatedAt) : new Date(),
+          userId:      businessData.userId ?? null,
+          categoryId:  businessData.categoryId ?? null,
+          // ── New metadata fields ────────────────────────────────────────
+          costMin:         businessData.costMin         ?? null,
+          costMax:         businessData.costMax         ?? null,
+          timeToLaunchMin: businessData.timeToLaunchMin ?? null,
+          timeToLaunchMax: businessData.timeToLaunchMax ?? null,
+          profitPotential: businessData.profitPotential ?? null,
+          skillLevel:      businessData.skillLevel      ?? null,
+          bestLocations:   businessData.bestLocations   ?? [],
+          // ── Legacy / optional fields ───────────────────────────────────
+          location:    businessData.location,
+          address:     businessData.address,
+          phone:       businessData.phone,
+          email:       businessData.email,
+          hours:       businessData.hours,
           socialLinks: businessData.socialLinks || [],
           reviewCount: businessData.reviewCount || 0,
-          rating: businessData.rating,
-          published: businessData.published ?? true,
-          createdAt: businessData.createdAt ? new Date(businessData.createdAt) : new Date(),
-          updatedAt: businessData.updatedAt ? new Date(businessData.updatedAt) : new Date(),
-          userId: businessData.userId ?? null,
-          categoryId: businessData.categoryId ?? null,
+          rating:      businessData.rating,
         };
 
         setBusiness(transformedBusiness);
