@@ -118,7 +118,7 @@ export default function BusinessInsights({
           id="insights-heading"
           className="text-xl font-bold text-gray-900 mb-5 tracking-wide"
         >
-          {name} Business at a Glance
+          {name} Business Overview
         </h2>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
