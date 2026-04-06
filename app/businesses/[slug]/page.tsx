@@ -11,6 +11,97 @@ interface Props {
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatKES(amount: number) {
+  return new Intl.NumberFormat('en-KE', {
+    style: 'currency',
+    currency: 'KES',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function formatDays(days: number) {
+  if (days < 7) return `${days} day${days !== 1 ? 's' : ''}`;
+  const weeks = Math.round(days / 7);
+  if (weeks < 4) return `${weeks} week${weeks !== 1 ? 's' : ''}`;
+  const months = Math.round(days / 30);
+  return `${months} month${months !== 1 ? 's' : ''}`;
+}
+
+/** Build auto-generated FAQs from business data. */
+function buildAutoFaqs(
+  name: string,
+  costMin: number | null,
+  costMax: number | null,
+  timeMin: number | null,
+  timeMax: number | null,
+  profitPotential: string | null,
+  skillLevel: string | null,
+  requirementCount: number,
+  bestLocations: string[],
+): AutoFaq[] {
+  const faqs: AutoFaq[] = [];
+
+  if (costMin && costMax) {
+    faqs.push({
+      question: `How much does it cost to start a ${name} business in Kenya?`,
+      answer: `Starting a ${name} business in Kenya costs between ${formatKES(costMin)} and ${formatKES(costMax)} depending on your scale and location. This covers the key requirements such as equipment, licences, and initial operating expenses.`,
+    });
+  }
+
+  if (timeMin && timeMax) {
+    faqs.push({
+      question: `How long does it take to launch a ${name} business in Kenya?`,
+      answer: `You can expect to launch your ${name} business within ${formatDays(timeMin)} to ${formatDays(timeMax)}. This includes registration, sourcing requirements, and getting your first customers.`,
+    });
+  }
+
+  if (requirementCount > 0) {
+    faqs.push({
+      question: `What are the requirements to start a ${name} business in Kenya?`,
+      answer: `A ${name} business in Kenya has ${requirementCount} requirements covering documents, equipment, licences, and operational needs. Some are mandatory while others are optional depending on your business scale.`,
+    });
+  }
+
+  if (profitPotential) {
+    const label = profitPotential.replace(/_/g, ' ');
+    faqs.push({
+      question: `Is a ${name} business profitable in Kenya?`,
+      answer: `A ${name} business has ${label} profit potential in Kenya. Profitability depends on your location, scale of operation, and how well you manage costs and customer acquisition.`,
+    });
+  }
+
+  if (skillLevel) {
+    faqs.push({
+      question: `Do I need special skills to start a ${name} business?`,
+      answer: `The skill level required for a ${name} business is ${skillLevel}. ${
+        skillLevel === 'low'
+          ? 'Most people can start with basic training and learn on the job.'
+          : skillLevel === 'moderate'
+          ? 'Some prior experience or short training will give you a strong advantage.'
+          : 'Significant experience or professional training is recommended before starting.'
+      }`,
+    });
+  }
+
+  if (bestLocations.length > 0) {
+    const locationList = bestLocations.join(', ');
+    faqs.push({
+      question: `Where is the best place to start a ${name} business in Kenya?`,
+      answer: `The best locations for a ${name} business in Kenya include ${locationList}. These areas offer strong customer demand, good infrastructure, or proximity to key suppliers.`,
+    });
+  }
+
+  return faqs;
+}
+
+interface AutoFaq {
+  question: string;
+  answer: string;
+}
+
 // ── Data Fetching ─────────────────────────────────────────────────────────────
 
 async function fetchBusiness(slug: string) {
@@ -26,6 +117,10 @@ async function fetchBusiness(slug: string) {
           },
         },
         orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+      },
+      faqs: {
+        where: { isActive: true },
+        orderBy: { displayOrder: 'asc' },
       },
     },
   });
@@ -120,7 +215,8 @@ export default async function BusinessHubPage({ params }: Props) {
     business.description ||
     `Complete guide to starting a ${name} business in Kenya with ${requirementCount} requirements and cost estimates.`;
 
-  // Group requirements for the preview
+  // ── Requirement grouping ──────────────────────────────────────────────────
+
   const grouped = business.requirements.reduce<Record<string, typeof business.requirements>>(
     (acc, req) => {
       const cat = req.template.category || 'General';
@@ -131,21 +227,37 @@ export default async function BusinessHubPage({ params }: Props) {
     {}
   );
 
-  const previewRequirements = business.requirements
-    .slice(0, 4)
-    .map((r) => ({
-      id: r.id,
-      name: r.template.name,
-      category: r.template.category,
-      necessity: r.template.necessity,
-      image: r.template.image,
-    }));
+  const previewRequirements = business.requirements.slice(0, 4).map((r) => ({
+    id: r.id,
+    name: r.template.name,
+    category: r.template.category,
+    necessity: r.template.necessity,
+    image: r.template.image,
+  }));
 
   const categoryBreakdown = Object.entries(grouped).map(([cat, reqs]) => ({
     name: cat,
     count: reqs.length,
     requiredCount: reqs.filter((r) => r.template.necessity === 'Required').length,
   }));
+
+  // ── FAQs: merge DB overrides on top of auto-generated ────────────────────
+
+  const autoFaqs = buildAutoFaqs(
+    name,
+    business.costMin,
+    business.costMax,
+    business.timeToLaunchMin,
+    business.timeToLaunchMax,
+    business.profitPotential,
+    business.skillLevel,
+    requirementCount,
+    business.bestLocations,
+  );
+
+  // DB FAQs completely replace auto ones when present
+  const dbFaqs = business.faqs.map((f) => ({ question: f.question, answer: f.answer }));
+  const finalFaqs = dbFaqs.length > 0 ? dbFaqs : autoFaqs;
 
   // ── Structured Data ───────────────────────────────────────────────────────
 
@@ -188,6 +300,23 @@ export default async function BusinessHubPage({ params }: Props) {
         breadcrumb: { '@id': `${pageUrl}#breadcrumb` },
         inLanguage: 'en-KE',
       },
+      // FAQPage schema — only emit when we have FAQs
+      ...(finalFaqs.length > 0
+        ? [
+            {
+              '@type': 'FAQPage',
+              '@id': `${pageUrl}#faq`,
+              mainEntity: finalFaqs.map((faq) => ({
+                '@type': 'Question',
+                name: faq.question,
+                acceptedAnswer: {
+                  '@type': 'Answer',
+                  text: faq.answer,
+                },
+              })),
+            },
+          ]
+        : []),
     ],
   };
 
@@ -207,9 +336,17 @@ export default async function BusinessHubPage({ params }: Props) {
         requirementCount={requirementCount}
         categoryBreakdown={categoryBreakdown}
         previewRequirements={previewRequirements}
+        // New metadata props
+        costMin={business.costMin}
+        costMax={business.costMax}
+        timeToLaunchMin={business.timeToLaunchMin}
+        timeToLaunchMax={business.timeToLaunchMax}
+        profitPotential={business.profitPotential}
+        skillLevel={business.skillLevel}
+        bestLocations={business.bestLocations}
+        faqs={finalFaqs}
       />
 
-      {/* Related businesses — only rendered when a category is assigned */}
       {business.category && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
           <RelatedBusinesses

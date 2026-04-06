@@ -6,7 +6,7 @@ import Image from "next/image";
 import {
   Search, Plus, Edit2, Trash2, Eye, EyeOff, Download, Tag,
   Filter, X, ArrowUpDown, ArrowUp, ArrowDown, Grid, List,
-  Copy, ExternalLink, Building
+  Copy, ExternalLink, Building, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { toast, Toaster } from "react-hot-toast";
 
@@ -14,12 +14,35 @@ type Category = { id: number; name: string; };
 type Business = {
   id: number; name: string; description?: string; image?: string; slug: string;
   published: boolean; category?: Category | null; createdAt: string; updatedAt: string;
-  _count?: { requirements: number; };
+  _count?: { requirements: number };
+  costMin?: number | null;
+  costMax?: number | null;
+  timeToLaunchMin?: number | null;
+  timeToLaunchMax?: number | null;
+  profitPotential?: string | null;
+  skillLevel?: string | null;
+  bestLocations?: string[];
 };
 type SortField = 'name' | 'createdAt' | 'requirements' | 'category';
 type SortOrder = 'asc' | 'desc';
 type ViewMode  = 'table' | 'grid';
 const CREATE_NEW = "__CREATE_NEW__";
+
+const PROFIT_OPTIONS = [
+  { value: '',               label: '— Not set —' },
+  { value: 'low',            label: 'Low' },
+  { value: 'low_to_medium',  label: 'Low to Medium' },
+  { value: 'medium',         label: 'Medium' },
+  { value: 'medium_to_high', label: 'Medium to High' },
+  { value: 'high',           label: 'High' },
+];
+
+const SKILL_OPTIONS = [
+  { value: '',         label: '— Not set —' },
+  { value: 'low',      label: 'Low (Beginner-friendly)' },
+  { value: 'moderate', label: 'Moderate' },
+  { value: 'high',     label: 'High (Expert required)' },
+];
 
 /* ── Styles ── */
 const S = `
@@ -81,7 +104,7 @@ const S = `
   .g-card.sel { border-color:rgba(99,102,241,0.5); background:rgba(99,102,241,0.04); }
 
   .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:9999; display:flex; align-items:center; justify-content:center; padding:1rem; backdrop-filter:blur(4px); overflow-y:auto; }
-  .modal-box { background:#1a1a24; border:1px solid rgba(255,255,255,0.09); border-radius:16px; padding:1.75rem; width:100%; max-width:480px; box-shadow:0 24px 80px rgba(0,0,0,0.6); margin:auto; }
+  .modal-box { background:#1a1a24; border:1px solid rgba(255,255,255,0.09); border-radius:16px; padding:1.75rem; width:100%; max-width:560px; box-shadow:0 24px 80px rgba(0,0,0,0.6); margin:auto; }
 
   .skel { background:linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.08) 50%,rgba(255,255,255,0.04) 75%); background-size:200% 100%; animation:shimmer 1.4s infinite; border-radius:6px; }
   @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
@@ -89,7 +112,21 @@ const S = `
   .scroll::-webkit-scrollbar { width:4px; height:4px; }
   .scroll::-webkit-scrollbar-track { background:transparent; }
   .scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:2px; }
+
+  .section-toggle { display:flex; align-items:center; justify-content:space-between; padding:0.6rem 0; cursor:pointer; border:none; background:none; color:#9494b0; font-family:'Sora',sans-serif; font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; width:100%; border-top:1px solid rgba(255,255,255,0.06); margin-top:0.5rem; }
+  .section-toggle:hover { color:#f0f0f5; }
+  .hint { font-size:0.72rem; color:#55556e; margin-top:0.25rem; }
 `;
+
+function FormField({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="f-label">{label}</label>
+      {children}
+      {hint && <p className="hint">{hint}</p>}
+    </div>
+  );
+}
 
 export default function BusinessesAdminPage() {
   const [businesses,      setBusinesses]      = useState<Business[]>([]);
@@ -108,7 +145,16 @@ export default function BusinessesAdminPage() {
   const [viewMode,        setViewMode]        = useState<ViewMode>('table');
   const [selectedCatId,   setSelectedCatId]   = useState('');
   const [newCatName,      setNewCatName]      = useState('');
-  const [formData,        setFormData]        = useState({ name:'', description:'', image:'', slug:'', published:true });
+  const [showMetaFields,  setShowMetaFields]  = useState(false);
+
+  const emptyForm = {
+    name: '', description: '', image: '', slug: '', published: true,
+    costMin: '', costMax: '',
+    timeToLaunchMin: '', timeToLaunchMax: '',
+    profitPotential: '', skillLevel: '',
+    bestLocations: '',
+  };
+  const [formData, setFormData] = useState(emptyForm);
 
   useEffect(() => { fetchBusinesses(); fetchCategories(); }, []);
 
@@ -148,15 +194,46 @@ export default function BusinessesAdminPage() {
     if (selectedCatId===CREATE_NEW && !newCatName.trim()) { toast.error('Enter a category name'); return; }
     setLoading(true);
     try {
-      const catName = selectedCatId===CREATE_NEW ? newCatName.trim() : selectedCatId==='' ? '' : categories.find(c=>c.id===Number(selectedCatId))?.name??'';
+      const catName = selectedCatId===CREATE_NEW
+        ? newCatName.trim()
+        : selectedCatId===''
+          ? ''
+          : categories.find(c=>c.id===Number(selectedCatId))?.name ?? '';
+
       const method = editingBusiness ? 'PATCH' : 'POST';
-      const body   = editingBusiness ? {...formData, id:editingBusiness.id, categoryName:catName} : {...formData, categoryName:catName};
-      const r = await fetch('/api/admin/businesses', { method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-      if (!r.ok) throw new Error();
+      const payload = {
+        ...formData,
+        ...(editingBusiness && { id: editingBusiness.id }),
+        categoryName: catName,
+        // Numbers — send null when empty so API stores null, not 0
+        costMin:         formData.costMin         !== '' ? Number(formData.costMin)         : null,
+        costMax:         formData.costMax         !== '' ? Number(formData.costMax)         : null,
+        timeToLaunchMin: formData.timeToLaunchMin !== '' ? Number(formData.timeToLaunchMin) : null,
+        timeToLaunchMax: formData.timeToLaunchMax !== '' ? Number(formData.timeToLaunchMax) : null,
+        profitPotential: formData.profitPotential || null,
+        skillLevel:      formData.skillLevel      || null,
+        // bestLocations: send as array, split on comma
+        bestLocations: formData.bestLocations
+          ? formData.bestLocations.split(',').map(s => s.trim()).filter(Boolean)
+          : [],
+      };
+
+      const r = await fetch('/api/admin/businesses', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) {
+        const d = await r.json();
+        throw new Error(d.error || 'Something went wrong');
+      }
       toast.success(editingBusiness ? 'Business updated!' : 'Business created!');
       closeModal(); fetchBusinesses(); fetchCategories();
-    } catch { toast.error('Something went wrong!'); }
-    finally { setLoading(false); }
+    } catch(err) {
+      toast.error(err instanceof Error ? err.message : 'Something went wrong!');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleDelete(id: number) {
@@ -188,15 +265,54 @@ export default function BusinessesAdminPage() {
     toast.success('Exported!');
   }
 
-  function openModal() { setFormData({name:'',description:'',image:'',slug:'',published:true}); setEditingBusiness(null); setSelectedCatId(''); setNewCatName(''); setIsModalOpen(true); }
-  function closeModal() { setIsModalOpen(false); setEditingBusiness(null); }
-  function openEditModal(b: Business) {
-    setFormData({name:b.name,description:b.description||'',image:b.image||'',slug:b.slug,published:b.published});
-    setEditingBusiness(b); setSelectedCatId(b.category?String(b.category.id):''); setNewCatName(''); setIsModalOpen(true);
+  function openModal() {
+    setFormData(emptyForm);
+    setEditingBusiness(null);
+    setSelectedCatId('');
+    setNewCatName('');
+    setShowMetaFields(false);
+    setIsModalOpen(true);
   }
+
+  function closeModal() {
+    setIsModalOpen(false);
+    setEditingBusiness(null);
+    setShowMetaFields(false);
+  }
+
+  function openEditModal(b: Business) {
+    const hasMetaData = !!(
+      b.costMin || b.costMax || b.timeToLaunchMin || b.timeToLaunchMax ||
+      b.profitPotential || b.skillLevel || b.bestLocations?.length
+    );
+    setFormData({
+      name:            b.name,
+      description:     b.description     || '',
+      image:           b.image           || '',
+      slug:            b.slug,
+      published:       b.published,
+      costMin:         b.costMin         != null ? String(b.costMin)         : '',
+      costMax:         b.costMax         != null ? String(b.costMax)         : '',
+      timeToLaunchMin: b.timeToLaunchMin != null ? String(b.timeToLaunchMin) : '',
+      timeToLaunchMax: b.timeToLaunchMax != null ? String(b.timeToLaunchMax) : '',
+      profitPotential: b.profitPotential || '',
+      skillLevel:      b.skillLevel      || '',
+      bestLocations:   b.bestLocations?.join(', ') || '',
+    });
+    setEditingBusiness(b);
+    setSelectedCatId(b.category ? String(b.category.id) : '');
+    setNewCatName('');
+    setShowMetaFields(hasMetaData); // auto-expand if data exists
+    setIsModalOpen(true);
+  }
+
   function genSlug(name: string) { return name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,''); }
   function toggleSelectAll() { setSelectedIds(selectedIds.length===filtered.length?[]:filtered.map(b=>b.id)); }
   function toggleSelect(id: number) { setSelectedIds(p=>p.includes(id)?p.filter(i=>i!==id):[...p,id]); }
+  function fd(key: keyof typeof emptyForm) {
+    return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+      setFormData(prev => ({ ...prev, [key]: e.target.value }));
+  }
 
   return (
     <>
@@ -235,7 +351,7 @@ export default function BusinessesAdminPage() {
           </button>
           <div style={{ display:'flex', border:'1px solid rgba(255,255,255,0.09)', borderRadius:9, overflow:'hidden' }}>
             <button className={`btn-view${viewMode==='table'?' active':''}`} onClick={()=>setViewMode('table')} title="Table"><List size={15}/></button>
-            <button className={`btn-view${viewMode==='grid'?' active':''}`}  onClick={()=>setViewMode('grid')}  title="Grid"  style={{ borderLeft:'1px solid rgba(255,255,255,0.09)' }}><Grid size={15}/></button>
+            <button className={`btn-view${viewMode==='grid'?' active':''}`}  onClick={()=>setViewMode('grid')}  title="Grid" style={{ borderLeft:'1px solid rgba(255,255,255,0.09)' }}><Grid size={15}/></button>
           </div>
         </div>
 
@@ -355,7 +471,7 @@ export default function BusinessesAdminPage() {
                   </div>
                   <div style={{ position:'absolute', top:'0.5rem', right:'0.5rem', display:'flex', gap:'0.25rem' }}>
                     <button className="btn btn-ghost btn-icon" style={{ background:'rgba(26,26,36,0.8)' }} onClick={()=>openEditModal(b)}><Edit2 size={13}/></button>
-                    <button className="btn btn-danger btn-icon" style={{ background:'rgba(239,68,68,0.2)' }}  onClick={()=>handleDelete(b.id)}><Trash2 size={13}/></button>
+                    <button className="btn btn-danger btn-icon" style={{ background:'rgba(239,68,68,0.2)' }} onClick={()=>handleDelete(b.id)}><Trash2 size={13}/></button>
                   </div>
                 </div>
                 <div style={{ padding:'0.85rem 1rem' }}>
@@ -381,13 +497,28 @@ export default function BusinessesAdminPage() {
         {isModalOpen && (
           <div className="modal-overlay" onClick={closeModal}>
             <div className="modal-box" onClick={e=>e.stopPropagation()}>
+
+              {/* Modal header */}
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1.5rem' }}>
                 <h2 style={{ fontSize:'1.05rem', fontWeight:700 }}>{editingBusiness?'Edit':'Add'} Business</h2>
                 <button onClick={closeModal} className="btn btn-ghost btn-icon"><X size={16}/></button>
               </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:'0.9rem' }}>
-                <div><label className="f-label">Name</label><input type="text" value={formData.name} onChange={e=>setFormData({...formData,name:e.target.value,slug:genSlug(e.target.value)})} className="f-input" placeholder="Business name" /></div>
-                <div><label className="f-label">Slug</label><input type="text" value={formData.slug} onChange={e=>setFormData({...formData,slug:e.target.value})} className="f-input" placeholder="auto-generated" /></div>
+
+              <div style={{ display:'flex', flexDirection:'column', gap:'0.9rem', maxHeight:'75vh', overflowY:'auto', paddingRight:'0.25rem' }} className="scroll">
+
+                {/* ── Core fields ── */}
+                <FormField label="Name">
+                  <input
+                    type="text" value={formData.name} className="f-input"
+                    placeholder="Business name"
+                    onChange={e => setFormData(p => ({ ...p, name: e.target.value, slug: genSlug(e.target.value) }))}
+                  />
+                </FormField>
+
+                <FormField label="Slug">
+                  <input type="text" value={formData.slug} className="f-input" placeholder="auto-generated" onChange={fd('slug')} />
+                </FormField>
+
                 <div>
                   <label className="f-label">Category</label>
                   <select value={selectedCatId} onChange={e=>{setSelectedCatId(e.target.value);if(e.target.value!==CREATE_NEW)setNewCatName('');}} className="f-select">
@@ -395,22 +526,100 @@ export default function BusinessesAdminPage() {
                     {categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
                     <option value={CREATE_NEW}>+ Create new</option>
                   </select>
-                  {selectedCatId===CREATE_NEW && <input type="text" placeholder="New category name" value={newCatName} onChange={e=>setNewCatName(e.target.value)} className="f-input" style={{ marginTop:'0.5rem', borderColor:'rgba(139,92,246,0.4)' }} autoFocus />}
+                  {selectedCatId===CREATE_NEW && (
+                    <input type="text" placeholder="New category name" value={newCatName} onChange={e=>setNewCatName(e.target.value)} className="f-input" style={{ marginTop:'0.5rem', borderColor:'rgba(139,92,246,0.4)' }} autoFocus />
+                  )}
                 </div>
-                <div><label className="f-label">Description</label><textarea value={formData.description} onChange={e=>setFormData({...formData,description:e.target.value})} rows={3} className="f-textarea" placeholder="Brief description…" /></div>
-                <div><label className="f-label">Image URL</label><input type="text" value={formData.image} onChange={e=>setFormData({...formData,image:e.target.value})} className="f-input" placeholder="https://…" /></div>
+
+                <FormField label="Description">
+                  <textarea value={formData.description} onChange={fd('description')} rows={3} className="f-textarea" placeholder="Brief description…" />
+                </FormField>
+
+                <FormField label="Image URL">
+                  <input type="text" value={formData.image} onChange={fd('image')} className="f-input" placeholder="https://…" />
+                </FormField>
+
                 <label style={{ display:'flex', alignItems:'center', gap:'0.6rem', cursor:'pointer' }}>
-                  <input type="checkbox" checked={formData.published} onChange={e=>setFormData({...formData,published:e.target.checked})} style={{ accentColor:'#6366f1', width:16, height:16 }} />
+                  <input type="checkbox" checked={formData.published} onChange={e=>setFormData(p=>({...p,published:e.target.checked}))} style={{ accentColor:'#6366f1', width:16, height:16 }} />
                   <span style={{ fontSize:'0.84rem', color:'#9494b0', fontWeight:500 }}>Publish immediately</span>
                 </label>
-                <div style={{ display:'flex', justifyContent:'flex-end', gap:'0.65rem', marginTop:'0.5rem' }}>
-                  <button className="btn btn-ghost" onClick={closeModal}>Cancel</button>
-                  <button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>{loading?'Saving…':editingBusiness?'Update':'Create'}</button>
+
+                {/* ── Metadata section — collapsible ── */}
+                <button
+                  type="button"
+                  className="section-toggle"
+                  onClick={() => setShowMetaFields(v => !v)}
+                >
+                  <span>Business Insights</span>
+                  {showMetaFields ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+                </button>
+
+                {showMetaFields && (
+                  <div style={{ display:'flex', flexDirection:'column', gap:'0.9rem' }}>
+
+                    {/* Cost range */}
+                    <div>
+                      <label className="f-label">Startup Cost Range (KES)</label>
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.5rem' }}>
+                        <input type="number" value={formData.costMin} onChange={fd('costMin')} className="f-input" placeholder="Min e.g. 50000" min={0} />
+                        <input type="number" value={formData.costMax} onChange={fd('costMax')} className="f-input" placeholder="Max e.g. 500000" min={0} />
+                      </div>
+                    </div>
+
+                    {/* Time to launch */}
+                    <div>
+                      <label className="f-label">Time to Launch (days)</label>
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.5rem' }}>
+                        <input type="number" value={formData.timeToLaunchMin} onChange={fd('timeToLaunchMin')} className="f-input" placeholder="Min e.g. 7" min={1} />
+                        <input type="number" value={formData.timeToLaunchMax} onChange={fd('timeToLaunchMax')} className="f-input" placeholder="Max e.g. 30" min={1} />
+                      </div>
+                      <p className="hint">Enter number of days. Displayed as days / weeks / months automatically.</p>
+                    </div>
+
+                    {/* Profit potential */}
+                    <FormField label="Profit Potential">
+                      <select value={formData.profitPotential} onChange={fd('profitPotential')} className="f-select">
+                        {PROFIT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                    </FormField>
+
+                    {/* Skill level */}
+                    <FormField label="Skill Level Required">
+                      <select value={formData.skillLevel} onChange={fd('skillLevel')} className="f-select">
+                        {SKILL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                    </FormField>
+
+                    {/* Best locations */}
+                    <FormField
+                      label="Best Locations"
+                      hint="Comma-separated. e.g. Nairobi, Mombasa, Kisumu"
+                    >
+                      <input
+                        type="text"
+                        value={formData.bestLocations}
+                        onChange={fd('bestLocations')}
+                        className="f-input"
+                        placeholder="Nairobi, Mombasa, Kisumu"
+                      />
+                    </FormField>
+
+                  </div>
+                )}
+
+                {/* Footer */}
+                <div style={{ display:'flex', justifyContent:'flex-end', gap:'0.65rem', marginTop:'0.5rem', paddingTop:'0.75rem', borderTop:'1px solid rgba(255,255,255,0.06)' }}>
+                  <button className="btn btn-ghost" type="button" onClick={closeModal}>Cancel</button>
+                  <button className="btn btn-primary" type="button" onClick={handleSubmit} disabled={loading}>
+                    {loading ? 'Saving…' : editingBusiness ? 'Update' : 'Create'}
+                  </button>
                 </div>
+
               </div>
             </div>
           </div>
         )}
+
       </div>
     </>
   );

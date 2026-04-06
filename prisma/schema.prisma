@@ -136,6 +136,16 @@ model Business {
   // Requirements now come through the link table
   requirements BusinessRequirement[]
   
+  costMin          Int?        // KES, e.g. 50000
+  costMax          Int?        // KES, e.g. 500000
+  timeToLaunchMin  Int?        // days
+  timeToLaunchMax  Int?        // days
+  profitPotential  String?     // "low" | "low_to_medium" | "medium" | "medium_to_high" | "high"
+  skillLevel       String?     // "low" | "moderate" | "high"
+  bestLocations    String[]    // e.g. ["Nairobi", "Mombasa", "Kisumu"]
+
+  faqs             BusinessFaq[]
+
   carts        Cart[]
   searches     SearchLog[]
   user         User?              @relation(fields: [userId], references: [id])
@@ -147,6 +157,22 @@ model Business {
   @@index([slug])
   @@index([published])
 }
+
+model BusinessFaq {
+  id          Int      @id @default(autoincrement())
+  businessId  Int
+  question    String
+  answer      String   @db.Text
+  displayOrder Int     @default(0)
+  isActive    Boolean  @default(true)
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([businessId])
+  @@index([isActive])
+}
+
 
 model BusinessCategory {
   id         Int        @id @default(autoincrement())
