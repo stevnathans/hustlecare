@@ -1,9 +1,11 @@
 // app/api/products/route.ts
 // GET supports:
-//   ?requirementName=…   (legacy name-matching)
-//   ?templateId=…        (direct DB link via product.templateId)
-//   both together        (merges both result sets, deduplicated by id)
-//   no params            (returns all products)
+//   ?templateId=…   (direct DB link via product.templateId — only source of truth)
+//   no params       (returns all products)
+//
+// NOTE: requirementName name-matching has been removed. Products are only
+// returned when explicitly linked to a template via product.templateId.
+// This ensures cost calculations are consistent across all pages.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -11,55 +13,12 @@ import { prisma } from '@/lib/prisma';
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
-    const requirementName = url.searchParams.get('requirementName');
     const templateId = url.searchParams.get('templateId');
 
-    // ── Fetch by templateId (direct link) + optional name fallback ────────
+    // ── Fetch by templateId (direct link only) ────────────────────────────
     if (templateId) {
-      // 1. Products directly linked to this template via product.templateId
-      const linkedProducts = await prisma.product.findMany({
-        where: { templateId: Number(templateId) },
-        include: { vendor: true },
-        orderBy: { price: 'asc' },
-      });
-
-      // 2. Legacy name-based match — runs whenever requirementName is supplied.
-      //    We want products whose name contains the requirement name AND whose
-      //    templateId is either null (unassigned) or points to a DIFFERENT
-      //    template (already counted above and will be deduplicated).
-      //
-      //    IMPORTANT: Prisma's { not: X } filter does NOT match null rows on
-      //    PostgreSQL, so we must explicitly include null with OR to avoid
-      //    silently dropping unassigned name-matched products.
-      let nameMatched: typeof linkedProducts = [];
-      if (requirementName) {
-        nameMatched = await prisma.product.findMany({
-          where: {
-            name: { contains: requirementName, mode: 'insensitive' },
-            OR: [
-              { templateId: null },                      // unassigned products
-              { templateId: { not: Number(templateId) } }, // assigned to a different template
-            ],
-          },
-          include: { vendor: true },
-          orderBy: { price: 'asc' },
-        });
-      }
-
-      // Deduplicate: direct links take priority; name-matched are appended
-      // only if their id hasn't already appeared in linkedProducts.
-      const linkedIds = new Set(linkedProducts.map((p) => p.id));
-      const uniqueNameMatched = nameMatched.filter((p) => !linkedIds.has(p.id));
-
-      return NextResponse.json([...linkedProducts, ...uniqueNameMatched]);
-    }
-
-    // ── Legacy: fetch by requirementName only ─────────────────────────────
-    if (requirementName) {
       const products = await prisma.product.findMany({
-        where: {
-          name: { contains: requirementName, mode: 'insensitive' },
-        },
+        where: { templateId: Number(templateId) },
         include: { vendor: true },
         orderBy: { price: 'asc' },
       });
@@ -94,7 +53,7 @@ export async function POST(req: Request) {
         price,
         image,
         url,
-        vendorId: vendorId ? parseInt(vendorId) : null,
+        vendorId:   vendorId   ? parseInt(vendorId)   : null,
         templateId: templateId ? parseInt(templateId) : null,
       },
       include: {

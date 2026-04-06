@@ -24,7 +24,6 @@ interface Business {
   userId: string | null;
   createdAt: Date;
   updatedAt: Date;
-  // ── New metadata fields ──────────────────────────────────────────
   costMin: number | null;
   costMax: number | null;
   timeToLaunchMin: number | null;
@@ -32,7 +31,6 @@ interface Business {
   profitPotential: string | null;
   skillLevel: string | null;
   bestLocations: string[];
-  // ── Legacy / optional fields ─────────────────────────────────────
   location?: string;
   address?: any;
   phone?: any;
@@ -55,49 +53,60 @@ const CATEGORY_ORDER = [
 
 export const useBusinessData = (slug: string) => {
   const { switchBusiness } = useCart();
-  const [business, setBusiness] = useState<Business | null>(null);
-  const [requirements, setRequirements] = useState<Requirement[]>([]);
-  const [products, setProducts] = useState<Record<string, ProductType[]>>({});
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [business, setBusiness]                   = useState<Business | null>(null);
+  const [requirements, setRequirements]           = useState<Requirement[]>([]);
+  const [products, setProducts]                   = useState<Record<string, ProductType[]>>({});
+  const [error, setError]                         = useState<string | null>(null);
+  const [isLoading, setIsLoading]                 = useState<boolean>(true);
   const [groupedRequirements, setGroupedRequirements] = useState<Record<string, Requirement[]>>({});
-  const [sortedCategories, setSortedCategories] = useState<string[]>([]);
+  const [sortedCategories, setSortedCategories]   = useState<string[]>([]);
 
   const fetchProducts = useCallback(async (requirementsData: Requirement[], businessName: string) => {
     const productsByRequirement: Record<string, ProductType[]> = {};
 
     for (const requirement of requirementsData) {
-      const params = new URLSearchParams({ requirementName: requirement.name });
-      if (requirement.templateId) {
-        params.set('templateId', String(requirement.templateId));
+      // Only fetch products via templateId (direct DB assignment).
+      // Name-matching has been removed — it caused cost inconsistencies
+      // between the hub page and the requirements page.
+      if (!requirement.templateId) {
+        // No templateId means no products can be linked — store empty array
+        // so the requirement still appears in the UI without a cost.
+        productsByRequirement[requirement.name] = [];
+        continue;
       }
+
+      const params = new URLSearchParams({
+        templateId: String(requirement.templateId),
+      });
 
       const productsResponse = await fetch(`/api/products?${params.toString()}`);
       if (productsResponse.ok) {
         const productsData = await productsResponse.json();
         productsByRequirement[requirement.name] = productsData.map(
           (product: any): ProductType => ({
-            id: product.id,
-            name: product.name,
-            description: product.description || '',
-            price: product.price || 0,
-            image: product.image,
-            unit: product.unit ?? 1,
-            inCart: product.inCart || false,
-            rating: product.rating || 0,
-            reviews: product.reviews || 0,
-            vendorId: product.vendorId,
-            vendor: product.vendor,
-            url: product.url || '',
-            specifications: product.specifications || [],
-            category: product.category || requirement.category || 'Uncategorized',
+            id:              product.id,
+            name:            product.name,
+            description:     product.description || '',
+            price:           product.price || 0,
+            image:           product.image,
+            unit:            product.unit ?? 1,
+            inCart:          product.inCart || false,
+            rating:          product.rating || 0,
+            reviews:         product.reviews || 0,
+            vendorId:        product.vendorId,
+            vendor:          product.vendor,
+            url:             product.url || '',
+            specifications:  product.specifications || [],
+            category:        product.category || requirement.category || 'Uncategorized',
             requirementName: product.requirementName || requirement.name,
-            quantity: product.quantity || 1,
-            business: product.business || businessName,
-            createdAt: product.createdAt || new Date().toISOString(),
-            updatedAt: product.updatedAt || new Date().toISOString(),
+            quantity:        product.quantity || 1,
+            business:        product.business || businessName,
+            createdAt:       product.createdAt || new Date().toISOString(),
+            updatedAt:       product.updatedAt || new Date().toISOString(),
           })
         );
+      } else {
+        productsByRequirement[requirement.name] = [];
       }
     }
 
@@ -132,17 +141,16 @@ export const useBusinessData = (slug: string) => {
         const businessData = await businessResponse.json();
 
         const transformedBusiness: Business = {
-          id:          businessData.id,
-          name:        businessData.name,
-          slug:        businessData.slug,
-          description: businessData.description ?? null,
-          image:       businessData.image ?? null,
-          published:   businessData.published ?? true,
-          createdAt:   businessData.createdAt ? new Date(businessData.createdAt) : new Date(),
-          updatedAt:   businessData.updatedAt ? new Date(businessData.updatedAt) : new Date(),
-          userId:      businessData.userId ?? null,
-          categoryId:  businessData.categoryId ?? null,
-          // ── New metadata fields ────────────────────────────────────────
+          id:              businessData.id,
+          name:            businessData.name,
+          slug:            businessData.slug,
+          description:     businessData.description     ?? null,
+          image:           businessData.image           ?? null,
+          published:       businessData.published       ?? true,
+          createdAt:       businessData.createdAt ? new Date(businessData.createdAt) : new Date(),
+          updatedAt:       businessData.updatedAt ? new Date(businessData.updatedAt) : new Date(),
+          userId:          businessData.userId          ?? null,
+          categoryId:      businessData.categoryId      ?? null,
           costMin:         businessData.costMin         ?? null,
           costMax:         businessData.costMax         ?? null,
           timeToLaunchMin: businessData.timeToLaunchMin ?? null,
@@ -150,15 +158,14 @@ export const useBusinessData = (slug: string) => {
           profitPotential: businessData.profitPotential ?? null,
           skillLevel:      businessData.skillLevel      ?? null,
           bestLocations:   businessData.bestLocations   ?? [],
-          // ── Legacy / optional fields ───────────────────────────────────
-          location:    businessData.location,
-          address:     businessData.address,
-          phone:       businessData.phone,
-          email:       businessData.email,
-          hours:       businessData.hours,
-          socialLinks: businessData.socialLinks || [],
-          reviewCount: businessData.reviewCount || 0,
-          rating:      businessData.rating,
+          location:        businessData.location,
+          address:         businessData.address,
+          phone:           businessData.phone,
+          email:           businessData.email,
+          hours:           businessData.hours,
+          socialLinks:     businessData.socialLinks || [],
+          reviewCount:     businessData.reviewCount || 0,
+          rating:          businessData.rating,
         };
 
         setBusiness(transformedBusiness);

@@ -336,9 +336,7 @@ export default async function BusinessHubPage({ params }: Props) {
         requirementCount={requirementCount}
         categoryBreakdown={categoryBreakdown}
         previewRequirements={previewRequirements}
-        // New metadata props
-        costMin={business.costMin}
-        costMax={business.costMax}
+
         timeToLaunchMin={business.timeToLaunchMin}
         timeToLaunchMax={business.timeToLaunchMax}
         profitPotential={business.profitPotential}

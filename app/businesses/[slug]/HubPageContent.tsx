@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import BusinessInsights from './BusinessInsights';
 import BusinessFaqSection from './BusinessFaqSection';
+import BusinessCostBadge from './BusinessCostBadge';
+
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -48,8 +50,6 @@ interface HubPageContentProps {
   requirementCount: number;
   categoryBreakdown: CategoryBreakdown[];
   previewRequirements: PreviewRequirement[];
-  costMin: number | null;
-  costMax: number | null;
   timeToLaunchMin: number | null;
   timeToLaunchMax: number | null;
   profitPotential: string | null;
@@ -153,8 +153,6 @@ export default function HubPageContent({
   requirementCount,
   categoryBreakdown,
   previewRequirements,
-  costMin,
-  costMax,
   timeToLaunchMin,
   timeToLaunchMax,
   profitPotential,
@@ -231,6 +229,7 @@ export default function HubPageContent({
               <span className="font-semibold">{categoryBreakdown.length}</span>
               <span className="text-white/70">categories</span>
             </div>
+            <BusinessCostBadge slug={slug} />
             <Link
               href={`/businesses/${slug}/requirements`}
               className="inline-flex items-center gap-2 px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold rounded-xl transition-colors shadow-lg"
@@ -255,9 +254,8 @@ export default function HubPageContent({
 
       {/* ── Business Insights strip ── */}
       <BusinessInsights
-        name={name}
-        costMin={costMin}
-        costMax={costMax}
+       slug={slug}
+       name={name}
         timeToLaunchMin={timeToLaunchMin}
         timeToLaunchMax={timeToLaunchMax}
         profitPotential={profitPotential}

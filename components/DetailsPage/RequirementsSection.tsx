@@ -4,6 +4,7 @@
 // after assigning a product to a requirement.
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import CategorySection from "./CategorySection";
 import GlobalSearchFilter from "./GlobalSearchFilter";
 import StickyQuickNavigation from "./StickyQuickNavigation";
@@ -217,12 +218,12 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
             </svg>
             Clear All Filters
           </button>
-          <a
+          <Link
             href="/businesses"
             className="inline-flex items-center justify-center px-6 py-3 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors font-medium"
           >
             Browse Other Businesses
-          </a>
+          </Link>
         </div>
         <div className="mt-6 text-sm text-gray-500">
           <p className="mb-2">Try adjusting your search terms or filters, or</p>
@@ -267,7 +268,7 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
           <h3 className="text-xl font-semibold text-gray-900">
             Explore Similar Businesses
           </h3>
-          <a
+          <Link
             href="/businesses"
             className="text-emerald-600 hover:text-emerald-700 font-medium text-sm flex items-center gap-1"
           >
@@ -275,7 +276,7 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
-          </a>
+          </Link>
         </div>
         <p className="text-gray-700 mb-6">
           Discover other business opportunities with detailed requirements and cost calculators.
@@ -348,18 +349,18 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
           {businessName} business.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <a
+          <Link
             href="/businesses"
             className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
           >
             Browse Other Businesses
-          </a>
-          <a
+          </Link>
+          <Link
             href="/contact"
             className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
           >
             Request Requirements
-          </a>
+          </Link>
         </div>
       </div>
     );

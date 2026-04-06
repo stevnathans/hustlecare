@@ -1,20 +1,26 @@
 // app/businesses/[slug]/BusinessInsights.tsx
 'use client';
 
+import { useEffect, useState } from 'react';
 import {
-  DollarSign,
-  Clock,
-  TrendingUp,
-  Wrench,
-  MapPin,
+  DollarSign, Clock, TrendingUp, Wrench, MapPin,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+interface CostData {
+  low: number;
+  medium: number;
+  high: number;
+  requirementsWithProducts: number;
+  totalRequirements: number;
+  hasPricing: boolean;
+}
+
 interface BusinessInsightsProps {
+  slug: string;
   name: string;
-  costMin: number | null;
-  costMax: number | null;
+  // costMin / costMax removed — now auto-calculated
   timeToLaunchMin: number | null;
   timeToLaunchMax: number | null;
   profitPotential: string | null;
@@ -26,25 +32,25 @@ interface BusinessInsightsProps {
 
 function formatKES(n: number) {
   if (n >= 1_000_000) return `KES ${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
-  if (n >= 1_000) return `KES ${(n / 1_000).toFixed(0)}K`;
+  if (n >= 1_000)     return `KES ${(n / 1_000).toFixed(0)}K`;
   return `KES ${n}`;
 }
 
 function formatDays(days: number) {
-  if (days < 7) return `${days}d`;
+  if (days < 7)  return `${days}d`;
   const weeks = Math.round(days / 7);
   if (weeks < 4) return `${weeks}w`;
   return `${Math.round(days / 30)}mo`;
 }
 
-// ── Profit / skill level display config ──────────────────────────────────────
+// ── Profit / skill display config ─────────────────────────────────────────────
 
 const PROFIT_CONFIG: Record<string, { label: string; filled: number; color: string }> = {
-  low:            { label: 'Low',            filled: 1, color: 'bg-red-400' },
-  low_to_medium:  { label: 'Low–Medium',     filled: 2, color: 'bg-orange-400' },
-  medium:         { label: 'Medium',         filled: 3, color: 'bg-yellow-400' },
-  medium_to_high: { label: 'Medium–High',    filled: 4, color: 'bg-lime-500' },
-  high:           { label: 'High',           filled: 5, color: 'bg-emerald-500' },
+  low:            { label: 'Low',         filled: 1, color: 'bg-red-400' },
+  low_to_medium:  { label: 'Low–Medium',  filled: 2, color: 'bg-orange-400' },
+  medium:         { label: 'Medium',      filled: 3, color: 'bg-yellow-400' },
+  medium_to_high: { label: 'Medium–High', filled: 4, color: 'bg-lime-500' },
+  high:           { label: 'High',        filled: 5, color: 'bg-emerald-500' },
 };
 
 const SKILL_CONFIG: Record<string, { label: string; filled: number; color: string }> = {
@@ -57,11 +63,20 @@ function DotBar({ filled, total, color }: { filled: number; total: number; color
   return (
     <div className="flex gap-1">
       {Array.from({ length: total }).map((_, i) => (
-        <span
-          key={i}
-          className={`h-2 w-2 rounded-full ${i < filled ? color : 'bg-gray-200'}`}
-        />
+        <span key={i} className={`h-2 w-2 rounded-full ${i < filled ? color : 'bg-gray-200'}`} />
       ))}
+    </div>
+  );
+}
+
+// ── Skeleton card ─────────────────────────────────────────────────────────────
+
+function SkeletonCard() {
+  return (
+    <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-2xl border border-gray-100 animate-pulse">
+      <div className="w-8 h-8 rounded-lg bg-gray-200" />
+      <div className="h-3 w-20 bg-gray-200 rounded" />
+      <div className="h-4 w-28 bg-gray-200 rounded" />
     </div>
   );
 }
@@ -69,23 +84,32 @@ function DotBar({ filled, total, color }: { filled: number; total: number; color
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function BusinessInsights({
+  slug,
   name,
-  costMin,
-  costMax,
   timeToLaunchMin,
   timeToLaunchMax,
   profitPotential,
   skillLevel,
   bestLocations,
 }: BusinessInsightsProps) {
-  const hasCost = costMin !== null && costMax !== null;
-  const hasTime = timeToLaunchMin !== null && timeToLaunchMax !== null;
-  const profitCfg = profitPotential ? PROFIT_CONFIG[profitPotential] : null;
-  const skillCfg = skillLevel ? SKILL_CONFIG[skillLevel] : null;
+  const [cost, setCost]             = useState<CostData | null>(null);
+  const [costLoading, setCostLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/businesses/${slug}/cost`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { setCost(data); setCostLoading(false); })
+      .catch(() => setCostLoading(false));
+  }, [slug]);
+
+  const hasTime      = timeToLaunchMin !== null && timeToLaunchMax !== null;
+  const profitCfg    = profitPotential ? PROFIT_CONFIG[profitPotential] : null;
+  const skillCfg     = skillLevel      ? SKILL_CONFIG[skillLevel]       : null;
   const hasLocations = bestLocations.length > 0;
 
-  // Nothing to render
-  if (!hasCost && !hasTime && !profitCfg && !skillCfg && !hasLocations) return null;
+  // Hide entire section if there's nothing to show (cost still loading counts as something)
+  const hasAnyManual = hasTime || profitCfg || skillCfg || hasLocations;
+  if (!costLoading && !cost?.hasPricing && !hasAnyManual) return null;
 
   return (
     <section aria-labelledby="insights-heading" className="bg-white border-b border-gray-100">
@@ -99,22 +123,29 @@ export default function BusinessInsights({
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
 
-          {/* Cost range */}
-          {hasCost && (
+          {/* ── Startup cost — auto-calculated ── */}
+          {costLoading ? (
+            <SkeletonCard />
+          ) : cost?.hasPricing ? (
             <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-2xl border border-gray-100">
               <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
                 <DollarSign className="w-4 h-4 text-emerald-600" />
               </div>
               <p className="text-xs text-gray-500 font-medium">Startup Cost</p>
               <p className="text-sm font-bold text-gray-900 leading-tight">
-                {formatKES(costMin!)}
+                {formatKES(cost.low)}
                 <span className="text-gray-400 font-normal"> – </span>
-                {formatKES(costMax!)}
+                {formatKES(cost.high)}
               </p>
+              {cost.requirementsWithProducts < cost.totalRequirements && (
+                <p className="text-xs text-gray-400 leading-tight">
+                  Based on {cost.requirementsWithProducts}/{cost.totalRequirements} requirements
+                </p>
+              )}
             </div>
-          )}
+          ) : null}
 
-          {/* Time to launch */}
+          {/* ── Time to launch — manual ── */}
           {hasTime && (
             <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-2xl border border-gray-100">
               <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
@@ -129,7 +160,7 @@ export default function BusinessInsights({
             </div>
           )}
 
-          {/* Profit potential */}
+          {/* ── Profit potential — manual ── */}
           {profitCfg && (
             <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-2xl border border-gray-100">
               <div className="w-8 h-8 rounded-lg bg-lime-100 flex items-center justify-center">
@@ -141,7 +172,7 @@ export default function BusinessInsights({
             </div>
           )}
 
-          {/* Skill level */}
+          {/* ── Skill level — manual ── */}
           {skillCfg && (
             <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-2xl border border-gray-100">
               <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
@@ -153,7 +184,7 @@ export default function BusinessInsights({
             </div>
           )}
 
-          {/* Best locations */}
+          {/* ── Best locations — manual ── */}
           {hasLocations && (
             <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-2xl border border-gray-100 col-span-2 sm:col-span-1">
               <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">

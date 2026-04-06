@@ -15,8 +15,7 @@ type Business = {
   id: number; name: string; description?: string; image?: string; slug: string;
   published: boolean; category?: Category | null; createdAt: string; updatedAt: string;
   _count?: { requirements: number };
-  costMin?: number | null;
-  costMax?: number | null;
+  // costMin and costMax removed — now auto-calculated from products
   timeToLaunchMin?: number | null;
   timeToLaunchMax?: number | null;
   profitPotential?: string | null;
@@ -116,6 +115,7 @@ const S = `
   .section-toggle { display:flex; align-items:center; justify-content:space-between; padding:0.6rem 0; cursor:pointer; border:none; background:none; color:#9494b0; font-family:'Sora',sans-serif; font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; width:100%; border-top:1px solid rgba(255,255,255,0.06); margin-top:0.5rem; }
   .section-toggle:hover { color:#f0f0f5; }
   .hint { font-size:0.72rem; color:#55556e; margin-top:0.25rem; }
+  .auto-badge { display:inline-flex; align-items:center; gap:0.3rem; font-size:0.68rem; font-weight:600; color:#34d399; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.2); border-radius:100px; padding:0.15rem 0.55rem; }
 `;
 
 function FormField({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -147,9 +147,9 @@ export default function BusinessesAdminPage() {
   const [newCatName,      setNewCatName]      = useState('');
   const [showMetaFields,  setShowMetaFields]  = useState(false);
 
+  // costMin and costMax removed from emptyForm — auto-calculated from products
   const emptyForm = {
     name: '', description: '', image: '', slug: '', published: true,
-    costMin: '', costMax: '',
     timeToLaunchMin: '', timeToLaunchMax: '',
     profitPotential: '', skillLevel: '',
     bestLocations: '',
@@ -205,15 +205,12 @@ export default function BusinessesAdminPage() {
         ...formData,
         ...(editingBusiness && { id: editingBusiness.id }),
         categoryName: catName,
-        // Numbers — send null when empty so API stores null, not 0
-        costMin:         formData.costMin         !== '' ? Number(formData.costMin)         : null,
-        costMax:         formData.costMax         !== '' ? Number(formData.costMax)         : null,
+        // Numbers — send null when empty
         timeToLaunchMin: formData.timeToLaunchMin !== '' ? Number(formData.timeToLaunchMin) : null,
         timeToLaunchMax: formData.timeToLaunchMax !== '' ? Number(formData.timeToLaunchMax) : null,
         profitPotential: formData.profitPotential || null,
         skillLevel:      formData.skillLevel      || null,
-        // bestLocations: send as array, split on comma
-        bestLocations: formData.bestLocations
+        bestLocations:   formData.bestLocations
           ? formData.bestLocations.split(',').map(s => s.trim()).filter(Boolean)
           : [],
       };
@@ -282,7 +279,7 @@ export default function BusinessesAdminPage() {
 
   function openEditModal(b: Business) {
     const hasMetaData = !!(
-      b.costMin || b.costMax || b.timeToLaunchMin || b.timeToLaunchMax ||
+      b.timeToLaunchMin || b.timeToLaunchMax ||
       b.profitPotential || b.skillLevel || b.bestLocations?.length
     );
     setFormData({
@@ -291,8 +288,6 @@ export default function BusinessesAdminPage() {
       image:           b.image           || '',
       slug:            b.slug,
       published:       b.published,
-      costMin:         b.costMin         != null ? String(b.costMin)         : '',
-      costMax:         b.costMax         != null ? String(b.costMax)         : '',
       timeToLaunchMin: b.timeToLaunchMin != null ? String(b.timeToLaunchMin) : '',
       timeToLaunchMax: b.timeToLaunchMax != null ? String(b.timeToLaunchMax) : '',
       profitPotential: b.profitPotential || '',
@@ -302,7 +297,7 @@ export default function BusinessesAdminPage() {
     setEditingBusiness(b);
     setSelectedCatId(b.category ? String(b.category.id) : '');
     setNewCatName('');
-    setShowMetaFields(hasMetaData); // auto-expand if data exists
+    setShowMetaFields(hasMetaData);
     setIsModalOpen(true);
   }
 
@@ -425,7 +420,7 @@ export default function BusinessesAdminPage() {
                         <div style={{ display:'flex', alignItems:'center', gap:'0.4rem' }}>
                           <span className="code-pill">{b.slug}</span>
                           <button onClick={()=>{navigator.clipboard.writeText(b.slug);toast.success('Copied!');}} style={{ background:'none', border:'none', color:'#55556e', cursor:'pointer', padding:'0.1rem' }} title="Copy"><Copy size={12}/></button>
-                          <a href={`/${b.slug}`} target="_blank" rel="noopener noreferrer" style={{ color:'#55556e' }} title="View"><ExternalLink size={12}/></a>
+                          <a href={`/businesses/${b.slug}`} target="_blank" rel="noopener noreferrer" style={{ color:'#55556e' }} title="View"><ExternalLink size={12}/></a>
                         </div>
                       </td>
                       <td>{b.category ? <span className="cat-pill"><Tag size={10}/>{b.category.name}</span> : <span style={{ color:'#3a3a56' }}>—</span>}</td>
@@ -544,7 +539,7 @@ export default function BusinessesAdminPage() {
                   <span style={{ fontSize:'0.84rem', color:'#9494b0', fontWeight:500 }}>Publish immediately</span>
                 </label>
 
-                {/* ── Metadata section — collapsible ── */}
+                {/* ── Business Insights — collapsible ── */}
                 <button
                   type="button"
                   className="section-toggle"
@@ -557,12 +552,18 @@ export default function BusinessesAdminPage() {
                 {showMetaFields && (
                   <div style={{ display:'flex', flexDirection:'column', gap:'0.9rem' }}>
 
-                    {/* Cost range */}
-                    <div>
-                      <label className="f-label">Startup Cost Range (KES)</label>
-                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.5rem' }}>
-                        <input type="number" value={formData.costMin} onChange={fd('costMin')} className="f-input" placeholder="Min e.g. 50000" min={0} />
-                        <input type="number" value={formData.costMax} onChange={fd('costMax')} className="f-input" placeholder="Max e.g. 500000" min={0} />
+                    {/* Startup cost — read-only notice */}
+                    <div style={{ display:'flex', alignItems:'flex-start', gap:'0.65rem', padding:'0.75rem 1rem', background:'rgba(16,185,129,0.06)', border:'1px solid rgba(16,185,129,0.15)', borderRadius:9 }}>
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" style={{ flexShrink:0, marginTop:1 }}>
+                        <path fillRule="evenodd" clipRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z" fill="#34d399"/>
+                      </svg>
+                      <div>
+                        <p style={{ fontSize:'0.78rem', fontWeight:600, color:'#34d399', marginBottom:'0.2rem' }}>
+                          Startup Cost <span className="auto-badge">Auto-calculated</span>
+                        </p>
+                        <p style={{ fontSize:'0.73rem', color:'#55556e', lineHeight:1.5 }}>
+                          Cost is automatically calculated from product prices linked to this business&apos;s requirements. Add products to requirements to populate the cost estimate.
+                        </p>
                       </div>
                     </div>
 
