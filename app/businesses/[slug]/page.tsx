@@ -13,6 +13,14 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+interface CostData {
+  low: number;
+  medium: number;
+  high: number;
+  requirementsWithProducts: number;
+  totalRequirements: number;
+  hasPricing: boolean;
+}
 function formatKES(amount: number) {
   return new Intl.NumberFormat('en-KE', {
     style: 'currency',
@@ -33,8 +41,7 @@ function formatDays(days: number) {
 /** Build auto-generated FAQs from business data. */
 function buildAutoFaqs(
   name: string,
-  costMin: number | null,
-  costMax: number | null,
+  cost: CostData | null,  
   timeMin: number | null,
   timeMax: number | null,
   profitPotential: string | null,
@@ -44,10 +51,10 @@ function buildAutoFaqs(
 ): AutoFaq[] {
   const faqs: AutoFaq[] = [];
 
-  if (costMin && costMax) {
+   if (cost?.hasPricing) {
     faqs.push({
       question: `How much does it cost to start a ${name} business in Kenya?`,
-      answer: `Starting a ${name} business in Kenya costs between ${formatKES(costMin)} and ${formatKES(costMax)} depending on your scale and location. This covers the key requirements such as equipment, licences, and initial operating expenses.`,
+      answer: `Starting a ${name} business in Kenya costs between ${formatKES(cost.low)} and ${formatKES(cost.high)} depending on your scale and location. This is based on ${cost.requirementsWithProducts} out of ${cost.totalRequirements} requirements that have products assigned.${cost.requirementsWithProducts < cost.totalRequirements ? ' The actual cost may be higher as some requirements are still being priced.' : ''}`,
     });
   }
 
@@ -113,7 +120,18 @@ async function fetchBusiness(slug: string) {
         where: { isActive: true, template: { isDeprecated: false } },
         include: {
           template: {
-            select: { id: true, name: true, category: true, necessity: true, image: true },
+            select: {
+              id: true,
+              name: true,
+              category: true,
+              necessity: true,
+              image: true,
+              // ← needed for server-side cost calculation for FAQs
+              products: {
+                select: { price: true },
+                where: { price: { not: null } },
+              },
+            },
           },
         },
         orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
@@ -241,12 +259,45 @@ export default async function BusinessHubPage({ params }: Props) {
     requiredCount: reqs.filter((r) => r.template.necessity === 'Required').length,
   }));
 
+  // ── Fetch auto-calculated cost server-side for FAQs and JSON-LD ──────────
+  // We call our own cost API directly via prisma rather than an HTTP fetch
+  // to avoid a network round-trip within the server component.
+
+  let cost: CostData | null = null;
+  try {
+    let low = 0, medium = 0, high = 0, requirementsWithProducts = 0;
+    const totalRequirements = business.requirements.length;
+
+    for (const req of business.requirements) {
+      const prices = req.template.products
+        ?.map((p: { price: number | null }) => p.price)
+        .filter((p): p is number => p !== null && p > 0)
+        .sort((a: number, b: number) => a - b) ?? [];
+
+      if (prices.length === 0) continue;
+      requirementsWithProducts++;
+      low    += prices[0];
+      high   += prices[prices.length - 1];
+      medium += prices[Math.floor(prices.length / 2)];
+    }
+
+    cost = {
+      low,
+      medium,
+      high,
+      requirementsWithProducts,
+      totalRequirements,
+      hasPricing: requirementsWithProducts > 0,
+    };
+  } catch {
+    cost = null;
+  }
+
   // ── FAQs: merge DB overrides on top of auto-generated ────────────────────
 
   const autoFaqs = buildAutoFaqs(
     name,
-    business.costMin,
-    business.costMax,
+    cost,
     business.timeToLaunchMin,
     business.timeToLaunchMax,
     business.profitPotential,
@@ -256,7 +307,7 @@ export default async function BusinessHubPage({ params }: Props) {
   );
 
   // DB FAQs completely replace auto ones when present
-  const dbFaqs = business.faqs.map((f) => ({ question: f.question, answer: f.answer }));
+   const dbFaqs = business.faqs.map((f) => ({ question: f.question, answer: f.answer }));
   const finalFaqs = dbFaqs.length > 0 ? dbFaqs : autoFaqs;
 
   // ── Structured Data ───────────────────────────────────────────────────────
