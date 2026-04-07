@@ -42,47 +42,53 @@ interface Business {
 }
 
 const CATEGORY_ORDER = [
-  "Legal",
-  "Equipment",
-  "Software",
-  "Documents",
-  "Branding",
-  "Operating Expenses",
-  "Uncategorized",
+  'Legal',
+  'Equipment',
+  'Software',
+  'Documents',
+  'Branding',
+  'Operating Expenses',
+  'Uncategorized',
 ];
 
 export const useBusinessData = (slug: string) => {
   const { switchBusiness } = useCart();
-  const [business, setBusiness]                   = useState<Business | null>(null);
-  const [requirements, setRequirements]           = useState<Requirement[]>([]);
-  const [products, setProducts]                   = useState<Record<string, ProductType[]>>({});
-  const [error, setError]                         = useState<string | null>(null);
-  const [isLoading, setIsLoading]                 = useState<boolean>(true);
+  const [business, setBusiness]                       = useState<Business | null>(null);
+  const [requirements, setRequirements]               = useState<Requirement[]>([]);
+  const [products, setProducts]                       = useState<Record<string, ProductType[]>>({});
+  const [error, setError]                             = useState<string | null>(null);
+  const [isLoading, setIsLoading]                     = useState<boolean>(true);
   const [groupedRequirements, setGroupedRequirements] = useState<Record<string, Requirement[]>>({});
-  const [sortedCategories, setSortedCategories]   = useState<string[]>([]);
+  const [sortedCategories, setSortedCategories]       = useState<string[]>([]);
 
-  const fetchProducts = useCallback(async (requirementsData: Requirement[], businessName: string) => {
-    const productsByRequirement: Record<string, ProductType[]> = {};
-
-    for (const requirement of requirementsData) {
-      // Only fetch products via templateId (direct DB assignment).
-      // Name-matching has been removed — it caused cost inconsistencies
-      // between the hub page and the requirements page.
-      if (!requirement.templateId) {
-        // No templateId means no products can be linked — store empty array
-        // so the requirement still appears in the UI without a cost.
-        productsByRequirement[requirement.name] = [];
-        continue;
+  // ── Single batch fetch — one request for all products ────────────────────
+  // Previously this was a sequential per-requirement loop (N requests).
+  // Now we hit /api/business/[slug]/products which returns a templateId→products
+  // map in one DB query, then we remap it to requirementName→products for the UI.
+  const fetchProducts = useCallback(async (
+    requirementsData: Requirement[],
+    businessName: string,
+    businessSlug: string,
+  ) => {
+    try {
+      const response = await fetch(`/api/business/${businessSlug}/products`);
+      if (!response.ok) {
+        setProducts({});
+        return;
       }
 
-      const params = new URLSearchParams({
-        templateId: String(requirement.templateId),
-      });
+      // productsByTemplateId: { [templateId]: Product[] }
+      const productsByTemplateId: Record<string, any[]> = await response.json();
 
-      const productsResponse = await fetch(`/api/products?${params.toString()}`);
-      if (productsResponse.ok) {
-        const productsData = await productsResponse.json();
-        productsByRequirement[requirement.name] = productsData.map(
+      // Remap to requirementName → ProductType[] for compatibility with
+      // useFilterState and all components that key products by name.
+      const productsByName: Record<string, ProductType[]> = {};
+
+      for (const requirement of requirementsData) {
+        const templateId = requirement.templateId;
+        const rawProducts = templateId ? (productsByTemplateId[templateId] ?? []) : [];
+
+        productsByName[requirement.name] = rawProducts.map(
           (product: any): ProductType => ({
             id:              product.id,
             name:            product.name,
@@ -105,17 +111,17 @@ export const useBusinessData = (slug: string) => {
             updatedAt:       product.updatedAt || new Date().toISOString(),
           })
         );
-      } else {
-        productsByRequirement[requirement.name] = [];
       }
-    }
 
-    setProducts(productsByRequirement);
+      setProducts(productsByName);
+    } catch {
+      setProducts({});
+    }
   }, []);
 
   const refreshProducts = useCallback(() => {
     if (requirements.length > 0 && business) {
-      fetchProducts(requirements, business.name);
+      fetchProducts(requirements, business.name, business.slug);
     }
   }, [requirements, business, fetchProducts]);
 
@@ -125,20 +131,26 @@ export const useBusinessData = (slug: string) => {
         setIsLoading(true);
         setError(null);
 
-        // ── Business ──────────────────────────────────────────────────────
-        const businessResponse = await fetch(`/api/business/${slug}`);
+        // ── Business and requirements fetched in parallel ─────────────────
+        // Previously these were sequential. Parallelising saves one full
+        // round-trip on every page load.
+        const [businessResponse, requirementsResponse] = await Promise.all([
+          fetch(`/api/business/${slug}`),
+          fetch(`/api/business/${slug}/requirements`),
+        ]);
 
         if (businessResponse.status === 404) {
           setError('Business not found');
           setIsLoading(false);
           return;
         }
+        if (!businessResponse.ok) throw new Error('Failed to load business data');
+        if (!requirementsResponse.ok) throw new Error('Failed to load requirements');
 
-        if (!businessResponse.ok) {
-          throw new Error('Failed to load business data');
-        }
-
-        const businessData = await businessResponse.json();
+        const [businessData, requirementsData]: [any, Requirement[]] = await Promise.all([
+          businessResponse.json(),
+          requirementsResponse.json(),
+        ]);
 
         const transformedBusiness: Business = {
           id:              businessData.id,
@@ -163,25 +175,17 @@ export const useBusinessData = (slug: string) => {
           phone:           businessData.phone,
           email:           businessData.email,
           hours:           businessData.hours,
-          socialLinks:     businessData.socialLinks || [],
-          reviewCount:     businessData.reviewCount || 0,
+          socialLinks:     businessData.socialLinks     || [],
+          reviewCount:     businessData.reviewCount     || 0,
           rating:          businessData.rating,
         };
 
         setBusiness(transformedBusiness);
+        setRequirements(requirementsData);
 
         if (transformedBusiness.id) {
           switchBusiness(transformedBusiness.id);
         }
-
-        // ── Requirements ──────────────────────────────────────────────────
-        const requirementsResponse = await fetch(`/api/business/${slug}/requirements`);
-        if (!requirementsResponse.ok) {
-          throw new Error('Failed to load requirements');
-        }
-
-        const requirementsData: Requirement[] = await requirementsResponse.json();
-        setRequirements(requirementsData);
 
         const grouped = requirementsData.reduce(
           (groups: Record<string, Requirement[]>, req: Requirement) => {
@@ -196,8 +200,8 @@ export const useBusinessData = (slug: string) => {
         setGroupedRequirements(grouped);
         setSortedCategories(CATEGORY_ORDER.filter((cat) => grouped[cat]));
 
-        // ── Products ──────────────────────────────────────────────────────
-        await fetchProducts(requirementsData, transformedBusiness.name);
+        // ── One batch fetch for all products ──────────────────────────────
+        await fetchProducts(requirementsData, transformedBusiness.name, transformedBusiness.slug);
 
         setIsLoading(false);
       } catch (err) {

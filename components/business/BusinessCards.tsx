@@ -1,7 +1,7 @@
 // components/business/BusinessCards.tsx
 'use client';
 import { FiArrowRight, FiFileText, FiDollarSign, FiInfo } from 'react-icons/fi';
-import { useMemo } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -28,6 +28,18 @@ type BusinessCardProps = {
   groupedRequirements?: Record<string, Requirement[]>;
 };
 
+interface CostData {
+  low: number;
+  high: number;
+  hasPricing: boolean;
+}
+
+function formatKES(n: number) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000)     return `${(n / 1_000).toFixed(0)}K`;
+  return `${n}`;
+}
+
 export default function BusinessCard({
   name,
   image,
@@ -35,6 +47,16 @@ export default function BusinessCard({
   category,
   groupedRequirements = {},
 }: BusinessCardProps) {
+  const [cost, setCost]           = useState<CostData | null>(null);
+  const [costLoading, setCostLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/businesses/${slug}/cost`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { setCost(data); setCostLoading(false); })
+      .catch(() => setCostLoading(false));
+  }, [slug]);
+
   const totalRequirements = useMemo(() => {
     if (!groupedRequirements || Object.keys(groupedRequirements).length === 0) return 0;
     return Object.values(groupedRequirements).reduce(
@@ -43,9 +65,15 @@ export default function BusinessCard({
     );
   }, [groupedRequirements]);
 
-  const costEstimateAvailable = totalRequirements > 0;
-  const overviewHref = `/businesses/${slug}`;
+  const overviewHref     = `/businesses/${slug}`;
   const requirementsHref = `/businesses/${slug}/requirements`;
+
+  // Cost display value
+  const costDisplay = (() => {
+    if (costLoading) return null;              // show skeleton
+    if (!cost?.hasPricing) return '—';
+    return `KES ${formatKES(cost.low)} – ${formatKES(cost.high)}`;
+  })();
 
   return (
     <div className="group relative bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 h-full flex flex-col border border-gray-100">
@@ -114,12 +142,20 @@ export default function BusinessCard({
 
           <div className="bg-gray-50 rounded-xl p-3 group-hover:bg-blue-50 transition-colors">
             <div className="flex items-center gap-1.5 mb-1">
-              <FiDollarSign className="w-3.5 h-3.5 text-blue-500" />
+              <FiDollarSign className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
               <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Cost</span>
             </div>
-            <div className="text-sm font-semibold text-gray-900">
-              {costEstimateAvailable ? 'Available' : '—'}
-            </div>
+            {/* Cost value or skeleton */}
+            {costLoading ? (
+              <div className="h-4 w-16 bg-gray-200 rounded animate-pulse mt-0.5" />
+            ) : (
+              <div
+                className="text-xs font-semibold text-gray-900 leading-tight"
+                title={cost?.hasPricing ? `KES ${cost.low.toLocaleString()} – ${cost.high.toLocaleString()}` : undefined}
+              >
+                {costDisplay}
+              </div>
+            )}
           </div>
         </div>
 
