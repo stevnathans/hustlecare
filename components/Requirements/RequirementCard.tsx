@@ -449,7 +449,7 @@ export default function RequirementCard({
           <div className="flex flex-col sm:flex-row sm:items-start sm:space-x-4">
 
             {/* Image + title */}
-            <div className="flex items-start space-x-3 sm:space-x-4 mb-3 sm:mb-0">
+<div className="flex items-start space-x-3 sm:space-x-4 mb-3 sm:mb-0 sm:w-64 sm:flex-shrink-0">
               <div className="relative flex-shrink-0">
                 <div
                   className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 shadow-inner ${
@@ -480,7 +480,7 @@ export default function RequirementCard({
               </div>
 
               <div className="flex-1 min-w-0">
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900 group-hover:text-blue-700 transition-colors duration-200 mb-2 break-words whitespace-normal">
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900 group-hover:text-blue-700 transition-colors duration-200 mb-2 break-words whitespace-normal leading-snug">
                   {requirement.name}
                 </h3>
                 <div
