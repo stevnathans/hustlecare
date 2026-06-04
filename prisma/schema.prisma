@@ -6,48 +6,38 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  // directUrl = env("DIRECT_URL") // For migrations
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
-  id                  String      @id @default(uuid())
-  name                String
-  email               String      @unique
-  phone               String?
-  password            String?
-  emailVerified       DateTime?
-  image               String?
-  role                String      @default("user") // user, author, editor, reviewer, admin
-  
-  // Notification preferences
-  emailNotifications  Boolean     @default(true)
-  pushNotifications   Boolean     @default(false)
-  marketingEmails     Boolean     @default(true)
-  
-  // Admin tracking
-  lastLoginAt         DateTime?
-  isActive            Boolean     @default(true)
-  
-  // Community features
-  isVerified          Boolean     @default(false)
-  verifiedAt          DateTime?
-  
-  carts               Cart[]
-  businesses          Business[]
-  comments            Comment[]
-  reviews             Review[]
-  accounts            Account[]
-  sessions            Session[]
-  searches            SearchLog[]
-  auditLogs           AuditLog[]
-  
-  // Community sharing relations
-  sharedBusinesses    SharedBusiness[]
-  copiedBusinesses    BusinessCopyActivity[]
-  
-  createdAt           DateTime    @default(now())
-  updatedAt           DateTime    @updatedAt
-  
+  id                 String                 @id @default(uuid())
+  name               String
+  email              String                 @unique
+  password           String?
+  role               String                 @default("user")
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  emailVerified      DateTime?
+  image              String?
+  phone              String?
+  emailNotifications Boolean                @default(true)
+  marketingEmails    Boolean                @default(true)
+  pushNotifications  Boolean                @default(false)
+  isActive           Boolean                @default(true)
+  lastLoginAt        DateTime?
+  isVerified         Boolean                @default(false)
+  verifiedAt         DateTime?
+  accounts           Account[]
+  auditLogs          AuditLog[]
+  businesses         Business[]
+  copiedBusinesses   BusinessCopyActivity[]
+  carts              Cart[]
+  comments           Comment[]
+  reviews            Review[]
+  searches           SearchLog[]
+  sessions           Session[]
+  sharedBusinesses   SharedBusiness[]
+
   @@index([email])
   @@index([role])
 }
@@ -58,15 +48,14 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -89,15 +78,15 @@ model VerificationToken {
 
 model Cart {
   id         String     @id @default(uuid())
-  name       String?
   userId     String
   businessId Int
-  user       User       @relation(fields: [userId], references: [id])
-  business   Business   @relation(fields: [businessId], references: [id])
-  items      CartItem[]
-  totalCost  Float?
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
+  name       String?
+  totalCost  Float?
+  business   Business   @relation(fields: [businessId], references: [id])
+  user       User       @relation(fields: [userId], references: [id])
+  items      CartItem[]
 
   @@unique([userId, businessId])
   @@index([userId])
@@ -106,51 +95,45 @@ model Cart {
 
 model CartItem {
   id              String   @id @default(uuid())
-  cartId          String
   productId       Int
   quantity        Int      @default(1)
+  createdAt       DateTime @default(now())
+  cartId          String
   unitPrice       Float
+  updatedAt       DateTime @updatedAt
   category        String?  @default("Uncategorized")
   requirementName String?  @default("Unspecified Requirement")
   cart            Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
   product         Product  @relation(fields: [productId], references: [id])
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
+
   @@unique([cartId, productId])
   @@index([cartId])
 }
 
 model Business {
-  id           Int                @id @default(autoincrement())
-  slug         String             @unique
-  name         String
-  description  String?
-  image        String?
-  published    Boolean            @default(true)
-  categoryId   Int?
-  category     BusinessCategory?  @relation(fields: [categoryId], references: [id])
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
-  
-  // Requirements now come through the link table
-  requirements BusinessRequirement[]
-  
-  costMin          Int?        // KES, e.g. 50000
-  costMax          Int?        // KES, e.g. 500000
-  timeToLaunchMin  Int?        // days
-  timeToLaunchMax  Int?        // days
-  profitPotential  String?     // "low" | "low_to_medium" | "medium" | "medium_to_high" | "high"
-  skillLevel       String?     // "low" | "moderate" | "high"
-  bestLocations    String[]    // e.g. ["Nairobi", "Mombasa", "Kisumu"]
-
+  id               Int                   @id @default(autoincrement())
+  name             String
+  description      String?
+  image            String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  slug             String                @unique
+  userId           String?
+  published        Boolean               @default(true)
+  categoryId       Int?
+  bestLocations    String[]
+  costMax          Int?
+  costMin          Int?
+  profitPotential  String?
+  skillLevel       String?
+  timeToLaunchMax  Int?
+  timeToLaunchMin  Int?
+  category         BusinessCategory?     @relation(fields: [categoryId], references: [id])
+  user             User?                 @relation(fields: [userId], references: [id])
   faqs             BusinessFaq[]
-
-  carts        Cart[]
-  searches     SearchLog[]
-  user         User?              @relation(fields: [userId], references: [id])
-  userId       String?
-  
+  requirements     BusinessRequirement[]
+  carts            Cart[]
+  searches         SearchLog[]
   sharedBusinesses SharedBusiness[]
 
   @@index([name])
@@ -159,60 +142,45 @@ model Business {
 }
 
 model BusinessFaq {
-  id          Int      @id @default(autoincrement())
-  businessId  Int
-  question    String
-  answer      String   @db.Text
-  displayOrder Int     @default(0)
-  isActive    Boolean  @default(true)
-  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           Int      @id @default(autoincrement())
+  businessId   Int
+  question     String
+  answer       String
+  displayOrder Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  business     Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@index([businessId])
   @@index([isActive])
 }
 
-
 model BusinessCategory {
   id         Int        @id @default(autoincrement())
   name       String     @unique
-  slug       String     @unique             
-  businesses Business[]
+  slug       String     @unique
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
+  businesses Business[]
 
   @@index([name])
-  @@index([slug])                        
+  @@index([slug])
 }
 
-// ============================================
-// REQUIREMENT LIBRARY SYSTEM
-// ============================================
-
-// RequirementTemplate — the canonical library record.
-// Lives independently of any business.
-// Descriptions use [businessName] as a token that resolves at display time.
 model RequirementTemplate {
-  id          Int       @id @default(autoincrement())
-  name        String
-  // Description uses [businessName] token e.g. "You need a business permit to operate your [businessName]."
-  description String?
-  image       String?
-  category    String    // Equipment, Software, Documents, Legal, Branding, Operating Expenses
-  necessity   String    // Required, Optional
-  
-  // Soft delete — deprecated templates are hidden from new linking but
-  // existing BusinessRequirement links continue to work.
-  isDeprecated  Boolean   @default(false)
-  deprecatedAt  DateTime?
-
-  // Relations
-  businesses  BusinessRequirement[]
-  products    Product[]             // Products belong to templates, not to link records
-  
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id           Int                   @id @default(autoincrement())
+  name         String
+  description  String?
+  image        String?
+  category     String
+  necessity    String
+  isDeprecated Boolean               @default(false)
+  deprecatedAt DateTime?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  businesses   BusinessRequirement[]
+  products     Product[]
 
   @@index([category])
   @@index([necessity])
@@ -220,57 +188,38 @@ model RequirementTemplate {
   @@index([name])
 }
 
-// BusinessRequirement — the link between a template and a business.
-// One template can be linked to many businesses.
-// One business + one template = exactly one link (enforced by @@unique).
 model BusinessRequirement {
-  id          Int      @id @default(autoincrement())
-  
-  businessId  Int
-  templateId  Int
-  
-  business    Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  template    RequirementTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
-
-  // Optional override fields — null means "inherit from template"
-  // Admins can customize the description for a specific business without
-  // touching the library record.
+  id                  Int                 @id @default(autoincrement())
+  businessId          Int
+  templateId          Int
   descriptionOverride String?
+  necessityOverride   String?             // null = inherit from template
+  isActive            Boolean             @default(true)
+  displayOrder        Int                 @default(0)
+  source              String              @default("admin")
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  business            Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  template            RequirementTemplate @relation(fields: [templateId], references: [id])
+  comments            Comment[]
 
-  // Behavioural fields
-  isActive      Boolean  @default(true)
-  displayOrder  Int      @default(0)
-  
-  // Audit: how was this link created?
-  // "auto"  = system created (e.g. CSV import, universal requirement)
-  // "admin" = manually linked by admin
-  source        String   @default("admin") // auto | admin
-
-  comments      Comment[]
-
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // One requirement per business — attempting to link again returns 409
   @@unique([businessId, templateId])
   @@index([businessId])
   @@index([templateId])
   @@index([isActive])
 }
 
-// Comments now attach to a BusinessRequirement (the link record),
-// so they are scoped to a specific business's version of a requirement.
 model Comment {
   id                    Int                 @id @default(autoincrement())
   content               String
-  businessRequirementId Int
   userId                String
-  isApproved            Boolean             @default(false)
-  businessRequirement   BusinessRequirement @relation(fields: [businessRequirementId], references: [id], onDelete: Cascade)
-  user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
-  
+  isApproved            Boolean             @default(false)
+  businessRequirementId Int
+  businessRequirement   BusinessRequirement @relation(fields: [businessRequirementId], references: [id], onDelete: Cascade)
+  user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([businessRequirementId])
   @@index([userId])
   @@index([isApproved])
@@ -282,19 +231,16 @@ model Product {
   description String?
   price       Float?
   image       String?
-  url         String?
-  vendorId    Int?
-  
-  // Products belong to a template (requirement type), not to a link
-  templateId  Int?
-  
-  vendor      Vendor?              @relation(fields: [vendorId], references: [id])
-  template    RequirementTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  cartItems   CartItem[]
-  reviews     Review[]
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
-  
+  vendorId    Int?
+  url         String?
+  templateId  Int?
+  cartItems   CartItem[]
+  template    RequirementTemplate? @relation(fields: [templateId], references: [id])
+  vendor      Vendor?              @relation(fields: [vendorId], references: [id])
+  reviews     Review[]
+
   @@index([vendorId])
   @@index([templateId])
   @@index([name])
@@ -302,16 +248,16 @@ model Product {
 
 model Review {
   id         String   @id @default(uuid())
-  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   productId  Int
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId     String
   rating     Int
   comment    String
-  isApproved Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  
+  isApproved Boolean  @default(false)
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([productId])
   @@index([userId])
   @@index([isApproved])
@@ -322,9 +268,9 @@ model Vendor {
   name      String
   website   String?
   logo      String?
-  products  Product[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+  products  Product[]
 
   @@unique([name, website])
   @@index([name])
@@ -339,9 +285,9 @@ model SearchLog {
   ipAddress   String?
   userAgent   String?
   resultCount Int?
-  user        User?     @relation(fields: [userId], references: [id])
-  business    Business? @relation(fields: [businessId], references: [id])
   createdAt   DateTime  @default(now())
+  business    Business? @relation(fields: [businessId], references: [id])
+  user        User?     @relation(fields: [userId], references: [id])
 
   @@index([keyword])
   @@index([createdAt])
@@ -349,44 +295,39 @@ model SearchLog {
 }
 
 model AuditLog {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  action      String   // CREATE, UPDATE, DELETE, VIEW
-  entity      String   // Business, Product, User, RequirementTemplate, BusinessRequirement, etc.
-  entityId    String
-  changes     Json?
-  ipAddress   String?
-  userAgent   String?
-  createdAt   DateTime @default(now())
-  
+  id        String   @id @default(uuid())
+  userId    String
+  action    String
+  entity    String
+  entityId  String
+  changes   Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
   @@index([entity])
   @@index([action])
   @@index([createdAt])
 }
 
-// ============================================
-// COMMUNITY SHARING FEATURE MODELS
-// ============================================
-
 model SharedBusiness {
-  id          Int      @id @default(autoincrement())
+  id          Int                    @id @default(autoincrement())
   userId      String
   businessId  Int
   name        String
-  description String?  @db.Text
-  isActive    Boolean  @default(true)
-  viewCount   Int      @default(0)
-  copyCount   Int      @default(0)
-  isFeatured  Boolean  @default(false)
+  description String?
+  isActive    Boolean                @default(true)
+  viewCount   Int                    @default(0)
+  copyCount   Int                    @default(0)
+  isFeatured  Boolean                @default(false)
   featuredAt  DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  copies   BusinessCopyActivity[]
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  copies      BusinessCopyActivity[]
+  business    Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, businessId])
   @@index([isActive, viewCount])
@@ -396,15 +337,23 @@ model SharedBusiness {
 }
 
 model BusinessCopyActivity {
-  id               Int      @id @default(autoincrement())
+  id               Int            @id @default(autoincrement())
   sharedBusinessId Int
   copiedByUserId   String
-  copiedAt         DateTime @default(now())
-
-  sharedBusiness SharedBusiness @relation(fields: [sharedBusinessId], references: [id], onDelete: Cascade)
-  copiedByUser   User           @relation(fields: [copiedByUserId], references: [id], onDelete: Cascade)
+  copiedAt         DateTime       @default(now())
+  copiedByUser     User           @relation(fields: [copiedByUserId], references: [id], onDelete: Cascade)
+  sharedBusiness   SharedBusiness @relation(fields: [sharedBusinessId], references: [id], onDelete: Cascade)
 
   @@index([sharedBusinessId])
   @@index([copiedByUserId])
   @@index([copiedAt])
+}
+
+model Redirect {
+  id          Int      @id @default(autoincrement())
+  source      String   @unique
+  destination String
+  permanent   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

@@ -1,6 +1,4 @@
 // app/api/requirements/[id]/businesses/route.ts
-// Links or unlinks a RequirementTemplate to one or more businesses.
-// This is the "Add to Business" action triggered from the requirement page.
 
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
@@ -10,7 +8,7 @@ interface Params {
 }
 
 // GET /api/requirements/:id/businesses
-// Returns all businesses this template is linked to.
+// Returns all businesses this template is linked to, including any necessity override.
 export async function GET(_: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
@@ -20,6 +18,9 @@ export async function GET(_: NextRequest, { params }: Params) {
       include: {
         business: {
           select: { id: true, name: true, slug: true, published: true, image: true },
+        },
+        template: {
+          select: { necessity: true },
         },
       },
       orderBy: { createdAt: "asc" },
@@ -34,6 +35,10 @@ export async function GET(_: NextRequest, { params }: Params) {
         businessImage: l.business.image,
         published: l.business.published,
         descriptionOverride: l.descriptionOverride,
+        // null means "inheriting from template"; include both so the UI
+        // can show the effective value and know whether it's overridden
+        necessityOverride: l.necessityOverride,
+        effectiveNecessity: l.necessityOverride ?? l.template.necessity,
         isActive: l.isActive,
         source: l.source,
         linkedAt: l.createdAt,
@@ -47,17 +52,30 @@ export async function GET(_: NextRequest, { params }: Params) {
 
 // POST /api/requirements/:id/businesses
 // Links a template to one or more businesses.
-// Body: { businessIds: number[] }
-// Returns per-business results so the UI knows which succeeded and which were duplicates.
+// Body: { businessIds: number[], necessityOverride?: 'Required' | 'Optional' | null }
+// necessityOverride applies the same value to every business in this batch.
+// Pass null (or omit) to inherit from the template.
 export async function POST(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
     const body = await req.json();
-    const { businessIds } = body;
+    const { businessIds, necessityOverride = null } = body;
 
     if (!businessIds || !Array.isArray(businessIds) || businessIds.length === 0) {
       return NextResponse.json(
         { error: "businessIds must be a non-empty array" },
+        { status: 400 }
+      );
+    }
+
+    if (
+      necessityOverride !== null &&
+      necessityOverride !== undefined &&
+      necessityOverride !== "Required" &&
+      necessityOverride !== "Optional"
+    ) {
+      return NextResponse.json(
+        { error: "necessityOverride must be 'Required', 'Optional', or null" },
         { status: 400 }
       );
     }
@@ -77,7 +95,6 @@ export async function POST(req: NextRequest, { params }: Params) {
       );
     }
 
-    // Process each businessId and track results
     const results = await Promise.all(
       businessIds.map(async (businessId: number) => {
         const business = await prisma.business.findUnique({
@@ -89,7 +106,6 @@ export async function POST(req: NextRequest, { params }: Params) {
           return { businessId, success: false, reason: "Business not found" };
         }
 
-        // Check if already linked
         const existing = await prisma.businessRequirement.findUnique({
           where: {
             businessId_templateId: {
@@ -114,6 +130,7 @@ export async function POST(req: NextRequest, { params }: Params) {
             businessId: Number(businessId),
             templateId: Number(id),
             source: "admin",
+            necessityOverride: necessityOverride ?? null,
           },
         });
 
@@ -142,6 +159,81 @@ export async function POST(req: NextRequest, { params }: Params) {
   } catch (error) {
     console.error("Error linking requirement to businesses:", error);
     return NextResponse.json({ error: "Failed to link requirement" }, { status: 500 });
+  }
+}
+
+// PATCH /api/requirements/:id/businesses
+// Updates the necessityOverride on an existing link.
+// Body: { businessId: number, necessityOverride: 'Required' | 'Optional' | null }
+// Pass null to clear the override and revert to inheriting from the template.
+export async function PATCH(req: NextRequest, { params }: Params) {
+  try {
+    const { id } = await params;
+    const body = await req.json();
+    const { businessId, necessityOverride } = body;
+
+    if (!businessId) {
+      return NextResponse.json({ error: "businessId is required" }, { status: 400 });
+    }
+
+    if (
+      necessityOverride !== null &&
+      necessityOverride !== "Required" &&
+      necessityOverride !== "Optional"
+    ) {
+      return NextResponse.json(
+        { error: "necessityOverride must be 'Required', 'Optional', or null" },
+        { status: 400 }
+      );
+    }
+
+    const existing = await prisma.businessRequirement.findUnique({
+      where: {
+        businessId_templateId: {
+          businessId: Number(businessId),
+          templateId: Number(id),
+        },
+      },
+      include: {
+        business: { select: { name: true } },
+        template: { select: { name: true, necessity: true } },
+      },
+    });
+
+    if (!existing) {
+      return NextResponse.json(
+        { error: "This requirement is not linked to that business" },
+        { status: 404 }
+      );
+    }
+
+    const updated = await prisma.businessRequirement.update({
+      where: {
+        businessId_templateId: {
+          businessId: Number(businessId),
+          templateId: Number(id),
+        },
+      },
+      data: { necessityOverride },
+    });
+
+    const effectiveNecessity = necessityOverride ?? existing.template.necessity;
+
+    return NextResponse.json({
+      linkId: updated.id,
+      businessId: Number(businessId),
+      businessName: existing.business.name,
+      templateNecessity: existing.template.necessity,
+      necessityOverride: updated.necessityOverride,
+      effectiveNecessity,
+      message:
+        necessityOverride === null
+          ? `Reverted to template default (${existing.template.necessity}) for "${existing.business.name}"`
+          : `Necessity set to "${necessityOverride}" for "${existing.business.name}"`,
+    });
+  } catch (error) {
+    console.error("Error updating necessity override:", error);
+    return NextResponse.json({ error: "Failed to update necessity override" }, { status: 500 });
   }
 }
 

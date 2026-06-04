@@ -18,7 +18,8 @@ import {
   LogOut,
   Settings,
   FileText,
-  LayoutGrid
+  LayoutGrid,
+  GitMerge
 } from "lucide-react";
 
 interface NavItem {
@@ -38,6 +39,7 @@ const navItems: NavItem[] = [
   { name: "Vendors",      href: "/admin/vendors",        icon: Store,         requiredRoles: ["editor","admin"] },
   { name: "Comments",     href: "/admin/comments",       icon: MessageSquare, requiredRoles: ["reviewer","editor","admin"] },
   { name: "Reviews",      href: "/admin/reviews",        icon: Star,          requiredRoles: ["reviewer","editor","admin"] },
+  { name: "Redirects", href: "/admin/redirects", icon: GitMerge, requiredRoles: ["editor", "admin"] },
   { name: "Audit Logs",   href: "/admin/audit",          icon: FileText,      requiredRoles: ["admin"] },
 ];
 

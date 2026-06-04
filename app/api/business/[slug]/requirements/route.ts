@@ -50,7 +50,7 @@ export async function GET(
         description: effectiveDescription,
         image: link.template.image,
         category: link.template.category,
-        necessity: link.template.necessity,
+         necessity: link.necessityOverride ?? link.template.necessity,
         productCount: link.template._count.products,
       };
     });

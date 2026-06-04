@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-expressions */
-/* eslint-disable @typescript-eslint/no-unused-vars */
 'use client';
 import { useEffect, useState, useMemo } from 'react';
 import Image from 'next/image';
@@ -28,6 +26,8 @@ type LinkedBusiness = {
   businessSlug: string;
   published: boolean;
   descriptionOverride?: string;
+  necessityOverride: 'Required' | 'Optional' | null;
+  effectiveNecessity: 'Required' | 'Optional';
   isActive: boolean;
   linkedAt: string;
 };
@@ -109,8 +109,7 @@ const S = `
   .biz-check-row { display:flex; align-items:center; gap:0.75rem; padding:0.65rem 0.85rem; border-radius:8px; border:1px solid rgba(255,255,255,0.07); transition:all 0.15s; cursor:pointer; }
   .biz-check-row:hover { background:rgba(255,255,255,0.04); border-color:rgba(99,102,241,0.25); }
   .biz-check-row.selected { background:rgba(99,102,241,0.08); border-color:rgba(99,102,241,0.3); }
-  .linked-biz-row { display:flex; align-items:center; justify-content:space-between; padding:0.6rem 0.85rem; border-radius:8px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); cursor:pointer; transition:all 0.15s; }
-  .linked-biz-row:hover { background:rgba(255,255,255,0.05); }
+  .linked-biz-row { display:flex; align-items:center; justify-content:space-between; padding:0.6rem 0.85rem; border-radius:8px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); gap:0.5rem; }
   .linked-biz-row.sel-unlink { background:rgba(239,68,68,0.07); border-color:rgba(239,68,68,0.25); }
   .dep-badge { display:inline-flex; align-items:center; gap:0.3rem; padding:0.2rem 0.6rem; border-radius:100px; font-size:0.68rem; font-weight:700; background:rgba(239,68,68,0.1); color:#f87171; border:1px solid rgba(239,68,68,0.2); }
   .modal-search { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.09); border-radius:8px; padding:0.5rem 2rem 0.5rem 2.1rem; color:#f0f0f5; font-family:'Sora',sans-serif; font-size:0.82rem; outline:none; width:100%; box-sizing:border-box; }
@@ -125,6 +124,13 @@ const S = `
   .scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:2px; }
   .link-biz-toggle { display:flex; align-items:center; gap:0.6rem; padding:0.75rem 1rem; border-radius:9px; background:rgba(99,102,241,0.06); border:1px solid rgba(99,102,241,0.15); cursor:pointer; font-size:0.82rem; color:#9494b0; transition:all 0.15s; user-select:none; }
   .link-biz-toggle:hover { background:rgba(99,102,241,0.1); }
+  .nec-toggle { display:inline-flex; border-radius:7px; overflow:hidden; border:1px solid rgba(255,255,255,0.08); flex-shrink:0; }
+  .nec-toggle-btn { padding:0.2rem 0.55rem; font-size:0.68rem; font-weight:700; font-family:'Sora',sans-serif; cursor:pointer; border:none; background:transparent; transition:all 0.15s; white-space:nowrap; }
+  .nec-toggle-btn.req.active { background:rgba(16,185,129,0.18); color:#34d399; }
+  .nec-toggle-btn.opt.active { background:rgba(245,158,11,0.15); color:#fbbf24; }
+  .nec-toggle-btn:not(.active) { color:#55556e; }
+  .nec-toggle-btn:not(.active):hover { color:#9494b0; background:rgba(255,255,255,0.04); }
+  .nec-inherited { display:inline-flex; align-items:center; gap:0.25rem; font-size:0.65rem; color:#55556e; margin-top:0.15rem; }
 `;
 
 function catColor(cat: string): [string, string] {
@@ -142,6 +148,103 @@ function SortArrow({ field, sortField, sortDir }: { field: string; sortField: st
     : <svg width="10" height="7" viewBox="0 0 10 7" fill="none" style={{ marginLeft: 4, color: '#818cf8' }}><path d="M5 6L1 1H9L5 6Z" fill="currentColor" /></svg>;
 }
 
+// ── Inline necessity toggle for a linked business row ──────────────────────
+function NecessityToggle({
+  templateId,
+  businessId,
+  linkId,
+  necessityOverride,
+  effectiveNecessity,
+  templateNecessity,
+  onUpdated,
+  showToast,
+}: {
+  templateId: number;
+  businessId: number;
+  linkId: number;
+  necessityOverride: 'Required' | 'Optional' | null;
+  effectiveNecessity: 'Required' | 'Optional';
+  templateNecessity: 'Required' | 'Optional';
+  onUpdated: (linkId: number, override: 'Required' | 'Optional' | null) => void;
+  showToast: (msg: string, type?: 'success' | 'error') => void;
+}) {
+  const [saving, setSaving] = useState(false);
+
+  async function setOverride(value: 'Required' | 'Optional' | null) {
+    setSaving(true);
+    try {
+      const r = await fetch(`/api/requirements/${templateId}/businesses`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId, necessityOverride: value }),
+      });
+      if (!r.ok) { const d = await r.json(); throw new Error(d.error); }
+      onUpdated(linkId, value);
+      showToast(
+        value === null
+          ? `Reverted to template default (${templateNecessity})`
+          : `Set to ${value} for this business`,
+        'success'
+      );
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to update', 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Clicking the active button when it's an override → clear it (revert to template)
+  function handleClick(value: 'Required' | 'Optional') {
+    if (saving) return;
+    if (effectiveNecessity === value) {
+      // Already this value — if it's an override, clicking again clears it
+      if (necessityOverride !== null) setOverride(null);
+      // If it's already the template default with no override, nothing to do
+    } else {
+      setOverride(value);
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.15rem', flexShrink: 0 }}>
+      <div className={`nec-toggle${saving ? ' opacity-50' : ''}`} style={{ opacity: saving ? 0.5 : 1, pointerEvents: saving ? 'none' : 'auto' }}>
+        <button
+          className={`nec-toggle-btn req${effectiveNecessity === 'Required' ? ' active' : ''}`}
+          onClick={() => handleClick('Required')}
+          title={effectiveNecessity === 'Required' && necessityOverride !== null ? 'Click to revert to template default' : 'Set as Required for this business'}
+        >
+          Required
+        </button>
+        <button
+          className={`nec-toggle-btn opt${effectiveNecessity === 'Optional' ? ' active' : ''}`}
+          onClick={() => handleClick('Optional')}
+          title={effectiveNecessity === 'Optional' && necessityOverride !== null ? 'Click to revert to template default' : 'Set as Optional for this business'}
+        >
+          Optional
+        </button>
+      </div>
+      {/* Show a subtle hint when the value is inherited vs overridden */}
+      <span className="nec-inherited">
+        {necessityOverride !== null ? (
+          <>
+            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2.5"><path d="M12 5v14M5 12l7 7 7-7" /></svg>
+            <span style={{ color: '#a78bfa' }}>overridden</span>
+            <span style={{ marginLeft: '0.2rem', cursor: 'pointer', color: '#55556e', textDecoration: 'underline' }}
+              onClick={() => !saving && setOverride(null)}>
+              reset
+            </span>
+          </>
+        ) : (
+          <>
+            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14" /></svg>
+            inherited
+          </>
+        )}
+      </span>
+    </div>
+  );
+}
+
 export default function RequirementsPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -157,16 +260,13 @@ export default function RequirementsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
-  // Create / Edit form
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState(defaultForm);
   const [formLoading, setFormLoading] = useState(false);
-  // ── NEW: link-to-business on create ──
   const [formLinkToBiz, setFormLinkToBiz] = useState(false);
   const [formBizId, setFormBizId] = useState<number | null>(null);
 
-  // Add-to-business modal
   const [addBizModalOpen, setAddBizModalOpen] = useState(false);
   const [addBizTemplate, setAddBizTemplate] = useState<Template | null>(null);
   const [linkedBusinesses, setLinkedBusinesses] = useState<LinkedBusiness[]>([]);
@@ -214,6 +314,27 @@ export default function RequirementsPage() {
       if (r.ok) setLinkedBusinesses(await r.json());
     } catch { }
     finally { setLinkedLoading(false); }
+  }
+
+  // Called by NecessityToggle after a successful PATCH — update local state
+  // without a full refetch so the UI feels instant.
+  function handleNecessityUpdated(
+    linkId: number,
+    override: 'Required' | 'Optional' | null
+  ) {
+    setLinkedBusinesses(prev =>
+      prev.map(lb => {
+        if (lb.linkId !== linkId) return lb;
+        // We need the template necessity to compute effectiveNecessity.
+        // addBizTemplate is always set when this modal is open.
+        const templateNecessity = addBizTemplate?.necessity ?? 'Required';
+        return {
+          ...lb,
+          necessityOverride: override,
+          effectiveNecessity: override ?? templateNecessity,
+        };
+      })
+    );
   }
 
   const activeFilterCount = [filterCat, filterNec].filter(Boolean).length + (showDeprecated ? 1 : 0);
@@ -282,7 +403,6 @@ export default function RequirementsPage() {
       const method = editingId ? 'PATCH' : 'POST';
       const url = editingId ? `/api/requirements/${editingId}` : '/api/requirements';
       const body: typeof formData & { businessId?: number } = { ...formData };
-      // Only pass businessId when creating and the toggle is on
       if (!editingId && formLinkToBiz && formBizId) body.businessId = formBizId;
 
       const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -325,7 +445,11 @@ export default function RequirementsPage() {
         const r = await fetch(`/api/requirements/${id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
         const d = await r.json();
         if (!r.ok) { failed++; continue; }
-        d.deprecated ? deprecated++ : deleted++;
+        if (d.deprecated) {
+          deprecated++;
+        } else {
+          deleted++;
+        }
       } catch { failed++; }
     }
     setSelectedIds(new Set()); setBulkConfirm(false); fetchTemplates();
@@ -357,13 +481,21 @@ export default function RequirementsPage() {
   function toggleBizSelect(bizId: number) {
     if (linkedBusinesses.some(l => l.businessId === bizId)) return;
     const s = new Set(selectedBizIds);
-    s.has(bizId) ? s.delete(bizId) : s.add(bizId);
+    if (s.has(bizId)) {
+      s.delete(bizId);
+    } else {
+      s.add(bizId);
+    }
     setSelectedBizIds(s);
   }
 
   function toggleUnlinkSelect(linkId: number) {
     const s = new Set(unlinkSelectedIds);
-    s.has(linkId) ? s.delete(linkId) : s.add(linkId);
+    if (s.has(linkId)) {
+      s.delete(linkId);
+    } else {
+      s.add(linkId);
+    }
     setUnlinkSelectedIds(s);
   }
 
@@ -417,8 +549,14 @@ export default function RequirementsPage() {
           method: 'DELETE', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ businessId: lb.businessId }),
         });
-        r.ok ? succeeded++ : failed++;
-      } catch { failed++; }
+        if (r.ok) {
+          succeeded++;
+        } else {
+          failed++;
+        }
+      } catch {
+        failed++;
+      }
     }
     setUnlinkSelectedIds(new Set()); setUnlinkLoading(false);
     fetchLinkedBusinesses(addBizTemplate.id); fetchTemplates();
@@ -428,7 +566,15 @@ export default function RequirementsPage() {
     showToast(parts.join(' · '), failed > 0 ? 'error' : 'success');
   }
 
-  function toggleSel(id: number) { const s = new Set(selectedIds); s.has(id) ? s.delete(id) : s.add(id); setSelectedIds(s); }
+  function toggleSel(id: number) {
+    const s = new Set(selectedIds);
+    if (s.has(id)) {
+      s.delete(id);
+    } else {
+      s.add(id);
+    }
+    setSelectedIds(s);
+  }
   function toggleSelAll() {
     setSelectedIds(selectedIds.size === paginated.length && paginated.length > 0
       ? new Set() : new Set(paginated.map(t => t.id)));
@@ -678,41 +824,22 @@ export default function RequirementsPage() {
                 <button onClick={() => setFormOpen(false)} className="btn btn-ghost btn-icon">×</button>
               </div>
 
-              {/* Edit notice */}
               {editingId && (
                 <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 10, padding: '0.75rem 1rem', marginBottom: '1.25rem', fontSize: '0.78rem', color: '#a5b4fc', lineHeight: 1.6 }}>
-                  Changes here apply to <strong>all businesses</strong> that have linked this requirement.
+                  Changes here apply to <strong>all businesses</strong> that have linked this requirement. To change necessity for a specific business only, use the &ldquo;Add to Biz&rdquo; modal.
                 </div>
               )}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
-                {/* Name */}
                 <div>
                   <label className="f-label">Name *</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Business Permit, Laptop, POS System"
-                    className="f-input"
-                    value={formData.name}
-                    onChange={e => setFormData({ ...formData, name: e.target.value })}
-                    autoFocus
-                  />
+                  <input type="text" placeholder="e.g. Business Permit, Laptop, POS System" className="f-input" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} autoFocus />
                 </div>
-
-                {/* Description */}
                 <div>
                   <label className="f-label">Description</label>
-                  <textarea
-                    placeholder="Use [businessName] to personalise — e.g. 'You need a business permit to operate your [businessName].'"
-                    className="f-textarea"
-                    rows={3}
-                    value={formData.description}
-                    onChange={e => setFormData({ ...formData, description: e.target.value })}
-                  />
+                  <textarea placeholder="Use [businessName] to personalise — e.g. 'You need a business permit to operate your [businessName].'" className="f-textarea" rows={3} value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
                   <div className="f-hint highlight">Tip: [businessName] is replaced with the business name wherever this requirement appears.</div>
                 </div>
-
-                {/* Category + Image */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div>
                     <label className="f-label">Category *</label>
@@ -726,85 +853,43 @@ export default function RequirementsPage() {
                     <input type="text" placeholder="https://…" className="f-input" value={formData.image} onChange={e => setFormData({ ...formData, image: e.target.value })} />
                   </div>
                 </div>
-
-                {/* Necessity */}
                 <div>
-                  <label className="f-label">Necessity *</label>
+                  <label className="f-label">Default Necessity *</label>
                   <div style={{ display: 'flex', gap: '0.65rem' }}>
                     {(['Required', 'Optional'] as const).map(v => (
-                      <label
-                        key={v}
-                        className="nec-opt"
-                        style={{
-                          borderColor: formData.necessity === v ? (v === 'Required' ? 'rgba(16,185,129,0.5)' : 'rgba(245,158,11,0.5)') : 'rgba(255,255,255,0.07)',
-                          background: formData.necessity === v ? (v === 'Required' ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)') : 'transparent',
-                          color: formData.necessity === v ? (v === 'Required' ? '#34d399' : '#fbbf24') : '#9494b0',
-                        }}
-                      >
+                      <label key={v} className="nec-opt" style={{ borderColor: formData.necessity === v ? (v === 'Required' ? 'rgba(16,185,129,0.5)' : 'rgba(245,158,11,0.5)') : 'rgba(255,255,255,0.07)', background: formData.necessity === v ? (v === 'Required' ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)') : 'transparent', color: formData.necessity === v ? (v === 'Required' ? '#34d399' : '#fbbf24') : '#9494b0' }}>
                         <input type="radio" name="nec" value={v} checked={formData.necessity === v} onChange={() => setFormData({ ...formData, necessity: v })} style={{ display: 'none' }} />
                         {v}
                       </label>
                     ))}
                   </div>
+                  <div className="f-hint">This is the default. You can override per-business in the Add to Biz modal.</div>
                 </div>
 
-                {/* ── Link to business (create only) ── */}
                 {!editingId && (
                   <div>
-                    <label
-                      className="link-biz-toggle"
-                      onClick={() => setFormLinkToBiz(!formLinkToBiz)}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={formLinkToBiz}
-                        onChange={() => setFormLinkToBiz(!formLinkToBiz)}
-                        style={{ accentColor: '#6366f1', cursor: 'pointer' }}
-                      />
-                      <span style={{ fontWeight: 600, color: formLinkToBiz ? '#a5b4fc' : '#9494b0' }}>
-                        Also link to a business
-                      </span>
+                    <label className="link-biz-toggle" onClick={() => setFormLinkToBiz(!formLinkToBiz)}>
+                      <input type="checkbox" checked={formLinkToBiz} onChange={() => setFormLinkToBiz(!formLinkToBiz)} style={{ accentColor: '#6366f1', cursor: 'pointer' }} />
+                      <span style={{ fontWeight: 600, color: formLinkToBiz ? '#a5b4fc' : '#9494b0' }}>Also link to a business</span>
                       <span style={{ fontSize: '0.72rem', color: '#55556e', marginLeft: 'auto' }}>optional</span>
                     </label>
-
                     {formLinkToBiz && (
                       <div style={{ marginTop: '0.65rem' }}>
                         <label className="f-label">Select Business</label>
-                        <select
-                          className="f-select"
-                          value={formBizId ?? ''}
-                          onChange={e => setFormBizId(Number(e.target.value))}
-                        >
+                        <select className="f-select" value={formBizId ?? ''} onChange={e => setFormBizId(Number(e.target.value))}>
                           <option value="">— Select a business —</option>
-                          {businesses.map(b => (
-                            <option key={b.id} value={b.id}>
-                              {b.name}{!b.published ? ' (draft)' : ''}
-                            </option>
-                          ))}
+                          {businesses.map(b => <option key={b.id} value={b.id}>{b.name}{!b.published ? ' (draft)' : ''}</option>)}
                         </select>
-                        <div className="f-hint">
-                          Requirement will be added to the library AND linked to this business.
-                        </div>
+                        <div className="f-hint">Requirement will be added to the library AND linked to this business.</div>
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* Footer buttons */}
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.5rem' }}>
                   <button className="btn btn-ghost" onClick={() => setFormOpen(false)}>Cancel</button>
-                  <button
-                    className="btn btn-primary"
-                    onClick={handleSubmit}
-                    disabled={formLoading || !formData.name || !formData.category || !formData.necessity}
-                  >
-                    {formLoading
-                      ? 'Saving…'
-                      : editingId
-                        ? 'Update'
-                        : formLinkToBiz && formBizId
-                          ? 'Create + Link to Biz'
-                          : 'Create'}
+                  <button className="btn btn-primary" onClick={handleSubmit} disabled={formLoading || !formData.name || !formData.category || !formData.necessity}>
+                    {formLoading ? 'Saving…' : editingId ? 'Update' : formLinkToBiz && formBizId ? 'Create + Link to Biz' : 'Create'}
                   </button>
                 </div>
               </div>
@@ -825,9 +910,12 @@ export default function RequirementsPage() {
               <div className="modal-box modal-lg" onClick={e => e.stopPropagation()}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
                   <div>
-                    <h2 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '0.2rem' }}>Add to Business</h2>
+                    <h2 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '0.2rem' }}>Manage Business Links</h2>
                     <p style={{ fontSize: '0.8rem', color: '#55556e' }}>
-                      <span style={{ color: '#a5b4fc', fontWeight: 600 }}>{addBizTemplate.name}</span> — select businesses to link
+                      <span style={{ color: '#a5b4fc', fontWeight: 600 }}>{addBizTemplate.name}</span>
+                      <span style={{ marginLeft: '0.5rem', padding: '0.15rem 0.5rem', borderRadius: 100, fontSize: '0.7rem', fontWeight: 700, background: necStyle(addBizTemplate.necessity).bg, color: necStyle(addBizTemplate.necessity).color }}>
+                        default: {addBizTemplate.necessity}
+                      </span>
                     </p>
                   </div>
                   <button onClick={closeAddBiz} className="btn btn-ghost btn-icon">×</button>
@@ -844,12 +932,7 @@ export default function RequirementsPage() {
                           Already linked ({linkedBusinesses.length})
                         </span>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', fontSize: '0.74rem', color: '#9494b0', fontFamily: 'Sora,sans-serif', userSelect: 'none' }}>
-                          <input
-                            type="checkbox"
-                            checked={unlinkSelectedIds.size === linkedBusinesses.length && linkedBusinesses.length > 0}
-                            onChange={toggleSelectAllLinked}
-                            style={{ accentColor: '#f87171', cursor: 'pointer' }}
-                          />
+                          <input type="checkbox" checked={unlinkSelectedIds.size === linkedBusinesses.length && linkedBusinesses.length > 0} onChange={toggleSelectAllLinked} style={{ accentColor: '#f87171', cursor: 'pointer' }} />
                           Select all
                         </label>
                       </div>
@@ -859,16 +942,57 @@ export default function RequirementsPage() {
                         </button>
                       )}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: 180, overflowY: 'auto' }} className="scroll">
+
+                    {/* Column headers for the linked list */}
+                    <div style={{ display: 'flex', alignItems: 'center', padding: '0 0.85rem', marginBottom: '0.35rem', gap: '0.5rem' }}>
+                      <div style={{ width: 16, flexShrink: 0 }} />
+                      <div style={{ flex: 1, fontSize: '0.65rem', fontWeight: 700, color: '#3a3a56', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Business</div>
+                      <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#3a3a56', textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: '4.5rem' }}>Necessity</div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: 220, overflowY: 'auto' }} className="scroll">
                       {linkedBusinesses.map(lb => (
-                        <div key={lb.linkId} className={`linked-biz-row${unlinkSelectedIds.has(lb.linkId) ? ' sel-unlink' : ''}`} onClick={() => toggleUnlinkSelect(lb.linkId)}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
-                            <input type="checkbox" checked={unlinkSelectedIds.has(lb.linkId)} onChange={() => toggleUnlinkSelect(lb.linkId)} onClick={e => e.stopPropagation()} style={{ accentColor: '#f87171', cursor: 'pointer' }} />
+                        <div
+                          key={lb.linkId}
+                          className={`linked-biz-row${unlinkSelectedIds.has(lb.linkId) ? ' sel-unlink' : ''}`}
+                          onClick={() => toggleUnlinkSelect(lb.linkId)}
+                        >
+                          {/* Checkbox */}
+                          <input
+                            type="checkbox"
+                            checked={unlinkSelectedIds.has(lb.linkId)}
+                            onChange={() => toggleUnlinkSelect(lb.linkId)}
+                            onClick={e => e.stopPropagation()}
+                            style={{ accentColor: '#f87171', cursor: 'pointer', flexShrink: 0 }}
+                          />
+
+                          {/* Business name + status dot */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
                             <span style={{ width: 8, height: 8, borderRadius: '50%', background: lb.published ? '#34d399' : '#55556e', flexShrink: 0 }} />
-                            <span style={{ fontSize: '0.84rem', color: '#f0f0f5', fontWeight: 600 }}>{lb.businessName}</span>
-                            {!lb.published && <span style={{ fontSize: '0.7rem', color: '#55556e' }}>draft</span>}
+                            <span style={{ fontSize: '0.84rem', color: '#f0f0f5', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lb.businessName}</span>
+                            {!lb.published && <span style={{ fontSize: '0.7rem', color: '#55556e', flexShrink: 0 }}>draft</span>}
                           </div>
-                          <button className="btn btn-danger btn-icon" style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem', flexShrink: 0 }} onClick={e => { e.stopPropagation(); handleUnlinkBusiness(addBizTemplate.id, lb.businessId, lb.businessName); }}>
+
+                          {/* ── Necessity toggle ── */}
+                          <div onClick={e => e.stopPropagation()}>
+                            <NecessityToggle
+                              templateId={addBizTemplate.id}
+                              businessId={lb.businessId}
+                              linkId={lb.linkId}
+                              necessityOverride={lb.necessityOverride}
+                              effectiveNecessity={lb.effectiveNecessity}
+                              templateNecessity={addBizTemplate.necessity}
+                              onUpdated={handleNecessityUpdated}
+                              showToast={showToast}
+                            />
+                          </div>
+
+                          {/* Unlink button */}
+                          <button
+                            className="btn btn-danger btn-icon"
+                            style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem', flexShrink: 0 }}
+                            onClick={e => { e.stopPropagation(); handleUnlinkBusiness(addBizTemplate.id, lb.businessId, lb.businessName); }}
+                          >
                             Unlink
                           </button>
                         </div>
@@ -877,7 +1001,7 @@ export default function RequirementsPage() {
                   </div>
                 )}
 
-                {/* Add to business */}
+                {/* Add to new businesses */}
                 {available.length > 0 ? (
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem' }}>
