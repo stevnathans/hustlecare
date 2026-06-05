@@ -163,20 +163,21 @@ export async function POST(req: NextRequest, { params }: Params) {
 }
 
 // PATCH /api/requirements/:id/businesses
-// Updates the necessityOverride on an existing link.
-// Body: { businessId: number, necessityOverride: 'Required' | 'Optional' | null }
-// Pass null to clear the override and revert to inheriting from the template.
+// Updates necessityOverride and/or descriptionOverride on an existing link.
+// Body: { businessId: number, necessityOverride?: 'Required' | 'Optional' | null, descriptionOverride?: string | null }
+// Pass null to clear either override and revert to the template value.
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
     const body = await req.json();
-    const { businessId, necessityOverride } = body;
+    const { businessId, necessityOverride, descriptionOverride } = body;
 
     if (!businessId) {
       return NextResponse.json({ error: "businessId is required" }, { status: 400 });
     }
 
     if (
+      necessityOverride !== undefined &&
       necessityOverride !== null &&
       necessityOverride !== "Required" &&
       necessityOverride !== "Optional"
@@ -196,7 +197,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       },
       include: {
         business: { select: { name: true } },
-        template: { select: { name: true, necessity: true } },
+        template: { select: { name: true, necessity: true, description: true } },
       },
     });
 
@@ -207,6 +208,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       );
     }
 
+    // Build update payload — only include fields that were actually sent
+    // so a necessity-only PATCH doesn't accidentally wipe descriptionOverride
+    const updateData: {
+      necessityOverride?: string | null;
+      descriptionOverride?: string | null;
+    } = {};
+
+    if (necessityOverride !== undefined) updateData.necessityOverride = necessityOverride;
+    if (descriptionOverride !== undefined) {
+      // Treat empty string as null — no point storing a blank override
+      updateData.descriptionOverride =
+        descriptionOverride === "" ? null : descriptionOverride;
+    }
+
     const updated = await prisma.businessRequirement.update({
       where: {
         businessId_templateId: {
@@ -214,10 +229,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           templateId: Number(id),
         },
       },
-      data: { necessityOverride },
+      data: updateData,
     });
 
-    const effectiveNecessity = necessityOverride ?? existing.template.necessity;
+    const effectiveNecessity =
+      updated.necessityOverride ?? existing.template.necessity;
 
     return NextResponse.json({
       linkId: updated.id,
@@ -226,14 +242,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       templateNecessity: existing.template.necessity,
       necessityOverride: updated.necessityOverride,
       effectiveNecessity,
-      message:
-        necessityOverride === null
-          ? `Reverted to template default (${existing.template.necessity}) for "${existing.business.name}"`
-          : `Necessity set to "${necessityOverride}" for "${existing.business.name}"`,
+      descriptionOverride: updated.descriptionOverride,
+      message: "Link updated successfully",
     });
   } catch (error) {
-    console.error("Error updating necessity override:", error);
-    return NextResponse.json({ error: "Failed to update necessity override" }, { status: 500 });
+    console.error("Error updating business requirement link:", error);
+    return NextResponse.json({ error: "Failed to update link" }, { status: 500 });
   }
 }
 
