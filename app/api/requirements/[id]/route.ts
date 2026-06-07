@@ -1,8 +1,3 @@
-// app/api/requirements/[id]/route.ts
-// Manages a single RequirementTemplate — update or soft-delete (deprecate).
-// Updates here propagate automatically to all linked businesses
-// because BusinessRequirement reads from the template at query time.
-
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -10,8 +5,6 @@ interface Params {
   params: Promise<{ id: string }>;
 }
 
-// GET /api/requirements/:id
-// Returns a single template with its linked businesses and products.
 export async function GET(_: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
@@ -49,6 +42,7 @@ export async function GET(_: NextRequest, { params }: Params) {
       category: template.category,
       necessity: template.necessity,
       isDeprecated: template.isDeprecated,
+      isGlobal: template.isGlobal,
       deprecatedAt: template.deprecatedAt,
       productCount: template._count.products,
       businessCount: template._count.businesses,
@@ -73,14 +67,11 @@ export async function GET(_: NextRequest, { params }: Params) {
   }
 }
 
-// PATCH /api/requirements/:id
-// Updates a template. Changes propagate automatically to all linked businesses
-// because links read from the template at query time.
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
     const body = await req.json();
-    const { name, description, image, category, necessity } = body;
+    const { name, description, image, category, necessity, isGlobal } = body;
 
     const template = await prisma.requirementTemplate.findUnique({
       where: { id: Number(id) },
@@ -100,15 +91,36 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const updated = await prisma.requirementTemplate.update({
       where: { id: Number(id) },
       data: {
-        ...(name !== undefined && { name }),
+        ...(name        !== undefined && { name }),
         ...(description !== undefined && { description }),
-        ...(image !== undefined && { image }),
-        ...(category !== undefined && { category }),
-        ...(necessity !== undefined && { necessity }),
+        ...(image       !== undefined && { image }),
+        ...(category    !== undefined && { category }),
+        ...(necessity   !== undefined && { necessity }),
+        ...(isGlobal    !== undefined && { isGlobal }),
       },
-      include: {
-        _count: { select: { businesses: true, products: true } },
-      },
+      include: { _count: { select: { businesses: true, products: true } } },
+    });
+
+    // If isGlobal was just switched ON, back-fill businesses not yet linked
+    if (isGlobal === true && !template.isGlobal) {
+      const allBusinesses = await prisma.business.findMany({
+        select: { id: true },
+      });
+      if (allBusinesses.length > 0) {
+        await prisma.businessRequirement.createMany({
+          data: allBusinesses.map((b) => ({
+            businessId: b.id,
+            templateId: Number(id),
+            source: "global",
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
+    // Re-fetch updated count after any back-fill
+    const updatedCount = await prisma.businessRequirement.count({
+      where: { templateId: Number(id) },
     });
 
     return NextResponse.json({
@@ -118,8 +130,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       image: updated.image,
       category: updated.category,
       necessity: updated.necessity,
+      isGlobal: updated.isGlobal,
       productCount: updated._count.products,
-      businessCount: updated._count.businesses,
+      businessCount: updatedCount,
       updatedAt: updated.updatedAt,
     });
   } catch (error) {
@@ -128,10 +141,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 }
 
-// DELETE /api/requirements/:id
-// Soft-deletes (deprecates) a template rather than hard-deleting,
-// so existing BusinessRequirement links remain intact.
-// Pass { force: true } in the body to hard-delete a template with no links.
 export async function DELETE(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
@@ -147,7 +156,6 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Requirement not found" }, { status: 404 });
     }
 
-    // If there are linked businesses, soft-delete only
     if (template._count.businesses > 0) {
       if (force) {
         return NextResponse.json(
@@ -158,7 +166,6 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         );
       }
 
-      // Soft delete — mark as deprecated
       await prisma.requirementTemplate.update({
         where: { id: Number(id) },
         data: { isDeprecated: true, deprecatedAt: new Date() },
@@ -170,10 +177,12 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       });
     }
 
-    // No links — safe to hard delete
     await prisma.requirementTemplate.delete({ where: { id: Number(id) } });
 
-    return NextResponse.json({ message: "Requirement permanently deleted", deleted: true });
+    return NextResponse.json({
+      message: "Requirement permanently deleted",
+      deleted: true,
+    });
   } catch (error) {
     console.error("Failed to delete requirement:", error);
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 });

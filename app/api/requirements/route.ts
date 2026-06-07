@@ -1,42 +1,34 @@
-// app/api/requirements/route.ts
-// Manages the RequirementTemplate library — independent of any business.
-
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
-// GET /api/requirements
-// Returns all non-deprecated templates with product count and linked business count.
 export async function GET() {
   try {
     const templates = await prisma.requirementTemplate.findMany({
       where: { isDeprecated: false },
       include: {
         _count: {
-          select: {
-            products: true,
-            businesses: true, // count of BusinessRequirement links
-          },
+          select: { products: true, businesses: true },
         },
       },
       orderBy: { name: "asc" },
     });
 
-    // Shape the response to match what the admin UI expects
-    const shaped = templates.map((t) => ({
-      id: t.id,
-      name: t.name,
-      description: t.description,
-      image: t.image,
-      category: t.category,
-      necessity: t.necessity,
-      isDeprecated: t.isDeprecated,
-      productCount: t._count.products,
-      businessCount: t._count.businesses,
-      createdAt: t.createdAt,
-      updatedAt: t.updatedAt,
-    }));
-
-    return NextResponse.json(shaped);
+    return NextResponse.json(
+      templates.map((t) => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        image: t.image,
+        category: t.category,
+        necessity: t.necessity,
+        isDeprecated: t.isDeprecated,
+        isGlobal: t.isGlobal,
+        productCount: t._count.products,
+        businessCount: t._count.businesses,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+      }))
+    );
   } catch (error) {
     console.error("Error fetching requirement templates:", error);
     return NextResponse.json(
@@ -46,13 +38,18 @@ export async function GET() {
   }
 }
 
-// POST /api/requirements
-// Creates a new template in the library.
-// Optionally links it to a business if businessId is provided.
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { name, description, image, category, necessity, businessId } = body;
+    const {
+      name,
+      description,
+      image,
+      category,
+      necessity,
+      businessId,
+      isGlobal = false,
+    } = body;
 
     if (!name || !category || !necessity) {
       return NextResponse.json(
@@ -61,30 +58,36 @@ export async function POST(req: Request) {
       );
     }
 
-    // Create the template
     const template = await prisma.requirementTemplate.create({
-      data: {
-        name,
-        description,
-        image,
-        category,
-        necessity,
-      },
-      include: {
-        _count: { select: { products: true, businesses: true } },
-      },
+      data: { name, description, image, category, necessity, isGlobal },
+      include: { _count: { select: { products: true, businesses: true } } },
     });
 
-    // If a businessId was provided (created from the business page),
-    // immediately create the link as well.
+    // If global, auto-link to ALL existing businesses
+    if (isGlobal) {
+      const allBusinesses = await prisma.business.findMany({
+        select: { id: true },
+      });
+      if (allBusinesses.length > 0) {
+        await prisma.businessRequirement.createMany({
+          data: allBusinesses.map((b) => ({
+            businessId: b.id,
+            templateId: template.id,
+            source: "global",
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
+    // If a specific businessId was given and not already handled by global
     let link = null;
-    if (businessId) {
+    if (businessId && !isGlobal) {
       const business = await prisma.business.findUnique({
         where: { id: Number(businessId) },
       });
 
       if (!business) {
-        // Template was created — return it even if business link fails
         return NextResponse.json(
           { error: "Template created but business not found for linking", template },
           { status: 207 }
@@ -100,6 +103,11 @@ export async function POST(req: Request) {
       });
     }
 
+    // Re-fetch updated business count after linking
+    const updatedCount = await prisma.businessRequirement.count({
+      where: { templateId: template.id },
+    });
+
     return NextResponse.json(
       {
         id: template.id,
@@ -108,11 +116,14 @@ export async function POST(req: Request) {
         image: template.image,
         category: template.category,
         necessity: template.necessity,
+        isGlobal: template.isGlobal,
         productCount: template._count.products,
-        businessCount: template._count.businesses,
+        businessCount: updatedCount,
         createdAt: template.createdAt,
         updatedAt: template.updatedAt,
-        linkedTo: link ? { businessRequirementId: link.id, businessId: link.businessId } : null,
+        linkedTo: link
+          ? { businessRequirementId: link.id, businessId: link.businessId }
+          : null,
       },
       { status: 201 }
     );

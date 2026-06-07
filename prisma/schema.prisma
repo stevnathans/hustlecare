@@ -177,6 +177,7 @@ model RequirementTemplate {
   necessity    String
   isDeprecated Boolean               @default(false)
   deprecatedAt DateTime?
+  isGlobal     Boolean               @default(false)
   createdAt    DateTime              @default(now())
   updatedAt    DateTime              @updatedAt
   businesses   BusinessRequirement[]

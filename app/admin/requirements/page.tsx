@@ -11,6 +11,7 @@ type Template = {
   category: string;
   necessity: 'Required' | 'Optional';
   isDeprecated: boolean;
+  isGlobal: boolean;
   productCount: number;
   businessCount: number;
   createdAt: string;
@@ -51,6 +52,7 @@ const CAT_COLORS: Record<string, [string, string]> = {
 const defaultForm = {
   name: '', description: '', image: '', category: '',
   necessity: 'Required' as 'Required' | 'Optional',
+  isGlobal: false,
 };
 
 const S = `
@@ -121,6 +123,7 @@ const S = `
   .linked-biz-card.sel-unlink { border-color:rgba(239,68,68,0.3); background:rgba(239,68,68,0.04); }
   .linked-biz-row { display:flex; align-items:center; padding:0.65rem 0.85rem; gap:0.5rem; cursor:pointer; flex-wrap:nowrap; min-height:52px; }
   .dep-badge { display:inline-flex; align-items:center; gap:0.3rem; padding:0.2rem 0.6rem; border-radius:100px; font-size:0.68rem; font-weight:700; background:rgba(239,68,68,0.1); color:#f87171; border:1px solid rgba(239,68,68,0.2); }
+  .global-badge { display:inline-flex; align-items:center; gap:0.25rem; padding:0.15rem 0.5rem; border-radius:100px; font-size:0.65rem; font-weight:700; background:rgba(99,102,241,0.12); color:#818cf8; border:1px solid rgba(99,102,241,0.2); }
   .modal-search { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.09); border-radius:8px; padding:0.5rem 2rem 0.5rem 2.1rem; color:#f0f0f5; font-family:'Sora',sans-serif; font-size:0.82rem; outline:none; width:100%; box-sizing:border-box; }
   .modal-search::placeholder { color:#3a3a56; }
   .modal-search:focus { border-color:rgba(99,102,241,0.5); }
@@ -288,7 +291,6 @@ function DescriptionEditor({
 
   return (
     <div>
-      {/* Toggle button row */}
       <div style={{ padding: '0.3rem 0.85rem 0.5rem', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
         <button
           className={`desc-toggle-btn${hasOverride ? ' has-override' : ''}`}
@@ -305,8 +307,6 @@ function DescriptionEditor({
           }
         </button>
       </div>
-
-      {/* Expanded editor */}
       {open && (
         <div className="desc-editor" onClick={e => e.stopPropagation()}>
           {templateDescription && (
@@ -353,6 +353,7 @@ export default function RequirementsPage() {
   const [search, setSearch] = useState('');
   const [filterCat, setFilterCat] = useState('');
   const [filterNec, setFilterNec] = useState('');
+  const [filterGlobal, setFilterGlobal] = useState(false);
   const [showDeprecated, setShowDeprecated] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sortField, setSortField] = useState<SortField>('name');
@@ -383,7 +384,7 @@ export default function RequirementsPage() {
   const [bulkConfirm, setBulkConfirm] = useState(false);
 
   useEffect(() => { fetchTemplates(); fetchBusinesses(); }, []);
-  useEffect(() => { setCurrentPage(1); }, [search, filterCat, filterNec, showDeprecated, sortField, sortDir]);
+  useEffect(() => { setCurrentPage(1); }, [search, filterCat, filterNec, filterGlobal, showDeprecated, sortField, sortDir]);
 
   function showToast(msg: string, type: 'success' | 'error' = 'success') {
     setToast({ msg, type });
@@ -430,13 +431,14 @@ export default function RequirementsPage() {
     setLinkedBusinesses(prev => prev.map(lb => lb.linkId !== linkId ? lb : { ...lb, descriptionOverride: desc }));
   }
 
-  const activeFilterCount = [filterCat, filterNec].filter(Boolean).length + (showDeprecated ? 1 : 0);
+  const activeFilterCount = [filterCat, filterNec].filter(Boolean).length + (showDeprecated ? 1 : 0) + (filterGlobal ? 1 : 0);
 
   const filtered = useMemo(() => {
     return templates
       .filter(t => showDeprecated ? true : !t.isDeprecated)
       .filter(t => !filterCat || t.category === filterCat)
       .filter(t => !filterNec || t.necessity === filterNec)
+      .filter(t => !filterGlobal || t.isGlobal)
       .filter(t => !search || t.name.toLowerCase().includes(search.toLowerCase()) || t.description?.toLowerCase().includes(search.toLowerCase()) || t.category.toLowerCase().includes(search.toLowerCase()))
       .sort((a, b) => {
         let va: string | number = '', vb: string | number = '';
@@ -448,7 +450,7 @@ export default function RequirementsPage() {
         if (typeof va === 'string') return sortDir === 'asc' ? va.localeCompare(vb as string) : (vb as string).localeCompare(va);
         return sortDir === 'asc' ? (va as number) - (vb as number) : (vb as number) - (va as number);
       });
-  }, [templates, search, filterCat, filterNec, showDeprecated, sortField, sortDir]);
+  }, [templates, search, filterCat, filterNec, filterGlobal, showDeprecated, sortField, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -481,7 +483,14 @@ export default function RequirementsPage() {
   }
 
   function openEdit(t: Template) {
-    setFormData({ name: t.name, description: t.description ?? '', image: t.image ?? '', category: t.category, necessity: t.necessity });
+    setFormData({
+      name: t.name,
+      description: t.description ?? '',
+      image: t.image ?? '',
+      category: t.category,
+      necessity: t.necessity,
+      isGlobal: t.isGlobal,
+    });
     setEditingId(t.id); setFormLinkToBiz(false); setFormBizId(null); setFormOpen(true);
   }
 
@@ -496,7 +505,15 @@ export default function RequirementsPage() {
       if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Failed'); }
       setFormOpen(false); fetchTemplates();
       const linkedBiz = businesses.find(b => b.id === formBizId);
-      showToast(editingId ? 'Requirement updated — all linked businesses will see the change automatically.' : formLinkToBiz && linkedBiz ? `Requirement added to library and linked to ${linkedBiz.name}.` : 'Requirement added to library.');
+      if (editingId) {
+        showToast('Requirement updated — all linked businesses will see the change automatically.');
+      } else if (formData.isGlobal) {
+        showToast(`Requirement created and linked to all ${businesses.length} businesses automatically.`);
+      } else if (formLinkToBiz && linkedBiz) {
+        showToast(`Requirement added to library and linked to ${linkedBiz.name}.`);
+      } else {
+        showToast('Requirement added to library.');
+      }
     } catch (e) { showToast(e instanceof Error ? e.message : 'Failed to save', 'error'); }
     finally { setFormLoading(false); }
   }
@@ -520,7 +537,7 @@ export default function RequirementsPage() {
         const r = await fetch(`/api/requirements/${id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
         const d = await r.json();
         if (!r.ok) { failed++; continue; }
-        d.deprecated ? deprecated++ : deleted++;
+        if (d.deprecated) deprecated++; else deleted++;
       } catch { failed++; }
     }
     setSelectedIds(new Set()); setBulkConfirm(false); fetchTemplates();
@@ -545,11 +562,15 @@ export default function RequirementsPage() {
 
   function toggleBizSelect(bizId: number) {
     if (linkedBusinesses.some(l => l.businessId === bizId)) return;
-    const s = new Set(selectedBizIds); s.has(bizId) ? s.delete(bizId) : s.add(bizId); setSelectedBizIds(s);
+    const s = new Set(selectedBizIds);
+    if (s.has(bizId)) { s.delete(bizId); } else { s.add(bizId); }
+    setSelectedBizIds(s);
   }
 
   function toggleUnlinkSelect(linkId: number) {
-    const s = new Set(unlinkSelectedIds); s.has(linkId) ? s.delete(linkId) : s.add(linkId); setUnlinkSelectedIds(s);
+    const s = new Set(unlinkSelectedIds);
+    if (s.has(linkId)) { s.delete(linkId); } else { s.add(linkId); }
+    setUnlinkSelectedIds(s);
   }
 
   function toggleSelectAllLinked() {
@@ -598,7 +619,7 @@ export default function RequirementsPage() {
           method: 'DELETE', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ businessId: lb.businessId }),
         });
-        r.ok ? succeeded++ : failed++;
+        if (r.ok) { succeeded++; } else { failed++; }
       } catch { failed++; }
     }
     setUnlinkSelectedIds(new Set()); setUnlinkLoading(false);
@@ -609,7 +630,11 @@ export default function RequirementsPage() {
     showToast(parts.join(' · '), failed > 0 ? 'error' : 'success');
   }
 
-  function toggleSel(id: number) { const s = new Set(selectedIds); s.has(id) ? s.delete(id) : s.add(id); setSelectedIds(s); }
+  function toggleSel(id: number) {
+    const s = new Set(selectedIds);
+    if (s.has(id)) { s.delete(id); } else { s.add(id); }
+    setSelectedIds(s);
+  }
   function toggleSelAll() {
     setSelectedIds(selectedIds.size === paginated.length && paginated.length > 0 ? new Set() : new Set(paginated.map(t => t.id)));
   }
@@ -619,6 +644,7 @@ export default function RequirementsPage() {
     deprecated: templates.filter(t => t.isDeprecated).length,
     required: templates.filter(t => !t.isDeprecated && t.necessity === 'Required').length,
     optional: templates.filter(t => !t.isDeprecated && t.necessity === 'Optional').length,
+    global: templates.filter(t => !t.isDeprecated && t.isGlobal).length,
     totalLinks: templates.reduce((sum, t) => sum + t.businessCount, 0),
   }), [templates]);
 
@@ -655,6 +681,7 @@ export default function RequirementsPage() {
             { label: 'Business Links', val: stats.totalLinks, bg: 'rgba(139,92,246,0.12)', color: '#a78bfa' },
             { label: 'Required', val: stats.required, bg: 'rgba(16,185,129,0.12)', color: '#34d399' },
             { label: 'Optional', val: stats.optional, bg: 'rgba(245,158,11,0.1)', color: '#fbbf24' },
+            { label: 'Global', val: stats.global, bg: 'rgba(99,102,241,0.12)', color: '#818cf8' },
             ...(stats.deprecated > 0 ? [{ label: 'Deprecated', val: stats.deprecated, bg: 'rgba(239,68,68,0.1)', color: '#f87171' }] : []),
           ].map(s => (
             <div key={s.label} className="stat-pill" style={{ background: s.bg, border: `1px solid ${s.color}22` }}>
@@ -690,7 +717,7 @@ export default function RequirementsPage() {
           <div className="filter-panel">
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
               <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#9494b0' }}>Filters</span>
-              {activeFilterCount > 0 && <button onClick={() => { setFilterCat(''); setFilterNec(''); setShowDeprecated(false); }} style={{ fontSize: '0.75rem', color: '#818cf8', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Sora,sans-serif' }}>Clear all</button>}
+              {activeFilterCount > 0 && <button onClick={() => { setFilterCat(''); setFilterNec(''); setShowDeprecated(false); setFilterGlobal(false); }} style={{ fontSize: '0.75rem', color: '#818cf8', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Sora,sans-serif' }}>Clear all</button>}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: '0.65rem', alignItems: 'center' }}>
               <select value={filterCat} onChange={e => setFilterCat(e.target.value)} className="u-select">
@@ -702,6 +729,10 @@ export default function RequirementsPage() {
                 <option value="Required">Required</option>
                 <option value="Optional">Optional</option>
               </select>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.82rem', color: filterGlobal ? '#818cf8' : '#9494b0', fontFamily: 'Sora,sans-serif' }}>
+                <input type="checkbox" checked={filterGlobal} onChange={e => setFilterGlobal(e.target.checked)} style={{ accentColor: '#6366f1', cursor: 'pointer' }} />
+                Global only
+              </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.82rem', color: showDeprecated ? '#f87171' : '#9494b0', fontFamily: 'Sora,sans-serif' }}>
                 <input type="checkbox" checked={showDeprecated} onChange={e => setShowDeprecated(e.target.checked)} style={{ accentColor: '#f87171', cursor: 'pointer' }} />
                 Show deprecated
@@ -752,7 +783,7 @@ export default function RequirementsPage() {
                 <tbody>
                   {paginated.length === 0 ? (
                     <tr><td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: '#3a3a56' }}>
-                      {showDeprecated ? 'No requirements found' : 'No requirements found — try enabling "Show deprecated" in filters'}
+                      No requirements found
                     </td></tr>
                   ) : paginated.map(t => (
                     <tr key={t.id} className={selectedIds.has(t.id) ? 'sel' : ''} style={{ opacity: t.isDeprecated ? 0.6 : 1 }}>
@@ -761,8 +792,11 @@ export default function RequirementsPage() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                           {t.image && <div style={{ position: 'relative', width: 36, height: 36, flexShrink: 0 }}><Image src={t.image} alt={t.name} fill style={{ objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(255,255,255,0.07)' }} sizes="36px" /></div>}
                           <div>
-                            <span style={{ fontWeight: 600, fontSize: '0.87rem', color: '#f0f0f5' }}>{t.name}</span>
-                            {t.isDeprecated && <span className="dep-badge" style={{ marginLeft: '0.5rem' }}>deprecated</span>}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                              <span style={{ fontWeight: 600, fontSize: '0.87rem', color: '#f0f0f5' }}>{t.name}</span>
+                              {t.isDeprecated && <span className="dep-badge">deprecated</span>}
+                              {t.isGlobal && <span className="global-badge">global</span>}
+                            </div>
                             {t.description && <div style={{ fontSize: '0.74rem', color: '#55556e', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '0.1rem' }}>{t.description}</div>}
                           </div>
                         </div>
@@ -810,7 +844,9 @@ export default function RequirementsPage() {
                     </div>
                   </div>
                   <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#f0f0f5', marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                    {t.name}{t.isDeprecated && <span className="dep-badge">deprecated</span>}
+                    {t.name}
+                    {t.isDeprecated && <span className="dep-badge">deprecated</span>}
+                    {t.isGlobal && <span className="global-badge">global</span>}
                   </div>
                   {t.description && <div style={{ fontSize: '0.74rem', color: '#55556e', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, marginBottom: '0.6rem' }}>{t.description}</div>}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
@@ -889,7 +925,38 @@ export default function RequirementsPage() {
                   </div>
                   <div className="f-hint">This is the default. You can override per-business in the Add to Biz modal.</div>
                 </div>
-                {!editingId && (
+
+                {/* Global toggle */}
+                <div>
+                  <label
+                    className="link-biz-toggle"
+                    style={{ borderColor: formData.isGlobal ? 'rgba(99,102,241,0.4)' : 'rgba(99,102,241,0.15)', background: formData.isGlobal ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.06)' }}
+                    onClick={() => setFormData(f => ({ ...f, isGlobal: !f.isGlobal }))}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={formData.isGlobal}
+                      onChange={() => setFormData(f => ({ ...f, isGlobal: !f.isGlobal }))}
+                      style={{ accentColor: '#6366f1', cursor: 'pointer' }}
+                    />
+                    <span style={{ fontWeight: 600, color: formData.isGlobal ? '#a5b4fc' : '#9494b0' }}>
+                      Global requirement
+                    </span>
+                    <span style={{ fontSize: '0.72rem', color: '#55556e', marginLeft: 'auto' }}>
+                      auto-links to every business
+                    </span>
+                  </label>
+                  {formData.isGlobal && (
+                    <div className="f-hint highlight" style={{ marginTop: '0.4rem' }}>
+                      {editingId
+                        ? `Saving will link this to any businesses not yet connected (${businesses.length} total).`
+                        : `Will be automatically linked to all ${businesses.length} existing businesses, and every new business going forward.`}
+                    </div>
+                  )}
+                </div>
+
+                {/* Link to specific biz — only shown when NOT global and NOT editing */}
+                {!editingId && !formData.isGlobal && (
                   <div>
                     <label className="link-biz-toggle" onClick={() => setFormLinkToBiz(!formLinkToBiz)}>
                       <input type="checkbox" checked={formLinkToBiz} onChange={() => setFormLinkToBiz(!formLinkToBiz)} style={{ accentColor: '#6366f1', cursor: 'pointer' }} />
@@ -908,10 +975,19 @@ export default function RequirementsPage() {
                     )}
                   </div>
                 )}
+
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.5rem' }}>
                   <button className="btn btn-ghost" onClick={() => setFormOpen(false)}>Cancel</button>
                   <button className="btn btn-primary" onClick={handleSubmit} disabled={formLoading || !formData.name || !formData.category || !formData.necessity}>
-                    {formLoading ? 'Saving…' : editingId ? 'Update' : formLinkToBiz && formBizId ? 'Create + Link to Biz' : 'Create'}
+                    {formLoading
+                      ? 'Saving…'
+                      : editingId
+                        ? 'Update'
+                        : formData.isGlobal
+                          ? 'Create + Link to All'
+                          : formLinkToBiz && formBizId
+                            ? 'Create + Link to Biz'
+                            : 'Create'}
                   </button>
                 </div>
               </div>
@@ -927,33 +1003,11 @@ export default function RequirementsPage() {
 
           return (
             <div className="modal-overlay" onClick={closeAddBiz}>
-              {/*
-                ── Layout strategy ──────────────────────────────────────────
-                The modal is a flex column capped at 88vh.
-                • Header  — flex-shrink:0, never squishes
-                • Body    — flex:1, min-height:0, scrolls as a whole when the
-                            combined linked+available sections exceed the space
-                • Footer  — flex-shrink:0, always visible
-
-                Inside the body:
-                • Linked section gets flex:1 / min-height:0 so IT scrolls
-                  independently when there are many cards.
-                • Each linked-biz-card has flex-shrink:0 so cards are always
-                  full height — they never compress.
-                • Available section is capped at 180px independently.
-              */}
               <div
                 className="modal-box modal-lg"
                 onClick={e => e.stopPropagation()}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  maxHeight: '88vh',
-                  padding: 0,
-                  overflow: 'hidden',
-                }}
+                style={{ display: 'flex', flexDirection: 'column', maxHeight: '88vh', padding: 0, overflow: 'hidden' }}
               >
-                {/* ── Header ── */}
                 <div style={{ padding: '1.4rem 1.75rem 1rem', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
@@ -963,21 +1017,22 @@ export default function RequirementsPage() {
                         <span style={{ marginLeft: '0.5rem', padding: '0.15rem 0.5rem', borderRadius: 100, fontSize: '0.7rem', fontWeight: 700, background: necStyle(addBizTemplate.necessity).bg, color: necStyle(addBizTemplate.necessity).color }}>
                           default: {addBizTemplate.necessity}
                         </span>
+                        {addBizTemplate.isGlobal && (
+                          <span style={{ marginLeft: '0.5rem', padding: '0.15rem 0.5rem', borderRadius: 100, fontSize: '0.7rem', fontWeight: 700, background: 'rgba(99,102,241,0.12)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.2)' }}>
+                            global
+                          </span>
+                        )}
                       </p>
                     </div>
                     <button onClick={closeAddBiz} className="btn btn-ghost btn-icon">×</button>
                   </div>
                 </div>
 
-                {/* ── Scrollable body ── */}
                 <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '1.1rem 1.75rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }} className="scroll">
-
-                  {/* Already linked section */}
                   {linkedLoading ? (
                     <div style={{ padding: '1rem', textAlign: 'center', color: '#55556e', fontSize: '0.82rem' }}>Loading linked businesses…</div>
                   ) : linkedBusinesses.length > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      {/* Section header */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                           <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#55556e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
@@ -994,30 +1049,16 @@ export default function RequirementsPage() {
                           </button>
                         )}
                       </div>
-
-                      {/* Cards — each is flex-shrink:0 so they never compress */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                         {linkedBusinesses.map(lb => (
-                          <div
-                            key={lb.linkId}
-                            className={`linked-biz-card${unlinkSelectedIds.has(lb.linkId) ? ' sel-unlink' : ''}`}
-                          >
-                            {/* Main info row */}
+                          <div key={lb.linkId} className={`linked-biz-card${unlinkSelectedIds.has(lb.linkId) ? ' sel-unlink' : ''}`}>
                             <div className="linked-biz-row" onClick={() => toggleUnlinkSelect(lb.linkId)}>
-                              <input
-                                type="checkbox"
-                                checked={unlinkSelectedIds.has(lb.linkId)}
-                                onChange={() => toggleUnlinkSelect(lb.linkId)}
-                                onClick={e => e.stopPropagation()}
-                                style={{ accentColor: '#f87171', cursor: 'pointer', flexShrink: 0 }}
-                              />
-                              {/* Name */}
+                              <input type="checkbox" checked={unlinkSelectedIds.has(lb.linkId)} onChange={() => toggleUnlinkSelect(lb.linkId)} onClick={e => e.stopPropagation()} style={{ accentColor: '#f87171', cursor: 'pointer', flexShrink: 0 }} />
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flex: 1, minWidth: 0 }}>
                                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: lb.published ? '#34d399' : '#55556e', flexShrink: 0 }} />
                                 <span style={{ fontSize: '0.84rem', color: '#f0f0f5', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lb.businessName}</span>
                                 {!lb.published && <span style={{ fontSize: '0.68rem', color: '#55556e', flexShrink: 0 }}>draft</span>}
                               </div>
-                              {/* Necessity toggle */}
                               <div onClick={e => e.stopPropagation()} style={{ flexShrink: 0 }}>
                                 <NecessityToggle
                                   templateId={addBizTemplate.id}
@@ -1030,7 +1071,6 @@ export default function RequirementsPage() {
                                   showToast={showToast}
                                 />
                               </div>
-                              {/* Unlink */}
                               <button
                                 className="btn btn-danger btn-icon"
                                 style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem', flexShrink: 0 }}
@@ -1039,8 +1079,6 @@ export default function RequirementsPage() {
                                 Unlink
                               </button>
                             </div>
-
-                            {/* Description editor */}
                             <div onClick={e => e.stopPropagation()}>
                               <DescriptionEditor
                                 templateId={addBizTemplate.id}
@@ -1059,7 +1097,6 @@ export default function RequirementsPage() {
                     </div>
                   )}
 
-                  {/* Add to new businesses section */}
                   {available.length > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                       <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#55556e', textTransform: 'uppercase', letterSpacing: '0.08em', flexShrink: 0 }}>
@@ -1070,7 +1107,6 @@ export default function RequirementsPage() {
                         <input type="text" placeholder="Search businesses…" value={bizSearch} onChange={e => setBizSearch(e.target.value)} className="modal-search" />
                         {bizSearch && <button onClick={() => setBizSearch('')} style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#55556e', cursor: 'pointer', padding: 0, fontSize: '1rem' }}>×</button>}
                       </div>
-                      {/* Available list — its own capped scroll region */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: 180, overflowY: 'auto' }} className="scroll">
                         {filteredAvailable.length === 0 ? (
                           <div style={{ textAlign: 'center', padding: '1rem', color: '#55556e', fontSize: '0.8rem' }}>No businesses match &ldquo;{bizSearch}&rdquo;</div>
@@ -1091,7 +1127,6 @@ export default function RequirementsPage() {
                   )}
                 </div>
 
-                {/* ── Footer ── */}
                 <div style={{ flexShrink: 0, borderTop: '1px solid rgba(255,255,255,0.06)', padding: '1rem 1.75rem', display: 'flex', justifyContent: 'flex-end', gap: '0.65rem' }}>
                   <button className="btn btn-ghost" onClick={closeAddBiz}>Close</button>
                   {selectedBizIds.size > 0 && (

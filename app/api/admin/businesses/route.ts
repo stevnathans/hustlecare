@@ -1,4 +1,3 @@
-// app/api/admin/businesses/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requirePermission, createAuditLog } from '@/lib/admin-utils';
@@ -15,7 +14,6 @@ async function resolveCategoryId(categoryName?: string): Promise<number | undefi
   return category.id;
 }
 
-// ── GET — unchanged ───────────────────────────────────────────────────────────
 export async function GET() {
   try {
     await requirePermission('businesses.view');
@@ -36,14 +34,16 @@ export async function GET() {
     console.error('Error fetching businesses:', error);
     if (error instanceof Error) {
       if (error.message.includes('Unauthorized') || error.message.includes('Forbidden')) {
-        return NextResponse.json({ error: error.message }, { status: error.message.includes('Unauthorized') ? 401 : 403 });
+        return NextResponse.json(
+          { error: error.message },
+          { status: error.message.includes('Unauthorized') ? 401 : 403 }
+        );
       }
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// ── POST — create business ────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
     const user = await requirePermission('businesses.create');
@@ -58,12 +58,18 @@ export async function POST(req: NextRequest) {
     } = body;
 
     if (!name || !slug) {
-      return NextResponse.json({ error: 'Name and slug are required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Name and slug are required' },
+        { status: 400 }
+      );
     }
 
     const existingBusiness = await prisma.business.findUnique({ where: { slug } });
     if (existingBusiness) {
-      return NextResponse.json({ error: 'A business with this slug already exists' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'A business with this slug already exists' },
+        { status: 400 }
+      );
     }
 
     const categoryId = await resolveCategoryId(categoryName);
@@ -82,7 +88,7 @@ export async function POST(req: NextRequest) {
         timeToLaunchMax: timeToLaunchMax ? Number(timeToLaunchMax) : null,
         profitPotential: profitPotential || null,
         skillLevel:      skillLevel      || null,
-        bestLocations:   Array.isArray(bestLocations)
+        bestLocations: Array.isArray(bestLocations)
           ? bestLocations.filter(Boolean)
           : typeof bestLocations === 'string'
             ? bestLocations.split(',').map((s: string) => s.trim()).filter(Boolean)
@@ -94,13 +100,35 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // ── Auto-link all global requirements ──────────────────────────────────
+    const globalTemplates = await prisma.requirementTemplate.findMany({
+      where: { isGlobal: true, isDeprecated: false },
+      select: { id: true },
+    });
+
+    if (globalTemplates.length > 0) {
+      await prisma.businessRequirement.createMany({
+        data: globalTemplates.map((t) => ({
+          businessId: business.id,
+          templateId: t.id,
+          source: 'global',
+        })),
+        skipDuplicates: true,
+      });
+    }
+    // ── End auto-link ──────────────────────────────────────────────────────
+
     await createAuditLog({
-      action: 'CREATE', entity: 'Business', entityId: business.id.toString(),
+      action: 'CREATE',
+      entity: 'Business',
+      entityId: business.id.toString(),
       changes: {
         created: {
-          name: business.name, slug: business.slug,
+          name: business.name,
+          slug: business.slug,
           published: business.published,
           category: business.category?.name ?? null,
+          globalRequirementsLinked: globalTemplates.length,
         },
       },
       req,
@@ -111,14 +139,16 @@ export async function POST(req: NextRequest) {
     console.error('Error creating business:', error);
     if (error instanceof Error) {
       if (error.message.includes('Unauthorized') || error.message.includes('Forbidden')) {
-        return NextResponse.json({ error: error.message }, { status: error.message.includes('Unauthorized') ? 401 : 403 });
+        return NextResponse.json(
+          { error: error.message },
+          { status: error.message.includes('Unauthorized') ? 401 : 403 }
+        );
       }
     }
     return NextResponse.json({ error: 'Failed to create business' }, { status: 500 });
   }
 }
 
-// ── PATCH — update business ───────────────────────────────────────────────────
 export async function PATCH(req: NextRequest) {
   try {
     await requirePermission('businesses.update');
@@ -146,13 +176,17 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (updateData.slug && updateData.slug !== oldBusiness.slug) {
-      const slugExists = await prisma.business.findUnique({ where: { slug: updateData.slug } });
+      const slugExists = await prisma.business.findUnique({
+        where: { slug: updateData.slug },
+      });
       if (slugExists) {
-        return NextResponse.json({ error: 'A business with this slug already exists' }, { status: 400 });
+        return NextResponse.json(
+          { error: 'A business with this slug already exists' },
+          { status: 400 }
+        );
       }
     }
 
-    // Category
     let categoryUpdate: { categoryId?: number | null } = {};
     if (categoryName !== undefined) {
       if (!categoryName?.trim()) {
@@ -163,7 +197,6 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    // Metadata — only include in update when the key was present in the request body
     const metaUpdate: Record<string, unknown> = {};
     if (costMin         !== undefined) metaUpdate.costMin         = costMin         ? Number(costMin)         : null;
     if (costMax         !== undefined) metaUpdate.costMax         = costMax         ? Number(costMax)         : null;
@@ -188,24 +221,36 @@ export async function PATCH(req: NextRequest) {
       },
     });
 
-    // Audit log — diff old vs new
     const changes: Record<string, { old: unknown; new: unknown }> = {};
     for (const key in updateData) {
       if (oldBusiness[key as keyof typeof oldBusiness] !== updateData[key]) {
-        changes[key] = { old: oldBusiness[key as keyof typeof oldBusiness], new: updateData[key] };
+        changes[key] = {
+          old: oldBusiness[key as keyof typeof oldBusiness],
+          new: updateData[key],
+        };
       }
     }
     for (const key in metaUpdate) {
       if (oldBusiness[key as keyof typeof oldBusiness] !== metaUpdate[key]) {
-        changes[key] = { old: oldBusiness[key as keyof typeof oldBusiness], new: metaUpdate[key] };
+        changes[key] = {
+          old: oldBusiness[key as keyof typeof oldBusiness],
+          new: metaUpdate[key],
+        };
       }
     }
     if (categoryName !== undefined && oldBusiness.category?.name !== categoryName) {
-      changes['category'] = { old: oldBusiness.category?.name ?? null, new: categoryName || null };
+      changes['category'] = {
+        old: oldBusiness.category?.name ?? null,
+        new: categoryName || null,
+      };
     }
 
     await createAuditLog({
-      action: 'UPDATE', entity: 'Business', entityId: id.toString(), changes, req,
+      action: 'UPDATE',
+      entity: 'Business',
+      entityId: id.toString(),
+      changes,
+      req,
     });
 
     return NextResponse.json(business);
@@ -213,14 +258,16 @@ export async function PATCH(req: NextRequest) {
     console.error('Error updating business:', error);
     if (error instanceof Error) {
       if (error.message.includes('Unauthorized') || error.message.includes('Forbidden')) {
-        return NextResponse.json({ error: error.message }, { status: error.message.includes('Unauthorized') ? 401 : 403 });
+        return NextResponse.json(
+          { error: error.message },
+          { status: error.message.includes('Unauthorized') ? 401 : 403 }
+        );
       }
     }
     return NextResponse.json({ error: 'Failed to update business' }, { status: 500 });
   }
 }
 
-// ── DELETE — unchanged ────────────────────────────────────────────────────────
 export async function DELETE(req: NextRequest) {
   try {
     await requirePermission('businesses.delete');
@@ -242,7 +289,9 @@ export async function DELETE(req: NextRequest) {
 
     if (business._count.requirements > 0) {
       return NextResponse.json(
-        { error: `This business has ${business._count.requirements} linked requirement(s). Remove them first or confirm deletion.` },
+        {
+          error: `This business has ${business._count.requirements} linked requirement(s). Remove them first or confirm deletion.`,
+        },
         { status: 400 }
       );
     }
@@ -257,7 +306,9 @@ export async function DELETE(req: NextRequest) {
     await prisma.business.delete({ where: { id: Number(id) } });
 
     await createAuditLog({
-      action: 'DELETE', entity: 'Business', entityId: id.toString(),
+      action: 'DELETE',
+      entity: 'Business',
+      entityId: id.toString(),
       changes: { deleted: { name: business.name, slug: business.slug } },
       req,
     });
@@ -267,7 +318,10 @@ export async function DELETE(req: NextRequest) {
     console.error('Error deleting business:', error);
     if (error instanceof Error) {
       if (error.message.includes('Unauthorized') || error.message.includes('Forbidden')) {
-        return NextResponse.json({ error: error.message }, { status: error.message.includes('Unauthorized') ? 401 : 403 });
+        return NextResponse.json(
+          { error: error.message },
+          { status: error.message.includes('Unauthorized') ? 401 : 403 }
+        );
       }
     }
     return NextResponse.json({ error: 'Failed to delete business' }, { status: 500 });
