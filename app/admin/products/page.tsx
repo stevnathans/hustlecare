@@ -1,666 +1,180 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import AssignRequirementModal from '@/components/admin/AssignRequirementModal';
+import { Product, Vendor, SortField, SortDir, ViewMode, VendorTuple, ProductStatus } from 'types/vendor';
+import { PRICE_RANGES } from 'lib/constants';
+import styles from 'lib/styles';
+import SortIcon from 'components/SortIcon';
+import Pagination from 'components/Pagination';
+import ProductCard from 'components/ProductCard';
+import ProductFormModal from 'components/ProductFormModal';
+import ProductCSVImport from 'components/ProductCSVImport';
+import RequirementBadge from 'components/RequirementBadge';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Status config ────────────────────────────────────────────────────────────
 
-type Vendor = {
-  id: number;
-  name: string;
-  website: string;
-  logo: string;
+const STATUS_META: Record<ProductStatus, { label: string; color: string; bg: string }> = {
+  ACTIVE:         { label: 'Live',       color: '#34d399', bg: 'rgba(16,185,129,0.1)'  },
+  PENDING_REVIEW: { label: 'In Review',  color: '#fbbf24', bg: 'rgba(245,158,11,0.1)'  },
+  DRAFT:          { label: 'Draft',      color: '#9494b0', bg: 'rgba(148,148,176,0.1)' },
+  REJECTED:       { label: 'Rejected',   color: '#f87171', bg: 'rgba(239,68,68,0.1)'   },
+  ARCHIVED:       { label: 'Archived',   color: '#55556e', bg: 'rgba(85,85,110,0.1)'   },
 };
 
-type Product = {
-  id: number;
-  name: string;
-  description: string;
-  price: number;
-  image: string;
-  url: string;
-  vendorId: number | null;
-  vendor: Vendor | null;
-  templateId: number | null;
-  template: { id: number; name: string } | null;
+type PageTab = 'catalog' | 'review';
+
+// ─── Review action modal ──────────────────────────────────────────────────────
+
+type ReviewModalProps = {
+  product: Product;
+  onClose: () => void;
+  onDone: () => void;
+  showToast: (msg: string, type?: 'success' | 'error') => void;
 };
 
-type SortField = 'name' | 'price' | 'vendor' | 'id';
-type SortDir = 'asc' | 'desc';
-type ViewMode = 'table' | 'grid';
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const PRICE_RANGES = [
-  { label: 'All prices', min: 0, max: Infinity },
-  { label: 'Under $50', min: 0, max: 50 },
-  { label: '$50–$200', min: 50, max: 200 },
-  { label: '$200–$1,000', min: 200, max: 1000 },
-  { label: '$1,000+', min: 1000, max: Infinity },
-];
-
-const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: SortField; sortDir: SortDir }) {
-  const active = sortField === field;
-  return (
-    <span className={`inline-flex flex-col ml-1 ${active ? 'text-indigo-500' : 'text-slate-400'}`}>
-      <svg width="8" height="5" viewBox="0 0 8 5" className={`mb-0.5 transition-opacity ${active && sortDir === 'asc' ? 'opacity-100' : 'opacity-30'}`}>
-        <path d="M4 0L8 5H0L4 0Z" fill="currentColor" />
-      </svg>
-      <svg width="8" height="5" viewBox="0 0 8 5" className={`transition-opacity ${active && sortDir === 'desc' ? 'opacity-100' : 'opacity-30'}`}>
-        <path d="M4 5L0 0H8L4 5Z" fill="currentColor" />
-      </svg>
-    </span>
-  );
-}
-
-// ─── Product CSV Import ───────────────────────────────────────────────────────
-
-type CSVProduct = {
-  name: string;
-  description?: string;
-  price: number;
-  image?: string;
-  url?: string;
-  vendorId?: number;
-  _vendorName?: string;
-};
-
-function parseCSVLine(line: string): string[] {
-  const result: string[] = [];
-  let current = ''; let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
-      else { inQuotes = !inQuotes; }
-    } else if (ch === ',' && !inQuotes) {
-      result.push(current); current = '';
-    } else { current += ch; }
-  }
-  result.push(current);
-  return result;
-}
-
-function parseProductCSV(text: string): CSVProduct[] {
-  const lines = text.split('\n').filter(l => l.trim());
-  if (lines.length < 2) throw new Error('CSV must have a header row and at least one data row');
-  const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase().replace(/\s+/g, ''));
-  if (!headers.includes('name')) throw new Error('Missing required column: name');
-  if (!headers.includes('price')) throw new Error('Missing required column: price');
-
-  const result: CSVProduct[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const values = parseCSVLine(lines[i]);
-    const get = (key: string) => values[headers.indexOf(key)]?.trim() ?? '';
-
-    const name = get('name');
-    if (!name) throw new Error(`Row ${i + 1}: Missing required field: name`);
-    const rawPrice = get('price').replace(/[$,]/g, '');
-    const price = parseFloat(rawPrice);
-    if (isNaN(price) || price < 0) throw new Error(`Row ${i + 1}: Invalid price "${get('price')}"`);
-
-    result.push({
-      name,
-      price,
-      description: get('description') || undefined,
-      image: get('image') || undefined,
-      url: get('url') || undefined,
-      _vendorName: get('vendor') || undefined,
-    });
-  }
-  return result;
-}
-
-function ProductCSVImport({ onImportComplete, vendors }: {
-  onImportComplete: () => void;
-  vendors: [string, string][];
-}) {
-  const [open, setOpen] = useState(false);
-  const [products, setProducts] = useState<CSVProduct[]>([]);
+function ReviewModal({ product, onClose, onDone, showToast }: ReviewModalProps) {
+  const [action, setAction] = useState<'approve' | 'reject' | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<string[]>([]);
-  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
 
-  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
-  };
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [onClose]);
 
-  function openModal() {
-    setProducts([]); setErrors([]);
-    if (fileRef.current) fileRef.current.value = '';
-    setOpen(true);
-  }
-  function closeModal() {
-    setOpen(false); setProducts([]); setErrors([]);
-    if (fileRef.current) fileRef.current.value = '';
-  }
-
-  function downloadTemplate() {
-    const rows = [
-      'name,description,price,image,url,vendor',
-      'Wireless Keyboard,Compact mechanical keyboard,89.99,https://example.com/kb.jpg,https://example.com/product,Logitech',
-      'Standing Desk,Adjustable height desk,599,,,',
-      'USB-C Hub,7-in-1 hub for laptops,49.95,https://example.com/hub.jpg,,Anker',
-    ].join('\n');
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([rows], { type: 'text/csv' }));
-    a.download = 'products-template.csv';
-    a.click();
-    showToast('Template downloaded');
-  }
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.name.endsWith('.csv')) { showToast('Please upload a .csv file', 'error'); return; }
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        setErrors([]);
-        const parsed = parseProductCSV(ev.target?.result as string);
-        const resolved = parsed.map(p => {
-          if (p._vendorName) {
-            const match = vendors.find(([, name]) => name.toLowerCase() === p._vendorName!.toLowerCase());
-            if (match) return { ...p, vendorId: Number(match[0]) };
-          }
-          return p;
-        });
-        setProducts(resolved);
-        showToast(`${resolved.length} products ready to import`);
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Failed to parse CSV';
-        setErrors([message]);
-        setProducts([]);
-      }
-    };
-    reader.readAsText(file);
-  }
-
-  async function handleImport() {
-    if (!products.length) return;
+  const handleSubmit = async () => {
+    if (!action) return;
+    if (action === 'reject' && !rejectReason.trim()) return;
     setLoading(true);
-    let ok = 0; let fail = 0; const failedNames: string[] = [];
     try {
-      for (const p of products) {
-        const { _vendorName, ...payload } = p;
-        void _vendorName;
-        const res = await fetch('/api/products', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        if (res.ok) { ok++; } else { fail++; failedNames.push(p.name); }
-      }
-      if (ok > 0) { showToast(`${ok} product${ok !== 1 ? 's' : ''} imported!`); onImportComplete(); }
-      if (fail > 0) {
-        setErrors([`Failed to import ${fail} product${fail !== 1 ? 's' : ''}: ${failedNames.slice(0, 3).join(', ')}${failedNames.length > 3 ? '…' : ''}`]);
-      }
-      if (ok > 0 && fail === 0) closeModal();
-    } catch {
-      setErrors(['Import failed. Please try again.']);
+      const res = await fetch(`/api/admin/products/${product.id}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, rejectReason: rejectReason.trim() || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      showToast(action === 'approve' ? 'Product approved and now live ✓' : 'Product rejected');
+      onDone();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Action failed', 'error');
     } finally {
       setLoading(false);
     }
-  }
-
-  function removeProduct(idx: number) {
-    setProducts(prev => prev.filter((_, i) => i !== idx));
-  }
-
-  useEffect(() => {
-    if (!open) return;
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') closeModal(); };
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
-  }, [open]);
-
-  return (
-    <>
-      <button className="btn btn-ghost" onClick={openModal}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>
-        Import CSV
-      </button>
-
-      {open && (
-        <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal-box" style={{ maxWidth: 740 }} onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <div>
-                <div className="modal-title">Import Products from CSV</div>
-                <div className="modal-subtitle">Bulk-add products by uploading a CSV file</div>
-              </div>
-              <button className="modal-close" onClick={closeModal}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-              </button>
-            </div>
-
-            <div className="modal-divider" />
-
-            <div className="modal-body">
-              <div style={{
-                background: 'rgba(124,106,247,0.07)',
-                border: '1px solid rgba(124,106,247,0.18)',
-                borderRadius: 12,
-                padding: '1rem 1.25rem',
-                marginBottom: '1.25rem',
-              }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#a89cf7', marginBottom: '0.5rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                  CSV Columns
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.25rem 2rem' }}>
-                  {[
-                    ['name', 'required', 'Product name'],
-                    ['price', 'required', 'Numeric, e.g. 49.99'],
-                    ['description', 'optional', 'Short description'],
-                    ['image', 'optional', 'Full image URL'],
-                    ['url', 'optional', 'Product page URL'],
-                    ['vendor', 'optional', 'Matched by name'],
-                  ].map(([col, req, desc]) => (
-                    <div key={col} style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem', fontSize: '0.78rem', color: '#6b6b8a', lineHeight: 1.8 }}>
-                      <span style={{ fontFamily: "'DM Mono', monospace", color: '#a89cf7', fontSize: '0.76rem' }}>{col}</span>
-                      <span style={{
-                        fontSize: '0.66rem', fontWeight: 700, padding: '0.1rem 0.4rem', borderRadius: 100,
-                        background: req === 'required' ? 'rgba(248,113,113,0.1)' : 'rgba(255,255,255,0.06)',
-                        color: req === 'required' ? '#f87171' : '#4a4a66',
-                      }}>{req}</span>
-                      <span style={{ color: '#4a4a66' }}>— {desc}</span>
-                    </div>
-                  ))}
-                </div>
-                <button
-                  onClick={downloadTemplate}
-                  style={{ background: 'none', border: 'none', color: '#7c6af7', fontFamily: "'Sora', sans-serif", fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: 0, marginTop: '0.75rem', transition: 'color 0.15s' }}
-                  onMouseOver={e => (e.currentTarget.style.color = '#a89cf7')}
-                  onMouseOut={e => (e.currentTarget.style.color = '#7c6af7')}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                  Download template CSV
-                </button>
-              </div>
-
-              <div style={{ marginBottom: '1.25rem' }}>
-                <label className="form-label" style={{ display: 'block', marginBottom: '0.4rem' }}>Upload CSV File</label>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept=".csv"
-                  onChange={handleFileChange}
-                  style={{
-                    width: '100%',
-                    background: 'rgba(255,255,255,0.04)',
-                    border: '1px dashed rgba(255,255,255,0.12)',
-                    borderRadius: 10,
-                    padding: '0.65rem 1rem',
-                    color: '#9494b0',
-                    fontFamily: "'Sora', sans-serif",
-                    fontSize: '0.83rem',
-                    cursor: 'pointer',
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-
-              {errors.length > 0 && (
-                <div style={{
-                  background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-                  borderRadius: 10, padding: '0.75rem 1rem', marginBottom: '1.25rem',
-                }}>
-                  {errors.map((e, i) => (
-                    <div key={i} style={{ fontSize: '0.8rem', color: '#f87171', display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 1 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                      {e}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {products.length > 0 && (
-                <div>
-                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#6b6b8a', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span>Preview — <span style={{ color: '#a89cf7' }}>{products.length}</span> product{products.length !== 1 ? 's' : ''}</span>
-                    {products.length > 0 && <span style={{ color: '#4a4a66', fontWeight: 400 }}>Hover rows to remove</span>}
-                  </div>
-                  <div style={{ maxHeight: 260, overflowY: 'auto', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10 }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr>
-                          {['Name', 'Price', 'Vendor', 'URL', ''].map(h => (
-                            <th key={h} style={{
-                              padding: '0.55rem 0.85rem', textAlign: 'left', fontSize: '0.68rem', fontWeight: 700,
-                              color: '#4a4a66', textTransform: 'uppercase', letterSpacing: '0.07em',
-                              borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#0f0f14',
-                              position: 'sticky', top: 0,
-                            }}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {products.map((p, i) => (
-                          <tr key={i} style={{ transition: 'background 0.12s' }}
-                            onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.025)')}
-                            onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
-                          >
-                            <td style={{ padding: '0.65rem 0.85rem', fontSize: '0.83rem', fontWeight: 600, color: '#e2e2ef', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                              {p.name}
-                              {p.description && <div style={{ fontWeight: 400, fontSize: '0.72rem', color: '#4a4a66', marginTop: '0.1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 200 }}>{p.description}</div>}
-                            </td>
-                            <td style={{ padding: '0.65rem 0.85rem', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.83rem', color: '#a4f4b0' }}>${p.price.toLocaleString()}</span>
-                            </td>
-                            <td style={{ padding: '0.65rem 0.85rem', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                              {p.vendorId ? (
-                                <span style={{ display: 'inline-flex', padding: '0.15rem 0.55rem', borderRadius: 100, fontSize: '0.7rem', fontWeight: 700, background: 'rgba(124,106,247,0.12)', color: '#a89cf7' }}>
-                                  {vendors.find(([id]) => Number(id) === p.vendorId)?.[1] ?? p._vendorName}
-                                </span>
-                              ) : p._vendorName ? (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.15rem 0.55rem', borderRadius: 100, fontSize: '0.7rem', fontWeight: 700, background: 'rgba(251,191,36,0.1)', color: '#fbbf24' }} title="Vendor not found — will be left unassigned">
-                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                                  {p._vendorName}
-                                </span>
-                              ) : <span style={{ color: '#3a3a56' }}>—</span>}
-                            </td>
-                            <td style={{ padding: '0.65rem 0.85rem', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                              {p.url ? (
-                                <a href={p.url} target="_blank" rel="noopener noreferrer" style={{ color: '#7c6af7', fontSize: '0.76rem', textDecoration: 'none' }}>↗ link</a>
-                              ) : <span style={{ color: '#3a3a56' }}>—</span>}
-                            </td>
-                            <td style={{ padding: '0.65rem 0.85rem', textAlign: 'right', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                              <button
-                                onClick={() => removeProduct(i)}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4a4a66', padding: '0.2rem', borderRadius: 6, display: 'inline-flex', alignItems: 'center', transition: 'color 0.15s' }}
-                                onMouseOver={e => (e.currentTarget.style.color = '#f87171')}
-                                onMouseOut={e => (e.currentTarget.style.color = '#4a4a66')}
-                                title="Remove"
-                              >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  {products.some(p => p._vendorName && !p.vendorId) && (
-                    <div style={{ fontSize: '0.73rem', color: '#fbbf24', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-                      Some vendor names could not be matched — those products will be imported without a vendor.
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="modal-footer">
-              <button className="btn btn-ghost" onClick={closeModal} disabled={loading}>Cancel</button>
-              <button
-                className="btn btn-primary"
-                onClick={handleImport}
-                disabled={loading || products.length === 0}
-              >
-                {loading ? (
-                  <>
-                    <svg className="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 12a9 9 0 11-6.219-8.56" strokeLinecap="round"/></svg>
-                    Importing…
-                  </>
-                ) : (
-                  <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></svg>
-                    Import {products.length} Product{products.length !== 1 ? 's' : ''}
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {toast && (
-        <div className={`toast toast-${toast.type}`} style={{ bottom: '5rem' }}>
-          {toast.msg}
-        </div>
-      )}
-    </>
-  );
-}
-
-// ─── Product Form Modal ───────────────────────────────────────────────────────
-
-type FormField = { name: string; description: string; price: string; image: string; url: string; vendorId: string };
-const EMPTY_FORM: FormField = { name: '', description: '', price: '', image: '', url: '', vendorId: '' };
-
-function ProductFormModal({
-  open, setOpen, fetchProducts, editingProduct, vendors,
-}: {
-  open: boolean;
-  setOpen: (v: boolean) => void;
-  fetchProducts: () => void;
-  editingProduct: Product | null;
-  vendors: [string, string][];
-}) {
-  const [form, setForm] = useState<FormField>(EMPTY_FORM);
-  const [saving, setSaving] = useState(false);
-  const [errors, setErrors] = useState<Partial<FormField>>({});
-  const firstInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (open) {
-      if (editingProduct) {
-        setForm({
-          name: editingProduct.name || '',
-          description: editingProduct.description || '',
-          price: editingProduct.price != null ? String(editingProduct.price) : '',
-          image: editingProduct.image || '',
-          url: editingProduct.url || '',
-          vendorId: editingProduct.vendorId != null ? String(editingProduct.vendorId) : '',
-        });
-      } else {
-        setForm(EMPTY_FORM);
-      }
-      setErrors({});
-      setTimeout(() => firstInputRef.current?.focus(), 80);
-    }
-  }, [open, editingProduct]);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [open, setOpen]);
-
-  const validate = (): boolean => {
-    const errs: Partial<FormField> = {};
-    if (!form.name.trim()) errs.name = 'Product name is required';
-    if (!form.price.trim()) errs.price = 'Price is required';
-    else if (isNaN(Number(form.price)) || Number(form.price) < 0) errs.price = 'Enter a valid price';
-    if (form.url && !/^https?:\/\/.+/.test(form.url)) errs.url = 'Must start with http:// or https://';
-    if (form.image && !/^https?:\/\/.+/.test(form.image)) errs.image = 'Must start with http:// or https://';
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
   };
 
-  const handleSave = async () => {
-    if (!validate()) return;
-    setSaving(true);
-    try {
-      const payload = {
-        name: form.name.trim(),
-        description: form.description.trim(),
-        price: Number(form.price),
-        image: form.image.trim() || null,
-        url: form.url.trim() || null,
-        vendorId: form.vendorId ? Number(form.vendorId) : null,
-      };
-      const url = editingProduct ? `/api/products/${editingProduct.id}` : '/api/products';
-      const method = editingProduct ? 'PATCH' : 'POST';
-      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      if (!res.ok) throw new Error();
-      setOpen(false);
-      fetchProducts();
-    } catch {
-      setErrors({ name: 'Failed to save. Please try again.' });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!open) return null;
-
-  const isEdit = !!editingProduct;
-
   return (
-    <div className="modal-overlay" onClick={() => setOpen(false)}>
-      <div className="modal-box" onClick={e => e.stopPropagation()}>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div>
-            <div className="modal-title">{isEdit ? 'Edit Product' : 'New Product'}</div>
-            <div className="modal-subtitle">{isEdit ? `Updating "${editingProduct?.name}"` : 'Add a new product to your catalog'}</div>
+            <div className="modal-title">Review Product</div>
+            <div className="modal-subtitle">Approve to make live, or reject with a reason</div>
           </div>
-          <button className="modal-close" onClick={() => setOpen(false)} aria-label="Close">
+          <button className="modal-close" onClick={onClose}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
         </div>
-
         <div className="modal-divider" />
-
         <div className="modal-body">
-          <div className="form-grid">
-            <div className="form-group form-full">
-              <label className="form-label">
-                Product Name <span className="form-required">*</span>
-              </label>
-              <input
-                ref={firstInputRef}
-                type="text"
-                className={`form-input ${errors.name ? 'form-input-error' : ''}`}
-                placeholder="e.g. Wireless Mechanical Keyboard"
-                value={form.name}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              />
-              {errors.name && <div className="form-error">{errors.name}</div>}
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">
-                Price <span className="form-required">*</span>
-              </label>
-              <div className="input-prefix-wrap">
-                <span className="input-prefix">$</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className={`form-input input-with-prefix ${errors.price ? 'form-input-error' : ''}`}
-                  placeholder="0.00"
-                  value={form.price}
-                  onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
-                />
+          {/* Product summary */}
+          <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'flex-start', marginBottom: '1.5rem', padding: '0.85rem', background: 'rgba(255,255,255,0.03)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.07)' }}>
+            {product.image ? (
+              <Image src={product.image} alt={product.name} width={56} height={56} style={{ width: 56, height: 56, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+            ) : (
+              <div style={{ width: 56, height: 56, borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" color="#3a3a56"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>
               </div>
-              {errors.price && <div className="form-error">{errors.price}</div>}
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Vendor</label>
-              <select
-                className="form-input form-select"
-                value={form.vendorId}
-                onChange={e => setForm(f => ({ ...f, vendorId: e.target.value }))}
-              >
-                <option value="">No vendor</option>
-                {vendors.map(([id, name]) => (
-                  <option key={id} value={id}>{name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group form-full">
-              <label className="form-label">Description</label>
-              <textarea
-                className="form-input form-textarea"
-                placeholder="Brief description of the product…"
-                value={form.description}
-                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                rows={3}
-              />
-            </div>
-
-            <div className="form-group form-full">
-              <label className="form-label">Image URL</label>
-              <div className="url-input-wrap">
-                <svg className="url-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>
-                </svg>
-                <input
-                  type="url"
-                  className={`form-input input-with-icon ${errors.image ? 'form-input-error' : ''}`}
-                  placeholder="https://example.com/image.jpg"
-                  value={form.image}
-                  onChange={e => setForm(f => ({ ...f, image: e.target.value }))}
-                />
-              </div>
-              {errors.image && <div className="form-error">{errors.image}</div>}
-              {form.image && !errors.image && (
-                <div className="img-preview-wrap">
-                  <img src={form.image} alt="preview" className="img-preview" onError={e => (e.currentTarget.style.display = 'none')} />
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#f0f0ff', marginBottom: '0.2rem' }}>{product.name}</div>
+              {product.vendor && (
+                <div style={{ fontSize: '0.78rem', color: '#6b6b8a', marginBottom: '0.3rem' }}>by {product.vendor.name}</div>
+              )}
+              {product.template && (
+                <div style={{ display: 'inline-flex', padding: '0.15rem 0.55rem', borderRadius: 100, fontSize: '0.7rem', fontWeight: 700, background: 'rgba(124,106,247,0.1)', color: '#a89cf7' }}>
+                  {product.template.name}
+                </div>
+              )}
+              {product.description && (
+                <div style={{ fontSize: '0.78rem', color: '#5a5a7a', marginTop: '0.35rem', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                  {product.description}
                 </div>
               )}
             </div>
-
-            <div className="form-group form-full">
-              <label className="form-label">Product URL</label>
-              <div className="url-input-wrap">
-                <svg className="url-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
-                </svg>
-                <input
-                  type="url"
-                  className={`form-input input-with-icon ${errors.url ? 'form-input-error' : ''}`}
-                  placeholder="https://example.com/product"
-                  value={form.url}
-                  onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
-                />
-              </div>
-              {errors.url && <div className="form-error">{errors.url}</div>}
+            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.9rem', color: '#a4f4b0', fontWeight: 500, flexShrink: 0 }}>
+              {product.price != null ? `$${product.price.toLocaleString()}` : '—'}
             </div>
           </div>
-        </div>
 
+          {/* Action choice */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
+            <button
+              onClick={() => setAction('approve')}
+              style={{
+                padding: '0.85rem', borderRadius: 10, border: `2px solid ${action === 'approve' ? 'rgba(52,211,153,0.6)' : 'rgba(255,255,255,0.08)'}`,
+                background: action === 'approve' ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.03)',
+                color: action === 'approve' ? '#34d399' : '#6b6b8a',
+                cursor: 'pointer', fontFamily: "'Sora', sans-serif", fontWeight: 600, fontSize: '0.85rem',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', transition: 'all 0.15s',
+              }}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M20 6L9 17l-5-5" /></svg>
+              Approve
+              <span style={{ fontSize: '0.7rem', fontWeight: 400, opacity: 0.7 }}>Product goes live</span>
+            </button>
+            <button
+              onClick={() => setAction('reject')}
+              style={{
+                padding: '0.85rem', borderRadius: 10, border: `2px solid ${action === 'reject' ? 'rgba(248,113,113,0.6)' : 'rgba(255,255,255,0.08)'}`,
+                background: action === 'reject' ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.03)',
+                color: action === 'reject' ? '#f87171' : '#6b6b8a',
+                cursor: 'pointer', fontFamily: "'Sora', sans-serif", fontWeight: 600, fontSize: '0.85rem',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', transition: 'all 0.15s',
+              }}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+              Reject
+              <span style={{ fontSize: '0.7rem', fontWeight: 400, opacity: 0.7 }}>Vendor notified</span>
+            </button>
+          </div>
+
+          {action === 'reject' && (
+            <div className="form-group">
+              <label className="form-label">Rejection Reason <span className="form-required">*</span></label>
+              <textarea
+                className="form-input form-textarea"
+                placeholder="Explain why this product was rejected so the vendor can fix it…"
+                value={rejectReason}
+                onChange={e => setRejectReason(e.target.value)}
+                rows={3}
+                autoFocus
+              />
+              <div style={{ fontSize: '0.72rem', color: '#4a4a66', marginTop: '0.3rem' }}>
+                This message is shown to the vendor on their products page.
+              </div>
+            </div>
+          )}
+        </div>
         <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={() => setOpen(false)} disabled={saving}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-            {saving ? (
+          <button className="btn btn-ghost" onClick={onClose} disabled={loading}>Cancel</button>
+          <button
+            className={`btn ${action === 'approve' ? 'btn-primary' : 'btn-danger'}`}
+            style={action === 'approve' ? { background: 'linear-gradient(135deg, #34d399, #059669)' } : {}}
+            onClick={handleSubmit}
+            disabled={loading || !action || (action === 'reject' && !rejectReason.trim())}
+          >
+            {loading ? (
               <>
-                <svg className="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M21 12a9 9 0 11-6.219-8.56" strokeLinecap="round"/>
-                </svg>
-                Saving…
+                <svg className="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 12a9 9 0 11-6.219-8.56" strokeLinecap="round" /></svg>
+                Processing…
               </>
-            ) : isEdit ? (
-              <>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                  <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
-                </svg>
-                Save Changes
-              </>
-            ) : (
-              <>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 4v16m8-8H4"/>
-                </svg>
-                Add Product
-              </>
-            )}
+            ) : action === 'approve' ? 'Approve & Publish' : action === 'reject' ? 'Reject Product' : 'Choose an action'}
           </button>
         </div>
       </div>
@@ -668,117 +182,60 @@ function ProductFormModal({
   );
 }
 
-// ─── Pagination ───────────────────────────────────────────────────────────────
+// ─── Status badge ─────────────────────────────────────────────────────────────
 
-function Pagination({
-  total, page, pageSize, onPage, onPageSize,
-}: {
-  total: number;
-  page: number;
-  pageSize: number;
-  onPage: (p: number) => void;
-  onPageSize: (s: number) => void;
-}) {
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const end = Math.min(page * pageSize, total);
-
-  const pages: (number | '…')[] = [];
-  if (totalPages <= 7) {
-    for (let i = 1; i <= totalPages; i++) pages.push(i);
-  } else {
-    pages.push(1);
-    if (page > 3) pages.push('…');
-    const lo = Math.max(2, page - 1);
-    const hi = Math.min(totalPages - 1, page + 1);
-    for (let i = lo; i <= hi; i++) pages.push(i);
-    if (page < totalPages - 2) pages.push('…');
-    pages.push(totalPages);
-  }
-
+function StatusBadge({ status }: { status: ProductStatus }) {
+  const meta = STATUS_META[status] ?? STATUS_META.DRAFT;
   return (
-    <div className="pagination-bar">
-      <div className="pagination-info">
-        Showing <strong>{start}–{end}</strong> of <strong>{total}</strong> products
-      </div>
-
-      <div className="pagination-controls">
-        <button className="pg-btn" disabled={page === 1} onClick={() => onPage(page - 1)} aria-label="Previous page">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <path d="M15 18l-6-6 6-6"/>
-          </svg>
-        </button>
-
-        {pages.map((p, i) =>
-          p === '…' ? (
-            <span key={`ellipsis-${i}`} className="pg-ellipsis">…</span>
-          ) : (
-            <button key={p} className={`pg-btn ${page === p ? 'pg-active' : ''}`} onClick={() => onPage(p as number)}>
-              {p}
-            </button>
-          )
-        )}
-
-        <button className="pg-btn" disabled={page === totalPages} onClick={() => onPage(page + 1)} aria-label="Next page">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <path d="M9 18l6-6-6-6"/>
-          </svg>
-        </button>
-      </div>
-
-      <div className="pagination-size">
-        <span style={{ color: '#4a4a66', fontSize: '0.78rem' }}>Rows per page</span>
-        <select
-          className="filter-select"
-          value={pageSize}
-          onChange={e => { onPageSize(Number(e.target.value)); onPage(1); }}
-          style={{ padding: '0.3rem 1.8rem 0.3rem 0.65rem', fontSize: '0.78rem' }}
-        >
-          {PAGE_SIZE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-      </div>
-    </div>
+    <span style={{
+      display: 'inline-flex', padding: '0.2rem 0.6rem', borderRadius: 100,
+      fontSize: '0.7rem', fontWeight: 700,
+      background: meta.bg, color: meta.color,
+    }}>
+      {meta.label}
+    </span>
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortField, setSortField] = useState<SortField>('id');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [viewMode, setViewMode] = useState<ViewMode>('table');
-  const [priceRangeIdx, setPriceRangeIdx] = useState(0);
-  const [vendorFilter, setVendorFilter] = useState<string>('');
-  const [requirementFilter, setRequirementFilter] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
-  const [allVendors, setAllVendors] = useState<Vendor[]>([]);
-
-  // ── NEW: Assign-requirement modal state ───────────────────────────────────
+  const [products,           setProducts]           = useState<Product[]>([]);
+  const [modalOpen,          setModalOpen]          = useState(false);
+  const [editingProduct,     setEditingProduct]     = useState<Product | null>(null);
+  const [reviewProduct,      setReviewProduct]      = useState<Product | null>(null);
+  const [searchTerm,         setSearchTerm]         = useState('');
+  const [sortField,          setSortField]          = useState<SortField>('id');
+  const [sortDir,            setSortDir]            = useState<SortDir>('desc');
+  const [selectedIds,        setSelectedIds]        = useState<Set<number>>(new Set());
+  const [viewMode,           setViewMode]           = useState<ViewMode>('table');
+  const [priceRangeIdx,      setPriceRangeIdx]      = useState(0);
+  const [vendorFilter,       setVendorFilter]       = useState('');
+  const [requirementFilter,  setRequirementFilter]  = useState('');
+  const [statusFilter,       setStatusFilter]       = useState('');
+  const [isLoading,          setIsLoading]          = useState(true);
+  const [toast,              setToast]              = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+  const [deleteConfirmId,    setDeleteConfirmId]    = useState<number | null>(null);
+  const [page,               setPage]               = useState(1);
+  const [pageSize,           setPageSize]           = useState(25);
+  const [allVendors,         setAllVendors]         = useState<Vendor[]>([]);
   const [assignModalProduct, setAssignModalProduct] = useState<Product | null>(null);
+  const [activeTab,          setActiveTab]          = useState<PageTab>('catalog');
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
   };
 
+  // Admin endpoint — fetches all products regardless of status
   const fetchProducts = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/products');
-      if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`);
+      const res = await fetch('/api/admin/products');
+      if (!res.ok) throw new Error();
       const data = await res.json();
       setProducts(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error(error);
+    } catch {
       setProducts([]);
       showToast('Failed to load products', 'error');
     } finally {
@@ -792,21 +249,16 @@ export default function ProductsPage() {
       if (!res.ok) return;
       const data = await res.json();
       setAllVendors(Array.isArray(data) ? data : []);
-    } catch {
-      // non-fatal
-    }
+    } catch { /* non-fatal */ }
   }, []);
 
-  useEffect(() => {
-    fetchProducts();
-    fetchVendors();
-  }, [fetchProducts, fetchVendors]);
-
-  useEffect(() => { setPage(1); }, [searchTerm, vendorFilter, requirementFilter, priceRangeIdx, sortField, sortDir]);
+  useEffect(() => { fetchProducts(); fetchVendors(); }, [fetchProducts, fetchVendors]);
+  useEffect(() => { setPage(1); }, [searchTerm, vendorFilter, requirementFilter, statusFilter, priceRangeIdx, sortField, sortDir, activeTab]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'n' && !modalOpen && !e.ctrlKey && !e.metaKey && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+      if (e.key === 'n' && !modalOpen && !e.ctrlKey && !e.metaKey &&
+        document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
         setEditingProduct(null);
         setModalOpen(true);
       }
@@ -815,66 +267,59 @@ export default function ProductsPage() {
     return () => window.removeEventListener('keydown', handler);
   }, [modalOpen]);
 
-  const vendors = useMemo<[string, string][]>(
-    () => allVendors.map(v => [String(v.id), v.name]),
-    [allVendors]
-  );
+  const vendors = useMemo<VendorTuple[]>(() => allVendors.map(v => [String(v.id), v.name]), [allVendors]);
 
-  const vendorsInProducts = useMemo<[string, string][]>(() => {
+  const vendorsInProducts = useMemo<VendorTuple[]>(() => {
     const seen = new Map<string, string>();
     products.forEach(p => { if (p.vendor) seen.set(String(p.vendor.id), p.vendor.name); });
     return Array.from(seen.entries());
   }, [products]);
 
-  // Unique requirement templates that appear in the product list (for filter dropdown)
-  const requirementsInProducts = useMemo<[string, string][]>(() => {
+  const requirementsInProducts = useMemo<VendorTuple[]>(() => {
     const seen = new Map<string, string>();
-    products.forEach(p => {
-      if (p.template) seen.set(String(p.template.id), p.template.name);
-    });
+    products.forEach(p => { if (p.template) seen.set(String(p.template.id), p.template.name); });
     return Array.from(seen.entries());
   }, [products]);
+
+  // Products in the review queue
+  const pendingProducts = useMemo(() => products.filter(p => p.status === 'PENDING_REVIEW'), [products]);
 
   const priceRange = PRICE_RANGES[priceRangeIdx];
 
   const filteredAndSorted = useMemo(() => {
-    let list = products.filter(p => {
+    // Review tab: only show pending, ignore other filters
+    const base = activeTab === 'review' ? pendingProducts : products;
+
+    const list = base.filter(p => {
       const q = searchTerm.toLowerCase();
-      const matchSearch = !q ||
-        p.name.toLowerCase().includes(q) ||
-        p.description?.toLowerCase().includes(q) ||
-        p.vendor?.name.toLowerCase().includes(q) ||
-        p.template?.name.toLowerCase().includes(q);
-      const matchVendor = !vendorFilter || String(p.vendor?.id) === vendorFilter;
-      const matchReq = !requirementFilter || String(p.template?.id) === requirementFilter;
-      const matchPrice = p.price >= priceRange.min && p.price < priceRange.max;
-      return matchSearch && matchVendor && matchReq && matchPrice;
+      return (
+        (!q || p.name.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q) || p.vendor?.name.toLowerCase().includes(q) || p.template?.name.toLowerCase().includes(q)) &&
+        (!vendorFilter || String(p.vendor?.id) === vendorFilter) &&
+        (!requirementFilter || String(p.template?.id) === requirementFilter) &&
+        (!statusFilter || p.status === statusFilter) &&
+        (p.price == null || (p.price >= priceRange.min && p.price < priceRange.max))
+      );
     });
 
-    list = [...list].sort((a, b) => {
+    return [...list].sort((a, b) => {
       let va: string | number, vb: string | number;
-      if (sortField === 'name') { va = a.name.toLowerCase(); vb = b.name.toLowerCase(); }
-      else if (sortField === 'price') { va = a.price; vb = b.price; }
+      if (sortField === 'name')    { va = a.name.toLowerCase(); vb = b.name.toLowerCase(); }
+      else if (sortField === 'price')  { va = a.price ?? 0; vb = b.price ?? 0; }
       else if (sortField === 'vendor') { va = a.vendor?.name.toLowerCase() ?? ''; vb = b.vendor?.name.toLowerCase() ?? ''; }
+      else if (sortField === 'status') { va = a.status; vb = b.status; }
       else { va = a.id; vb = b.id; }
       if (va < vb) return sortDir === 'asc' ? -1 : 1;
       if (va > vb) return sortDir === 'asc' ? 1 : -1;
       return 0;
     });
-    return list;
-  }, [products, searchTerm, vendorFilter, requirementFilter, priceRange, sortField, sortDir]);
+  }, [products, pendingProducts, activeTab, searchTerm, vendorFilter, requirementFilter, statusFilter, priceRange, sortField, sortDir]);
 
-  const paginated = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filteredAndSorted.slice(start, start + pageSize);
-  }, [filteredAndSorted, page, pageSize]);
+  const paginated = useMemo(() => filteredAndSorted.slice((page - 1) * pageSize, page * pageSize), [filteredAndSorted, page, pageSize]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortField(field); setSortDir('asc'); }
   };
-
-  const handleEdit = (product: Product) => { setEditingProduct(product); setModalOpen(true); };
 
   const handleDelete = async (id: number) => {
     try {
@@ -897,425 +342,69 @@ export default function ProductsPage() {
     showToast(`${selectedIds.size} products deleted`);
   };
 
-  const toggleSelect = (id: number) => {
-    setSelectedIds(prev => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
-  };
+  const toggleSelect = (id: number) => setSelectedIds(prev => {
+    const n = new Set(prev);
+    if (n.has(id)) {
+      n.delete(id);
+    } else {
+      n.add(id);
+    }
+    return n;
+  });
 
   const toggleSelectAll = () => {
     const pageIds = paginated.map(p => p.id);
     const allSelected = pageIds.every(id => selectedIds.has(id));
-    if (allSelected) {
-      setSelectedIds(prev => { const n = new Set(prev); pageIds.forEach(id => n.delete(id)); return n; });
-    } else {
-      setSelectedIds(prev => { const n = new Set(prev); pageIds.forEach(id => n.add(id)); return n; });
-    }
+    setSelectedIds(prev => {
+      const n = new Set(prev);
+      if (allSelected) {
+        pageIds.forEach(id => n.delete(id));
+      } else {
+        pageIds.forEach(id => n.add(id));
+      }
+      return n;
+    });
   };
 
-  const clearFilters = () => { setSearchTerm(''); setVendorFilter(''); setRequirementFilter(''); setPriceRangeIdx(0); };
-  const hasActiveFilters = searchTerm || vendorFilter || requirementFilter || priceRangeIdx !== 0;
+  const clearFilters = () => { setSearchTerm(''); setVendorFilter(''); setRequirementFilter(''); setStatusFilter(''); setPriceRangeIdx(0); };
+  const hasActiveFilters = !!(searchTerm || vendorFilter || requirementFilter || statusFilter || priceRangeIdx !== 0);
+  const allOnPageSelected = paginated.length > 0 && paginated.every(p => selectedIds.has(p.id));
 
   const exportCSV = () => {
     const rows = [
-      ['ID', 'Name', 'Description', 'Price', 'Vendor', 'Requirement', 'URL', 'Image'],
-      ...filteredAndSorted.map(p => [
-        p.id, p.name, p.description || '', p.price,
-        p.vendor?.name || '', p.template?.name || '',
-        p.url || '', p.image || '',
-      ])
+      ['ID', 'Name', 'Description', 'Price', 'Status', 'Vendor', 'Requirement', 'URL', 'Image'],
+      ...filteredAndSorted.map(p => [p.id, p.name, p.description || '', p.price ?? '', p.status, p.vendor?.name || '', p.template?.name || '', p.url || '', p.image || '']),
     ];
     const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = 'products.csv'; a.click();
-    URL.revokeObjectURL(url);
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = 'products.csv';
+    a.click();
     showToast('Exported to CSV');
   };
 
-  const allOnPageSelected = paginated.length > 0 && paginated.every(p => selectedIds.has(p.id));
-
-  // ── Requirement badge renderer (reused in table + grid) ───────────────────
-  const RequirementBadge = ({ product }: { product: Product }) => {
-    if (!product.template) {
-      return (
-        <button
-          onClick={() => setAssignModalProduct(product)}
-          title="Assign to a requirement"
-          style={{
-            background: 'none',
-            border: '1px dashed rgba(255,255,255,0.1)',
-            borderRadius: 100,
-            padding: '0.15rem 0.55rem',
-            fontSize: '0.7rem',
-            color: '#3a3a56',
-            cursor: 'pointer',
-            fontFamily: "'Sora', sans-serif",
-            transition: 'all 0.15s',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.3rem',
-          }}
-          onMouseOver={e => {
-            e.currentTarget.style.borderColor = 'rgba(124,106,247,0.4)';
-            e.currentTarget.style.color = '#7c6af7';
-          }}
-          onMouseOut={e => {
-            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
-            e.currentTarget.style.color = '#3a3a56';
-          }}
-        >
-          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <path d="M12 4v16m8-8H4"/>
-          </svg>
-          Assign
-        </button>
-      );
-    }
-    return (
-      <button
-        onClick={() => setAssignModalProduct(product)}
-        title={`Assigned to: ${product.template.name} — click to change`}
-        style={{
-          background: 'rgba(124,106,247,0.1)',
-          border: '1px solid rgba(124,106,247,0.22)',
-          borderRadius: 100,
-          padding: '0.15rem 0.6rem',
-          fontSize: '0.72rem',
-          fontWeight: 600,
-          color: '#a89cf7',
-          cursor: 'pointer',
-          fontFamily: "'Sora', sans-serif",
-          transition: 'all 0.15s',
-          maxWidth: 160,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          display: 'inline-block',
-        }}
-        onMouseOver={e => {
-          e.currentTarget.style.background = 'rgba(124,106,247,0.18)';
-          e.currentTarget.style.borderColor = 'rgba(124,106,247,0.4)';
-        }}
-        onMouseOut={e => {
-          e.currentTarget.style.background = 'rgba(124,106,247,0.1)';
-          e.currentTarget.style.borderColor = 'rgba(124,106,247,0.22)';
-        }}
-      >
-        {product.template.name}
-      </button>
-    );
-  };
+  const skeletonRows = Array.from({ length: 8 }).map((_, i) => (
+    <tr key={i} className="skeleton-row">
+      <td><div className="skel" style={{ width: 16, height: 16, borderRadius: 4 }} /></td>
+      <td><div className="skel skel-avatar" /></td>
+      <td><div className="skel" style={{ width: '70%' }} /></td>
+      <td><div className="skel" style={{ width: '50%' }} /></td>
+      <td><div className="skel" style={{ width: '60%' }} /></td>
+      <td><div className="skel" style={{ width: 60 }} /></td>
+      <td><div className="skel" style={{ width: 70 }} /></td>
+      <td><div className="skel" style={{ width: 90 }} /></td>
+      <td><div className="skel" style={{ width: 40 }} /></td>
+      <td><div className="skel" style={{ width: 80 }} /></td>
+    </tr>
+  ));
 
   return (
     <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap');
-
-        *, *::before, *::after { box-sizing: border-box; }
-
-        .products-root {
-          font-family: 'Sora', sans-serif;
-          min-height: 100vh;
-          background: #0f0f14;
-          color: #e2e2ef;
-          padding: 2rem;
-        }
-
-        .mono { font-family: 'DM Mono', monospace; }
-
-        .glass {
-          background: rgba(255,255,255,0.04);
-          border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 16px;
-          backdrop-filter: blur(12px);
-        }
-
-        .page-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          margin-bottom: 1.5rem;
-          gap: 1rem;
-          flex-wrap: wrap;
-        }
-        .page-title {
-          font-size: 2rem;
-          font-weight: 700;
-          letter-spacing: -0.04em;
-          background: linear-gradient(135deg, #fff 40%, #7c6af7);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-          line-height: 1.1;
-        }
-        .page-subtitle { color: #6b6b8a; font-size: 0.85rem; margin-top: 0.25rem; }
-        .header-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
-
-        .stats-row { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
-        .stat-pill {
-          background: rgba(124,106,247,0.12);
-          border: 1px solid rgba(124,106,247,0.2);
-          border-radius: 100px;
-          padding: 0.35rem 1rem;
-          font-size: 0.78rem;
-          color: #a89cf7;
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-        }
-        .stat-pill strong { color: #e2e2ef; font-size: 0.9rem; }
-
-        .toolbar {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-          flex-wrap: wrap;
-          padding: 1rem 1.25rem;
-          margin-bottom: 0.5rem;
-        }
-        .search-wrap { position: relative; flex: 1; min-width: 200px; }
-        .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #6b6b8a; pointer-events: none; }
-        .search-input {
-          width: 100%;
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.1);
-          border-radius: 10px;
-          padding: 0.55rem 0.9rem 0.55rem 2.4rem;
-          color: #e2e2ef;
-          font-family: 'Sora', sans-serif;
-          font-size: 0.85rem;
-          outline: none;
-          transition: border-color 0.2s, box-shadow 0.2s;
-        }
-        .search-input::placeholder { color: #4a4a66; }
-        .search-input:focus { border-color: rgba(124,106,247,0.5); box-shadow: 0 0 0 3px rgba(124,106,247,0.1); }
-        .search-clear {
-          position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-          background: none; border: none; color: #4a4a66; cursor: pointer; padding: 2px;
-          border-radius: 4px; display: flex; align-items: center; justify-content: center;
-          transition: color 0.15s;
-        }
-        .search-clear:hover { color: #a89cf7; }
-
-        .filter-select {
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.1);
-          border-radius: 10px;
-          padding: 0.55rem 2rem 0.55rem 0.85rem;
-          color: #e2e2ef;
-          font-family: 'Sora', sans-serif;
-          font-size: 0.82rem;
-          outline: none;
-          cursor: pointer;
-          appearance: none;
-          background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%236b6b8a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-          background-repeat: no-repeat;
-          background-position: right 0.6rem center;
-          transition: border-color 0.2s;
-        }
-        .filter-select:focus { border-color: rgba(124,106,247,0.5); }
-        .filter-select option { background: #1a1a26; }
-
-        .btn {
-          display: inline-flex; align-items: center; gap: 0.4rem;
-          padding: 0.55rem 1.1rem;
-          border-radius: 10px;
-          font-family: 'Sora', sans-serif;
-          font-size: 0.83rem; font-weight: 600;
-          cursor: pointer; border: none;
-          transition: all 0.18s; white-space: nowrap;
-        }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
-        .btn-primary { background: linear-gradient(135deg, #7c6af7, #5a47e0); color: #fff; box-shadow: 0 4px 16px rgba(124,106,247,0.3); }
-        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(124,106,247,0.45); }
-        .btn-ghost { background: rgba(255,255,255,0.06); color: #b0b0cc; border: 1px solid rgba(255,255,255,0.1); }
-        .btn-ghost:hover { background: rgba(255,255,255,0.1); color: #e2e2ef; }
-        .btn-danger { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
-        .btn-danger:hover { background: rgba(239,68,68,0.25); }
-        .btn-icon { padding: 0.5rem; border-radius: 8px; }
-        .btn-active { background: rgba(124,106,247,0.2); color: #a89cf7; border-color: rgba(124,106,247,0.4); }
-
-        .filter-tag {
-          display: inline-flex; align-items: center; gap: 0.35rem;
-          background: rgba(124,106,247,0.1); border: 1px solid rgba(124,106,247,0.2);
-          border-radius: 100px; padding: 0.28rem 0.75rem;
-          font-size: 0.75rem; color: #a89cf7; cursor: pointer; transition: all 0.15s;
-        }
-        .filter-tag:hover { background: rgba(124,106,247,0.2); }
-
-        .bulk-bar {
-          display: flex; align-items: center; gap: 1rem;
-          padding: 0.7rem 1.25rem;
-          border-bottom: 1px solid rgba(124,106,247,0.15);
-          background: rgba(124,106,247,0.06);
-          font-size: 0.83rem; color: #a89cf7;
-          animation: slideDown 0.2s ease;
-        }
-
-        .products-table { width: 100%; border-collapse: collapse; }
-        .products-table th {
-          padding: 0.65rem 1rem;
-          text-align: left;
-          font-size: 0.72rem; font-weight: 600;
-          letter-spacing: 0.08em; text-transform: uppercase;
-          color: #4a4a66;
-          border-bottom: 1px solid rgba(255,255,255,0.06);
-          white-space: nowrap; user-select: none;
-        }
-        .products-table th.sortable { cursor: pointer; transition: color 0.15s; }
-        .products-table th.sortable:hover { color: #a89cf7; }
-        .products-table td {
-          padding: 0.85rem 1rem;
-          border-bottom: 1px solid rgba(255,255,255,0.04);
-          vertical-align: middle;
-        }
-        .products-table tbody tr { transition: background 0.15s; }
-        .products-table tbody tr:hover { background: rgba(255,255,255,0.03); }
-        .products-table tbody tr.selected { background: rgba(124,106,247,0.06); }
-        .products-table tbody tr:last-child td { border-bottom: none; }
-
-        .cb { width: 16px; height: 16px; accent-color: #7c6af7; cursor: pointer; }
-
-        .prod-img { width: 48px; height: 48px; border-radius: 10px; overflow: hidden; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); flex-shrink: 0; }
-        .prod-img-placeholder { width: 48px; height: 48px; border-radius: 10px; background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; color: #3a3a56; flex-shrink: 0; }
-
-        .vendor-badge {
-          display: inline-flex; align-items: center; gap: 0.4rem;
-          background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 100px; padding: 0.2rem 0.6rem 0.2rem 0.3rem;
-          font-size: 0.78rem; color: #b0b0cc; transition: all 0.15s;
-          text-decoration: none; max-width: 150px; overflow: hidden;
-        }
-        .vendor-badge:hover { border-color: rgba(124,106,247,0.4); color: #a89cf7; }
-        .vendor-logo { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(255,255,255,0.1); flex-shrink: 0; }
-
-        .price-tag { font-family: 'DM Mono', monospace; font-size: 0.88rem; color: #a4f4b0; font-weight: 500; }
-
-        .url-link { display: inline-flex; align-items: center; gap: 0.3rem; color: #7c6af7; font-size: 0.8rem; text-decoration: none; transition: color 0.15s; }
-        .url-link:hover { color: #a89cf7; }
-
-        .action-btn {
-          background: none; border: none; cursor: pointer;
-          padding: 0.35rem 0.6rem; border-radius: 7px;
-          font-size: 0.78rem; font-family: 'Sora', sans-serif; font-weight: 600; transition: all 0.15s;
-        }
-        .action-edit { color: #7c6af7; }
-        .action-edit:hover { background: rgba(124,106,247,0.15); }
-        .action-delete { color: #f87171; }
-        .action-delete:hover { background: rgba(239,68,68,0.12); }
-
-        .empty-state { text-align: center; padding: 4rem 2rem; color: #3a3a56; }
-        .empty-icon { font-size: 3rem; margin-bottom: 1rem; }
-        .empty-state p { font-size: 0.9rem; margin-top: 0.4rem; color: #4a4a66; }
-
-        .grid-view { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; padding: 1.25rem; }
-        .product-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; overflow: hidden; transition: all 0.2s; position: relative; cursor: pointer; }
-        .product-card:hover { border-color: rgba(124,106,247,0.3); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
-        .product-card.selected { border-color: rgba(124,106,247,0.5); background: rgba(124,106,247,0.06); }
-        .card-img { width: 100%; aspect-ratio: 16/9; object-fit: cover; background: rgba(255,255,255,0.04); }
-        .card-img-placeholder { width: 100%; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); color: #2a2a3e; font-size: 2rem; }
-        .card-body { padding: 1rem; }
-        .card-name { font-size: 0.92rem; font-weight: 600; color: #e2e2ef; margin-bottom: 0.35rem; line-height: 1.3; }
-        .card-desc { font-size: 0.75rem; color: #5a5a7a; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        .card-footer { display: flex; align-items: center; justify-content: space-between; padding: 0.65rem 1rem; border-top: 1px solid rgba(255,255,255,0.05); }
-        .card-cb { position: absolute; top: 0.6rem; left: 0.6rem; }
-        .card-actions { position: absolute; top: 0.5rem; right: 0.5rem; display: flex; gap: 0.25rem; opacity: 0; transition: opacity 0.15s; }
-        .product-card:hover .card-actions { opacity: 1; }
-        .card-action-btn { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; font-size: 0.75rem; transition: all 0.15s; }
-        .card-action-edit { background: rgba(124,106,247,0.8); color: #fff; }
-        .card-action-edit:hover { background: #7c6af7; }
-        .card-action-del { background: rgba(239,68,68,0.8); color: #fff; }
-        .card-action-del:hover { background: #ef4444; }
-        .card-action-req { background: rgba(16,185,129,0.8); color: #fff; }
-        .card-action-req:hover { background: #10b981; }
-
-        .pagination-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; padding: 0.85rem 1.25rem; border-top: 1px solid rgba(255,255,255,0.06); }
-        .pagination-info { font-size: 0.79rem; color: #4a4a66; }
-        .pagination-info strong { color: #8080a8; }
-        .pagination-controls { display: flex; align-items: center; gap: 0.25rem; }
-        .pagination-size { display: flex; align-items: center; gap: 0.5rem; }
-        .pg-btn { min-width: 32px; height: 32px; padding: 0 0.35rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.04); color: #8080a8; font-family: 'DM Mono', monospace; font-size: 0.8rem; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
-        .pg-btn:hover:not(:disabled) { background: rgba(255,255,255,0.09); color: #e2e2ef; border-color: rgba(255,255,255,0.15); }
-        .pg-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-        .pg-btn.pg-active { background: rgba(124,106,247,0.2); color: #a89cf7; border-color: rgba(124,106,247,0.4); }
-        .pg-ellipsis { padding: 0 0.3rem; color: #3a3a56; font-size: 0.85rem; }
-
-        .skeleton-row td { padding: 0.85rem 1rem; }
-        .skel { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 6px; height: 14px; }
-        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-        .skel-avatar { width: 48px; height: 48px; border-radius: 10px; }
-
-        .toast { position: fixed; bottom: 1.5rem; right: 1.5rem; padding: 0.75rem 1.25rem; border-radius: 12px; font-size: 0.84rem; font-family: 'Sora', sans-serif; z-index: 9999; animation: toastIn 0.25s ease; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
-        .toast-success { background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3); color: #6ee7b7; }
-        .toast-error { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; }
-        @keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-
-        .confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9998; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.15s ease; }
-        .confirm-box { background: #1a1a26; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 1.75rem; max-width: 380px; width: 90%; box-shadow: 0 24px 80px rgba(0,0,0,0.6); }
-        .confirm-title { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.5rem; }
-        .confirm-sub { font-size: 0.84rem; color: #6b6b8a; margin-bottom: 1.5rem; }
-        .confirm-actions { display: flex; gap: 0.75rem; justify-content: flex-end; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideDown { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(6px); z-index: 9000; display: flex; align-items: center; justify-content: center; padding: 1rem; animation: fadeIn 0.18s ease; }
-        .modal-box { background: #13131f; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; width: 100%; max-width: 560px; box-shadow: 0 40px 120px rgba(0,0,0,0.7), 0 0 0 1px rgba(124,106,247,0.1) inset; animation: modalIn 0.22s cubic-bezier(0.34, 1.56, 0.64, 1); display: flex; flex-direction: column; max-height: 92vh; overflow: hidden; }
-        @keyframes modalIn { from { opacity: 0; transform: translateY(16px) scale(0.97); } to { opacity: 1; transform: none; } }
-        .modal-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 1.5rem 1.75rem 1.25rem; gap: 1rem; }
-        .modal-title { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.02em; color: #f0f0ff; }
-        .modal-subtitle { font-size: 0.8rem; color: #5a5a7a; margin-top: 0.2rem; }
-        .modal-close { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #6b6b8a; cursor: pointer; padding: 0.4rem; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
-        .modal-close:hover { background: rgba(255,255,255,0.1); color: #e2e2ef; }
-        .modal-divider { height: 1px; background: rgba(255,255,255,0.07); margin: 0; }
-        .modal-body { padding: 1.5rem 1.75rem; overflow-y: auto; flex: 1; }
-        .modal-body::-webkit-scrollbar { width: 4px; }
-        .modal-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
-        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; }
-        .form-full { grid-column: 1 / -1; }
-        .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
-        .form-label { font-size: 0.76rem; font-weight: 600; color: #6b6b8a; letter-spacing: 0.06em; text-transform: uppercase; }
-        .form-required { color: #f87171; }
-        .form-input { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 0.65rem 0.9rem; color: #e2e2ef; font-family: 'Sora', sans-serif; font-size: 0.87rem; outline: none; width: 100%; transition: border-color 0.2s, box-shadow 0.2s, background 0.2s; }
-        .form-input::placeholder { color: #3a3a58; }
-        .form-input:focus { border-color: rgba(124,106,247,0.6); box-shadow: 0 0 0 3px rgba(124,106,247,0.12); background: rgba(255,255,255,0.07); }
-        .form-input-error { border-color: rgba(239,68,68,0.5) !important; }
-        .form-input-error:focus { box-shadow: 0 0 0 3px rgba(239,68,68,0.12) !important; }
-        .form-error { font-size: 0.74rem; color: #f87171; margin-top: 0.1rem; }
-        .form-textarea { resize: vertical; min-height: 80px; font-family: 'Sora', sans-serif; }
-        .form-select { cursor: pointer; }
-        .form-select option { background: #1a1a26; }
-        .input-prefix-wrap { position: relative; }
-        .input-prefix { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #6b6b8a; font-family: 'DM Mono', monospace; font-size: 0.85rem; pointer-events: none; }
-        .input-with-prefix { padding-left: 1.75rem !important; font-family: 'DM Mono', monospace !important; }
-        .url-input-wrap { position: relative; }
-        .url-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: #5a5a7a; pointer-events: none; }
-        .input-with-icon { padding-left: 2.2rem !important; }
-        .img-preview-wrap { margin-top: 0.6rem; border-radius: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,0.08); max-height: 100px; }
-        .img-preview { width: 100%; height: 100px; object-fit: cover; display: block; }
-        .modal-footer { display: flex; justify-content: flex-end; gap: 0.75rem; padding: 1.1rem 1.75rem; border-top: 1px solid rgba(255,255,255,0.07); background: rgba(255,255,255,0.02); }
-
-        .spin { animation: spin 0.7s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        .shortcut-hint { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.72rem; color: #3a3a56; font-family: 'DM Mono', monospace; }
-        .kbd { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); border-radius: 4px; padding: 0.1rem 0.35rem; font-size: 0.68rem; color: #5a5a7a; }
-        .divider { width: 1px; height: 24px; background: rgba(255,255,255,0.08); flex-shrink: 0; }
-
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
-      `}</style>
-
+      <style>{styles}</style>
       <div className="products-root">
         <div style={{ maxWidth: 1400, margin: '0 auto' }}>
 
-          {/* Page header */}
+          {/* ── Header ── */}
           <div className="page-header">
             <div>
               <div className="page-title">Product Catalog</div>
@@ -1326,9 +415,9 @@ export default function ProductsPage() {
             <div className="header-actions">
               <span className="shortcut-hint"><span className="kbd">N</span> new</span>
               <ProductCSVImport onImportComplete={fetchProducts} vendors={vendors} />
-              <button className="btn btn-ghost" onClick={exportCSV} title="Export filtered products as CSV">
+              <button className="btn btn-ghost" onClick={exportCSV}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
                 Export CSV
               </button>
@@ -1341,47 +430,83 @@ export default function ProductsPage() {
             </div>
           </div>
 
-          {/* Stats */}
+          {/* ── Stats ── */}
           {!isLoading && (
             <div className="stats-row">
               <div className="stat-pill">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
                 Total <strong>{products.length}</strong>
               </div>
-              <div className="stat-pill">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-                Vendors <strong>{vendors.length}</strong>
+              <div className="stat-pill" style={{ background: 'rgba(16,185,129,0.1)', borderColor: 'rgba(16,185,129,0.2)', color: '#34d399' }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 6L9 17l-5-5" /></svg>
+                Live <strong style={{ color: '#e2e2ef' }}>{products.filter(p => p.status === 'ACTIVE').length}</strong>
               </div>
-              <div className="stat-pill">
-                {/* How many products have a requirement assigned */}
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
-                Assigned <strong>{products.filter(p => p.templateId).length}</strong>
-              </div>
-              <div className="stat-pill">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-                Avg price <strong className="mono">
-                  ${products.length ? Math.round(products.reduce((s, p) => s + (p.price || 0), 0) / products.length).toLocaleString() : 0}
-                </strong>
-              </div>
-              <div className="stat-pill">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-                Max price <strong className="mono">
-                  ${products.length ? Math.max(...products.map(p => p.price || 0)).toLocaleString() : 0}
-                </strong>
-              </div>
-              {hasActiveFilters && (
-                <div className="stat-pill">Filtered to <strong>{filteredAndSorted.length}</strong></div>
+              {pendingProducts.length > 0 && (
+                <div
+                  className="stat-pill"
+                  style={{ background: 'rgba(245,158,11,0.12)', borderColor: 'rgba(245,158,11,0.3)', color: '#fbbf24', cursor: 'pointer' }}
+                  onClick={() => setActiveTab('review')}
+                  title="Switch to Review Queue"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
+                  Pending Review <strong style={{ color: '#e2e2ef' }}>{pendingProducts.length}</strong>
+                </div>
               )}
+              <div className="stat-pill">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
+                Avg price <strong className="mono">${products.filter(p => p.price != null).length ? Math.round(products.filter(p => p.price != null).reduce((s, p) => s + (p.price || 0), 0) / products.filter(p => p.price != null).length).toLocaleString() : 0}</strong>
+              </div>
+              {hasActiveFilters && <div className="stat-pill">Filtered to <strong>{filteredAndSorted.length}</strong></div>}
             </div>
           )}
 
-          {/* Main panel */}
+          {/* ── Tabs ── */}
+          <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.07)', paddingBottom: '0' }}>
+            {([
+              { key: 'catalog', label: 'All Products', icon: (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2" /></svg>
+              )},
+              { key: 'review', label: 'Review Queue', icon: (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
+              ), badge: pendingProducts.length },
+            ] as const).map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                  padding: '0.6rem 1rem',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  fontFamily: "'Sora', sans-serif", fontSize: '0.82rem', fontWeight: 600,
+                  color: activeTab === tab.key ? '#a89cf7' : '#4a4a66',
+                  borderBottom: `2px solid ${activeTab === tab.key ? '#7c6af7' : 'transparent'}`,
+                  marginBottom: -1,
+                  transition: 'all 0.15s',
+                }}
+              >
+                {tab.icon}
+                {tab.label}
+                {'badge' in tab && tab.badge > 0 && (
+                  <span style={{
+                    background: activeTab === tab.key ? 'rgba(124,106,247,0.2)' : 'rgba(245,158,11,0.15)',
+                    color: activeTab === tab.key ? '#a89cf7' : '#fbbf24',
+                    borderRadius: 100, padding: '0.1rem 0.45rem', fontSize: '0.68rem', fontWeight: 700,
+                  }}>
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* ── Main panel ── */}
           <div className="glass" style={{ overflow: 'hidden' }}>
+
             {/* Toolbar */}
             <div className="toolbar">
               <div className="search-wrap">
                 <svg className="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                  <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
                 </svg>
                 <input
                   type="text"
@@ -1393,112 +518,80 @@ export default function ProductsPage() {
                 {searchTerm && (
                   <button className="search-clear" onClick={() => setSearchTerm('')}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                      <path d="M18 6L6 18M6 6l12 12"/>
+                      <path d="M18 6L6 18M6 6l12 12" />
                     </svg>
                   </button>
                 )}
               </div>
-
               <div className="divider" />
-
               <select value={vendorFilter} onChange={e => setVendorFilter(e.target.value)} className="filter-select">
                 <option value="">All vendors</option>
                 {vendorsInProducts.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
               </select>
-
-              {/* ── NEW: Requirement filter ── */}
               <select value={requirementFilter} onChange={e => setRequirementFilter(e.target.value)} className="filter-select">
                 <option value="">All requirements</option>
                 {requirementsInProducts.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
               </select>
-
+              {activeTab === 'catalog' && (
+                <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="filter-select">
+                  <option value="">All statuses</option>
+                  <option value="ACTIVE">Live</option>
+                  <option value="PENDING_REVIEW">In Review</option>
+                  <option value="DRAFT">Draft</option>
+                  <option value="REJECTED">Rejected</option>
+                  <option value="ARCHIVED">Archived</option>
+                </select>
+              )}
               <select value={priceRangeIdx} onChange={e => setPriceRangeIdx(Number(e.target.value))} className="filter-select">
                 {PRICE_RANGES.map((r, i) => <option key={i} value={i}>{r.label}</option>)}
               </select>
-
-              {hasActiveFilters && (
-                <button className="filter-tag" onClick={clearFilters}>Clear filters ×</button>
+              {hasActiveFilters && <button className="filter-tag" onClick={clearFilters}>Clear filters ×</button>}
+              {activeTab === 'catalog' && (
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem' }}>
+                  <button className={`btn btn-ghost btn-icon ${viewMode === 'table' ? 'btn-active' : ''}`} onClick={() => setViewMode('table')} title="Table view">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M3 15h18M9 3v18" /></svg>
+                  </button>
+                  <button className={`btn btn-ghost btn-icon ${viewMode === 'grid' ? 'btn-active' : ''}`} onClick={() => setViewMode('grid')} title="Grid view">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
+                  </button>
+                </div>
               )}
-
-              <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem' }}>
-                <button className={`btn btn-ghost btn-icon ${viewMode === 'table' ? 'btn-active' : ''}`} onClick={() => setViewMode('table')} title="Table view">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
-                </button>
-                <button className={`btn btn-ghost btn-icon ${viewMode === 'grid' ? 'btn-active' : ''}`} onClick={() => setViewMode('grid')} title="Grid view">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-                </button>
-              </div>
             </div>
 
             {/* Bulk action bar */}
             {selectedIds.size > 0 && (
               <div className="bulk-bar">
                 <span>{selectedIds.size} selected</span>
-                <button className="btn btn-danger" style={{ padding: '0.35rem 0.85rem', fontSize: '0.78rem' }} onClick={handleBulkDelete}>
-                  Delete selected
-                </button>
-                <button className="btn btn-ghost" style={{ padding: '0.35rem 0.85rem', fontSize: '0.78rem' }} onClick={() => setSelectedIds(new Set())}>
-                  Clear selection
-                </button>
+                <button className="btn btn-danger" style={{ padding: '0.35rem 0.85rem', fontSize: '0.78rem' }} onClick={handleBulkDelete}>Delete selected</button>
+                <button className="btn btn-ghost" style={{ padding: '0.35rem 0.85rem', fontSize: '0.78rem' }} onClick={() => setSelectedIds(new Set())}>Clear selection</button>
               </div>
             )}
 
-            {/* ── TABLE VIEW ── */}
-            {viewMode === 'table' && (
+            {/* ── REVIEW QUEUE TAB ── */}
+            {activeTab === 'review' && (
               <div style={{ overflowX: 'auto' }}>
-                <table className="products-table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: 40, paddingLeft: '1.25rem' }}>
-                        <input
-                          type="checkbox" className="cb"
-                          checked={allOnPageSelected}
-                          onChange={toggleSelectAll}
-                          style={{ display: paginated.length ? 'block' : 'none' }}
-                        />
-                      </th>
-                      <th style={{ width: 60 }}>Image</th>
-                      <th className="sortable" onClick={() => handleSort('name')}>Name <SortIcon field="name" sortField={sortField} sortDir={sortDir} /></th>
-                      <th>Description</th>
-                      <th className="sortable" onClick={() => handleSort('vendor')}>Vendor <SortIcon field="vendor" sortField={sortField} sortDir={sortDir} /></th>
-                      <th className="sortable" onClick={() => handleSort('price')}>Price <SortIcon field="price" sortField={sortField} sortDir={sortDir} /></th>
-                      {/* ── NEW column ── */}
-                      <th>Requirement</th>
-                      <th>Link</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {isLoading ? (
-                      Array.from({ length: 8 }).map((_, i) => (
-                        <tr key={i} className="skeleton-row">
-                          <td><div className="skel" style={{ width: 16, height: 16, borderRadius: 4 }} /></td>
-                          <td><div className="skel skel-avatar" /></td>
-                          <td><div className="skel" style={{ width: '70%' }} /></td>
-                          <td><div className="skel" style={{ width: '90%' }} /></td>
-                          <td><div className="skel" style={{ width: '50%' }} /></td>
-                          <td><div className="skel" style={{ width: 60 }} /></td>
-                          <td><div className="skel" style={{ width: 90 }} /></td>
-                          <td><div className="skel" style={{ width: 40 }} /></td>
-                          <td><div className="skel" style={{ width: 80 }} /></td>
-                        </tr>
-                      ))
-                    ) : paginated.length === 0 ? (
+                {!isLoading && pendingProducts.length === 0 ? (
+                  <div className="empty-state">
+                    <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>✓</div>
+                    <div style={{ fontSize: '1rem', fontWeight: 600, color: '#6b6b8a' }}>All caught up</div>
+                    <p>No products are pending review right now.</p>
+                  </div>
+                ) : (
+                  <table className="products-table">
+                    <thead>
                       <tr>
-                        <td colSpan={9}>
-                          <div className="empty-state">
-                            <div className="empty-icon">📦</div>
-                            <div style={{ fontSize: '1rem', fontWeight: 600, color: '#6b6b8a' }}>No products found</div>
-                            <p>{hasActiveFilters ? 'Try clearing your filters' : 'Add your first product to get started'}</p>
-                          </div>
-                        </td>
+                        <th style={{ width: 60 }}>Image</th>
+                        <th className="sortable" onClick={() => handleSort('name')}>Product <SortIcon field="name" sortField={sortField} sortDir={sortDir} /></th>
+                        <th className="sortable" onClick={() => handleSort('vendor')}>Vendor <SortIcon field="vendor" sortField={sortField} sortDir={sortDir} /></th>
+                        <th>Requirement</th>
+                        <th className="sortable" onClick={() => handleSort('price')}>Price <SortIcon field="price" sortField={sortField} sortDir={sortDir} /></th>
+                        <th>Submitted</th>
+                        <th style={{ textAlign: 'right' as const }}>Actions</th>
                       </tr>
-                    ) : (
-                      paginated.map(product => (
-                        <tr key={product.id} className={selectedIds.has(product.id) ? 'selected' : ''}>
-                          <td style={{ paddingLeft: '1.25rem' }}>
-                            <input type="checkbox" className="cb" checked={selectedIds.has(product.id)} onChange={() => toggleSelect(product.id)} />
-                          </td>
+                    </thead>
+                    <tbody>
+                      {isLoading ? skeletonRows : paginated.map(product => (
+                        <tr key={product.id}>
                           <td>
                             {product.image ? (
                               <div className="prod-img">
@@ -1506,60 +599,168 @@ export default function ProductsPage() {
                               </div>
                             ) : (
                               <div className="prod-img-placeholder">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>
                               </div>
                             )}
                           </td>
-                          <td><span style={{ fontWeight: 600, color: '#e2e2ef', fontSize: '0.88rem' }}>{product.name}</span></td>
                           <td>
-                            <span style={{ color: '#5a5a7a', fontSize: '0.8rem', display: 'block', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {product.description || '—'}
-                            </span>
+                            <div style={{ fontWeight: 600, color: '#e2e2ef', fontSize: '0.88rem' }}>{product.name}</div>
+                            {product.description && (
+                              <div style={{ fontSize: '0.75rem', color: '#5a5a7a', marginTop: '0.15rem', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {product.description}
+                              </div>
+                            )}
                           </td>
                           <td>
                             {product.vendor ? (
-                              product.vendor.website ? (
-                                <a href={product.vendor.website} target="_blank" rel="noopener noreferrer" className="vendor-badge">
-                                  {product.vendor.logo && <Image src={product.vendor.logo} alt={product.vendor.name} width={18} height={18} className="vendor-logo" />}
-                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.vendor.name}</span>
-                                </a>
-                              ) : (
-                                <span className="vendor-badge" style={{ cursor: 'default' }}>
-                                  {product.vendor.logo && <Image src={product.vendor.logo} alt={product.vendor.name} width={18} height={18} className="vendor-logo" />}
-                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.vendor.name}</span>
-                                </span>
-                              )
-                            ) : <span style={{ color: '#3a3a56' }}>—</span>}
-                          </td>
-                          <td><span className="price-tag">${product.price?.toLocaleString() ?? '—'}</span></td>
-
-                          {/* ── NEW: Requirement cell ── */}
-                          <td><RequirementBadge product={product} /></td>
-
-                          <td>
-                            {product.url ? (
-                              <a href={product.url} target="_blank" rel="noopener noreferrer" className="url-link">
-                                Visit
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                              </a>
+                              <span className="vendor-badge" style={{ cursor: 'default' }}>
+                                {product.vendor.logo && <Image src={product.vendor.logo} alt={product.vendor.name} width={18} height={18} className="vendor-logo" />}
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.vendor.name}</span>
+                              </span>
                             ) : <span style={{ color: '#3a3a56' }}>—</span>}
                           </td>
                           <td>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                              <button className="action-btn action-edit" onClick={() => handleEdit(product)}>Edit</button>
-                              <button className="action-btn action-delete" onClick={() => setDeleteConfirmId(product.id)}>Delete</button>
-                            </div>
+                            {product.template ? (
+                              <span style={{ display: 'inline-flex', padding: '0.18rem 0.55rem', borderRadius: 100, fontSize: '0.7rem', fontWeight: 700, background: 'rgba(124,106,247,0.1)', color: '#a89cf7' }}>
+                                {product.template.name}
+                              </span>
+                            ) : <span style={{ color: '#3a3a56' }}>—</span>}
+                          </td>
+                          <td><span className="price-tag">{product.price != null ? `$${product.price.toLocaleString()}` : '—'}</span></td>
+                          <td>
+                            <span style={{ fontSize: '0.78rem', color: '#4a4a66', fontFamily: "'DM Mono', monospace" }}>
+                              {new Date(product.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'right' as const }}>
+                            <button
+                              className="btn btn-primary"
+                              style={{ padding: '0.4rem 0.9rem', fontSize: '0.78rem' }}
+                              onClick={() => setReviewProduct(product)}
+                            >
+                              Review
+                            </button>
                           </td>
                         </tr>
-                      ))
-                    )}
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
+
+            {/* ── CATALOG TAB — TABLE VIEW ── */}
+            {activeTab === 'catalog' && viewMode === 'table' && (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="products-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 40, paddingLeft: '1.25rem' }}>
+                        <input type="checkbox" className="cb" checked={allOnPageSelected} onChange={toggleSelectAll} style={{ display: paginated.length ? 'block' : 'none' }} />
+                      </th>
+                      <th style={{ width: 60 }}>Image</th>
+                      <th className="sortable" onClick={() => handleSort('name')}>Name <SortIcon field="name" sortField={sortField} sortDir={sortDir} /></th>
+                      <th>Description</th>
+                      <th className="sortable" onClick={() => handleSort('vendor')}>Vendor <SortIcon field="vendor" sortField={sortField} sortDir={sortDir} /></th>
+                      <th className="sortable" onClick={() => handleSort('price')}>Price <SortIcon field="price" sortField={sortField} sortDir={sortDir} /></th>
+                      <th className="sortable" onClick={() => handleSort('status')}>Status <SortIcon field="status" sortField={sortField} sortDir={sortDir} /></th>
+                      <th>Requirement</th>
+                      <th>Link</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {isLoading ? skeletonRows : paginated.length === 0 ? (
+                      <tr>
+                        <td colSpan={10}>
+                          <div className="empty-state">
+                            <div className="empty-icon">📦</div>
+                            <div style={{ fontSize: '1rem', fontWeight: 600, color: '#6b6b8a' }}>No products found</div>
+                            <p>{hasActiveFilters ? 'Try clearing your filters' : 'Add your first product to get started'}</p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : paginated.map(product => (
+                      <tr key={product.id} className={selectedIds.has(product.id) ? 'selected' : ''}>
+                        <td style={{ paddingLeft: '1.25rem' }}>
+                          <input type="checkbox" className="cb" checked={selectedIds.has(product.id)} onChange={() => toggleSelect(product.id)} />
+                        </td>
+                        <td>
+                          {product.image ? (
+                            <div className="prod-img">
+                              <Image src={product.image} alt={product.name} width={48} height={48} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            </div>
+                          ) : (
+                            <div className="prod-img-placeholder">
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 600, color: '#e2e2ef', fontSize: '0.88rem' }}>{product.name}</div>
+                          {product.status === 'REJECTED' && product.rejectReason && (
+                            <div style={{ fontSize: '0.7rem', color: '#f87171', marginTop: '0.2rem' }}>↳ {product.rejectReason}</div>
+                          )}
+                        </td>
+                        <td>
+                          <span style={{ color: '#5a5a7a', fontSize: '0.8rem', display: 'block', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {product.description || '—'}
+                          </span>
+                        </td>
+                        <td>
+                          {product.vendor ? (
+                            product.vendor.website ? (
+                              <a href={product.vendor.website} target="_blank" rel="noopener noreferrer" className="vendor-badge">
+                                {product.vendor.logo && <Image src={product.vendor.logo} alt={product.vendor.name} width={18} height={18} className="vendor-logo" />}
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.vendor.name}</span>
+                              </a>
+                            ) : (
+                              <span className="vendor-badge" style={{ cursor: 'default' }}>
+                                {product.vendor.logo && <Image src={product.vendor.logo} alt={product.vendor.name} width={18} height={18} className="vendor-logo" />}
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.vendor.name}</span>
+                              </span>
+                            )
+                          ) : <span style={{ color: '#3a3a56' }}>—</span>}
+                        </td>
+                        <td><span className="price-tag">{product.price != null ? `$${product.price.toLocaleString()}` : '—'}</span></td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <StatusBadge status={product.status} />
+                            {product.status === 'PENDING_REVIEW' && (
+                              <button
+                                className="btn btn-ghost"
+                                style={{ padding: '0.2rem 0.55rem', fontSize: '0.7rem' }}
+                                onClick={() => setReviewProduct(product)}
+                              >
+                                Review
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                        <td><RequirementBadge product={product} onAssign={setAssignModalProduct} /></td>
+                        <td>
+                          {product.url ? (
+                            <a href={product.url} target="_blank" rel="noopener noreferrer" className="url-link">
+                              Visit
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
+                            </a>
+                          ) : <span style={{ color: '#3a3a56' }}>—</span>}
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <button className="action-btn action-edit" onClick={() => { setEditingProduct(product); setModalOpen(true); }}>Edit</button>
+                            <button className="action-btn action-delete" onClick={() => setDeleteConfirmId(product.id)}>Delete</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
             )}
 
-            {/* ── GRID VIEW ── */}
-            {viewMode === 'grid' && (
+            {/* ── CATALOG TAB — GRID VIEW ── */}
+            {activeTab === 'catalog' && viewMode === 'grid' && (
               <div className="grid-view">
                 {isLoading ? (
                   Array.from({ length: 8 }).map((_, i) => (
@@ -1577,68 +778,22 @@ export default function ProductsPage() {
                     <div style={{ fontSize: '1rem', fontWeight: 600, color: '#6b6b8a' }}>No products found</div>
                     <p>{hasActiveFilters ? 'Try clearing your filters' : 'Add your first product to get started'}</p>
                   </div>
-                ) : (
-                  paginated.map(product => (
-                    <div key={product.id} className={`product-card ${selectedIds.has(product.id) ? 'selected' : ''}`}>
-                      <div className="card-cb">
-                        <input type="checkbox" className="cb" checked={selectedIds.has(product.id)} onChange={() => toggleSelect(product.id)} />
-                      </div>
-                      <div className="card-actions">
-                        <button className="card-action-btn card-action-edit" onClick={() => handleEdit(product)} title="Edit">
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                        </button>
-                        {/* ── NEW: Assign requirement button in grid ── */}
-                        <button
-                          className="card-action-btn card-action-req"
-                          onClick={() => setAssignModalProduct(product)}
-                          title={product.template ? `Assigned: ${product.template.name} — click to change` : 'Assign to requirement'}
-                        >
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                            <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
-                            <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
-                          </svg>
-                        </button>
-                        <button className="card-action-btn card-action-del" onClick={() => setDeleteConfirmId(product.id)} title="Delete">
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
-                        </button>
-                      </div>
-                      {product.image ? (
-                        <Image src={product.image} alt={product.name} width={300} height={160} className="card-img" style={{ display: 'block', width: '100%', height: 130, objectFit: 'cover' }} />
-                      ) : (
-                        <div className="card-img-placeholder">📦</div>
-                      )}
-                      <div className="card-body">
-                        <div className="card-name">{product.name}</div>
-                        <div className="card-desc">{product.description || <span style={{ color: '#3a3a56' }}>No description</span>}</div>
-                      </div>
-                      <div className="card-footer">
-                        <span className="price-tag">${product.price?.toLocaleString() ?? '—'}</span>
-                        {/* Show requirement badge or vendor in grid footer */}
-                        {product.template ? (
-                          <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#a89cf7', background: 'rgba(124,106,247,0.1)', border: '1px solid rgba(124,106,247,0.2)', borderRadius: 100, padding: '0.1rem 0.5rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 110 }}>
-                            {product.template.name}
-                          </span>
-                        ) : product.vendor ? (
-                          <span style={{ fontSize: '0.73rem', color: '#5a5a7a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 100 }}>
-                            {product.vendor.name}
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                  ))
-                )}
+                ) : paginated.map(product => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    selected={selectedIds.has(product.id)}
+                    onSelect={() => toggleSelect(product.id)}
+                    onEdit={() => { setEditingProduct(product); setModalOpen(true); }}
+                    onDelete={() => setDeleteConfirmId(product.id)}
+                    onAssign={() => setAssignModalProduct(product)}
+                  />
+                ))}
               </div>
             )}
 
-            {/* Pagination */}
             {!isLoading && filteredAndSorted.length > 0 && (
-              <Pagination
-                total={filteredAndSorted.length}
-                page={page}
-                pageSize={pageSize}
-                onPage={setPage}
-                onPageSize={setPageSize}
-              />
+              <Pagination total={filteredAndSorted.length} page={page} pageSize={pageSize} onPage={setPage} onPageSize={setPageSize} />
             )}
           </div>
         </div>
@@ -1658,10 +813,8 @@ export default function ProductsPage() {
         </div>
       )}
 
-      {/* Toast */}
       {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
 
-      {/* Product Form Modal */}
       <ProductFormModal
         open={modalOpen}
         setOpen={setModalOpen}
@@ -1670,7 +823,6 @@ export default function ProductsPage() {
         vendors={vendors}
       />
 
-      {/* ── NEW: Assign Requirement Modal ── */}
       {assignModalProduct && (
         <AssignRequirementModal
           productId={assignModalProduct.id}
@@ -1683,6 +835,16 @@ export default function ProductsPage() {
             fetchProducts();
             showToast(`Requirement assigned to "${assignModalProduct.name}"`);
           }}
+        />
+      )}
+
+      {/* Review modal */}
+      {reviewProduct && (
+        <ReviewModal
+          product={reviewProduct}
+          onClose={() => setReviewProduct(null)}
+          onDone={() => { setReviewProduct(null); fetchProducts(); }}
+          showToast={showToast}
         />
       )}
     </>

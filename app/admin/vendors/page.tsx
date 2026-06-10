@@ -1,296 +1,587 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+// app/admin/vendors/page.tsx
+import { useEffect, useState, useMemo } from 'react';
 import Image from 'next/image';
-import { Plus, Search, Edit2, Trash2, ExternalLink, X, Store, Globe } from 'lucide-react';
+import {
+  CheckCircle2, XCircle, Clock, Eye, Search,
+  Store, Globe, ChevronDown, ChevronUp, Loader2,
+  ShieldOff, Trash2, ShieldCheck, Package,
+} from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
 
-type Vendor = {
-  id: number; name: string; website?: string | null; logo?: string | null;
-  _count?: { products: number };
-  createdAt?: string;
+type Application = {
+  id: number;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  businessName: string;
+  slug: string;
+  tagline: string | null;
+  description: string | null;
+  website: string | null;
+  location: string | null;
+  phone: string | null;
+  productCategories: string[];
+  businessTypes: string[];
+  pitchNote: string | null;
+  reviewNote: string | null;
+  createdAt: string;
+  user: { id: string; name: string; email: string; image: string | null; createdAt: string };
+  vendor: {
+    id: number; slug: string; status: string;
+    _count: { products: number };
+    activeProducts?: number;
+  } | null;
 };
 
-const S = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap');
-  .adm { font-family:'Sora',sans-serif; color:#f0f0f5; }
-  .adm-mono { font-family:'DM Mono',monospace; }
+const STATUS_META = {
+  PENDING:  { color: '#fbbf24', bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.2)',  icon: <Clock size={12} />,        label: 'Pending'  },
+  APPROVED: { color: '#34d399', bg: 'rgba(16,185,129,0.1)',  border: 'rgba(16,185,129,0.2)',  icon: <CheckCircle2 size={12} />, label: 'Approved' },
+  REJECTED: { color: '#f87171', bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.2)',   icon: <XCircle size={12} />,     label: 'Rejected' },
+};
 
-  .v-table { width:100%; border-collapse:collapse; }
-  .v-table th { padding:0.65rem 1rem; text-align:left; font-size:0.7rem; font-weight:700; color:#55556e; text-transform:uppercase; letter-spacing:0.08em; border-bottom:1px solid rgba(255,255,255,0.06); background:#13131a; white-space:nowrap; }
-  .v-table td { padding:0.9rem 1rem; border-bottom:1px solid rgba(255,255,255,0.04); vertical-align:middle; }
-  .v-table tbody tr { transition:background 0.15s; }
-  .v-table tbody tr:hover { background:rgba(255,255,255,0.025); }
-  .v-table tbody tr.sel { background:rgba(99,102,241,0.06); }
+const VENDOR_STATUS_META: Record<string, { color: string; bg: string; label: string }> = {
+  ACTIVE:    { color: '#34d399', bg: 'rgba(16,185,129,0.1)',  label: 'Active'     },
+  PENDING:   { color: '#fbbf24', bg: 'rgba(245,158,11,0.1)',  label: 'Pending'    },
+  SUSPENDED: { color: '#f87171', bg: 'rgba(239,68,68,0.1)',   label: 'Suspended'  },
+  REJECTED:  { color: '#9494b0', bg: 'rgba(148,148,176,0.1)', label: 'Rejected'   },
+};
 
-  .u-input { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.09); border-radius:9px; padding:0.55rem 0.9rem 0.55rem 2.4rem; color:#f0f0f5; font-family:'Sora',sans-serif; font-size:0.84rem; outline:none; transition:border-color 0.2s,box-shadow 0.2s; width:100%; box-sizing:border-box; }
-  .u-input::placeholder { color:#3a3a56; }
-  .u-input:focus { border-color:rgba(99,102,241,0.5); box-shadow:0 0 0 3px rgba(99,102,241,0.1); }
+export default function AdminVendorApplicationsPage() {
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('PENDING');
+  const [search, setSearch] = useState('');
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const [reviewModal, setReviewModal] = useState<{ id: number; action: 'approve' | 'reject' } | null>(null);
+  const [reviewNote, setReviewNote] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [actionModal, setActionModal] = useState<{
+    vendorId: number; vendorName: string; action: 'suspend' | 'unsuspend' | 'delete';
+  } | null>(null);
+  const [actionNote, setActionNote] = useState('');
+  const [actionSubmitting, setActionSubmitting] = useState(false);
 
-  .btn { display:inline-flex; align-items:center; gap:0.4rem; padding:0.5rem 1rem; border-radius:9px; font-family:'Sora',sans-serif; font-size:0.82rem; font-weight:600; cursor:pointer; border:none; transition:all 0.15s; white-space:nowrap; }
-  .btn-primary { background:linear-gradient(135deg,#6366f1,#4f46e5); color:#fff; box-shadow:0 4px 14px rgba(99,102,241,0.3); }
-  .btn-primary:hover { transform:translateY(-1px); box-shadow:0 6px 18px rgba(99,102,241,0.4); }
-  .btn-danger { background:rgba(239,68,68,0.12); color:#f87171; border:1px solid rgba(239,68,68,0.2); }
-  .btn-danger:hover { background:rgba(239,68,68,0.22); }
-  .btn-ghost { background:rgba(255,255,255,0.06); color:#9494b0; border:1px solid rgba(255,255,255,0.09); }
-  .btn-ghost:hover { background:rgba(255,255,255,0.1); color:#f0f0f5; }
-  .btn-icon { padding:0.45rem; border-radius:8px; }
+  useEffect(() => { fetchApplications(); }, []);
 
-  .bulk-bar { display:flex; align-items:center; gap:0.75rem; padding:0.6rem 1rem; background:rgba(99,102,241,0.07); border-bottom:1px solid rgba(99,102,241,0.15); font-size:0.82rem; color:#a5b4fc; }
+  async function fetchApplications() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/vendors');
+      if (res.ok) setApplications(await res.json());
+    } finally { setLoading(false); }
+  }
 
-  .logo-wrap { width:40px; height:40px; border-radius:10px; overflow:hidden; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-  .logo-fallback { width:40px; height:40px; border-radius:10px; background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.2); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  async function handleReview() {
+    if (!reviewModal) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/admin/vendors/${reviewModal.id}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: reviewModal.action, reviewNote }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      toast.success(reviewModal.action === 'approve' ? 'Vendor approved and live!' : 'Application rejected');
+      setReviewModal(null);
+      setReviewNote('');
+      fetchApplications();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally { setSubmitting(false); }
+  }
 
-  .v-card { background:#13131a; border:1px solid rgba(255,255,255,0.07); border-radius:13px; padding:1.1rem; transition:all 0.2s; }
-  .v-card:hover { border-color:rgba(99,102,241,0.25); box-shadow:0 6px 24px rgba(0,0,0,0.3); }
-
-  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:9999; display:flex; align-items:center; justify-content:center; padding:1rem; backdrop-filter:blur(4px); }
-  .modal-box { background:#1a1a24; border:1px solid rgba(255,255,255,0.09); border-radius:16px; padding:1.75rem; width:100%; max-width:440px; box-shadow:0 24px 80px rgba(0,0,0,0.6); }
-  .f-label { display:block; font-size:0.76rem; font-weight:600; color:#9494b0; margin-bottom:0.35rem; }
-  .f-input { width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.09); border-radius:8px; padding:0.6rem 0.85rem; color:#f0f0f5; font-family:'Sora',sans-serif; font-size:0.84rem; outline:none; transition:border-color 0.2s; box-sizing:border-box; }
-  .f-input::placeholder { color:#3a3a56; }
-  .f-input:focus { border-color:rgba(99,102,241,0.5); box-shadow:0 0 0 3px rgba(99,102,241,0.1); }
-
-  .stat-card { background:#13131a; border:1px solid rgba(255,255,255,0.07); border-radius:12px; padding:1rem 1.25rem; }
-
-  .scroll::-webkit-scrollbar { width:4px; height:4px; }
-  .scroll::-webkit-scrollbar-track { background:transparent; }
-  .scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:2px; }
-`;
-
-export default function VendorsPage() {
-  const [vendors,      setVendors]      = useState<Vendor[]>([]);
-  const [search,       setSearch]       = useState('');
-  const [isModalOpen,  setIsModalOpen]  = useState(false);
-  const [editingVendor,setEditingVendor]= useState<Vendor|null>(null);
-  const [selectedIds,  setSelectedIds]  = useState<number[]>([]);
-  const [loading,      setLoading]      = useState(false);
-  const [deleteId,     setDeleteId]     = useState<number|null>(null);
-  const [formData,     setFormData]     = useState({ name:'', website:'', logo:'' });
-
-  useEffect(() => { fetchVendors(); }, []);
+  async function handleVendorAction() {
+    if (!actionModal) return;
+    setActionSubmitting(true);
+    try {
+      const res = await fetch(`/api/admin/vendors/${actionModal.vendorId}/manage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: actionModal.action, reason: actionNote }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      const msgs = {
+        suspend: 'Vendor suspended',
+        unsuspend: 'Vendor reinstated',
+        delete: 'Vendor deleted',
+      };
+      toast.success(msgs[actionModal.action]);
+      setActionModal(null);
+      setActionNote('');
+      fetchApplications();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Action failed');
+    } finally { setActionSubmitting(false); }
+  }
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return vendors;
-    const q = search.toLowerCase();
-    return vendors.filter(v => v.name.toLowerCase().includes(q) || v.website?.toLowerCase().includes(q));
-  }, [vendors, search]);
+    return applications
+      .filter(a => filter === 'ALL' || a.status === filter)
+      .filter(a => !search ||
+        a.businessName.toLowerCase().includes(search.toLowerCase()) ||
+        a.user.email.toLowerCase().includes(search.toLowerCase()) ||
+        a.user.name.toLowerCase().includes(search.toLowerCase())
+      );
+  }, [applications, filter, search]);
 
-  async function fetchVendors() {
-    try {
-      const r = await fetch('/api/vendors');
-      if (r.ok) setVendors(await r.json());
-      else toast.error('Failed to load vendors');
-    } catch { toast.error('Failed to load vendors'); }
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault(); setLoading(true);
-    try {
-      const method = editingVendor ? 'PATCH' : 'POST';
-      const url    = editingVendor ? `/api/vendors/${editingVendor.id}` : '/api/vendors';
-      const r = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(formData) });
-      if (!r.ok) throw new Error();
-      toast.success(editingVendor ? 'Vendor updated!' : 'Vendor created!');
-      closeModal(); fetchVendors();
-    } catch { toast.error('Something went wrong!'); }
-    finally { setLoading(false); }
-  }
-
-  async function handleDelete(id: number) {
-    try {
-      const r = await fetch(`/api/vendors/${id}`, { method:'DELETE' });
-      if (!r.ok) { const d=await r.json(); throw new Error(d.error||'Failed'); }
-      toast.success('Vendor deleted!'); setDeleteId(null); fetchVendors();
-    } catch(err) { toast.error(err instanceof Error ? err.message : 'Failed to delete'); }
-  }
-
-  async function handleBulkDelete() {
-    if (!confirm(`Delete ${selectedIds.length} vendors?`)) return;
-    await Promise.all(selectedIds.map(id => fetch(`/api/vendors/${id}`, { method:'DELETE' })));
-    toast.success(`${selectedIds.length} vendors deleted!`); setSelectedIds([]); fetchVendors();
-  }
-
-  function openCreate() { setFormData({name:'',website:'',logo:''}); setEditingVendor(null); setIsModalOpen(true); }
-  function openEdit(v: Vendor) { setFormData({name:v.name,website:v.website||'',logo:v.logo||''}); setEditingVendor(v); setIsModalOpen(true); }
-  function closeModal() { setIsModalOpen(false); setEditingVendor(null); }
-  function toggleSelect(id: number) { setSelectedIds(p => p.includes(id) ? p.filter(i=>i!==id) : [...p,id]); }
-  function toggleSelectAll() { setSelectedIds(selectedIds.length===filtered.length ? [] : filtered.map(v=>v.id)); }
-
-  const totalProducts = vendors.reduce((s,v)=>s+(v._count?.products||0),0);
+  const counts = useMemo(() => ({
+    PENDING:  applications.filter(a => a.status === 'PENDING').length,
+    APPROVED: applications.filter(a => a.status === 'APPROVED').length,
+    REJECTED: applications.filter(a => a.status === 'REJECTED').length,
+  }), [applications]);
 
   return (
-    <>
-      <style>{S}</style>
-      <Toaster position="top-right" toastOptions={{ style:{background:'#1a1a24',color:'#f0f0f5',border:'1px solid rgba(255,255,255,0.09)'} }} />
-      <div className="adm" style={{ minHeight:'100vh' }}>
+    <div style={S.page}>
+      <style>{CSS}</style>
+      <Toaster position="top-right" toastOptions={{
+        style: { background: '#1a1a24', color: '#f0f0f5', border: '1px solid rgba(255,255,255,0.09)', fontFamily: "'DM Sans', sans-serif", fontSize: '0.84rem' }
+      }} />
 
-        {/* Header */}
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1.5rem', flexWrap:'wrap', gap:'1rem' }}>
-          <div>
-            <h1 style={{ fontSize:'1.75rem', fontWeight:700, letterSpacing:'-0.03em', marginBottom:'0.25rem' }}>Vendors</h1>
-            <p style={{ fontSize:'0.84rem', color:'#55556e' }}>Manage product vendors and suppliers</p>
-          </div>
-          <button className="btn btn-primary" onClick={openCreate}><Plus size={14}/>Add Vendor</button>
+      {/* Header */}
+      <div style={S.header}>
+        <div>
+          <h1 style={S.h1}>Vendor Applications</h1>
+          <p style={S.subtitle}>Review, approve, and manage vendors on the Hustlecare marketplace</p>
         </div>
+      </div>
 
-        {/* Stats */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))', gap:'0.75rem', marginBottom:'1.25rem' }}>
-          {[
-            { label:'Total Vendors',  val:vendors.length,  color:'#818cf8', bg:'rgba(99,102,241,0.12)' },
-            { label:'With Website',   val:vendors.filter(v=>v.website).length, color:'#34d399', bg:'rgba(16,185,129,0.12)' },
-            { label:'Total Products', val:totalProducts, color:'#fbbf24', bg:'rgba(245,158,11,0.1)' },
-            { label:'Filtered',       val:filtered.length,  color:'#a78bfa', bg:'rgba(139,92,246,0.12)' },
-          ].map(s=>(
-            <div key={s.label} className="stat-card" style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-              <div>
-                <div style={{ fontSize:'0.7rem', color:'#55556e', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:'0.35rem' }}>{s.label}</div>
-                <div className="adm-mono" style={{ fontSize:'1.5rem', fontWeight:700 }}>{s.val}</div>
-              </div>
-              <div style={{ width:36, height:36, borderRadius:9, background:s.bg, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                <Store size={16} color={s.color} />
-              </div>
-            </div>
+      {/* Stats strip */}
+      <div style={S.statsStrip}>
+        {[
+          { label: 'Total', value: applications.length, color: '#9494b0' },
+          { label: 'Pending Review', value: counts.PENDING, color: '#fbbf24' },
+          { label: 'Approved', value: counts.APPROVED, color: '#34d399' },
+          { label: 'Rejected', value: counts.REJECTED, color: '#f87171' },
+        ].map(s => (
+          <div key={s.label} style={S.statPill}>
+            <span style={{ ...S.statValue, color: s.color }}>{s.value}</span>
+            <span style={S.statLabel}>{s.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Toolbar */}
+      <div style={S.toolbar}>
+        <div style={S.tabGroup}>
+          {(['ALL', 'PENDING', 'APPROVED', 'REJECTED'] as const).map(f => (
+            <button key={f} style={{ ...S.tab, ...(filter === f ? S.tabActive : {}) }}
+              onClick={() => setFilter(f)}>
+              {f === 'ALL' ? 'All' : STATUS_META[f].label}
+              <span style={{
+                ...S.tabCount,
+                background: filter === f ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.06)',
+                color: filter === f ? '#fbbf24' : '#55556e',
+              }}>
+                {f === 'ALL' ? applications.length : counts[f]}
+              </span>
+            </button>
           ))}
         </div>
-
-        {/* Toolbar */}
-        <div style={{ display:'flex', gap:'0.65rem', marginBottom:'1rem', flexWrap:'wrap', alignItems:'center' }}>
-          <div style={{ position:'relative', flex:1, minWidth:220 }}>
-            <Search size={15} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'#55556e', pointerEvents:'none' }} />
-            <input type="text" placeholder="Search vendors or websites…" value={search} onChange={e=>setSearch(e.target.value)} className="u-input" />
-            {search && <button onClick={()=>setSearch('')} style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', color:'#55556e', cursor:'pointer', padding:0 }}><X size={14}/></button>}
-          </div>
-          {selectedIds.length>0 && (
-            <button className="btn btn-danger" onClick={handleBulkDelete}><Trash2 size={14}/>Delete {selectedIds.length}</button>
-          )}
+        <div style={{ flex: 1 }} />
+        <div style={{ position: 'relative' }}>
+          <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#55556e', pointerEvents: 'none' }} />
+          <input
+            style={S.searchInput}
+            placeholder="Search name, email…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
         </div>
-
-        {/* Table */}
-        <div style={{ background:'#13131a', border:'1px solid rgba(255,255,255,0.07)', borderRadius:14, overflow:'hidden' }}>
-          {selectedIds.length>0 && (
-            <div className="bulk-bar">
-              <span>{selectedIds.length} selected</span>
-              <button className="btn btn-ghost" style={{ padding:'0.28rem 0.65rem', fontSize:'0.75rem' }} onClick={()=>setSelectedIds([])}>Clear</button>
-            </div>
-          )}
-          <div className="scroll" style={{ overflowX:'auto' }}>
-            <table className="v-table">
-              <thead>
-                <tr>
-                  <th style={{ paddingLeft:'1.25rem', width:40 }}><input type="checkbox" checked={selectedIds.length===filtered.length&&filtered.length>0} onChange={toggleSelectAll} style={{ accentColor:'#6366f1', cursor:'pointer' }} /></th>
-                  <th style={{ width:60 }}>Logo</th>
-                  <th>Name</th>
-                  <th>Website</th>
-                  <th>Products</th>
-                  <th style={{ textAlign:'right', paddingRight:'1.25rem' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.length===0 ? (
-                  <tr><td colSpan={6} style={{ textAlign:'center', padding:'3.5rem', color:'#3a3a56' }}>
-                    <Store size={32} style={{ margin:'0 auto 0.75rem', display:'block' }} />
-                    <div style={{ color:'#55556e', fontWeight:600 }}>{search?'No vendors match your search':'No vendors yet'}</div>
-                    {!search && <button onClick={openCreate} style={{ marginTop:'0.65rem', fontSize:'0.8rem', color:'#818cf8', background:'none', border:'none', cursor:'pointer', fontFamily:'Sora,sans-serif', textDecoration:'underline' }}>Add your first vendor</button>}
-                  </td></tr>
-                ) : filtered.map(vendor=>(
-                  <tr key={vendor.id} className={selectedIds.includes(vendor.id)?'sel':''}>
-                    <td style={{ paddingLeft:'1.25rem' }}><input type="checkbox" checked={selectedIds.includes(vendor.id)} onChange={()=>toggleSelect(vendor.id)} style={{ accentColor:'#6366f1', cursor:'pointer' }} /></td>
-                    <td>
-                      {vendor.logo ? (
-                        <div className="logo-wrap">
-                          <Image src={vendor.logo} alt={vendor.name} width={40} height={40} style={{ objectFit:'cover', width:'100%', height:'100%' }} />
-                        </div>
-                      ) : (
-                        <div className="logo-fallback"><Store size={16} color="#818cf8" /></div>
-                      )}
-                    </td>
-                    <td>
-                      <span style={{ fontWeight:700, fontSize:'0.88rem', color:'#f0f0f5' }}>{vendor.name}</span>
-                    </td>
-                    <td>
-                      {vendor.website ? (
-                        <a href={vendor.website} target="_blank" rel="noopener noreferrer" style={{ display:'inline-flex', alignItems:'center', gap:'0.35rem', color:'#818cf8', fontSize:'0.82rem', textDecoration:'none', transition:'color 0.15s' }}>
-                          <Globe size={13}/>{vendor.website.replace(/^https?:\/\//,'')}
-                          <ExternalLink size={11}/>
-                        </a>
-                      ) : <span style={{ color:'#3a3a56' }}>—</span>}
-                    </td>
-                    <td>
-                      <span className="adm-mono" style={{ fontSize:'0.85rem', color:'#9494b0' }}>
-                        {vendor._count?.products ?? 0}
-                      </span>
-                    </td>
-                    <td style={{ paddingRight:'1.25rem', textAlign:'right' }}>
-                      <div style={{ display:'flex', justifyContent:'flex-end', gap:'0.25rem' }}>
-                        <button className="btn btn-ghost btn-icon" onClick={()=>openEdit(vendor)} title="Edit"><Edit2 size={14}/></button>
-                        <button className="btn btn-danger btn-icon" onClick={()=>setDeleteId(vendor.id)} title="Delete"><Trash2 size={14}/></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div style={{ padding:'0.65rem 1.25rem', borderTop:'1px solid rgba(255,255,255,0.04)', fontSize:'0.75rem', color:'#55556e' }}>
-            Showing <span style={{ color:'#9494b0', fontWeight:600 }}>{filtered.length}</span> of <span style={{ color:'#9494b0', fontWeight:600 }}>{vendors.length}</span> vendors
-          </div>
-        </div>
-
-        {/* Add/Edit Modal */}
-        {isModalOpen && (
-          <div className="modal-overlay" onClick={closeModal}>
-            <div className="modal-box" onClick={e=>e.stopPropagation()}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1.5rem' }}>
-                <h2 style={{ fontSize:'1.05rem', fontWeight:700 }}>{editingVendor?'Edit':'Add'} Vendor</h2>
-                <button onClick={closeModal} className="btn btn-ghost btn-icon"><X size={16}/></button>
-              </div>
-              <form onSubmit={handleSubmit} style={{ display:'flex', flexDirection:'column', gap:'0.9rem' }}>
-                <div>
-                  <label className="f-label">Name <span style={{ color:'#f87171' }}>*</span></label>
-                  <input type="text" value={formData.name} onChange={e=>setFormData({...formData,name:e.target.value})} className="f-input" placeholder="Vendor name" required autoFocus />
-                </div>
-                <div>
-                  <label className="f-label">Website</label>
-                  <input type="url" value={formData.website} onChange={e=>setFormData({...formData,website:e.target.value})} className="f-input" placeholder="https://vendor.com" />
-                </div>
-                <div>
-                  <label className="f-label">Logo URL</label>
-                  <input type="url" value={formData.logo} onChange={e=>setFormData({...formData,logo:e.target.value})} className="f-input" placeholder="https://vendor.com/logo.png" />
-                  {formData.logo && (
-                    <div style={{ marginTop:'0.6rem', display:'flex', alignItems:'center', gap:'0.6rem' }}>
-                      <div className="logo-wrap"><Image src={formData.logo} alt="preview" width={40} height={40} style={{ objectFit:'cover', width:'100%', height:'100%' }} /></div>
-                      <span style={{ fontSize:'0.75rem', color:'#55556e' }}>Preview</span>
-                    </div>
-                  )}
-                </div>
-                <div style={{ display:'flex', justifyContent:'flex-end', gap:'0.65rem', marginTop:'0.5rem' }}>
-                  <button type="button" className="btn btn-ghost" onClick={closeModal}>Cancel</button>
-                  <button type="submit" className="btn btn-primary" disabled={loading}>{loading?'Saving…':editingVendor?'Update':'Create'}</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Delete confirm */}
-        {deleteId!==null && (
-          <div className="modal-overlay" onClick={()=>setDeleteId(null)}>
-            <div className="modal-box" style={{ maxWidth:380 }} onClick={e=>e.stopPropagation()}>
-              <div style={{ textAlign:'center', marginBottom:'1.25rem' }}>
-                <div style={{ width:48, height:48, borderRadius:'50%', background:'rgba(239,68,68,0.12)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 0.85rem' }}>
-                  <Trash2 size={20} color="#f87171" />
-                </div>
-                <h3 style={{ fontSize:'1rem', fontWeight:700, marginBottom:'0.4rem' }}>Delete vendor?</h3>
-                <p style={{ fontSize:'0.82rem', color:'#9494b0' }}>This will permanently remove the vendor. Products linked to them will be unaffected.</p>
-              </div>
-              <div style={{ display:'flex', gap:'0.65rem', justifyContent:'flex-end' }}>
-                <button className="btn btn-ghost" onClick={()=>setDeleteId(null)}>Cancel</button>
-                <button className="btn btn-danger" onClick={()=>handleDelete(deleteId)}>Delete</button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
-    </>
+
+      {/* Table */}
+      <div style={S.tableWrap}>
+        {loading ? (
+          <div style={S.loadCenter}>
+            <Loader2 size={22} style={{ animation: 'spin 1s linear infinite', color: '#55556e' }} />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div style={S.emptyState}>
+            <Store size={28} style={{ color: '#3a3a56', marginBottom: '0.6rem' }} />
+            <p style={{ color: '#55556e', fontSize: '0.84rem' }}>No applications match your filters</p>
+          </div>
+        ) : (
+          <table style={S.table}>
+            <thead>
+              <tr>
+                <th style={S.th}>Applicant</th>
+                <th style={S.th}>Store</th>
+                <th style={S.th}>Categories</th>
+                <th style={S.th}>Products</th>
+                <th style={S.th}>Applied</th>
+                <th style={S.th}>Status</th>
+                <th style={{ ...S.th, textAlign: 'right' as const }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(app => {
+                const meta = STATUS_META[app.status];
+                const isOpen = expanded === app.id;
+                const vendorStatus = app.vendor?.status;
+                const productCount = app.vendor?._count?.products ?? 0;
+
+                return (
+                  <>
+                    <tr key={app.id} style={S.tr} className="app-row" onClick={() => setExpanded(isOpen ? null : app.id)}>
+                      {/* Applicant */}
+                      <td style={S.td}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                          {app.user.image ? (
+                            <Image src={app.user.image} alt={app.user.name} width={34} height={34} style={S.avatar} />
+                          ) : (
+                            <div style={S.avatarFallback}>{app.user.name[0]?.toUpperCase()}</div>
+                          )}
+                          <div style={{ minWidth: 0 }}>
+                            <div style={S.userName}>{app.user.name}</div>
+                            <div style={S.userEmail}>{app.user.email}</div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Store */}
+                      <td style={S.td}>
+                        <div style={S.bizName}>{app.businessName}</div>
+                        <div style={S.bizSlug}>/vendors/{app.slug}</div>
+                      </td>
+
+                      {/* Categories */}
+                      <td style={S.td}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                          {app.productCategories.slice(0, 2).map(c => (
+                            <span key={c} style={S.catTag}>{c}</span>
+                          ))}
+                          {app.productCategories.length > 2 && (
+                            <span style={{ ...S.catTag, color: '#55556e', background: 'rgba(255,255,255,0.04)' }}>
+                              +{app.productCategories.length - 2}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Products */}
+                      <td style={S.td}>
+                        {app.vendor ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <Package size={13} style={{ color: productCount > 0 ? '#818cf8' : '#3a3a56' }} />
+                            <span style={{
+                              fontFamily: "'DM Mono', monospace",
+                              fontSize: '0.85rem',
+                              color: productCount > 0 ? '#e2e2f0' : '#3a3a56',
+                              fontWeight: 700,
+                            }}>
+                              {productCount}
+                            </span>
+                            {vendorStatus && (
+                              <span style={{
+                                ...S.vendorStatusBadge,
+                                background: VENDOR_STATUS_META[vendorStatus]?.bg ?? 'rgba(255,255,255,0.05)',
+                                color: VENDOR_STATUS_META[vendorStatus]?.color ?? '#9494b0',
+                              }}>
+                                {VENDOR_STATUS_META[vendorStatus]?.label ?? vendorStatus}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span style={{ color: '#3a3a56', fontSize: '0.78rem' }}>—</span>
+                        )}
+                      </td>
+
+                      {/* Date */}
+                      <td style={S.td}>
+                        <span style={{ fontSize: '0.78rem', color: '#55556e' }}>
+                          {new Date(app.createdAt).toLocaleDateString('en-GB', {
+                            day: 'numeric', month: 'short', year: 'numeric',
+                          })}
+                        </span>
+                      </td>
+
+                      {/* Status */}
+                      <td style={S.td}>
+                        <span style={{ ...S.statusBadge, background: meta.bg, color: meta.color, borderColor: meta.border }}>
+                          {meta.icon} {meta.label}
+                        </span>
+                      </td>
+
+                      {/* Actions */}
+                      <td style={{ ...S.td, textAlign: 'right' as const }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.3rem' }}>
+                          {app.status === 'PENDING' && (
+                            <>
+                              <button style={S.approveBtn} onClick={() => { setReviewModal({ id: app.id, action: 'approve' }); setReviewNote(''); }}>
+                                <CheckCircle2 size={12} /> Approve
+                              </button>
+                              <button style={S.rejectBtn} onClick={() => { setReviewModal({ id: app.id, action: 'reject' }); setReviewNote(''); }}>
+                                <XCircle size={12} /> Reject
+                              </button>
+                            </>
+                          )}
+
+                          {/* Vendor management actions — only for approved vendors */}
+                          {app.vendor && app.status === 'APPROVED' && (
+                            <>
+                              <a href={`/vendors/${app.vendor.slug}`} target="_blank" style={S.iconBtn} title="View storefront">
+                                <Eye size={13} />
+                              </a>
+                              {vendorStatus === 'SUSPENDED' ? (
+                                <button style={{ ...S.iconBtn, color: '#34d399', borderColor: 'rgba(16,185,129,0.2)' }}
+                                  title="Reinstate vendor"
+                                  onClick={() => { setActionModal({ vendorId: app.vendor!.id, vendorName: app.businessName, action: 'unsuspend' }); setActionNote(''); }}>
+                                  <ShieldCheck size={13} />
+                                </button>
+                              ) : (
+                                <button style={{ ...S.iconBtn, color: '#fbbf24', borderColor: 'rgba(245,158,11,0.2)' }}
+                                  title="Suspend vendor"
+                                  onClick={() => { setActionModal({ vendorId: app.vendor!.id, vendorName: app.businessName, action: 'suspend' }); setActionNote(''); }}>
+                                  <ShieldOff size={13} />
+                                </button>
+                              )}
+                              <button style={{ ...S.iconBtn, color: '#f87171', borderColor: 'rgba(239,68,68,0.15)' }}
+                                title="Delete vendor"
+                                onClick={() => { setActionModal({ vendorId: app.vendor!.id, vendorName: app.businessName, action: 'delete' }); setActionNote(''); }}>
+                                <Trash2 size={13} />
+                              </button>
+                            </>
+                          )}
+
+                          <button style={{ ...S.iconBtn, marginLeft: '0.1rem' }}>
+                            {isOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* Expanded detail row */}
+                    {isOpen && (
+                      <tr key={`${app.id}-detail`}>
+                        <td colSpan={7} style={{ padding: 0 }}>
+                          <div style={S.detailPanel}>
+                            <div style={S.detailGrid}>
+                              {app.description && (
+                                <div>
+                                  <div style={S.detailLabel}>Description</div>
+                                  <p style={S.detailText}>{app.description}</p>
+                                </div>
+                              )}
+                              {app.pitchNote && (
+                                <div>
+                                  <div style={S.detailLabel}>Why Hustlecare?</div>
+                                  <p style={S.detailText}>{app.pitchNote}</p>
+                                </div>
+                              )}
+                              <div>
+                                <div style={S.detailLabel}>Contact</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                  {app.website && (
+                                    <a href={app.website} target="_blank" rel="noopener noreferrer"
+                                      style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#818cf8', fontSize: '0.82rem', textDecoration: 'none' }}>
+                                      <Globe size={12} /> {app.website.replace(/^https?:\/\//, '')}
+                                    </a>
+                                  )}
+                                  {app.location && <span style={{ fontSize: '0.82rem', color: '#9494b0' }}>{app.location}</span>}
+                                  {app.phone && <span style={{ fontSize: '0.82rem', color: '#9494b0' }}>{app.phone}</span>}
+                                </div>
+                              </div>
+                              {app.reviewNote && (
+                                <div>
+                                  <div style={S.detailLabel}>Admin Note</div>
+                                  <p style={{
+                                    ...S.detailText,
+                                    color: app.status === 'REJECTED' ? '#f87171' : '#34d399',
+                                  }}>
+                                    {app.reviewNote}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+        <div style={S.tableFooter}>
+          Showing <strong style={{ color: '#9494b0' }}>{filtered.length}</strong> of{' '}
+          <strong style={{ color: '#9494b0' }}>{applications.length}</strong> applications
+        </div>
+      </div>
+
+      {/* Approve/Reject modal */}
+      {reviewModal && (
+        <div style={S.overlay} onClick={() => setReviewModal(null)}>
+          <div style={S.modal} onClick={e => e.stopPropagation()}>
+            <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+              <div style={{
+                width: 52, height: 52, borderRadius: '50%', margin: '0 auto 0.85rem',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: reviewModal.action === 'approve' ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
+              }}>
+                {reviewModal.action === 'approve'
+                  ? <CheckCircle2 size={24} color="#34d399" />
+                  : <XCircle size={24} color="#f87171" />}
+              </div>
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#f0f0f5', marginBottom: '0.35rem' }}>
+                {reviewModal.action === 'approve' ? 'Approve Application' : 'Reject Application'}
+              </h3>
+              <p style={{ fontSize: '0.8rem', color: '#9494b0', lineHeight: 1.6 }}>
+                {reviewModal.action === 'approve'
+                  ? 'Creates the vendor profile and grants vendor access immediately.'
+                  : 'The applicant can reapply with updated information.'}
+              </p>
+            </div>
+            <div style={{ marginBottom: '1.25rem' }}>
+              <label style={S.modalLabel}>
+                Note to applicant <span style={{ fontWeight: 400, color: '#3a3a56' }}>(optional)</span>
+              </label>
+              <textarea style={S.modalTextarea} rows={3}
+                placeholder={reviewModal.action === 'approve' ? 'Welcome message…' : 'Reason for rejection…'}
+                value={reviewNote} onChange={e => setReviewNote(e.target.value)} />
+            </div>
+            <div style={{ display: 'flex', gap: '0.65rem', justifyContent: 'flex-end' }}>
+              <button style={S.cancelBtn} onClick={() => setReviewModal(null)}>Cancel</button>
+              <button style={{
+                ...S.confirmBtn,
+                background: reviewModal.action === 'approve'
+                  ? 'linear-gradient(135deg, #10b981, #059669)'
+                  : 'rgba(239,68,68,0.15)',
+                color: reviewModal.action === 'approve' ? '#fff' : '#f87171',
+                boxShadow: reviewModal.action === 'approve' ? '0 4px 14px rgba(16,185,129,0.25)' : 'none',
+              }} onClick={handleReview} disabled={submitting}>
+                {submitting && <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />}
+                {reviewModal.action === 'approve' ? 'Approve Vendor' : 'Reject Application'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Suspend/Delete vendor modal */}
+      {actionModal && (
+        <div style={S.overlay} onClick={() => setActionModal(null)}>
+          <div style={S.modal} onClick={e => e.stopPropagation()}>
+            <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+              <div style={{
+                width: 52, height: 52, borderRadius: '50%', margin: '0 auto 0.85rem',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: actionModal.action === 'delete'
+                  ? 'rgba(239,68,68,0.12)'
+                  : actionModal.action === 'suspend'
+                    ? 'rgba(245,158,11,0.12)'
+                    : 'rgba(16,185,129,0.12)',
+              }}>
+                {actionModal.action === 'delete' && <Trash2 size={22} color="#f87171" />}
+                {actionModal.action === 'suspend' && <ShieldOff size={22} color="#fbbf24" />}
+                {actionModal.action === 'unsuspend' && <ShieldCheck size={22} color="#34d399" />}
+              </div>
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#f0f0f5', marginBottom: '0.35rem' }}>
+                {actionModal.action === 'delete' && `Delete "${actionModal.vendorName}"?`}
+                {actionModal.action === 'suspend' && `Suspend "${actionModal.vendorName}"?`}
+                {actionModal.action === 'unsuspend' && `Reinstate "${actionModal.vendorName}"?`}
+              </h3>
+              <p style={{ fontSize: '0.8rem', color: '#9494b0', lineHeight: 1.6 }}>
+                {actionModal.action === 'delete' && 'The vendor profile will be permanently removed. Their products will be archived. This cannot be undone.'}
+                {actionModal.action === 'suspend' && 'The vendor\'s storefront and products will be hidden from the marketplace. They cannot add new products.'}
+                {actionModal.action === 'unsuspend' && 'The vendor\'s storefront and active products will be restored to the marketplace.'}
+              </p>
+            </div>
+
+            {actionModal.action !== 'unsuspend' && (
+              <div style={{ marginBottom: '1.25rem' }}>
+                <label style={S.modalLabel}>
+                  {actionModal.action === 'suspend' ? 'Reason for suspension' : 'Note'}
+                  {actionModal.action === 'suspend' && <span style={{ color: '#f87171' }}> *</span>}
+                  {actionModal.action === 'delete' && <span style={{ fontWeight: 400, color: '#3a3a56' }}> (optional)</span>}
+                </label>
+                <textarea style={S.modalTextarea} rows={3}
+                  placeholder={actionModal.action === 'suspend'
+                    ? 'Explain why this vendor is being suspended…'
+                    : 'Any notes about this deletion…'}
+                  value={actionNote} onChange={e => setActionNote(e.target.value)} />
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '0.65rem', justifyContent: 'flex-end' }}>
+              <button style={S.cancelBtn} onClick={() => setActionModal(null)}>Cancel</button>
+              <button style={{
+                ...S.confirmBtn,
+                background: actionModal.action === 'unsuspend'
+                  ? 'linear-gradient(135deg, #10b981, #059669)'
+                  : actionModal.action === 'suspend'
+                    ? 'rgba(245,158,11,0.15)'
+                    : 'rgba(239,68,68,0.15)',
+                color: actionModal.action === 'unsuspend' ? '#fff'
+                  : actionModal.action === 'suspend' ? '#fbbf24' : '#f87171',
+              }}
+                onClick={handleVendorAction}
+                disabled={actionSubmitting || (actionModal.action === 'suspend' && !actionNote.trim())}>
+                {actionSubmitting && <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />}
+                {actionModal.action === 'delete' && 'Delete Vendor'}
+                {actionModal.action === 'suspend' && 'Suspend Vendor'}
+                {actionModal.action === 'unsuspend' && 'Reinstate Vendor'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
+
+const CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap');
+  @keyframes spin { to { transform: rotate(360deg); } }
+  a { text-decoration: none; color: inherit; }
+  .app-row { cursor: pointer; }
+  .app-row:hover td { background: rgba(255,255,255,0.02) !important; }
+`;
+
+const S: Record<string, React.CSSProperties> = {
+  page: { fontFamily: "'DM Sans', sans-serif", color: '#f0f0f5', minHeight: '100vh' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' },
+  h1: { fontSize: '1.75rem', fontWeight: 700, letterSpacing: '-0.03em', marginBottom: '0.2rem' },
+  subtitle: { fontSize: '0.83rem', color: '#55556e' },
+  statsStrip: { display: 'flex', gap: '0.65rem', marginBottom: '1.25rem', flexWrap: 'wrap' },
+  statPill: { display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.45rem 1rem', borderRadius: 100, background: '#13131a', border: '1px solid rgba(255,255,255,0.07)' },
+  statValue: { fontFamily: "'DM Mono', monospace", fontSize: '1.1rem', fontWeight: 700 },
+  statLabel: { fontSize: '0.75rem', color: '#55556e' },
+  toolbar: { display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.75rem', flexWrap: 'wrap' },
+  tabGroup: { display: 'flex', gap: '0.2rem', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '0.2rem' },
+  tab: { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.85rem', borderRadius: 7, border: 'none', background: 'transparent', color: '#55556e', fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif", cursor: 'pointer', fontWeight: 500, transition: 'all 0.15s', whiteSpace: 'nowrap' },
+  tabActive: { background: 'rgba(245,158,11,0.1)', color: '#fbbf24', borderColor: 'rgba(245,158,11,0.2)' },
+  tabCount: { padding: '0.08rem 0.4rem', borderRadius: 100, fontSize: '0.68rem', fontWeight: 700 },
+  searchInput: { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 9, padding: '0.48rem 0.85rem 0.48rem 2.1rem', color: '#f0f0f5', fontFamily: "'DM Sans', sans-serif", fontSize: '0.82rem', outline: 'none', width: 220 },
+  tableWrap: { background: '#13131a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' },
+  table: { width: '100%', borderCollapse: 'collapse' },
+  th: { padding: '0.65rem 1rem', textAlign: 'left' as const, fontSize: '0.7rem', fontWeight: 700, color: '#55556e', textTransform: 'uppercase' as const, letterSpacing: '0.08em', borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#13131a', whiteSpace: 'nowrap' as const },
+  td: { padding: '0.85rem 1rem', borderBottom: '1px solid rgba(255,255,255,0.04)', verticalAlign: 'middle' },
+  tr: { transition: 'background 0.15s' },
+  loadCenter: { display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '3rem' },
+  emptyState: { textAlign: 'center' as const, padding: '3rem', color: '#55556e' },
+  tableFooter: { padding: '0.65rem 1.1rem', borderTop: '1px solid rgba(255,255,255,0.04)', fontSize: '0.75rem', color: '#55556e' },
+  avatar: { width: 34, height: 34, borderRadius: '50%', objectFit: 'cover' as const, flexShrink: 0 },
+  avatarFallback: { width: 34, height: 34, borderRadius: '50%', background: 'rgba(245,158,11,0.1)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.84rem', fontWeight: 700, flexShrink: 0 },
+  userName: { fontSize: '0.84rem', fontWeight: 600, color: '#f0f0f5', whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 160 },
+  userEmail: { fontSize: '0.72rem', color: '#55556e', whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 160 },
+  bizName: { fontSize: '0.86rem', fontWeight: 700, color: '#e2e2f0', marginBottom: '0.1rem' },
+  bizSlug: { fontSize: '0.7rem', color: '#55556e', fontFamily: "'DM Mono', monospace" },
+  catTag: { display: 'inline-flex', padding: '0.15rem 0.5rem', borderRadius: 100, fontSize: '0.68rem', fontWeight: 700, background: 'rgba(99,102,241,0.1)', color: '#818cf8' },
+  vendorStatusBadge: { display: 'inline-flex', padding: '0.12rem 0.45rem', borderRadius: 100, fontSize: '0.66rem', fontWeight: 700, marginLeft: '0.25rem' },
+  statusBadge: { display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.22rem 0.65rem', borderRadius: 100, fontSize: '0.72rem', fontWeight: 700, border: '1px solid' },
+  approveBtn: { display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.3rem 0.65rem', borderRadius: 7, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#34d399', fontSize: '0.74rem', fontFamily: "'DM Sans', sans-serif", cursor: 'pointer', fontWeight: 600 },
+  rejectBtn: { display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.3rem 0.65rem', borderRadius: 7, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)', color: '#f87171', fontSize: '0.74rem', fontFamily: "'DM Sans', sans-serif", cursor: 'pointer', fontWeight: 600 },
+  iconBtn: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 7, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', color: '#9494b0', cursor: 'pointer', textDecoration: 'none', transition: 'all 0.15s' },
+  detailPanel: { padding: '1rem 1.1rem', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' },
+  detailGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem' },
+  detailLabel: { fontSize: '0.68rem', fontWeight: 700, color: '#55556e', textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: '0.35rem' },
+  detailText: { fontSize: '0.82rem', color: '#9494b0', lineHeight: 1.6, margin: 0 },
+  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', backdropFilter: 'blur(4px)' },
+  modal: { background: '#1a1a24', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 16, padding: '1.75rem', width: '100%', maxWidth: 440, boxShadow: '0 24px 80px rgba(0,0,0,0.6)' },
+  modalLabel: { display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#9494b0', marginBottom: '0.35rem', textTransform: 'uppercase' as const, letterSpacing: '0.06em' },
+  modalTextarea: { width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 8, padding: '0.65rem 0.85rem', color: '#f0f0f5', fontFamily: "'DM Sans', sans-serif", fontSize: '0.84rem', outline: 'none', resize: 'none' as const, lineHeight: 1.6 },
+  cancelBtn: { padding: '0.55rem 1.1rem', borderRadius: 9, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.09)', color: '#9494b0', fontSize: '0.84rem', fontFamily: "'DM Sans', sans-serif", cursor: 'pointer' },
+  confirmBtn: { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1.25rem', borderRadius: 9, fontSize: '0.84rem', fontFamily: "'DM Sans', sans-serif", fontWeight: 700, border: 'none', cursor: 'pointer' },
+};

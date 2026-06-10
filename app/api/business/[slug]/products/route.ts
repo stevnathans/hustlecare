@@ -1,5 +1,5 @@
 // app/api/business/[slug]/products/route.ts
-// Returns all products for every active requirement of a business in one query.
+// Returns all ACTIVE products for every active requirement of a business in one query.
 // Response shape: Record<templateId, Product[]>
 // The client maps templateId → requirement name using the requirements it already has.
 
@@ -26,7 +26,10 @@ export async function GET(
               select: {
                 id: true,
                 products: {
-                  where: { price: { not: null } },
+                  where: {
+                    status: 'ACTIVE',        // ← only approved products
+                    price:  { not: null },
+                  },
                   select: {
                     id: true,
                     name: true,

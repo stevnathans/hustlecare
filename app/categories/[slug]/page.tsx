@@ -1,3 +1,4 @@
+//app/categories/[slug]/page.tsx
 'use client';
 import { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';

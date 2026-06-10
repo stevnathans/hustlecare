@@ -1,11 +1,8 @@
 // types/next-auth.d.ts
-import NextAuth from "next-auth";
+import NextAuth, { DefaultSession } from "next-auth";
 import type { StaticImport } from 'next/image';
 
 declare module "next-auth" {
-  /**
-   * Returned by `useSession`, `getSession` and received as a prop on the `SessionProvider` React Context
-   */
   interface Session {
     user: {
       image: string | StaticImport;
@@ -13,19 +10,27 @@ declare module "next-auth" {
       id: string;
       email: string;
       phone?: string | null;
-    } & DefaultSession['user'];
+      role: string;
+      vendorId?: number | null;
+    } & DefaultSession["user"];
   }
 
-  /**
-   * The shape of the user object returned in the OAuth providers' `profile` callback,
-   * or the second parameter of the `session` callback
-   */
   interface User {
     id: string;
     email: string;
     phone?: string | null;
+    role?: string;
+    vendorId?: number | null;
   }
 }
 
-// This exports the types so they can be used elsewhere
+declare module "next-auth/jwt" {
+  interface JWT {
+    id: string;
+    role: string;
+    isActive?: boolean;
+    vendorId?: number | null;
+  }
+}
+
 export default NextAuth;

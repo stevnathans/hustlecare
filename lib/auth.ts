@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// lib/auth.ts - PRODUCTION VERSION with Robust Error Handling
+// lib/auth.ts
 import { getServerSession } from "next-auth";
 import type { NextAuthOptions, User, Session } from 'next-auth';
 import type { JWT } from 'next-auth/jwt';
@@ -72,22 +72,22 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async signIn({ user, account, profile }) {
       console.log("🔐 SIGN IN CALLBACK - Provider:", account?.provider);
-      
+
       if (account?.provider === "google") {
         const email = user.email || profile?.email;
-        
+
         if (!email) {
           console.error("❌ No email from Google");
           return false;
         }
 
-        // Set defaults in case database operations fail
+        // Safe defaults in case DB operations fail
         (user as any).role = 'user';
-        
+        (user as any).vendorId = null;
+
         try {
           console.log("📊 Attempting database operations for:", email);
-          
-          // Try to find or create user
+
           const dbUser = await prisma.user.upsert({
             where: { email },
             update: {
@@ -107,15 +107,14 @@ export const authOptions: NextAuthOptions = {
               marketingEmails: true,
             },
           });
-          
+
           console.log("✅ User upserted:", dbUser.id);
-          
+
           if (!dbUser.isActive) {
             console.error("❌ Account is inactive");
             return false;
           }
-          
-          // Try to link account
+
           await prisma.account.upsert({
             where: {
               provider_providerAccountId: {
@@ -142,69 +141,88 @@ export const authOptions: NextAuthOptions = {
               refresh_token: account.refresh_token,
             },
           });
-          
+
           console.log("✅ Account linked");
-          
-          // Store user data for JWT
+
           user.id = dbUser.id;
           (user as any).role = dbUser.role;
-          
+
+          // Fetch vendorId if this user is an approved vendor
+          if (dbUser.role === 'vendor') {
+            const vendor = await prisma.vendor.findUnique({
+              where: { userId: dbUser.id },
+              select: { id: true },
+            });
+            (user as any).vendorId = vendor?.id ?? null;
+          }
+
           console.log("✅ Sign in successful with database");
           return true;
-          
+
         } catch (error) {
           console.error("⚠️ Database operation failed:", error);
           console.error("Error details:", (error as Error).message);
-          console.log("⚠️ Continuing with JWT-only session (database operations failed)");
-          
-          // Allow sign-in even if database fails
-          // User will have a JWT-based session but won't be in database
-          // This is better than complete authentication failure
-          return true;
+          return true; // Allow sign-in even if DB fails — JWT-only session
         }
       }
-      
+
       return true;
     },
-    
+
     async jwt({ token, user, account }) {
+      // On initial sign-in, seed from the user object
       if (user) {
         token.id = user.id;
         token.email = user.email;
         token.name = user.name;
         token.image = user.image;
         token.role = (user as any).role || 'user';
+        token.vendorId = (user as any).vendorId ?? null;
       }
 
-      // Refresh user data from database on each request
+      // On every request, refresh from DB so role/vendorId changes take effect
+      // without the user needing to sign out and back in.
       if (token.email) {
         try {
           const dbUser = await prisma.user.findUnique({
             where: { email: token.email as string },
-            select: { id: true, role: true, isActive: true, name: true, image: true, email: true }
+            select: {
+              id: true,
+              role: true,
+              isActive: true,
+              name: true,
+              image: true,
+              email: true,
+              vendorProfile: { select: { id: true } },
+            },
           });
 
           if (dbUser) {
             token.id = dbUser.id;
             token.role = dbUser.role as any;
             token.isActive = dbUser.isActive;
+            // Keep vendorId in sync — critical so the vendor dashboard
+            // knows which vendor record belongs to the logged-in user.
+            token.vendorId = dbUser.vendorProfile?.id ?? null;
           }
         } catch (error) {
           console.error("⚠️ Error fetching user in JWT callback:", error);
-          // Continue with existing token data if database query fails
+          // Continue with existing token data if DB query fails
         }
       }
-      
+
       return token;
     },
-    
+
     async session({ session, token }) {
       if (token && session.user) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as any || 'user';
-        session.user.name = token.name as string || '';
-        session.user.email = token.email as string || '';
-        session.user.image = token.image as string || '';
+        const user = session.user as any;
+        user.id = token.id as string;
+        user.role = (token.role as any) || 'user';
+        user.name = (token.name as string) || '';
+        user.email = (token.email as string) || '';
+        user.image = (token.image as string) || '';
+        user.vendorId = token.vendorId as number | null | undefined;
       }
       return session;
     },

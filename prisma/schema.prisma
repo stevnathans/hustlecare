@@ -37,6 +37,9 @@ model User {
   searches           SearchLog[]
   sessions           Session[]
   sharedBusinesses   SharedBusiness[]
+  requirementSuggestions  RequirementSuggestion[]
+  vendorProfile           Vendor?
+  vendorApplication       VendorApplication?
 
   @@index([email])
   @@index([role])
@@ -227,24 +230,65 @@ model Comment {
 }
 
 model Product {
-  id          Int                  @id @default(autoincrement())
-  name        String
-  description String?
-  price       Float?
-  image       String?
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
-  vendorId    Int?
-  url         String?
-  templateId  Int?
-  cartItems   CartItem[]
-  template    RequirementTemplate? @relation(fields: [templateId], references: [id])
-  vendor      Vendor?              @relation(fields: [vendorId], references: [id])
-  reviews     Review[]
+  id            Int                   @id @default(autoincrement())
+  name          String
+  description   String?
+  price         Float?
+  image         String?
+  url           String?
+
+  // ── Ownership ─────────────────────────────────────────────
+  vendorId      Int?
+
+  // ── Requirement linking ───────────────────────────────────
+  // A product is listed under ONE requirement template.
+  // This is how it appears in the marketplace filtered by requirement.
+  templateId    Int?
+
+  // ── Marketplace discovery ─────────────────────────────────
+  // Denormalised business tags so marketplace queries stay fast.
+  // Populated from the BusinessRequirement links of the templateId,
+  // but vendors can also explicitly tag additional businesses.
+  businessTags  Int[]                 // array of Business.id
+
+  // ── Moderation ────────────────────────────────────────────
+  status        ProductStatus         @default(PENDING_REVIEW)
+  rejectedAt    DateTime?
+  rejectReason  String?
+  publishedAt   DateTime?
+
+  // ── Product details ───────────────────────────────────────
+  sku           String?               // vendor's own SKU
+  stock         Int?                  // null = unlimited / not tracked
+  priceMin      Float?                // for products with price ranges
+  priceMax      Float?
+  currency      String?               @default("KES")
+
+  // ── Metadata ──────────────────────────────────────────────
+  isFeatured    Boolean               @default(false)
+  featuredAt    DateTime?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  // ── Relations ─────────────────────────────────────────────
+  vendor        Vendor?               @relation(fields: [vendorId], references: [id])
+  template      RequirementTemplate?  @relation(fields: [templateId], references: [id])
+  cartItems     CartItem[]
+  reviews       Review[]
 
   @@index([vendorId])
   @@index([templateId])
+  @@index([status])
   @@index([name])
+  @@index([isFeatured])
+}
+
+enum ProductStatus {
+  DRAFT           // vendor saved but not submitted
+  PENDING_REVIEW  // submitted, awaiting admin approval
+  ACTIVE          // approved and visible in marketplace
+  REJECTED        // admin rejected — vendor can edit and resubmit
+  ARCHIVED        // vendor manually unlisted
 }
 
 model Review {
@@ -265,17 +309,164 @@ model Review {
 }
 
 model Vendor {
-  id        Int       @id @default(autoincrement())
-  name      String
-  website   String?
-  logo      String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  products  Product[]
+  id            Int       @id @default(autoincrement())
+
+  // ── Identity / ownership ──────────────────────────────────
+  userId        String?   @unique
+  name          String
+  // NOTE: @default("") lets Prisma generate the column without
+  // crashing on existing rows. After the migration runs
+  // successfully, remove @default("") and run
+  // `prisma migrate dev --name remove_slug_default`
+  // By then all rows will have real slugs from the backfill SQL.
+  slug          String    @unique @default("")
+
+  // ── Profile ───────────────────────────────────────────────
+  tagline       String?
+  description   String?
+  website       String?
+  logo          String?
+  coverImage    String?
+  location      String?
+  phone         String?
+
+  // ── Social links ──────────────────────────────────────────
+  twitterUrl    String?
+  instagramUrl  String?
+  facebookUrl   String?
+  linkedinUrl   String?
+
+  // ── Status & moderation ───────────────────────────────────
+  status        VendorStatus  @default(ACTIVE)
+  isVerified    Boolean       @default(false)
+  verifiedAt    DateTime?
+  suspendedAt   DateTime?
+  suspendReason String?
+
+  // ── Metadata ──────────────────────────────────────────────
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // ── Relations ─────────────────────────────────────────────
+  user          User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  products      Product[]
+  application   VendorApplication?
+  analytics     VendorAnalytics[]
 
   @@unique([name, website])
+  @@index([slug])
+  @@index([status])
+  @@index([userId])
   @@index([name])
 }
+
+enum VendorStatus {
+  PENDING     // applied, awaiting admin approval
+  ACTIVE      // approved and live
+  SUSPENDED   // temporarily disabled by admin
+  REJECTED    // application rejected
+}
+
+model VendorApplication {
+  id              Int                   @id @default(autoincrement())
+  userId          String                @unique
+  vendorId        Int?                  @unique   // set once vendor record is created
+
+  // Application form data
+  businessName    String
+  slug            String                          // desired slug — admin can edit before approval
+  tagline         String?
+  description     String?
+  website         String?
+  logo            String?
+  coverImage      String?
+  location        String?
+  phone           String?
+  twitterUrl      String?
+  instagramUrl    String?
+  facebookUrl     String?
+  linkedinUrl     String?
+
+  // What they plan to sell — helps admin review
+  productCategories  String[]                     // e.g. ["Equipment", "Software"]
+  businessTypes      String[]                     // business slugs they'll serve, e.g. ["car-wash"]
+  pitchNote          String?                      // "Why do you want to be a vendor on Hustlecare?"
+
+  // Status tracking
+  status          ApplicationStatus     @default(PENDING)
+  reviewedAt      DateTime?
+  reviewedBy      String?               // admin userId
+  reviewNote      String?               // admin's note to applicant
+
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vendor          Vendor?               @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([userId])
+}
+
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model RequirementSuggestion {
+  id              Int                   @id @default(autoincrement())
+  suggestedById   String                // User.id
+  suggestedByRole String                // "vendor" | "user" — snapshot at time of suggestion
+
+  // Proposed template data
+  name            String
+  description     String?
+  category        String
+  necessity       String                @default("Required")  // "Required" | "Optional"
+  image           String?
+
+  // Context: which business(es) this is relevant for
+  businessIds     Int[]                 // suggested Business.id values
+
+  // Admin review
+  status          SuggestionStatus      @default(PENDING)
+  reviewedAt      DateTime?
+  reviewedBy      String?               // admin userId
+  reviewNote      String?
+  createdTemplateId Int?                // set when admin approves and creates the template
+
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  suggestedBy     User                  @relation(fields: [suggestedById], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([suggestedById])
+}
+
+enum SuggestionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model VendorAnalytics {
+  id              Int       @id @default(autoincrement())
+  vendorId        Int
+  date            DateTime  @db.Date  // one row per vendor per day
+  profileViews    Int       @default(0)
+  productClicks   Int       @default(0)
+  cartAdds        Int       @default(0)
+
+  vendor          Vendor    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@unique([vendorId, date])
+  @@index([vendorId])
+  @@index([date])
+}
+
+
 
 model SearchLog {
   id          String    @id @default(uuid())
