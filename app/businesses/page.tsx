@@ -160,6 +160,7 @@ export default async function BusinessesPage() {
       {
         "@type": "FAQPage",
         "@id": `${PAGE_URL}#faq`,
+        "mainEntityOfPage": { "@id": `${PAGE_URL}#page` },
         mainEntity: [
           {
             "@type": "Question",

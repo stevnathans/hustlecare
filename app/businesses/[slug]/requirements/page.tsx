@@ -1,4 +1,4 @@
-// app/business/[slug]/requirements/page.tsx
+// app/businesses/[slug]/requirements/page.tsx
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import BusinessPageContent from './BusinessPageContent';
@@ -14,7 +14,22 @@ async function fetchBusinessWithRequirements(slug: string) {
   const business = await prisma.business.findUnique({
     where: { slug },
     include: {
-      requirements: { select: { id: true } },
+      requirements: {
+        select: {
+          id: true,
+          templateId: true,
+          necessityOverride: true,
+          descriptionOverride: true,
+          template: {
+            select: {
+              name: true,
+              description: true,
+              category: true,
+              necessity: true,
+            },
+          },
+        },
+      },
     },
   });
   return business;
@@ -51,7 +66,7 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
     `Explore all ${requirementCount} requirements to start a ${business.name} business in Kenya. Use our cost calculator to estimate your total investment and get a complete launch plan.`;
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
-  const pageUrl = `${siteUrl}/business/${slug}`;
+  const pageUrl = `${siteUrl}/businesses/${slug}/requirements`;
   const ogImage = business.image || `${siteUrl}/images/default-business.jpg`;
 
   return {
@@ -61,9 +76,12 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
       `how to start a ${business.name} business`,
       `how to start a ${business.name} business in Kenya`,
       `${business.name} business requirements`,
-      `${business.name} startup cost`,
+      `${business.name} business equipment list`,
       `${business.name} startup cost in Kenya`,
       `${business.name} cost calculator`,
+      `${business.name} business plan`,
+      `equipment list to start a ${business.name} business`,
+      `legal requirements to start a ${business.name} business in Kenya`,
       'business planning Kenya',
       'investment calculator',
       'business requirements checklist',
@@ -79,7 +97,7 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
       url: pageUrl,
       siteName: 'HustleCare',
       type: 'article',
-      locale: 'en_US',
+      locale: 'en_KE',
       images: [
         {
           url: ogImage,
@@ -146,9 +164,10 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
     notFound();
   }
 
-  const requirementCount = business.requirements?.length ?? 0;
+  const requirements = business.requirements ?? [];
+  const requirementCount = requirements.length;
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
-  const pageUrl = `${siteUrl}/business/${slug}`;
+  const pageUrl = `${siteUrl}/businesses/${slug}/requirements`;
   const ogImage = business.image || `${siteUrl}/images/default-business.jpg`;
   const title = buildTitle(business.name, requirementCount);
   const description =
@@ -163,6 +182,45 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   //
   // We use a @graph array so all nodes share a single <script> tag and Google can
   // understand their relationships.
+  //
+  // Requirements are typed as "Thing" (not "Product") — they are prerequisites
+  // for starting a business, not purchasable items. Using "Product" here caused
+  // Google Search Console to flag missing required Product fields (offers, price).
+
+  // Group requirements by category for the ItemList, preserving insertion order.
+  const categoryMap = new Map<string, typeof requirements>();
+  for (const req of requirements) {
+    const cat = req.template.category ?? 'General';
+    if (!categoryMap.has(cat)) categoryMap.set(cat, []);
+    categoryMap.get(cat)!.push(req);
+  }
+
+  // Build a flat, sequentially-numbered list of all requirements across categories.
+  let position = 1;
+  const requirementListItems = requirements.map((req) => ({
+  '@type': 'ListItem',
+  position: position++,
+  item: {
+    '@type': 'Thing',
+    name: req.template.name,
+    description:
+      req.descriptionOverride ||
+      req.template.description ||
+      `${req.template.name} required to start a ${business.name} business`,
+    additionalProperty: [
+      {
+        '@type': 'PropertyValue',
+        name: 'category',
+        value: req.template.category ?? 'General',
+      },
+      {
+        '@type': 'PropertyValue',
+        name: 'necessity',
+        value: req.necessityOverride ?? req.template.necessity,
+      },
+    ],
+  },
+}));
 
   const structuredData = {
     '@context': 'https://schema.org',
@@ -229,9 +287,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
         ].join(', '),
       },
 
-      // 3. Service — describes Hustlecare's startup-guide service for this business
-      //    (previously emitted from BusinessHeader.tsx, a client component where
-      //    it was not reliably seen by crawlers)
+      // 3. Service — describes HustleCare's startup-guide service for this business
       {
         '@type': 'Service',
         '@id': `${pageUrl}#service`,
@@ -249,6 +305,28 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
         },
         url: pageUrl,
       },
+
+      // 4. ItemList — the flat list of all requirements as "Thing" nodes.
+      //
+      //    Previously this was generated client-side in RequirementsSection.tsx
+      //    with "@type": "Product", which caused two problems:
+      //      a) Google flagged missing Product-required fields (offers, price, etc.)
+      //      b) Client components inject <script> after hydration, so crawlers
+      //         may not see the schema in the initial HTML response.
+      //
+      //    Moving it here (server component) and typing items as "Thing" fixes both.
+      ...(requirementListItems.length > 0
+        ? [
+            {
+              '@type': 'ItemList',
+              '@id': `${pageUrl}#requirements`,
+              name: `Complete Requirements for Starting a ${business.name} Business`,
+              description: `All ${requirementCount} requirements needed to start a ${business.name} business in Kenya, covering essential and optional items.`,
+              numberOfItems: requirementCount,
+              itemListElement: requirementListItems,
+            },
+          ]
+        : []),
     ],
   };
 

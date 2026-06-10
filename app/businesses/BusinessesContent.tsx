@@ -1,10 +1,16 @@
-'use client';
+"use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import BusinessCard from "@/components/business/BusinessCards";
 import Link from "next/link";
-import { X, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  X,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -41,7 +47,8 @@ interface Business {
 
 const FAQ_ITEMS = [
   {
-    question: "What are the most profitable small businesses to start in Kenya?",
+    question:
+      "What are the most profitable small businesses to start in Kenya?",
     answer:
       "Some of the most profitable businesses in Kenya include M-Pesa agencies, cereals shops, fresh produce delivery, salon & barbershops, poultry farming, boda boda logistics, and online retail. Profitability depends on your location, capital, and target market.",
   },
@@ -56,7 +63,8 @@ const FAQ_ITEMS = [
       "Yes. In Kenya you must register with the Business Registration Service (BRS) under the Companies Act or Business Names Act. You'll also need a Single Business Permit (SBP) from your county government, and depending on your industry, sector-specific licences (e.g., KEBS, NEMA, PPB).",
   },
   {
-    question: "What government support is available for small businesses in Kenya?",
+    question:
+      "What government support is available for small businesses in Kenya?",
     answer:
       "Key support programmes include: the Hustler Fund (low-interest mobile loans), Youth Enterprise Development Fund (YEDF), Women Enterprise Fund (WEF), and NG-CDF grants. Kenya Revenue Authority (KRA) also offers simplified tax regimes such as the Turnover Tax for businesses earning below KES 25 million per year.",
   },
@@ -124,7 +132,10 @@ function Paginator({ currentPage, totalPages, onPageChange }: PaginatorProps) {
 
       {getPageNumbers().map((page, idx) =>
         page === "..." ? (
-          <span key={`ellipsis-${idx}`} className="px-2 text-gray-400 select-none">
+          <span
+            key={`ellipsis-${idx}`}
+            className="px-2 text-gray-400 select-none"
+          >
             …
           </span>
         ) : (
@@ -140,7 +151,7 @@ function Paginator({ currentPage, totalPages, onPageChange }: PaginatorProps) {
           >
             {page}
           </button>
-        )
+        ),
       )}
 
       <button
@@ -161,12 +172,7 @@ function FAQSection() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   return (
-    <section
-      aria-labelledby="faq-heading"
-      className="mt-20 max-w-3xl mx-auto"
-      itemScope
-      itemType="https://schema.org/FAQPage"
-    >
+    <section aria-labelledby="faq-heading" className="mt-20 max-w-3xl mx-auto">
       <h2
         id="faq-heading"
         className="text-2xl font-bold text-gray-900 mb-2 text-center"
@@ -184,19 +190,13 @@ function FAQSection() {
             <div
               key={idx}
               className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm"
-              itemScope
-              itemProp="mainEntity"
-              itemType="https://schema.org/Question"
             >
               <button
                 onClick={() => setOpenIndex(isOpen ? null : idx)}
                 aria-expanded={isOpen}
                 className="w-full flex items-center justify-between px-6 py-4 text-left gap-4 hover:bg-gray-50 transition-colors"
               >
-                <span
-                  className="font-medium text-gray-900 text-sm leading-snug"
-                  itemProp="name"
-                >
+                <span className="font-medium text-gray-900 text-sm leading-snug">
                   {item.question}
                 </span>
                 {isOpen ? (
@@ -206,13 +206,8 @@ function FAQSection() {
                 )}
               </button>
               {isOpen && (
-                <div
-                  className="px-6 pb-5 text-sm text-gray-600 leading-relaxed border-t border-gray-100 pt-4"
-                  itemScope
-                  itemProp="acceptedAnswer"
-                  itemType="https://schema.org/Answer"
-                >
-                  <span itemProp="text">{item.answer}</span>
+                <div className="px-6 pb-5 text-sm text-gray-600 leading-relaxed border-t border-gray-100 pt-4">
+                  {item.answer}
                 </div>
               )}
             </div>
@@ -233,7 +228,7 @@ export default function BusinessesContent() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>(
-    searchParams?.get("category") || "all"
+    searchParams?.get("category") || "all",
   );
   const [sortOption, setSortOption] = useState<string>("default");
   const [currentPage, setCurrentPage] = useState(1);
@@ -274,12 +269,12 @@ export default function BusinessesContent() {
 
   const filteredBusinesses = useMemo(() => {
     let result = businesses.filter((business) =>
-      business.name.toLowerCase().includes(searchTerm.toLowerCase())
+      business.name.toLowerCase().includes(searchTerm.toLowerCase()),
     );
 
     if (selectedCategory !== "all") {
       result = result.filter(
-        (business) => business.category === selectedCategory
+        (business) => business.category === selectedCategory,
       );
     }
 
@@ -331,10 +326,9 @@ export default function BusinessesContent() {
     if (cat === "all") {
       router.replace("/businesses", { scroll: false });
     } else {
-      router.replace(
-        `/businesses?category=${encodeURIComponent(cat)}`,
-        { scroll: false }
-      );
+      router.replace(`/businesses?category=${encodeURIComponent(cat)}`, {
+        scroll: false,
+      });
     }
   };
 
@@ -366,12 +360,18 @@ export default function BusinessesContent() {
                 itemProp="itemListElement"
                 itemType="https://schema.org/ListItem"
               >
-                <Link href="/" className="hover:text-white transition-colors" itemProp="item">
+                <Link
+                  href="/"
+                  className="hover:text-white transition-colors"
+                  itemProp="item"
+                >
                   <span itemProp="name">Home</span>
                 </Link>
                 <meta itemProp="position" content="1" />
               </li>
-              <li aria-hidden="true" className="text-emerald-300">/</li>
+              <li aria-hidden="true" className="text-emerald-300">
+                /
+              </li>
               <li
                 itemScope
                 itemProp="itemListElement"
@@ -386,14 +386,13 @@ export default function BusinessesContent() {
           </nav>
 
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-6 leading-tight">
-            {loading ? (
-              "Small Business Ideas To Start In Kenya Today"
-            ) : (
-              heroHeadline
-            )}
+            {loading
+              ? "Small Business Ideas To Start In Kenya Today"
+              : heroHeadline}
           </h1>
           <p className="text-xl text-emerald-100 mb-10 max-w-3xl mx-auto">
-            Browse the most profitable small businesses ideas in Kenya. Discover complete requirements for each business, startup costs,
+            Browse the most profitable small businesses ideas in Kenya. Discover
+            complete requirements for each business, startup costs,
             time-to-launch estimates, and local suppliers to get you started.
           </p>
 
@@ -456,7 +455,6 @@ export default function BusinessesContent() {
 
       <main className="px-4 sm:px-6 lg:px-8 py-12">
         <div className="max-w-7xl mx-auto">
-
           {/* ── Category pill strip ── */}
           {!loading && categories.length > 1 && (
             <nav aria-label="Filter by category" className="mb-8">
@@ -512,7 +510,9 @@ export default function BusinessesContent() {
                     <span className="font-semibold text-gray-800">
                       {filteredBusinesses.length}
                     </span>{" "}
-                    {filteredBusinesses.length === 1 ? "business" : "businesses"}{" "}
+                    {filteredBusinesses.length === 1
+                      ? "business"
+                      : "businesses"}{" "}
                     in{" "}
                     <span className="font-semibold text-emerald-700">
                       {selectedCategory}
@@ -542,10 +542,12 @@ export default function BusinessesContent() {
               </h2>
               <p className="text-gray-600 mt-2">
                 {filteredBusinesses.length}{" "}
-                {filteredBusinesses.length === 1 ? "business" : "businesses"} available
+                {filteredBusinesses.length === 1 ? "business" : "businesses"}{" "}
+                available
                 {totalPages > 1 && (
                   <span className="text-gray-400">
-                    {" "}— page {currentPage} of {totalPages}
+                    {" "}
+                    — page {currentPage} of {totalPages}
                   </span>
                 )}
               </p>
@@ -700,8 +702,8 @@ export default function BusinessesContent() {
                     {searchTerm
                       ? `We couldn't find any businesses matching "${searchTerm}". Try adjusting your search or filters.`
                       : selectedCategory !== "all"
-                      ? `No businesses in the "${selectedCategory}" category yet.`
-                      : "No businesses available at the moment. Please check back later."}
+                        ? `No businesses in the "${selectedCategory}" category yet.`
+                        : "No businesses available at the moment. Please check back later."}
                   </p>
                   <button
                     onClick={() => {

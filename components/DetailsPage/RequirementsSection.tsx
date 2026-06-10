@@ -2,6 +2,16 @@
 // Only change: adds optional `onProductAssigned` prop and threads it
 // down to CategorySection so admins can trigger a product list refresh
 // after assigning a product to a requirement.
+//
+// SEO note: the JSON-LD ItemList schema that was previously generated here
+// (generateRequirementsSchema) has been removed. It was:
+//   1. Typing requirements as "@type": "Product", causing Google Search Console
+//      errors for missing Product-required fields (offers, price, etc.).
+//   2. Injected from a 'use client' component, meaning crawlers may not see it
+//      in the initial HTML response.
+//
+// The schema is now emitted server-side in page.tsx with "@type": "Thing",
+// which is the correct type for a business prerequisite that is not a product.
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
@@ -112,55 +122,6 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
     name: category,
     count: groupedRequirements[category]?.length || 0,
   }));
-
-  const generateRequirementsSchema = () => {
-    const totalRequirements = sortedCategories.reduce((total, category) => {
-      return total + (groupedRequirements[category]?.length || 0);
-    }, 0);
-
-    const requirementsSchema = {
-      "@context": "https://schema.org",
-      "@type": "ItemList",
-      name: `Complete Requirements for Starting a ${businessName} Business`,
-      description: `Comprehensive list of all requirements needed to start a ${businessName} business, organized by category.`,
-      numberOfItems: totalRequirements,
-      itemListElement: sortedCategories.map((category, categoryIndex) => ({
-        "@type": "ListItem",
-        position: categoryIndex + 1,
-        item: {
-          "@type": "ItemList",
-          name: `${category} Requirements`,
-          description: `${category} requirements for ${businessName} business`,
-          numberOfItems: groupedRequirements[category]?.length || 0,
-          itemListElement: (groupedRequirements[category] || []).map(
-            (req, reqIndex) => ({
-              "@type": "ListItem",
-              position: reqIndex + 1,
-              item: {
-                "@type": "Product",
-                name: req.name,
-                description:
-                  req.description || `${req.name} for ${businessName} business`,
-                category: category,
-                additionalProperty: {
-                  "@type": "PropertyValue",
-                  name: "necessity",
-                  value: req.necessity,
-                },
-              },
-            })
-          ),
-        },
-      })),
-    };
-
-    return (
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(requirementsSchema) }}
-      />
-    );
-  };
 
   const GlobalNoResults = () => {
     const getNoResultsMessage = () => {
@@ -368,8 +329,6 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
 
   return (
     <>
-      {generateRequirementsSchema()}
-
       <div
         className="space-y-6 px-0 sm:px-4"
         role="main"
