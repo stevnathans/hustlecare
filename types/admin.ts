@@ -423,19 +423,18 @@ declare module 'next-auth' {
 
   interface User {
     id: string;
-    role: UserRole;
-    isActive: boolean;
+    role?: UserRole;        // ← add ?
+    isActive?: boolean;     // ← add ?
   }
 }
 
 declare module 'next-auth/jwt' {
   interface JWT {
     id: string;
-    role: UserRole;
-    isActive: boolean;
+    role: UserRole | string;  // ← widen to include base string type
+    isActive?: boolean;
   }
 }
-
 // ============================================================================
 // Component Props Types
 // ============================================================================
