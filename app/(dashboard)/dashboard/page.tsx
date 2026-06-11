@@ -11,7 +11,7 @@ export default async function DashboardPage() {
   if (!session?.user?.email) {
     redirect("/signin");
   }
-
+  
   // Get basic user info
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },

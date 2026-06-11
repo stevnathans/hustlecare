@@ -1,20 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import {
-  Calculator,
-  List,
-  Search as SearchIcon,
-  ShoppingBag,
-  Sparkles,
-
-  TrendingUp,
-  Users,
-} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import { TrendingUp } from "lucide-react";
 
 type Business = {
   id: number;
@@ -22,15 +11,56 @@ type Business = {
   slug: string;
 };
 
+const PLACEHOLDER_BUSINESSES = [
+  "car wash business",
+  "salon business",
+  "restaurant business",
+  "boutique business",
+  "hardware store",
+  "pharmacy business",
+  "gym business",
+];
+
 export default function HomeSearch() {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [searchSuggestions, setSearchSuggestions] = useState<Business[]>([]);
-  const [suggestionType, setSuggestionType] = useState<
-    "popular" | "recent" | null
-  >(null);
+  const [suggestionType, setSuggestionType] = useState<"popular" | "recent" | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const [displayedPlaceholder, setDisplayedPlaceholder] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Typewriter effect for placeholder
+  useEffect(() => {
+    const baseText = "Requirements for ";
+    const businessName = PLACEHOLDER_BUSINESSES[placeholderIndex];
+    const fullText = baseText + businessName;
+
+    let timeout: ReturnType<typeof setTimeout>;
+
+    if (!isDeleting) {
+      if (displayedPlaceholder.length < fullText.length) {
+        timeout = setTimeout(() => {
+          setDisplayedPlaceholder(fullText.slice(0, displayedPlaceholder.length + 1));
+        }, 60);
+      } else {
+        timeout = setTimeout(() => setIsDeleting(true), 2200);
+      }
+    } else {
+      if (displayedPlaceholder.length > baseText.length) {
+        timeout = setTimeout(() => {
+          setDisplayedPlaceholder(displayedPlaceholder.slice(0, -1));
+        }, 35);
+      } else {
+        setIsDeleting(false);
+        setPlaceholderIndex((i) => (i + 1) % PLACEHOLDER_BUSINESSES.length);
+      }
+    }
+
+    return () => clearTimeout(timeout);
+  }, [displayedPlaceholder, isDeleting, placeholderIndex]);
 
   useEffect(() => {
     const fetchSuggestions = async () => {
@@ -39,7 +69,6 @@ export default function HomeSearch() {
         setError(null);
         const response = await fetch("/api/businesses/popular");
         const data = await response.json();
-
         if (response.ok && data.success) {
           setSearchSuggestions(data.results || []);
           setSuggestionType(data.type);
@@ -47,262 +76,399 @@ export default function HomeSearch() {
           throw new Error(data.message || "Invalid API response");
         }
       } catch (err) {
-        console.error("Error fetching search suggestions:", err);
         setError(
-          err instanceof Error
-            ? err.message
-            : "Unable to load search suggestions. Please try again later."
+          err instanceof Error ? err.message : "Unable to load suggestions."
         );
       } finally {
         setLoading(false);
       }
     };
-
     fetchSuggestions();
   }, []);
 
   const handleSearch = (keyword: string) => {
     if (!keyword.trim()) return;
-
-    const query = `/search?keyword=${encodeURIComponent(keyword.trim())}`;
-    router.push(query);
+    router.push(`/search?keyword=${encodeURIComponent(keyword.trim())}`);
   };
 
+  // Show 3 on mobile (handled via CSS), 5 on desktop
+  const mobileSuggestions = searchSuggestions.slice(0, 3);
+  const desktopSuggestions = searchSuggestions.slice(0, 5);
+
+  // Split placeholder into base + bold business name for rendering
+  const BASE_TEXT = "Requirements for ";
+  const boldStart = displayedPlaceholder.startsWith(BASE_TEXT)
+    ? BASE_TEXT.length
+    : displayedPlaceholder.length;
+  const placeholderBase = displayedPlaceholder.slice(0, boldStart);
+  const placeholderBold = displayedPlaceholder.slice(boldStart);
+
   return (
-    <section className="relative bg-[#ECF2F0] text-black w-full overflow-hidden">
-      {/* Animated background elements */}
-      <div className="absolute inset-0 opacity-10">
-        <div className="absolute top-20 left-10 w-72 h-72 bg-white rounded-full blur-3xl animate-pulse"></div>
-        <div
-          className="absolute bottom-20 right-10 w-96 h-96 bg-yellow-300 rounded-full blur-3xl animate-pulse"
-          style={{ animationDelay: "1s" }}
-        ></div>
-        <div
-          className="absolute top-1/2 left-1/2 w-80 h-80 bg-emerald-300 rounded-full blur-3xl animate-pulse"
-          style={{ animationDelay: "2s" }}
-        ></div>
-      </div>
+    <section className="hero-section">
+      {/* Background image — right-aligned, fades left into green */}
+      <div className="hero-bg-image" aria-hidden="true" />
+      {/* Green-to-transparent gradient overlay */}
+      <div className="hero-bg-gradient" aria-hidden="true" />
 
-      {/* Subtle grid pattern overlay */}
-      <div
-        className="absolute inset-0 opacity-5"
-        style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='7' cy='7' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-        }}
-      ></div>
-
-      <div className="relative z-10 max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-12 lg:gap-16 py-16 px-4 sm:px-6 lg:px-8">
-        {/* Left Section - Enhanced content */}
-        <div className="flex-1 w-full">
+      <div className="hero-inner">
+        {/* LEFT: Text + Search */}
+        <div className="hero-content">
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
+            transition={{ duration: 0.7 }}
           >
-            {/* Floating badge */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="inline-flex items-center bg-emerald-50 backdrop-blur-sm rounded-full px-4 py-2 mb-6 border border-emerald-70"
-            >
-              <Sparkles className="w-4 h-4 mr-2 text-yellow-500" />
-              <span className="text-sm font-semibold">
-                Your #1 Business Startup Platform
-              </span>
-            </motion.div>
-
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight">
+            <h1 className="hero-heading">
               Launch Your Business{" "}
-              <span className="relative inline-block">
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-700">
-                  Smarter
-                </span>
-                <motion.div
-                  className="absolute -bottom-2 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-700 rounded-full"
-                  initial={{ scaleX: 0 }}
-                  animate={{ scaleX: 1 }}
-                  transition={{ duration: 0.8, delay: 0.5 }}
-                />
-              </span>
+              <span className="hero-brand">Smarter</span>
             </h1>
 
-            <p className="text-xl md:text-2xl mb-10 max-w-2xl opacity-90 leading-relaxed">
-              Discover everything you need to start any business -
-              requirements, costs, loans, and suppliers - all in one intelligent
-              platform.
+            <p className="hero-sub">
+              Discover everything you need to start any business in one intelligent platform.
             </p>
 
-            {/* Enhanced Search Container */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.3 }}
-              className="w-full max-w-3xl"
-            >
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                {/* Search Input - Professional redesign */}
-                <div className="relative flex-1">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <SearchIcon className="h-5 w-5 text-emerald-600 opacity-80" />
-                  </div>
-                  <Input
-                    className="block w-full pl-12 pr-4 py-5 border border-gray-300 bg-white text-gray-800 placeholder-gray-500 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-lg shadow-sm transition-all duration-200"
-                    placeholder="Search business (e.g. 'Gym')"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === "Enter") {
-                        handleSearch(search);
-                      }
-                    }}
-                  />
-                </div>
-
-                {/* Search Button - Professional redesign */}
-                <Button
+            {/* Search bar */}
+            <div className="search-card">
+              <div className="search-input-wrap">
+                {/* Custom placeholder with bold business name */}
+                {!search && (
+                  <span className="search-placeholder" aria-hidden="true">
+                    {placeholderBase}
+                    <strong>{placeholderBold}</strong>
+                  </span>
+                )}
+                <input
+                  className="search-input"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSearch(search);
+                  }}
+                  placeholder=""
+                  aria-label="Search for a business"
+                />
+                <button
+                  className="search-btn"
                   onClick={() => handleSearch(search)}
-                  className="py-5 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1"
+                  aria-label="Search"
                 >
-                  Search
-                </Button>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    width="20"
+                    height="20"
+                  >
+                    <line x1="22" y1="2" x2="11" y2="13" />
+                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                  </svg>
+                </button>
               </div>
-            </motion.div>
+            </div>
 
             {/* Suggestions */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.5 }}
-              className="mt-8"
-            >
+            <div className="suggestions-wrap">
               {loading ? (
-                <div className="flex items-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-emerald-400 border-t-transparent mr-2"></div>
-                  <span className="text-emerald-400 font-medium">
-                    Loading suggestions...
-                  </span>
-                </div>
-              ) : error ? (
-                <span className="text-red-300 bg-red-500/20 px-3 py-1 rounded-full text-sm">
-                  {error}
+                <span className="suggestions-loading">
+                  <span className="spinner" /> Loading suggestions...
                 </span>
+              ) : error ? (
+                <span className="suggestions-error">{error}</span>
               ) : searchSuggestions.length > 0 ? (
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="font-semibold text-emerald-500 flex items-center">
-                    <TrendingUp className="w-4 h-4 mr-1" />
-                    {suggestionType === "popular"
-                      ? "Popular Searches"
-                      : "Recently Published"}
-                    :
+                <>
+                  <span className="suggestions-label">
+                    <TrendingUp size={14} style={{ marginRight: 4, verticalAlign: "middle" }} />
+                    {suggestionType === "popular" ? "Popular" : "Recent"}:
                   </span>
-                  <div className="flex flex-wrap gap-2">
-                    {searchSuggestions.map((business) => (
+
+                  {/* Mobile: 3 suggestions */}
+                  <div className="suggestions-mobile">
+                    {mobileSuggestions.map((b) => (
                       <button
-                        key={business.id}
-                        onClick={() => handleSearch(business.name)}
-                        className="bg-emerald-60 hover:bg-emerald-100 text-black px-3 py-1 rounded-full text-sm font-medium transition-all duration-200 border border-emerald-400 hover:border-emerald-100 hover:scale-105"
+                        key={b.id}
+                        className="suggestion-chip"
+                        onClick={() => handleSearch(b.name)}
                       >
-                        {business.name}
+                        {b.name}
                       </button>
                     ))}
                   </div>
-                </div>
+
+                  {/* Desktop: 5 suggestions */}
+                  <div className="suggestions-desktop">
+                    {desktopSuggestions.map((b) => (
+                      <button
+                        key={b.id}
+                        className="suggestion-chip"
+                        onClick={() => handleSearch(b.name)}
+                      >
+                        {b.name}
+                      </button>
+                    ))}
+                  </div>
+                </>
               ) : null}
-            </motion.div>
+            </div>
           </motion.div>
         </div>
-
-        {/* Right Section - Enhanced Graphics */}
-        <div className="hidden lg:flex flex-1 justify-center items-center relative">
-          <div className="relative w-full max-w-lg">
-            {/* Main circular animation */}
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-              className="absolute inset-0 border-2 border-dashed border-emerald-300 rounded-full w-96 h-96 mx-auto"
-            />
-
-            {/* Inner rotating ring */}
-            <motion.div
-              animate={{ rotate: -360 }}
-              transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-              className="absolute inset-8 border border-dotted border-emerald-300 rounded-full"
-            />
-
-            {/* Floating business icons with enhanced styling */}
-            <div className="relative grid grid-cols-2 gap-6 w-80 h-80 mx-auto">
-              {[
-                {
-                  icon: <List className="w-8 h-8" />,
-                  color: "from-yellow-400 to-orange-500",
-                  label: "Requirements",
-                },
-                {
-                  icon: <Calculator className="w-8 h-8" />,
-                  color: "from-emerald-400 to-green-500",
-                  label: "Costs",
-                },
-                {
-                  icon: <ShoppingBag className="w-8 h-8" />,
-                  color: "from-green-400 to-teal-500",
-                  label: "Vendors",
-                },
-                {
-                  icon: <Users className="w-8 h-8" />,
-                  color: "from-teal-400 to-cyan-500",
-                  label: "Community",
-                },
-              ].map((item, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ delay: index * 0.2 + 0.5, duration: 0.6 }}
-                  whileHover={{ scale: 1.1, y: -5 }}
-                  className={`relative bg-gradient-to-br ${item.color} rounded-2xl p-6 shadow-2xl flex flex-col items-center justify-center text-white cursor-pointer group`}
-                >
-                  {/* Glow effect */}
-                  <div
-                    className={`absolute inset-0 bg-gradient-to-br ${item.color} rounded-2xl blur-lg opacity-50 group-hover:opacity-75 transition-opacity duration-300`}
-                  ></div>
-
-                  {/* Content */}
-                  <div className="relative z-10 flex flex-col items-center">
-                    {item.icon}
-                    <span className="text-xs font-semibold mt-2 opacity-90">
-                      {item.label}
-                    </span>
-                  </div>
-
-                  {/* Floating particles */}
-                  <motion.div
-                    className="absolute top-2 right-2 w-2 h-2 bg-white rounded-full opacity-60"
-                    animate={{ y: [-5, 5], opacity: [0.3, 0.8] }}
-                    transition={{
-                      duration: 2,
-                      repeat: Infinity,
-                      repeatType: "reverse",
-                    }}
-                  />
-                </motion.div>
-              ))}
-            </div>
-
-            {/* Additional floating elements */}
-            <motion.div
-              className="absolute -top-4 -right-4 w-16 h-16 bg-gradient-to-r from-yellow-300 to-orange-400 rounded-full opacity-20 blur-xl"
-              animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.4, 0.2] }}
-              transition={{ duration: 4, repeat: Infinity }}
-            />
-            <motion.div
-              className="absolute -bottom-4 -left-4 w-20 h-20 bg-gradient-to-r from-emerald-300 to-teal-400 rounded-full opacity-20 blur-xl"
-              animate={{ scale: [1.2, 1, 1.2], opacity: [0.4, 0.2, 0.4] }}
-              transition={{ duration: 3, repeat: Infinity }}
-            />
-          </div>
-        </div>
       </div>
+
+      <style>{`
+        .hero-section {
+          width: 100%;
+          overflow: hidden;
+          position: relative;
+          min-height: 500px;
+          
+        }
+
+        /* Background photo — covers right ~60% of the section */
+        .hero-bg-image {
+          position: absolute;
+          inset: 0;
+          background-image: url('/images/Black business man with phone.png');
+          background-repeat: no-repeat;
+          background-position: right center;
+          background-size: auto 100%;
+          z-index: 0;
+        }
+
+        /* Gradient: solid green on left, fades to transparent ~55% across */
+        .hero-bg-gradient {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(
+            to right,
+            #1a6e3c 0%,
+            #1a6e3c 50%,
+            rgba(26, 110, 60, 0.85) 60%,
+            rgba(26, 110, 60, 0.3) 68%,
+            transparent 80%
+          );
+          z-index: 1;
+        }
+
+        .hero-inner {
+          position: relative;
+          z-index: 2;
+          max-width: 1280px;
+          margin: 0 auto;
+          padding: 64px 48px 64px 48px;
+        }
+
+        .hero-content {
+          max-width: 520px;
+        }
+
+        .hero-heading {
+          font-size: clamp(2rem, 3.5vw, 2.75rem);
+          font-weight: 700;
+          color: #ffffff;
+          line-height: 1.2;
+          margin: 0 0 14px 0;
+          letter-spacing: -0.02em;
+        }
+
+        .hero-brand {
+          color: #6ee59c;
+        }
+
+        .hero-sub {
+          font-size: 1.05rem;
+          color: rgba(255,255,255,0.82);
+          margin: 0 0 28px 0;
+          line-height: 1.6;
+        }
+
+        /* Search card */
+        .search-card {
+          background: #ffffff;
+          border-radius: 10px;
+          overflow: hidden;
+          max-width: 500px;
+          box-shadow: 0 4px 28px rgba(0,0,0,0.22);
+        }
+
+        .search-input-wrap {
+          display: flex;
+          align-items: center;
+          position: relative;
+          padding: 4px 4px 4px 0;
+        }
+
+        /* Fake placeholder layered over real input */
+        .search-placeholder {
+          position: absolute;
+          left: 16px;
+          top: 50%;
+          transform: translateY(-50%);
+          font-size: 0.97rem;
+          color: #888;
+          pointer-events: none;
+          white-space: nowrap;
+          overflow: hidden;
+          max-width: calc(100% - 60px);
+        }
+
+        .search-placeholder strong {
+          color: #333;
+          font-weight: 700;
+        }
+
+        .search-input {
+          flex: 1;
+          border: none;
+          outline: none;
+          font-size: 0.97rem;
+          color: #1a1a1a;
+          padding: 16px 10px 16px 16px;
+          background: transparent;
+          min-width: 0;
+          position: relative;
+          z-index: 1;
+        }
+
+        .search-btn {
+          flex-shrink: 0;
+          background: none;
+          border: none;
+          padding: 10px 16px;
+          cursor: pointer;
+          color: #1a6e3c;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: color 0.2s;
+          z-index: 1;
+        }
+
+        .search-btn:hover {
+          color: #0f4a28;
+        }
+
+        /* Suggestions */
+        .suggestions-wrap {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 8px;
+          margin-top: 20px;
+        }
+
+        .suggestions-label {
+          font-size: 0.82rem;
+          font-weight: 600;
+          color: rgba(255,255,255,0.7);
+          display: flex;
+          align-items: center;
+          white-space: nowrap;
+        }
+
+        .suggestions-mobile {
+          display: none;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+
+        .suggestions-desktop {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+
+        .suggestion-chip {
+          background: rgba(255,255,255,0.12);
+          border: 1px solid rgba(255,255,255,0.3);
+          color: #ffffff;
+          font-size: 0.8rem;
+          font-weight: 500;
+          padding: 5px 13px;
+          border-radius: 999px;
+          cursor: pointer;
+          transition: background 0.18s, border-color 0.18s;
+          white-space: nowrap;
+        }
+
+        .suggestion-chip:hover {
+          background: rgba(255,255,255,0.22);
+          border-color: rgba(255,255,255,0.5);
+        }
+
+        .suggestions-loading {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: rgba(255,255,255,0.6);
+          font-size: 0.82rem;
+        }
+
+        .spinner {
+          width: 14px;
+          height: 14px;
+          border: 2px solid rgba(255,255,255,0.3);
+          border-top-color: #6ee59c;
+          border-radius: 50%;
+          display: inline-block;
+          animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        .suggestions-error {
+          color: rgba(255,200,200,0.85);
+          font-size: 0.8rem;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 900px) {
+          /* On mobile the image sits behind full-width content, gradient covers most of it */
+          .hero-bg-image {
+            background-position: center center;
+            background-size: cover;
+          }
+
+          .hero-bg-gradient {
+            background: linear-gradient(
+              to bottom,
+              rgba(26, 110, 60, 0.92) 0%,
+              rgba(26, 110, 60, 0.88) 60%,
+              rgba(26, 110, 60, 0.75) 100%
+            );
+          }
+
+          .hero-inner {
+            padding: 48px 24px 48px 24px;
+          }
+
+          .hero-content {
+            max-width: 100%;
+          }
+
+          .search-card {
+            max-width: 100%;
+          }
+
+          .suggestions-mobile {
+            display: flex;
+          }
+
+          .suggestions-desktop {
+            display: none;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .hero-heading {
+            font-size: 1.75rem;
+          }
+        }
+      `}</style>
     </section>
   );
 }
