@@ -147,6 +147,7 @@ export default function VendorProductsPage() {
         </div>
         <Link
           href={isSuspended ? '#' : '/vendor/dashboard/products/new'}
+          className="vd-add-btn-desktop"
           style={{ ...S.btnPrimary, ...(isSuspended ? S.btnDisabled : {}) }}
           onClick={e => { if (isSuspended) { e.preventDefault(); setShowSuspendNotice(true); } }}
         >
@@ -154,8 +155,8 @@ export default function VendorProductsPage() {
         </Link>
       </div>
 
-      {/* Tabs */}
-      <div style={S.tabsWrap}>
+      {/* Tabs - horizontally scrollable on mobile */}
+      <div style={S.tabsWrap} className="vd-tabs-scroll">
         {STATUS_TABS.map(tab => {
           const label = isSuspended && tab.key === 'ARCHIVED' ? 'Inactive' : tab.label;
           const icon  = isSuspended && tab.key === 'ARCHIVED' ? <ShieldOff size={11} /> : tab.icon;
@@ -284,10 +285,10 @@ export default function VendorProductsPage() {
               const meta = STATUS_META[displayStatus] ?? STATUS_META.DRAFT;
               return (
                 <div key={product.id} style={S.mobileCard}>
-                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                  <Link href={`/vendor/dashboard/products/${product.id}`} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
                     {product.image
-                      ? <Image src={product.image} alt={product.name} width={40} height={40} style={{ ...S.productImg, width: 40, height: 40 }} />
-                      : <div style={{ ...S.productImgFallback, width: 40, height: 40 }}><Package size={15} color="#55556e" /></div>}
+                      ? <Image src={product.image} alt={product.name} width={44} height={44} style={{ ...S.productImg, width: 44, height: 44 }} />
+                      : <div style={{ ...S.productImgFallback, width: 44, height: 44 }}><Package size={16} color="#55556e" /></div>}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
                         <div style={{ ...S.productName, fontSize: '0.88rem' }}>{product.name}</div>
@@ -296,22 +297,31 @@ export default function VendorProductsPage() {
                       {product.template && <div style={{ ...S.productSubtext, marginTop: '0.15rem' }}>{product.template.name}</div>}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.6rem' }}>
                         <span style={S.price}>{priceDisplay(product)}</span>
-                        <div style={{ display: 'flex', gap: '0.3rem' }}>
-                          {['DRAFT', 'REJECTED'].includes(product.status) && !isSuspended && (
-                            <Link href={`/vendor/dashboard/products/${product.id}`} style={S.iconBtn}><Edit2 size={12} /></Link>
-                          )}
-                          <button style={{ ...S.iconBtn, ...S.iconBtnDanger }} onClick={() => setDeleteConfirm(product.id)}>
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
+                        <span style={S.productSubtext}>{product._count.cartItems} cart · {product._count.reviews} reviews</span>
                       </div>
                     </div>
-                  </div>
+                  </Link>
                   {product.status === 'REJECTED' && product.rejectReason && (
                     <div style={{ ...S.rejectNote, marginTop: '0.6rem', padding: '0.45rem 0.7rem', background: 'rgba(239,68,68,0.06)', borderRadius: 7 }}>
                       Rejected: {product.rejectReason}
                     </div>
                   )}
+                  {/* Action bar */}
+                  <div style={S.mobileActionBar}>
+                    {['DRAFT', 'REJECTED'].includes(product.status) && !isSuspended && (
+                      <Link href={`/vendor/dashboard/products/${product.id}`} style={S.mobileActionBtn}>
+                        <Edit2 size={13} /> Edit
+                      </Link>
+                    )}
+                    {product.status === 'ACTIVE' && !isSuspended && (
+                      <Link href={`/marketplace?product=${product.id}`} target="_blank" style={S.mobileActionBtn}>
+                        <Eye size={13} /> View
+                      </Link>
+                    )}
+                    <button style={{ ...S.mobileActionBtn, ...S.mobileActionBtnDanger }} onClick={() => setDeleteConfirm(product.id)}>
+                      <Trash2 size={13} /> Delete
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -328,7 +338,7 @@ export default function VendorProductsPage() {
               <h3 style={S.modalTitle}>Delete product?</h3>
               <p style={S.modalDesc}>Draft products are permanently deleted. Live or reviewed products will be archived.</p>
             </div>
-            <div style={{ display: 'flex', gap: '0.65rem', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: '0.65rem', justifyContent: 'flex-end' }} className="vd-modal-actions">
               <button style={S.btnSecondary} onClick={() => setDeleteConfirm(null)}>Cancel</button>
               <button style={{ ...S.btnPrimary, background: 'rgba(239,68,68,0.15)', color: '#f87171' }} onClick={() => handleDelete(deleteConfirm)}>
                 Delete / Archive
@@ -367,31 +377,39 @@ const CSS = `
   a { text-decoration: none; color: inherit; }
   .vd-tr:hover td { background: rgba(255,255,255,0.015) !important; }
 
+  .vd-tabs-scroll { -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .vd-tabs-scroll::-webkit-scrollbar { display: none; }
+
   @media (min-width: 769px) {
     .vd-mobile-cards { display: none !important; }
   }
   @media (max-width: 768px) {
     .vd-desktop-table { display: none !important; }
     .vd-mobile-cards  { display: flex !important; }
+    .vd-add-btn-desktop { display: none !important; }
+    .vd-tabs-scroll { display: flex !important; overflow-x: auto; flex-wrap: nowrap !important; }
+    .vd-tabs-scroll > button { flex-shrink: 0; }
+    .vd-modal-actions { flex-direction: column-reverse !important; }
+    .vd-modal-actions button { width: 100%; justify-content: center; }
   }
 `;
 
 const S: Record<string, React.CSSProperties> = {
-  page:            { fontFamily: "'DM Sans', sans-serif", color: '#f0f0f5', maxWidth: 1020, paddingBottom: '2rem' },
-  toast:           { position: 'fixed', top: '1rem', right: '1rem', zIndex: 9999, padding: '0.75rem 1.1rem', borderRadius: 10, fontSize: '0.82rem', fontWeight: 600, border: '1px solid' },
+  page:            { fontFamily: "'DM Sans', sans-serif", color: '#f0f0f5', maxWidth: 1020, paddingBottom: '1rem' },
+  toast:           { position: 'fixed', top: '1rem', right: '1rem', left: '1rem', zIndex: 9999, padding: '0.75rem 1.1rem', borderRadius: 10, fontSize: '0.82rem', fontWeight: 600, border: '1px solid', textAlign: 'center' as const },
   suspendBanner:   { display: 'flex', alignItems: 'flex-start', gap: '0.6rem', padding: '0.85rem 1.1rem', borderRadius: 10, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', color: '#fca5a5', fontSize: '0.81rem', lineHeight: 1.6, marginBottom: '1.25rem' },
   header:          { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' },
   h1:              { fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.025em', marginBottom: '0.2rem', color: '#f0f0f5' },
   subtitle:        { fontSize: '0.81rem', color: '#55556e' },
   tabsWrap:        { display: 'flex', gap: '0.2rem', marginBottom: '1.1rem', flexWrap: 'wrap', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.75rem' },
-  tab:             { display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.38rem 0.75rem', borderRadius: 8, border: '1px solid transparent', background: 'transparent', color: '#55556e', fontSize: '0.78rem', fontFamily: "'DM Sans', sans-serif", cursor: 'pointer', fontWeight: 500, transition: 'all 0.15s' },
+  tab:             { display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.38rem 0.75rem', borderRadius: 8, border: '1px solid transparent', background: 'transparent', color: '#55556e', fontSize: '0.78rem', fontFamily: "'DM Sans', sans-serif", cursor: 'pointer', fontWeight: 500, transition: 'all 0.15s', whiteSpace: 'nowrap' as const },
   tabActive:       { background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.2)', color: '#fbbf24' },
   tabBadge:        { padding: '0.08rem 0.4rem', borderRadius: 100, fontSize: '0.65rem', fontWeight: 700 },
   searchRow:       { display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' },
   searchInput:     { width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 9, padding: '0.55rem 0.9rem 0.55rem 2.2rem', color: '#f0f0f5', fontFamily: "'DM Sans', sans-serif", fontSize: '0.84rem', outline: 'none' },
   resultCount:     { fontSize: '0.75rem', color: '#55556e', whiteSpace: 'nowrap' },
   skeleton:        { height: 56, borderRadius: 10, background: 'rgba(255,255,255,0.04)' },
-  emptyState:      { background: '#13131a', border: '1px dashed rgba(255,255,255,0.09)', borderRadius: 12, padding: '3rem', textAlign: 'center' },
+  emptyState:      { background: '#13131a', border: '1px dashed rgba(255,255,255,0.09)', borderRadius: 12, padding: '3rem 1.5rem', textAlign: 'center' },
   tableWrap:       { background: '#13131a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 13, overflow: 'hidden' },
   table:           { width: '100%', borderCollapse: 'collapse' },
   th:              { padding: '0.6rem 1rem', textAlign: 'left', fontSize: '0.67rem', fontWeight: 700, color: '#55556e', textTransform: 'uppercase', letterSpacing: '0.08em', borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#13131a', whiteSpace: 'nowrap' },
@@ -408,6 +426,9 @@ const S: Record<string, React.CSSProperties> = {
   iconBtn:         { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 7, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#9494b0', cursor: 'pointer', textDecoration: 'none' },
   iconBtnDanger:   { background: 'rgba(239,68,68,0.07)', borderColor: 'rgba(239,68,68,0.14)', color: '#f87171' },
   mobileCard:      { background: '#13131a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '0.9rem 1rem' },
+  mobileActionBar: { display: 'flex', gap: '0.5rem', marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.05)' },
+  mobileActionBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', padding: '0.5rem', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#9494b0', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' },
+  mobileActionBtnDanger: { background: 'rgba(239,68,68,0.07)', borderColor: 'rgba(239,68,68,0.14)', color: '#f87171' },
   overlay:         { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', backdropFilter: 'blur(4px)' } as React.CSSProperties,
   modal:           { background: '#1a1a24', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 14, padding: '1.75rem', width: '100%', maxWidth: 380 },
   modalIconWrap:   { width: 48, height: 48, borderRadius: '50%', background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.85rem' },

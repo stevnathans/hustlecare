@@ -249,14 +249,15 @@ export function ProductForm({ productId }: ProductFormProps) {
                 </select>
               </div>
               <div style={F.field}>
-                <label style={F.label}>
-                  Price type
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', fontWeight: 400, textTransform: 'none' as const, letterSpacing: 0, fontSize: '0.77rem', marginLeft: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.4rem' }}>
+                  <label style={{ ...F.label, marginBottom: 0 }}>Price type</label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', fontWeight: 400, textTransform: 'none' as const, letterSpacing: 0, fontSize: '0.77rem', color: '#9494b0' }}>
                     <input type="checkbox" checked={form.usePriceRange} onChange={e => setForm(f => ({ ...f, usePriceRange: e.target.checked }))}
                       style={{ accentColor: '#f59e0b', cursor: 'pointer' }} />
                     Use range
                   </label>
-                </label>
+                </div>
+                <div style={{ marginTop: '0.3rem' }}>
                 {!form.usePriceRange ? (
                   <input style={F.input} type="number" placeholder="0.00" value={form.price}
                     onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
@@ -274,43 +275,12 @@ export function ProductForm({ productId }: ProductFormProps) {
                     </div>
                   </div>
                 )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Sidebar */}
-        <div style={F.sideCol}>
-
-          {/* Publish */}
-          <div style={F.card}>
-            <div style={{ ...F.cardHead, marginBottom: '0.85rem' }}>
-              <h2 style={F.cardTitle}>Publish</h2>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-              <button
-                style={{ ...F.btnPrimary, width: '100%', justifyContent: 'center', opacity: canSubmit ? 1 : 0.5 }}
-                onClick={() => handleSave(true)}
-                disabled={!canSubmit}
-              >
-                {loading ? <Loader2 size={13} className="vd-spin" /> : <Send size={13} />}
-                Submit for Review
-              </button>
-              <button
-                style={{ ...F.btnSecondary, width: '100%', justifyContent: 'center' }}
-                onClick={() => handleSave(false)}
-                disabled={loading || !form.name}
-              >
-                <Save size={13} /> Save as Draft
-              </button>
-            </div>
-            <div style={F.reviewNote}>
-              <Info size={12} style={{ flexShrink: 0, marginTop: 1, color: '#55556e' }} />
-              <span>Products are reviewed by the Hustlecare team before going live — usually within 1–2 business days.</span>
-            </div>
-          </div>
-
-          {/* Inventory */}
+          {/* Inventory - moved into main column flow on mobile */}
           <div style={F.card}>
             <div style={{ ...F.cardHead, marginBottom: '0.85rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -339,6 +309,57 @@ export function ProductForm({ productId }: ProductFormProps) {
             </p>
           </div>
         </div>
+
+        {/* Sidebar (desktop only — publish actions move to sticky bar on mobile) */}
+        <div style={F.sideCol} className="vd-form-sidebar">
+
+          {/* Publish */}
+          <div style={F.card}>
+            <div style={{ ...F.cardHead, marginBottom: '0.85rem' }}>
+              <h2 style={F.cardTitle}>Publish</h2>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+              <button
+                style={{ ...F.btnPrimary, width: '100%', justifyContent: 'center', opacity: canSubmit ? 1 : 0.5 }}
+                onClick={() => handleSave(true)}
+                disabled={!canSubmit}
+              >
+                {loading ? <Loader2 size={13} className="vd-spin" /> : <Send size={13} />}
+                Submit for Review
+              </button>
+              <button
+                style={{ ...F.btnSecondary, width: '100%', justifyContent: 'center' }}
+                onClick={() => handleSave(false)}
+                disabled={loading || !form.name}
+              >
+                <Save size={13} /> Save as Draft
+              </button>
+            </div>
+            <div style={F.reviewNote}>
+              <Info size={12} style={{ flexShrink: 0, marginTop: 1, color: '#55556e' }} />
+              <span>Products are reviewed by the Hustlecare team before going live — usually within 1–2 business days.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Sticky mobile publish bar */}
+      <div className="vd-sticky-publish">
+        <button
+          style={{ ...F.btnSecondary, flex: 1, justifyContent: 'center' }}
+          onClick={() => handleSave(false)}
+          disabled={loading || !form.name}
+        >
+          <Save size={13} /> Draft
+        </button>
+        <button
+          style={{ ...F.btnPrimary, flex: 2, justifyContent: 'center', opacity: canSubmit ? 1 : 0.5 }}
+          onClick={() => handleSave(true)}
+          disabled={!canSubmit}
+        >
+          {loading ? <Loader2 size={13} className="vd-spin" /> : <Send size={13} />}
+          Submit for Review
+        </button>
       </div>
     </div>
   );
@@ -353,6 +374,7 @@ const CSS = `
 
   .vd-form-layout { display: grid; grid-template-columns: 1fr 300px; gap: 1.25rem; align-items: start; }
   .vd-two-col     { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  .vd-sticky-publish { display: none; }
 
   @media (max-width: 860px) {
     .vd-form-layout { grid-template-columns: 1fr !important; }
@@ -360,10 +382,26 @@ const CSS = `
   @media (max-width: 520px) {
     .vd-two-col { grid-template-columns: 1fr !important; }
   }
+
+  @media (max-width: 768px) {
+    .vd-form-sidebar { display: none !important; }
+    .vd-sticky-publish {
+      display: flex;
+      gap: 0.6rem;
+      position: fixed;
+      left: 0; right: 0;
+      bottom: calc(var(--vd-bottom-nav-h, 64px) + env(safe-area-inset-bottom, 0px));
+      padding: 0.65rem 1rem;
+      background: rgba(13,13,18,0.92);
+      backdrop-filter: blur(14px);
+      border-top: 1px solid rgba(255,255,255,0.07);
+      z-index: 25;
+    }
+  }
 `;
 
 const F: Record<string, React.CSSProperties> = {
-  page:           { fontFamily: "'DM Sans', sans-serif", color: '#f0f0f5', maxWidth: 1000, paddingBottom: '2rem' },
+  page:           { fontFamily: "'DM Sans', sans-serif", color: '#f0f0f5', maxWidth: 1000, paddingBottom: '4.5rem' },
   pageHead:       { marginBottom: '1.75rem' },
   backLink:       { display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', color: '#55556e', marginBottom: '0.7rem' },
   h1:             { fontSize: '1.45rem', fontWeight: 700, letterSpacing: '-0.025em', marginBottom: '0.25rem', color: '#f0f0f5' },

@@ -8,14 +8,14 @@ import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, Package, User, Store,
   LogOut, ChevronRight, Loader2, Clock, Shield,
-  Menu, X, Bell, ExternalLink,
+  Menu, X, ExternalLink, Plus,
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 
 const NAV_ITEMS = [
-  { href: '/vendor/dashboard',          label: 'Overview',   icon: LayoutDashboard, exact: true },
-  { href: '/vendor/dashboard/products', label: 'Products',   icon: Package },
-  { href: '/vendor/dashboard/profile',  label: 'My Profile', icon: User },
+  { href: '/vendor/dashboard',          label: 'Overview',   short: 'Home',     icon: LayoutDashboard, exact: true },
+  { href: '/vendor/dashboard/products', label: 'Products',   short: 'Products', icon: Package },
+  { href: '/vendor/dashboard/profile',  label: 'My Profile', short: 'Profile',  icon: User },
 ];
 
 export default function VendorDashboardLayout({ children }: { children: React.ReactNode }) {
@@ -49,6 +49,8 @@ export default function VendorDashboardLayout({ children }: { children: React.Re
     if (exact) return pathname === href;
     return pathname.startsWith(href);
   }
+
+  // isSuspended is computed per-page when needed; not used in the shared layout
 
   const Sidebar = () => (
     <aside style={L.sidebar}>
@@ -123,34 +125,29 @@ export default function VendorDashboardLayout({ children }: { children: React.Re
       <div className="vd-shell" style={L.shell}>
 
         {/* Desktop sidebar */}
-        <div style={L.desktopSidebar}>
+        <div className="vd-desktop-sidebar" style={L.desktopSidebar}>
           <Sidebar />
         </div>
 
-        {/* Mobile overlay */}
+        {/* Mobile drawer overlay (secondary menu: marketplace / sign out / brand) */}
         {sidebarOpen && (
           <div style={L.overlay} onClick={() => setSidebarOpen(false)} />
         )}
-
-        {/* Mobile sidebar */}
-        <div style={{
+        <div className="vd-mobile-sidebar" style={{
           ...L.mobileSidebar,
           transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
         }}>
-          <button
-            style={L.mobileClose}
-            onClick={() => setSidebarOpen(false)}
-          >
+          <button style={L.mobileClose} onClick={() => setSidebarOpen(false)}>
             <X size={18} />
           </button>
           <Sidebar />
         </div>
 
         {/* Main content */}
-        <main style={L.main}>
-          {/* Mobile header */}
-          <header style={L.mobileHeader}>
-            <button style={L.menuBtn} onClick={() => setSidebarOpen(true)}>
+        <main className="vd-main" style={L.main}>
+          {/* Mobile top bar */}
+          <header className="vd-mobile-header" style={L.mobileHeader}>
+            <button style={L.menuBtn} onClick={() => setSidebarOpen(true)} aria-label="Open menu">
               <Menu size={20} />
             </button>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -159,15 +156,41 @@ export default function VendorDashboardLayout({ children }: { children: React.Re
               </div>
               <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#f0f0f5' }}>Vendor Portal</span>
             </div>
-            <button style={L.menuBtn}>
-              <Bell size={18} style={{ color: '#55556e' }} />
-            </button>
+            <div style={L.avatarWrap}>
+              {session?.user?.image ? (
+                <Image src={session.user.image} alt="" width={28} height={28} style={{ ...L.avatarImg, width: 28, height: 28 }} />
+              ) : (
+                <div style={{ ...L.avatarFallback, width: 28, height: 28, fontSize: '0.72rem' }}>
+                  {session?.user?.name?.[0]?.toUpperCase() ?? 'V'}
+                </div>
+              )}
+            </div>
           </header>
 
-          <div style={L.content}>
+          <div className="vd-content" style={L.content}>
             {children}
           </div>
+
+          {/* Spacer so bottom nav doesn't cover content */}
+          <div className="vd-bottom-spacer" />
         </main>
+
+        {/* Mobile bottom tab bar */}
+        <nav className="vd-bottom-nav" style={L.bottomNav}>
+          {NAV_ITEMS.map(item => {
+            const active = isActive(item.href, item.exact);
+            return (
+              <Link key={item.href} href={item.href} style={{ ...L.bottomNavItem, color: active ? '#fbbf24' : '#9494b0' }}>
+                <item.icon size={20} style={{ color: active ? '#fbbf24' : '#9494b0' }} />
+                <span style={L.bottomNavLabel}>{item.short}</span>
+                {active && <span style={L.bottomNavDot} />}
+              </Link>
+            );
+          })}
+          <Link href="/vendor/dashboard/products/new" style={L.bottomNavFab} aria-label="Add product">
+            <Plus size={22} color="#0a0a0f" />
+          </Link>
+        </nav>
       </div>
     </>
   );
@@ -214,12 +237,13 @@ const BASE_CSS = `
     --vd-amber:      #f59e0b;
     --vd-amber-dim:  rgba(245,158,11,0.12);
     --vd-amber-ring: rgba(245,158,11,0.22);
+    --vd-bottom-nav-h: 64px;
   }
 
   .vd-spin { animation: vd-rotate 1s linear infinite; }
   @keyframes vd-rotate { to { transform: rotate(360deg); } }
 
-  .vd-shell * { box-sizing: border-box; margin: 0; padding: 0; }
+  .vd-shell * { box-sizing: border-box; }
   .vd-shell a { text-decoration: none; color: inherit; }
 
   /* Scrollbar */
@@ -230,10 +254,16 @@ const BASE_CSS = `
   /* Sidebar transition */
   .vd-mobile-sidebar { transition: transform 0.28s cubic-bezier(0.4,0,0.2,1); }
 
+  .vd-bottom-spacer { display: none; height: calc(var(--vd-bottom-nav-h) + env(safe-area-inset-bottom, 0px)); }
+  .vd-bottom-nav { display: none; }
+
   @media (max-width: 768px) {
     .vd-desktop-sidebar { display: none !important; }
     .vd-mobile-header   { display: flex !important; }
     .vd-main            { padding-left: 0 !important; }
+    .vd-content         { padding: 1rem !important; }
+    .vd-bottom-nav      { display: flex !important; }
+    .vd-bottom-spacer   { display: block !important; }
   }
   @media (min-width: 769px) {
     .vd-mobile-sidebar  { display: none !important; }
@@ -273,6 +303,28 @@ const L: Record<string, React.CSSProperties> = {
   main:          { flex: 1, marginLeft: SIDEBAR_W, minWidth: 0, display: 'flex', flexDirection: 'column' },
   content:       { padding: '2rem 2.25rem', flex: 1, color: '#f0f0f5' },
   loadWrap:      { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d0d12' },
+
+  /* Bottom tab bar (mobile) */
+  bottomNav:     {
+    position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 30,
+    background: 'rgba(19,19,26,0.92)', backdropFilter: 'blur(14px)',
+    borderTop: '1px solid rgba(255,255,255,0.07)',
+    display: 'flex', alignItems: 'stretch', justifyContent: 'space-around',
+    height: 'var(--vd-bottom-nav-h)',
+    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+  } as React.CSSProperties,
+  bottomNavItem: {
+    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    gap: '0.2rem', fontSize: '0.62rem', fontWeight: 600, position: 'relative',
+  } as React.CSSProperties,
+  bottomNavLabel:{ fontSize: '0.62rem' },
+  bottomNavDot:  { position: 'absolute', top: 6, width: 4, height: 4, borderRadius: '50%', background: '#f59e0b' },
+  bottomNavFab:  {
+    width: 50, height: 50, borderRadius: '50%', background: '#f59e0b',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    alignSelf: 'center', marginLeft: '0.25rem', marginRight: '0.25rem',
+    boxShadow: '0 4px 14px rgba(245,158,11,0.35)', flexShrink: 0,
+  } as React.CSSProperties,
 };
 
 const G: Record<string, React.CSSProperties> = {

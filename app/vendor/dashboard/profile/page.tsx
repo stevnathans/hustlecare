@@ -120,7 +120,7 @@ export default function VendorProfilePage() {
             )}
           </p>
         </div>
-        <button style={P.btnSave} onClick={handleSave} disabled={saving}>
+        <button className="vd-save-desktop" style={P.btnSave} onClick={handleSave} disabled={saving}>
           {saving ? <Loader2 size={14} className="vd-spin" /> : <Save size={14} />}
           {saving ? 'Saving…' : 'Save Changes'}
         </button>
@@ -213,7 +213,7 @@ export default function VendorProfilePage() {
             </div>
             <div style={P.field}>
               <label style={P.label}><Phone size={11} /> Phone</label>
-              <input value={form.phone} onChange={F('phone')} placeholder="+254 700 000 000" style={{ ...P.input, maxWidth: 280 }} />
+              <input value={form.phone} onChange={F('phone')} placeholder="+254 700 000 000" style={{ ...P.input, maxWidth: 280 }} className="vd-phone-input" />
             </div>
           </section>
 
@@ -239,7 +239,7 @@ export default function VendorProfilePage() {
         </div>
 
         {/* Sidebar */}
-        <div style={P.sideCol}>
+        <div style={P.sideCol} className="vd-profile-sidebar">
 
           {/* Preview card */}
           <div style={P.sideCard}>
@@ -288,12 +288,20 @@ export default function VendorProfilePage() {
             </div>
           )}
 
-          {/* Save button repeated on sidebar for convenience */}
-          <button style={{ ...P.btnSave, width: '100%', justifyContent: 'center' }} onClick={handleSave} disabled={saving}>
+          {/* Save button repeated on sidebar for convenience (desktop only) */}
+          <button className="vd-save-desktop" style={{ ...P.btnSave, width: '100%', justifyContent: 'center' }} onClick={handleSave} disabled={saving}>
             {saving ? <Loader2 size={14} className="vd-spin" /> : <Save size={14} />}
             {saving ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
+      </div>
+
+      {/* Sticky mobile save bar */}
+      <div className="vd-sticky-save">
+        <button style={{ ...P.btnSave, width: '100%', justifyContent: 'center' }} onClick={handleSave} disabled={saving}>
+          {saving ? <Loader2 size={14} className="vd-spin" /> : <Save size={14} />}
+          {saving ? 'Saving…' : 'Save Changes'}
+        </button>
       </div>
     </div>
   );
@@ -306,18 +314,36 @@ const CSS = `
   a { text-decoration: none; }
   .vd-profile-layout { display: grid; grid-template-columns: 1fr 260px; gap: 1.25rem; align-items: start; }
   .vd-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  .vd-sticky-save { display: none; }
 
   @media (max-width: 860px) {
     .vd-profile-layout { grid-template-columns: 1fr !important; }
   }
   @media (max-width: 520px) {
     .vd-two-col { grid-template-columns: 1fr !important; }
+    .vd-phone-input { max-width: 100% !important; }
+  }
+
+  @media (max-width: 768px) {
+    .vd-save-desktop { display: none !important; }
+    .vd-profile-sidebar { order: -1; }
+    .vd-sticky-save {
+      display: block;
+      position: fixed;
+      left: 0; right: 0;
+      bottom: calc(var(--vd-bottom-nav-h, 64px) + env(safe-area-inset-bottom, 0px));
+      padding: 0.65rem 1rem;
+      background: rgba(13,13,18,0.92);
+      backdrop-filter: blur(14px);
+      border-top: 1px solid rgba(255,255,255,0.07);
+      z-index: 25;
+    }
   }
 `;
 
 const P: Record<string, React.CSSProperties> = {
-  page:       { fontFamily: "'DM Sans', sans-serif", color: '#f0f0f5', maxWidth: 1000, paddingBottom: '2rem' },
-  toast:      { position: 'fixed', top: '1rem', right: '1rem', zIndex: 9999, padding: '0.7rem 1.1rem', borderRadius: 10, fontSize: '0.82rem', fontWeight: 600, border: '1px solid', display: 'flex', alignItems: 'center', gap: '0.5rem' },
+  page:       { fontFamily: "'DM Sans', sans-serif", color: '#f0f0f5', maxWidth: 1000, paddingBottom: '4.5rem' },
+  toast:      { position: 'fixed', top: '1rem', right: '1rem', left: '1rem', zIndex: 9999, padding: '0.7rem 1.1rem', borderRadius: 10, fontSize: '0.82rem', fontWeight: 600, border: '1px solid', display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' },
   header:     { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' },
   h1:         { fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.025em', marginBottom: '0.2rem', color: '#f0f0f5' },
   subtitle:   { fontSize: '0.81rem', color: '#55556e', display: 'flex', alignItems: 'center', flexWrap: 'wrap' },

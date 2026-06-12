@@ -79,7 +79,7 @@ export default function VendorDashboardPage() {
 
       {/* Header */}
       <div style={P.header}>
-        <div>
+        <div style={{ minWidth: 0 }}>
           <h1 style={P.h1}>
             {profile?.name ? `Welcome back, ${profile.name.split(' ')[0]}` : 'Vendor Dashboard'}
           </h1>
@@ -89,7 +89,7 @@ export default function VendorDashboardPage() {
               : "Here's how your storefront is performing today."}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap' as const }}>
+        <div className="vd-header-actions" style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap' as const }}>
           {!isSuspended && profile?.slug && (
             <Link href={`/vendors/${profile.slug}`} target="_blank" style={P.btnSecondary}>
               <Eye size={13} /> View Store
@@ -101,14 +101,14 @@ export default function VendorDashboardPage() {
             onClick={() => fetchData(true)}
           >
             <RefreshCw size={13} />
-            {refreshing ? 'Refreshing…' : 'Refresh'}
+            <span className="vd-refresh-label">{refreshing ? 'Refreshing…' : 'Refresh'}</span>
           </button>
           {!isSuspended ? (
-            <Link href="/vendor/dashboard/products/new" style={P.btnPrimary}>
+            <Link href="/vendor/dashboard/products/new" className="vd-add-btn-desktop" style={P.btnPrimary}>
               <Plus size={13} /> Add Product
             </Link>
           ) : (
-            <button style={{ ...P.btnPrimary, ...P.btnDisabled }} disabled>
+            <button className="vd-add-btn-desktop" style={{ ...P.btnPrimary, ...P.btnDisabled }} disabled>
               <Plus size={13} /> Add Product
             </button>
           )}
@@ -132,7 +132,7 @@ export default function VendorDashboardPage() {
       {/* Rejection alert */}
       {!isSuspended && rejectedCount > 0 && (
         <div style={P.alertBanner}>
-          <AlertCircle size={14} />
+          <AlertCircle size={14} style={{ flexShrink: 0 }} />
           <span>
             {rejectedCount} product{rejectedCount > 1 ? 's need' : ' needs'} attention —{' '}
             <Link href="/vendor/dashboard/products?status=REJECTED" style={{ color: '#fca5a5', textDecoration: 'underline' }}>
@@ -143,7 +143,7 @@ export default function VendorDashboardPage() {
       )}
 
       {/* Stat cards */}
-      <div style={P.statsGrid}>
+      <div className="vd-stats" style={P.statsGrid}>
         <StatCard title="Profile Views"   value={totalViews}   icon={Eye}         color="#818cf8" bg="rgba(99,102,241,0.12)"  />
         <StatCard title="Product Clicks"  value={totalClicks}  icon={Package}     color="#34d399" bg="rgba(16,185,129,0.12)" />
         <StatCard title="Cart Adds"       value={totalCart}    icon={ShoppingCart} color="#f59e0b" bg="rgba(245,158,11,0.12)" />
@@ -157,10 +157,10 @@ export default function VendorDashboardPage() {
       </div>
 
       {/* Product status row + Recent products */}
-      <div style={P.twoColGrid}>
+      <div className="vd-two-col" style={P.twoColGrid}>
 
         {/* Left: status tiles + recent */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', minWidth: 0 }}>
 
           {/* Product status breakdown */}
           <div style={P.card}>
@@ -170,7 +170,7 @@ export default function VendorDashboardPage() {
                 See all <ArrowRight size={12} />
               </Link>
             </div>
-            <div style={P.statusGrid}>
+            <div className="vd-status-grid" style={P.statusGrid}>
               {[
                 { key: isSuspended ? 'ARCHIVED' : 'ACTIVE', count: isSuspended ? products.filter(p => p.status === 'ARCHIVED').length : activeCount },
                 { key: 'PENDING_REVIEW', count: pendingCount  },
@@ -229,9 +229,9 @@ export default function VendorDashboardPage() {
                           <div style={P.productMeta}>{product.template.name}</div>
                         )}
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                      <div className="vd-product-meta-col" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
                         {product.price && (
-                          <span style={P.productPrice}>KES {product.price.toLocaleString()}</span>
+                          <span className="vd-price-hide-mobile" style={P.productPrice}>KES {product.price.toLocaleString()}</span>
                         )}
                         <span style={{ ...P.statusBadge, background: meta.bg, color: meta.color }}>
                           {meta.icon}
@@ -248,7 +248,7 @@ export default function VendorDashboardPage() {
         </div>
 
         {/* Right: quick stats panels */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: 0 }}>
 
           {/* Engagement */}
           <div style={P.card}>
@@ -299,8 +299,8 @@ export default function VendorDashboardPage() {
             </div>
           </div>
 
-          {/* Quick actions */}
-          <div style={P.card}>
+          {/* Quick actions - hidden on mobile (bottom nav covers these) */}
+          <div className="vd-quick-actions" style={P.card}>
             <div style={{ marginBottom: '0.85rem' }}>
               <div style={P.cardTitle}>Quick Actions</div>
             </div>
@@ -309,19 +309,19 @@ export default function VendorDashboardPage() {
                 <Link href="/vendor/dashboard/products/new" style={P.quickAction}>
                   <Plus size={14} style={{ color: '#f59e0b' }} />
                   <span>Add new product</span>
-                  <ChevronRight size={13} style={{ marginLeft: 'auto', color: '#55556e' }} />
+                  <ArrowRight size={13} style={{ marginLeft: 'auto', color: '#55556e' }} />
                 </Link>
               )}
               <Link href="/vendor/dashboard/profile" style={P.quickAction}>
                 <Eye size={14} style={{ color: '#818cf8' }} />
                 <span>Edit store profile</span>
-                <ChevronRight size={13} style={{ marginLeft: 'auto', color: '#55556e' }} />
+                <ArrowRight size={13} style={{ marginLeft: 'auto', color: '#55556e' }} />
               </Link>
               {profile?.slug && (
                 <Link href={`/vendors/${profile.slug}`} target="_blank" style={P.quickAction}>
                   <ArrowUpRight size={14} style={{ color: '#34d399' }} />
                   <span>Preview storefront</span>
-                  <ChevronRight size={13} style={{ marginLeft: 'auto', color: '#55556e' }} />
+                  <ArrowRight size={13} style={{ marginLeft: 'auto', color: '#55556e' }} />
                 </Link>
               )}
             </div>
@@ -356,7 +356,7 @@ function StatCard({ title, value, icon: Icon, color, bg }: {
   return (
     <div style={P.statCard}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
+        <div style={{ minWidth: 0 }}>
           <div style={P.statLabel}>{title}</div>
           <div style={P.statValue}>{value.toLocaleString()}</div>
         </div>
@@ -373,16 +373,12 @@ function PageSkeleton() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       <style>{CSS}</style>
       <div style={P.skelBlock} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: '0.75rem' }}>
+      <div className="vd-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: '0.75rem' }}>
         {[1,2,3,4].map(i => <div key={i} style={{ ...P.skelBlock, height: 88 }} />)}
       </div>
       <div style={{ ...P.skelBlock, height: 200 }} />
     </div>
   );
-}
-
-function ChevronRight({ size, style }: { size: number; style?: React.CSSProperties }) {
-  return <ArrowRight size={size} style={style} />;
 }
 
 const CSS = `
@@ -391,15 +387,28 @@ const CSS = `
   .vd-refresh { font-family: 'DM Sans', sans-serif; }
   .vd-spinning svg { animation: vd-rot 0.7s linear infinite; }
   @keyframes vd-rot { to { transform: rotate(360deg); } }
+  @keyframes vd-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+  .vd-two-col { display: grid; grid-template-columns: 1fr 300px; gap: 1.25rem; align-items: start; }
+  .vd-status-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 0.6rem; }
+
+  @media (max-width: 900px) {
+    .vd-two-col { grid-template-columns: 1fr !important; }
+  }
 
   @media (max-width: 640px) {
-    .vd-two-col { grid-template-columns: 1fr !important; }
-    .vd-stats   { grid-template-columns: repeat(2,1fr) !important; }
+    .vd-stats       { grid-template-columns: repeat(2,1fr) !important; }
+    .vd-status-grid { grid-template-columns: repeat(2,1fr) !important; }
+    .vd-quick-actions { display: none !important; }
+    .vd-add-btn-desktop { display: none !important; }
+    .vd-header-actions { width: 100%; }
+    .vd-refresh { flex: 1; justify-content: center; }
+    .vd-price-hide-mobile { display: none !important; }
   }
 `;
 
 const P: Record<string, React.CSSProperties> = {
-  page:        { fontFamily: "'DM Sans', sans-serif", color: '#f0f0f5', maxWidth: 1020, paddingBottom: '2rem' },
+  page:        { fontFamily: "'DM Sans', sans-serif", color: '#f0f0f5', maxWidth: 1020, paddingBottom: '1rem' },
   header:      { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' },
   h1:          { fontSize: '1.6rem', fontWeight: 700, letterSpacing: '-0.025em', marginBottom: '0.2rem', color: '#f0f0f5' },
   subtitle:    { fontSize: '0.82rem', color: '#55556e' },
@@ -408,27 +417,27 @@ const P: Record<string, React.CSSProperties> = {
   suspendTitle:{ fontSize: '0.88rem', fontWeight: 700, color: '#fca5a5', marginBottom: '0.2rem' },
   suspendBody: { fontSize: '0.78rem', color: '#9494b0', lineHeight: 1.6 },
   alertBanner: { display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.7rem 1rem', borderRadius: 10, background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.18)', color: '#fca5a5', fontSize: '0.82rem', marginBottom: '1.25rem' },
-  statsGrid:   { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(190px,1fr))', gap: '0.75rem', marginBottom: '1.5rem' },
-  statCard:    { background: '#13131a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 13, padding: '1.1rem 1.25rem', transition: 'all 0.15s', cursor: 'default' },
-  statLabel:   { fontSize: '0.7rem', fontWeight: 700, color: '#55556e', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.45rem' },
+  statsGrid:   { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: '0.75rem', marginBottom: '1.5rem' },
+  statCard:    { background: '#13131a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 13, padding: '1.1rem 1.25rem', transition: 'all 0.15s', cursor: 'default', minWidth: 0 },
+  statLabel:   { fontSize: '0.7rem', fontWeight: 700, color: '#55556e', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.45rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   statValue:   { fontSize: '1.75rem', fontWeight: 700, fontFamily: "'DM Mono', monospace", color: '#f0f0f5', lineHeight: 1 },
   statIcon:    { width: 38, height: 38, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  twoColGrid:  { display: 'grid', gridTemplateColumns: '1fr 300px', gap: '1.25rem', alignItems: 'start' },
+  twoColGrid:  {},
   card:        { background: '#13131a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 13, padding: '1.1rem 1.25rem' },
   cardHeader:  { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' },
   cardTitle:   { fontSize: '0.88rem', fontWeight: 700, color: '#e2e2f0' },
   cardLink:    { display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.76rem', fontWeight: 600, color: '#818cf8' },
-  statusGrid:  { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '0.6rem' },
+  statusGrid:  {},
   statusTile:  { display: 'block', background: '#1a1a24', border: '1px solid', borderRadius: 10, padding: '0.75rem 0.85rem', textDecoration: 'none', transition: 'all 0.15s' },
   productRow:  { display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 0', transition: 'all 0.15s', cursor: 'pointer' },
   productIconBox: { width: 32, height: 32, borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   productName: { fontSize: '0.84rem', fontWeight: 600, color: '#f0f0f5', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   productMeta: { fontSize: '0.7rem', color: '#55556e', marginTop: '0.1rem' },
   productPrice:{ fontFamily: "'DM Mono', monospace", fontSize: '0.78rem', color: '#34d399' },
-  statusBadge: { display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.18rem 0.55rem', borderRadius: 100, fontSize: '0.68rem', fontWeight: 700 },
+  statusBadge: { display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.18rem 0.55rem', borderRadius: 100, fontSize: '0.68rem', fontWeight: 700, whiteSpace: 'nowrap' },
   reviewRow:   { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0.6rem', borderRadius: 7, background: 'rgba(255,255,255,0.02)' },
   quickAction: { display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.6rem 0.75rem', borderRadius: 9, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', fontSize: '0.82rem', color: '#9494b0', transition: 'all 0.15s', fontWeight: 500 },
-  emptyState:  { background: '#13131a', border: '1px dashed rgba(255,255,255,0.09)', borderRadius: 14, padding: '3rem', textAlign: 'center' },
+  emptyState:  { background: '#13131a', border: '1px dashed rgba(255,255,255,0.09)', borderRadius: 14, padding: '3rem 1.5rem', textAlign: 'center' },
   skelBlock:   { height: 48, borderRadius: 10, background: 'rgba(255,255,255,0.04)', animation: 'vd-shimmer 1.4s linear infinite', backgroundSize: '200% 100%' },
   btnPrimary:  { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1.1rem', borderRadius: 9, background: '#f59e0b', color: '#0a0a0f', fontSize: '0.83rem', fontWeight: 700, border: 'none', cursor: 'pointer', textDecoration: 'none' },
   btnSecondary:{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', borderRadius: 9, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', color: '#9494b0', fontSize: '0.83rem', fontWeight: 600, textDecoration: 'none' },
