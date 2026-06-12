@@ -10,21 +10,35 @@ import {
 } from "lucide-react";
 import { toast, Toaster } from "react-hot-toast";
 
-type Category = { id: number; name: string; };
-type Business = {
+type Category   = { id: number; name: string; };
+type Business   = {
   id: number; name: string; description?: string; image?: string; slug: string;
   published: boolean; category?: Category | null; createdAt: string; updatedAt: string;
   _count?: { requirements: number };
-  // costMin and costMax removed — now auto-calculated from products
   timeToLaunchMin?: number | null;
   timeToLaunchMax?: number | null;
   profitPotential?: string | null;
   skillLevel?: string | null;
   bestLocations?: string[];
 };
-type SortField = 'name' | 'createdAt' | 'requirements' | 'category';
-type SortOrder = 'asc' | 'desc';
-type ViewMode  = 'table' | 'grid';
+type LinkedReq  = {
+  linkId: number;
+  templateId: number;
+  name: string;
+  description: string;
+  descriptionOverride: string | null;
+  templateDescription: string;
+  image?: string;
+  category: string;
+  necessity: 'Required' | 'Optional';
+  isActive: boolean;
+  displayOrder: number;
+  productCount: number;
+  linkedAt: string;
+};
+type SortField  = 'name' | 'createdAt' | 'requirements' | 'category';
+type SortOrder  = 'asc' | 'desc';
+type ViewMode   = 'table' | 'grid';
 const CREATE_NEW = "__CREATE_NEW__";
 
 const PROFIT_OPTIONS = [
@@ -42,6 +56,15 @@ const SKILL_OPTIONS = [
   { value: 'moderate', label: 'Moderate' },
   { value: 'high',     label: 'High (Expert required)' },
 ];
+
+const REQ_CAT_COLORS: Record<string, [string, string]> = {
+  Equipment:            ['rgba(99,102,241,0.12)',  '#818cf8'],
+  Software:             ['rgba(139,92,246,0.12)',  '#a78bfa'],
+  Documents:            ['rgba(245,158,11,0.12)',  '#fbbf24'],
+  Legal:                ['rgba(239,68,68,0.12)',   '#f87171'],
+  Branding:             ['rgba(236,72,153,0.12)',  '#f472b6'],
+  'Operating Expenses': ['rgba(20,184,166,0.12)',  '#2dd4bf'],
+};
 
 /* ── Styles ── */
 const S = `
@@ -72,6 +95,7 @@ const S = `
   .btn-success:hover { background:rgba(16,185,129,0.22); }
   .btn-danger   { background:rgba(239,68,68,0.12);  color:#f87171; border:1px solid rgba(239,68,68,0.2); }
   .btn-danger:hover  { background:rgba(239,68,68,0.22); }
+  .btn-danger:disabled { opacity:0.5; cursor:not-allowed; }
   .btn-ghost    { background:rgba(255,255,255,0.06); color:#9494b0; border:1px solid rgba(255,255,255,0.09); }
   .btn-ghost:hover   { background:rgba(255,255,255,0.1); color:#f0f0f5; }
   .btn-filter   { background:rgba(255,255,255,0.05); color:#9494b0; border:1px solid rgba(255,255,255,0.09); }
@@ -116,6 +140,27 @@ const S = `
   .section-toggle:hover { color:#f0f0f5; }
   .hint { font-size:0.72rem; color:#55556e; margin-top:0.25rem; }
   .auto-badge { display:inline-flex; align-items:center; gap:0.3rem; font-size:0.68rem; font-weight:600; color:#34d399; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.2); border-radius:100px; padding:0.15rem 0.55rem; }
+
+  .req-count-btn { background:none; border:none; cursor:pointer; padding:0; font-family:'DM Mono',monospace; }
+  .req-count-btn:hover .req-count-val { color:#c4b5fd !important; }
+
+  .req-row { border-radius:9px; overflow:hidden; transition:border-color 0.15s, background 0.15s; }
+  .req-row-inner { display:flex; align-items:center; gap:0.65rem; padding:0.65rem 0.85rem; }
+  .req-row-desc { padding:0 0.85rem 0.6rem 3.85rem; font-size:0.74rem; color:#55556e; line-height:1.5; font-family:'Sora',sans-serif; }
+
+  .nec-chip { display:inline-flex; border-radius:7px; overflow:hidden; border:1px solid rgba(255,255,255,0.08); flex-shrink:0; }
+  .nec-chip-btn { padding:0.22rem 0.65rem; font-size:0.68rem; font-weight:700; font-family:'Sora',sans-serif; cursor:pointer; border:none; transition:all 0.15s; white-space:nowrap; }
+  .nec-chip-btn:not(.nec-active) { background:transparent; color:#55556e; }
+  .nec-chip-btn:not(.nec-active):hover { color:#9494b0; background:rgba(255,255,255,0.04); }
+  .nec-chip-btn.nec-req.nec-active { background:rgba(16,185,129,0.18); color:#34d399; }
+  .nec-chip-btn.nec-opt.nec-active { background:rgba(245,158,11,0.15); color:#fbbf24; }
+  .nec-inherited-label { font-size:0.63rem; color:#55556e; font-family:'Sora',sans-serif; display:flex; align-items:center; gap:0.2rem; justify-content:flex-end; }
+  .nec-reset-btn { color:#55556e; text-decoration:underline; cursor:pointer; background:none; border:none; font-size:0.63rem; font-family:'Sora',sans-serif; padding:0; }
+  .nec-reset-btn:hover { color:#a5b4fc; }
+
+  .req-modal-search { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.09); border-radius:8px; padding:0.5rem 2rem 0.5rem 2.1rem; color:#f0f0f5; font-family:'Sora',sans-serif; font-size:0.82rem; outline:none; width:100%; box-sizing:border-box; transition:border-color 0.2s; }
+  .req-modal-search::placeholder { color:#3a3a56; }
+  .req-modal-search:focus { border-color:rgba(99,102,241,0.5); box-shadow:0 0 0 3px rgba(99,102,241,0.1); }
 `;
 
 function FormField({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -124,6 +169,75 @@ function FormField({ label, hint, children }: { label: string; hint?: string; ch
       <label className="f-label">{label}</label>
       {children}
       {hint && <p className="hint">{hint}</p>}
+    </div>
+  );
+}
+
+/* ── Necessity toggle component (3-state: Required / Optional / inherited) ── */
+function NecessityToggle({
+  templateId, businessId, linkId, necessity,
+  necOverride, templateNecessity, onUpdated,
+}: {
+  templateId: number; businessId: number; linkId: number;
+  necessity: 'Required' | 'Optional';
+  necOverride: 'Required' | 'Optional' | null;
+  templateNecessity: 'Required' | 'Optional';
+  onUpdated: (linkId: number, override: 'Required' | 'Optional' | null) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+
+  const effective = necOverride ?? necessity;
+
+  async function setOverride(value: 'Required' | 'Optional' | null) {
+    setSaving(true);
+    try {
+      const r = await fetch(`/api/requirements/${templateId}/businesses`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId, necessityOverride: value }),
+      });
+      if (!r.ok) { const d = await r.json(); throw new Error(d.error); }
+      onUpdated(linkId, value);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to update');
+    } finally { setSaving(false); }
+  }
+
+  function handleClick(value: 'Required' | 'Optional') {
+    if (saving) return;
+    if (effective === value) {
+      if (necOverride !== null) setOverride(null); // reset to inherited
+    } else {
+      setOverride(value);
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.15rem', flexShrink: 0 }}>
+      <div className="nec-chip" style={{ opacity: saving ? 0.5 : 1, pointerEvents: saving ? 'none' : 'auto' }}>
+        <button
+          className={`nec-chip-btn nec-req${effective === 'Required' ? ' nec-active' : ''}`}
+          onClick={() => handleClick('Required')}
+        >
+          Required
+        </button>
+        <button
+          className={`nec-chip-btn nec-opt${effective === 'Optional' ? ' nec-active' : ''}`}
+          onClick={() => handleClick('Optional')}
+        >
+          Optional
+        </button>
+      </div>
+      <div className="nec-inherited-label">
+        {necOverride !== null ? (
+          <>
+            <span style={{ color: '#a78bfa' }}>overridden</span>
+            <button className="nec-reset-btn" onClick={() => !saving && setOverride(null)}>reset</button>
+          </>
+        ) : (
+          <span>inherited · {templateNecessity}</span>
+        )}
+      </div>
     </div>
   );
 }
@@ -147,7 +261,16 @@ export default function BusinessesAdminPage() {
   const [newCatName,      setNewCatName]      = useState('');
   const [showMetaFields,  setShowMetaFields]  = useState(false);
 
-  // costMin and costMax removed from emptyForm — auto-calculated from products
+  // ── Requirements modal ──
+  const [reqModalBiz,       setReqModalBiz]       = useState<Business | null>(null);
+  const [linkedReqs,        setLinkedReqs]         = useState<LinkedReq[]>([]);
+  const [reqsLoading,       setReqsLoading]        = useState(false);
+  const [reqSearch,         setReqSearch]          = useState('');
+  const [unlinkReqIds,      setUnlinkReqIds]       = useState<Set<number>>(new Set());
+  const [unlinkReqLoading,  setUnlinkReqLoading]   = useState(false);
+  // per-link necessity overrides (linkId → override | null)
+  const [necOverrides,      setNecOverrides]       = useState<Record<number, 'Required' | 'Optional' | null>>({});
+
   const emptyForm = {
     name: '', description: '', image: '', slug: '', published: true,
     timeToLaunchMin: '', timeToLaunchMax: '',
@@ -160,52 +283,80 @@ export default function BusinessesAdminPage() {
 
   const filtered = useMemo(() => {
     let f = businesses;
-    if (search) f = f.filter(b => b.name.toLowerCase().includes(search.toLowerCase()) || b.description?.toLowerCase().includes(search.toLowerCase()) || b.category?.name.toLowerCase().includes(search.toLowerCase()) || b.slug.toLowerCase().includes(search.toLowerCase()));
-    if (categoryFilter !== 'all') { if(categoryFilter==='uncategorized') f=f.filter(b=>!b.category); else f=f.filter(b=>b.category?.id===Number(categoryFilter)); }
+    if (search) f = f.filter(b =>
+      b.name.toLowerCase().includes(search.toLowerCase()) ||
+      b.description?.toLowerCase().includes(search.toLowerCase()) ||
+      b.category?.name.toLowerCase().includes(search.toLowerCase()) ||
+      b.slug.toLowerCase().includes(search.toLowerCase())
+    );
+    if (categoryFilter !== 'all') {
+      if (categoryFilter === 'uncategorized') f = f.filter(b => !b.category);
+      else f = f.filter(b => b.category?.id === Number(categoryFilter));
+    }
     if (statusFilter === 'published') f = f.filter(b => b.published);
     if (statusFilter === 'draft')     f = f.filter(b => !b.published);
-    if (dateFilter !== 'all') { const now=new Date(); f=f.filter(b=>{ const d=Math.floor((now.getTime()-new Date(b.createdAt).getTime())/(86400000)); return dateFilter==='today'?d===0:dateFilter==='week'?d<=7:d<=30; }); }
-    return [...f].sort((a,b)=>{
-      let av: string|number='', bv: string|number='';
-      if(sortField==='name'){av=a.name.toLowerCase();bv=b.name.toLowerCase();}
-      else if(sortField==='createdAt'){av=new Date(a.createdAt).getTime();bv=new Date(b.createdAt).getTime();}
-      else if(sortField==='requirements'){av=a._count?.requirements||0;bv=b._count?.requirements||0;}
-      else{av=a.category?.name.toLowerCase()||'';bv=b.category?.name.toLowerCase()||'';}
-      return av<bv?sortOrder==='asc'?-1:1:av>bv?sortOrder==='asc'?1:-1:0;
+    if (dateFilter !== 'all') {
+      const now = new Date();
+      f = f.filter(b => {
+        const d = Math.floor((now.getTime() - new Date(b.createdAt).getTime()) / 86400000);
+        return dateFilter === 'today' ? d === 0 : dateFilter === 'week' ? d <= 7 : d <= 30;
+      });
+    }
+    return [...f].sort((a, b) => {
+      let av: string | number = '', bv: string | number = '';
+      if (sortField === 'name')         { av = a.name.toLowerCase(); bv = b.name.toLowerCase(); }
+      else if (sortField === 'createdAt') { av = new Date(a.createdAt).getTime(); bv = new Date(b.createdAt).getTime(); }
+      else if (sortField === 'requirements') { av = a._count?.requirements || 0; bv = b._count?.requirements || 0; }
+      else { av = a.category?.name.toLowerCase() || ''; bv = b.category?.name.toLowerCase() || ''; }
+      return av < bv ? sortOrder === 'asc' ? -1 : 1 : av > bv ? sortOrder === 'asc' ? 1 : -1 : 0;
     });
-  }, [businesses,search,categoryFilter,statusFilter,dateFilter,sortField,sortOrder]);
+  }, [businesses, search, categoryFilter, statusFilter, dateFilter, sortField, sortOrder]);
 
-  const activeFiltersCount = [search!=='',categoryFilter!=='all',statusFilter!=='all',dateFilter!=='all'].filter(Boolean).length;
+  const activeFiltersCount = [search !== '', categoryFilter !== 'all', statusFilter !== 'all', dateFilter !== 'all'].filter(Boolean).length;
 
-  function handleSort(field: SortField) { if(sortField===field){setSortOrder(o=>o==='asc'?'desc':'asc');}else{setSortField(field);setSortOrder('asc');} }
-  function SortBtn({field,label}:{field:SortField;label:string}) {
-    const active = sortField===field;
-    return <button onClick={()=>handleSort(field)} style={{ background:'none', border:'none', color:active?'#a5b4fc':'#55556e', fontFamily:'Sora,sans-serif', fontSize:'0.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', cursor:'pointer', display:'flex', alignItems:'center', gap:'0.3rem', padding:0 }}>
-      {label}
-      {active ? (sortOrder==='asc'?<ArrowUp size={11}/>:<ArrowDown size={11}/>) : <ArrowUpDown size={11} style={{opacity:0.4}}/>}
-    </button>;
+  function handleSort(field: SortField) {
+    if (sortField === field) { setSortOrder(o => o === 'asc' ? 'desc' : 'asc'); }
+    else { setSortField(field); setSortOrder('asc'); }
+  }
+  function SortBtn({ field, label }: { field: SortField; label: string }) {
+    const active = sortField === field;
+    return (
+      <button onClick={() => handleSort(field)} style={{ background: 'none', border: 'none', color: active ? '#a5b4fc' : '#55556e', fontFamily: 'Sora,sans-serif', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem', padding: 0 }}>
+        {label}
+        {active ? (sortOrder === 'asc' ? <ArrowUp size={11} /> : <ArrowDown size={11} />) : <ArrowUpDown size={11} style={{ opacity: 0.4 }} />}
+      </button>
+    );
   }
 
-  async function fetchBusinesses() { try { const r=await fetch('/api/admin/businesses'); if(r.ok) setBusinesses(await r.json()); } catch { toast.error('Failed to load businesses'); } }
-  async function fetchCategories() { try { const r=await fetch('/api/admin/categories'); if(r.ok) setCategories(await r.json()); } catch {} }
+  async function fetchBusinesses() {
+    try {
+      const r = await fetch('/api/admin/businesses');
+      if (r.ok) setBusinesses(await r.json());
+    } catch { toast.error('Failed to load businesses'); }
+  }
+  async function fetchCategories() {
+    try {
+      const r = await fetch('/api/admin/categories');
+      if (r.ok) setCategories(await r.json());
+    } catch { }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (selectedCatId===CREATE_NEW && !newCatName.trim()) { toast.error('Enter a category name'); return; }
+    if (selectedCatId === CREATE_NEW && !newCatName.trim()) { toast.error('Enter a category name'); return; }
     setLoading(true);
     try {
-      const catName = selectedCatId===CREATE_NEW
+      const catName = selectedCatId === CREATE_NEW
         ? newCatName.trim()
-        : selectedCatId===''
+        : selectedCatId === ''
           ? ''
-          : categories.find(c=>c.id===Number(selectedCatId))?.name ?? '';
+          : categories.find(c => c.id === Number(selectedCatId))?.name ?? '';
 
       const method = editingBusiness ? 'PATCH' : 'POST';
       const payload = {
         ...formData,
         ...(editingBusiness && { id: editingBusiness.id }),
         categoryName: catName,
-        // Numbers — send null when empty
         timeToLaunchMin: formData.timeToLaunchMin !== '' ? Number(formData.timeToLaunchMin) : null,
         timeToLaunchMax: formData.timeToLaunchMax !== '' ? Number(formData.timeToLaunchMax) : null,
         profitPotential: formData.profitPotential || null,
@@ -220,68 +371,59 @@ export default function BusinessesAdminPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (!r.ok) {
-        const d = await r.json();
-        throw new Error(d.error || 'Something went wrong');
-      }
+      if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Something went wrong'); }
       toast.success(editingBusiness ? 'Business updated!' : 'Business created!');
       closeModal(); fetchBusinesses(); fetchCategories();
-    } catch(err) {
+    } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Something went wrong!');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }
 
   async function handleDelete(id: number) {
     if (!confirm('Delete this business?')) return;
     try {
-      const r = await fetch('/api/admin/businesses', { method:'DELETE', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id}) });
-      if (!r.ok) { const d=await r.json(); throw new Error(d.error||'Failed'); }
+      const r = await fetch('/api/admin/businesses', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+      if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Failed'); }
       toast.success('Deleted!'); fetchBusinesses();
-    } catch(e) { toast.error(e instanceof Error ? e.message : 'Failed to delete'); }
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Failed to delete'); }
   }
   async function handleTogglePublish(b: Business) {
-    try { const r=await fetch('/api/admin/businesses',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:b.id,published:!b.published})}); if(!r.ok)throw new Error(); toast.success(b.published?'Unpublished':'Published'); fetchBusinesses(); } catch { toast.error('Failed'); }
+    try {
+      const r = await fetch('/api/admin/businesses', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: b.id, published: !b.published }) });
+      if (!r.ok) throw new Error();
+      toast.success(b.published ? 'Unpublished' : 'Published');
+      fetchBusinesses();
+    } catch { toast.error('Failed'); }
   }
   async function handleBulkDelete() {
-    if(!selectedIds.length) return;
-    if(!confirm(`Delete ${selectedIds.length} businesses?`)) return;
-    await Promise.all(selectedIds.map(id=>fetch('/api/admin/businesses',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})})));
+    if (!selectedIds.length) return;
+    if (!confirm(`Delete ${selectedIds.length} businesses?`)) return;
+    await Promise.all(selectedIds.map(id => fetch('/api/admin/businesses', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })));
     toast.success(`${selectedIds.length} deleted!`); setSelectedIds([]); fetchBusinesses();
   }
   async function handleBulkPublish(pub: boolean) {
-    if(!selectedIds.length) return;
-    await Promise.all(selectedIds.map(id=>fetch('/api/admin/businesses',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,published:pub})})));
-    toast.success(`${selectedIds.length} ${pub?'published':'unpublished'}!`); setSelectedIds([]); fetchBusinesses();
+    if (!selectedIds.length) return;
+    await Promise.all(selectedIds.map(id => fetch('/api/admin/businesses', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, published: pub }) })));
+    toast.success(`${selectedIds.length} ${pub ? 'published' : 'unpublished'}!`); setSelectedIds([]); fetchBusinesses();
   }
 
   function handleExport() {
-    const csv=[['ID','Name','Slug','Category','Published','Requirements','Created'],...filtered.map(b=>[b.id,b.name,b.slug,b.category?.name||'',b.published?'Yes':'No',b._count?.requirements||0,new Date(b.createdAt).toLocaleDateString()])].map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
-    Object.assign(document.createElement('a'),{href:URL.createObjectURL(new Blob([csv],{type:'text/csv'})),download:`businesses-${new Date().toISOString()}.csv`}).click();
+    const csv = [
+      ['ID', 'Name', 'Slug', 'Category', 'Published', 'Requirements', 'Created'],
+      ...filtered.map(b => [b.id, b.name, b.slug, b.category?.name || '', b.published ? 'Yes' : 'No', b._count?.requirements || 0, new Date(b.createdAt).toLocaleDateString()])
+    ].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), download: `businesses-${new Date().toISOString()}.csv` }).click();
     toast.success('Exported!');
   }
 
   function openModal() {
-    setFormData(emptyForm);
-    setEditingBusiness(null);
-    setSelectedCatId('');
-    setNewCatName('');
-    setShowMetaFields(false);
-    setIsModalOpen(true);
+    setFormData(emptyForm); setEditingBusiness(null);
+    setSelectedCatId(''); setNewCatName('');
+    setShowMetaFields(false); setIsModalOpen(true);
   }
-
-  function closeModal() {
-    setIsModalOpen(false);
-    setEditingBusiness(null);
-    setShowMetaFields(false);
-  }
-
+  function closeModal() { setIsModalOpen(false); setEditingBusiness(null); setShowMetaFields(false); }
   function openEditModal(b: Business) {
-    const hasMetaData = !!(
-      b.timeToLaunchMin || b.timeToLaunchMax ||
-      b.profitPotential || b.skillLevel || b.bestLocations?.length
-    );
+    const hasMetaData = !!(b.timeToLaunchMin || b.timeToLaunchMax || b.profitPotential || b.skillLevel || b.bestLocations?.length);
     setFormData({
       name:            b.name,
       description:     b.description     || '',
@@ -301,74 +443,171 @@ export default function BusinessesAdminPage() {
     setIsModalOpen(true);
   }
 
-  function genSlug(name: string) { return name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,''); }
-  function toggleSelectAll() { setSelectedIds(selectedIds.length===filtered.length?[]:filtered.map(b=>b.id)); }
-  function toggleSelect(id: number) { setSelectedIds(p=>p.includes(id)?p.filter(i=>i!==id):[...p,id]); }
+  // ── Requirements modal helpers ──
+  async function openReqModal(b: Business) {
+    setReqModalBiz(b);
+    setLinkedReqs([]);
+    setReqSearch('');
+    setUnlinkReqIds(new Set());
+    setNecOverrides({});
+    setReqsLoading(true);
+    try {
+      const r = await fetch(`/api/admin/businesses/${b.id}/requirements`);
+      if (r.ok) {
+        const data: LinkedReq[] = await r.json();
+        setLinkedReqs(data);
+        // seed necOverrides from API data — null means inherited
+        const overrides: Record<number, 'Required' | 'Optional' | null> = {};
+        data.forEach(req => { overrides[req.linkId] = null; });
+        setNecOverrides(overrides);
+      }
+    } catch { toast.error('Failed to load requirements'); }
+    finally { setReqsLoading(false); }
+  }
+
+  function closeReqModal() {
+    setReqModalBiz(null);
+    setLinkedReqs([]);
+    setUnlinkReqIds(new Set());
+    setNecOverrides({});
+    setReqSearch('');
+  }
+
+  function toggleUnlinkReq(linkId: number) {
+    setUnlinkReqIds(prev => {
+      const s = new Set(prev);
+      if (s.has(linkId)) {
+        s.delete(linkId);
+      } else {
+        s.add(linkId);
+      }
+      return s;
+    });
+  }
+
+  async function handleUnlinkSingle(linkId: number, name: string) {
+    if (!reqModalBiz) return;
+    try {
+      const r = await fetch(`/api/admin/businesses/${reqModalBiz.id}/requirements`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ linkId }),
+      });
+      if (!r.ok) { const d = await r.json(); throw new Error(d.error); }
+      setLinkedReqs(prev => prev.filter(req => req.linkId !== linkId));
+      setUnlinkReqIds(prev => { const s = new Set(prev); s.delete(linkId); return s; });
+      toast.success(`"${name}" removed`);
+      fetchBusinesses();
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Failed to remove'); }
+  }
+
+  async function handleBulkUnlinkReqs() {
+    if (!reqModalBiz || unlinkReqIds.size === 0) return;
+    setUnlinkReqLoading(true);
+    let ok = 0, fail = 0;
+    for (const linkId of Array.from(unlinkReqIds)) {
+      try {
+        const r = await fetch(`/api/admin/businesses/${reqModalBiz.id}/requirements`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ linkId }),
+        });
+        if (r.ok) ok++;
+        else fail++;
+      } catch { fail++; }
+    }
+    setLinkedReqs(prev => prev.filter(req => !unlinkReqIds.has(req.linkId)));
+    setUnlinkReqIds(new Set());
+    setUnlinkReqLoading(false);
+    if (ok > 0) toast.success(`${ok} requirement${ok !== 1 ? 's' : ''} removed${fail > 0 ? `, ${fail} failed` : ''}`);
+    else toast.error(`Failed to remove requirements`);
+    fetchBusinesses();
+  }
+
+  function handleNecOverrideUpdated(linkId: number, override: 'Required' | 'Optional' | null) {
+    setNecOverrides(prev => ({ ...prev, [linkId]: override }));
+  }
+
+  function genSlug(name: string) { return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }
+  function toggleSelectAll() { setSelectedIds(selectedIds.length === filtered.length ? [] : filtered.map(b => b.id)); }
+  function toggleSelect(id: number) { setSelectedIds(p => p.includes(id) ? p.filter(i => i !== id) : [...p, id]); }
   function fd(key: keyof typeof emptyForm) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
       setFormData(prev => ({ ...prev, [key]: e.target.value }));
   }
 
+  // ── Derived values for requirements modal ──
+  const filteredReqs = useMemo(() => {
+    if (!reqSearch.trim()) return linkedReqs;
+    const q = reqSearch.toLowerCase();
+    return linkedReqs.filter(r =>
+      r.name.toLowerCase().includes(q) ||
+      r.category.toLowerCase().includes(q)
+    );
+  }, [linkedReqs, reqSearch]);
+
+  const allReqsSelected = unlinkReqIds.size === filteredReqs.length && filteredReqs.length > 0;
+
   return (
     <>
       <style>{S}</style>
-      <Toaster position="top-right" toastOptions={{ style:{background:'#1a1a24',color:'#f0f0f5',border:'1px solid rgba(255,255,255,0.09)'} }} />
-      <div className="adm" style={{ minHeight:'100vh' }}>
+      <Toaster position="top-right" toastOptions={{ style: { background: '#1a1a24', color: '#f0f0f5', border: '1px solid rgba(255,255,255,0.09)' } }} />
+      <div className="adm" style={{ minHeight: '100vh' }}>
 
-        {/* Header */}
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1.5rem', flexWrap:'wrap', gap:'1rem' }}>
+        {/* ── Header ── */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <h1 style={{ fontSize:'1.75rem', fontWeight:700, letterSpacing:'-0.03em', marginBottom:'0.25rem' }}>Businesses</h1>
-            <p style={{ fontSize:'0.84rem', color:'#55556e' }}>{filtered.length} of {businesses.length} businesses</p>
+            <h1 style={{ fontSize: '1.75rem', fontWeight: 700, letterSpacing: '-0.03em', marginBottom: '0.25rem' }}>Businesses</h1>
+            <p style={{ fontSize: '0.84rem', color: '#55556e' }}>{filtered.length} of {businesses.length} businesses</p>
           </div>
-          <div style={{ display:'flex', gap:'0.65rem', flexWrap:'wrap', alignItems:'center' }}>
-            {selectedIds.length>0 && <>
-              <button className="btn btn-success" style={{ fontSize:'0.78rem', padding:'0.4rem 0.85rem' }} onClick={()=>handleBulkPublish(true)}><Eye size={13}/>Publish {selectedIds.length}</button>
-              <button className="btn btn-ghost"   style={{ fontSize:'0.78rem', padding:'0.4rem 0.85rem' }} onClick={()=>handleBulkPublish(false)}><EyeOff size={13}/>Unpublish</button>
-              <button className="btn btn-danger"  style={{ fontSize:'0.78rem', padding:'0.4rem 0.85rem' }} onClick={handleBulkDelete}><Trash2 size={13}/>Delete</button>
+          <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            {selectedIds.length > 0 && <>
+              <button className="btn btn-success" style={{ fontSize: '0.78rem', padding: '0.4rem 0.85rem' }} onClick={() => handleBulkPublish(true)}><Eye size={13} />Publish {selectedIds.length}</button>
+              <button className="btn btn-ghost"   style={{ fontSize: '0.78rem', padding: '0.4rem 0.85rem' }} onClick={() => handleBulkPublish(false)}><EyeOff size={13} />Unpublish</button>
+              <button className="btn btn-danger"  style={{ fontSize: '0.78rem', padding: '0.4rem 0.85rem' }} onClick={handleBulkDelete}><Trash2 size={13} />Delete</button>
             </>}
-            <BusinessCSVImport onImportComplete={()=>{fetchBusinesses();fetchCategories();}} />
-            <button className="btn btn-success" onClick={handleExport}><Download size={14}/>Export</button>
-            <button className="btn btn-primary" onClick={openModal}><Plus size={14}/>Add Business</button>
+            <BusinessCSVImport onImportComplete={() => { fetchBusinesses(); fetchCategories(); }} />
+            <button className="btn btn-success" onClick={handleExport}><Download size={14} />Export</button>
+            <button className="btn btn-primary" onClick={openModal}><Plus size={14} />Add Business</button>
           </div>
         </div>
 
-        {/* Toolbar */}
-        <div style={{ display:'flex', gap:'0.65rem', marginBottom:'1rem', flexWrap:'wrap' }}>
-          <div style={{ position:'relative', flex:1, minWidth:220 }}>
-            <Search size={15} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'#55556e', pointerEvents:'none' }} />
-            <input type="text" placeholder="Search businesses…" value={search} onChange={e=>setSearch(e.target.value)} className="u-input" />
-            {search && <button onClick={()=>setSearch('')} style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', color:'#55556e', cursor:'pointer', padding:0 }}><X size={14}/></button>}
+        {/* ── Toolbar ── */}
+        <div style={{ display: 'flex', gap: '0.65rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: 220 }}>
+            <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#55556e', pointerEvents: 'none' }} />
+            <input type="text" placeholder="Search businesses…" value={search} onChange={e => setSearch(e.target.value)} className="u-input" />
+            {search && <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#55556e', cursor: 'pointer', padding: 0 }}><X size={14} /></button>}
           </div>
-          <button className={`btn btn-filter${showFilters||activeFiltersCount>0?' active':''}`} onClick={()=>setShowFilters(!showFilters)}>
-            <Filter size={14}/>Filters
-            {activeFiltersCount>0 && <span style={{ background:'#6366f1', color:'#fff', borderRadius:'100px', fontSize:'0.65rem', fontWeight:700, padding:'0.1rem 0.45rem', marginLeft:'0.2rem' }}>{activeFiltersCount}</span>}
+          <button className={`btn btn-filter${showFilters || activeFiltersCount > 0 ? ' active' : ''}`} onClick={() => setShowFilters(!showFilters)}>
+            <Filter size={14} />Filters
+            {activeFiltersCount > 0 && <span style={{ background: '#6366f1', color: '#fff', borderRadius: '100px', fontSize: '0.65rem', fontWeight: 700, padding: '0.1rem 0.45rem', marginLeft: '0.2rem' }}>{activeFiltersCount}</span>}
           </button>
-          <div style={{ display:'flex', border:'1px solid rgba(255,255,255,0.09)', borderRadius:9, overflow:'hidden' }}>
-            <button className={`btn-view${viewMode==='table'?' active':''}`} onClick={()=>setViewMode('table')} title="Table"><List size={15}/></button>
-            <button className={`btn-view${viewMode==='grid'?' active':''}`}  onClick={()=>setViewMode('grid')}  title="Grid" style={{ borderLeft:'1px solid rgba(255,255,255,0.09)' }}><Grid size={15}/></button>
+          <div style={{ display: 'flex', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 9, overflow: 'hidden' }}>
+            <button className={`btn-view${viewMode === 'table' ? ' active' : ''}`} onClick={() => setViewMode('table')} title="Table"><List size={15} /></button>
+            <button className={`btn-view${viewMode === 'grid' ? ' active' : ''}`}  onClick={() => setViewMode('grid')}  title="Grid" style={{ borderLeft: '1px solid rgba(255,255,255,0.09)' }}><Grid size={15} /></button>
           </div>
         </div>
 
-        {/* Filter panel */}
+        {/* ── Filter panel ── */}
         {showFilters && (
-          <div className="filter-panel" style={{ marginBottom:'1rem' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'0.75rem' }}>
-              <span style={{ fontSize:'0.78rem', fontWeight:700, color:'#9494b0' }}>Filters</span>
-              <button onClick={()=>{setCategoryFilter('all');setStatusFilter('all');setDateFilter('all');setSearch('');}} style={{ fontSize:'0.75rem', color:'#818cf8', background:'none', border:'none', cursor:'pointer', fontFamily:'Sora,sans-serif' }}>Clear all</button>
+          <div className="filter-panel" style={{ marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#9494b0' }}>Filters</span>
+              <button onClick={() => { setCategoryFilter('all'); setStatusFilter('all'); setDateFilter('all'); setSearch(''); }} style={{ fontSize: '0.75rem', color: '#818cf8', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Sora,sans-serif' }}>Clear all</button>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))', gap:'0.75rem' }}>
-              <select value={categoryFilter} onChange={e=>setCategoryFilter(e.target.value)} className="u-select">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: '0.75rem' }}>
+              <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="u-select">
                 <option value="all">All categories</option>
                 <option value="uncategorized">Uncategorized</option>
-                {categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
-              <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="u-select">
+              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="u-select">
                 <option value="all">All statuses</option>
                 <option value="published">Published</option>
                 <option value="draft">Draft</option>
               </select>
-              <select value={dateFilter} onChange={e=>setDateFilter(e.target.value)} className="u-select">
+              <select value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="u-select">
                 <option value="all">All time</option>
                 <option value="today">Today</option>
                 <option value="week">This week</option>
@@ -378,64 +617,89 @@ export default function BusinessesAdminPage() {
           </div>
         )}
 
-        {/* TABLE VIEW */}
-        {viewMode==='table' && (
-          <div style={{ background:'#13131a', border:'1px solid rgba(255,255,255,0.07)', borderRadius:14, overflow:'hidden' }}>
-            {selectedIds.length>0 && (
+        {/* ── TABLE VIEW ── */}
+        {viewMode === 'table' && (
+          <div style={{ background: '#13131a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+            {selectedIds.length > 0 && (
               <div className="bulk-bar">
                 <span>{selectedIds.length} selected</span>
-                <button className="btn btn-ghost" style={{ padding:'0.28rem 0.65rem', fontSize:'0.75rem' }} onClick={()=>setSelectedIds([])}>Clear</button>
+                <button className="btn btn-ghost" style={{ padding: '0.28rem 0.65rem', fontSize: '0.75rem' }} onClick={() => setSelectedIds([])}>Clear</button>
               </div>
             )}
-            <div className="scroll" style={{ overflowX:'auto' }}>
+            <div className="scroll" style={{ overflowX: 'auto' }}>
               <table className="b-table">
                 <thead>
                   <tr>
-                    <th style={{ paddingLeft:'1.25rem', width:40 }}><input type="checkbox" checked={selectedIds.length===filtered.length&&filtered.length>0} onChange={toggleSelectAll} style={{ accentColor:'#6366f1', cursor:'pointer' }} /></th>
-                    <th style={{ width:56 }}>Image</th>
+                    <th style={{ paddingLeft: '1.25rem', width: 40 }}><input type="checkbox" checked={selectedIds.length === filtered.length && filtered.length > 0} onChange={toggleSelectAll} style={{ accentColor: '#6366f1', cursor: 'pointer' }} /></th>
+                    <th style={{ width: 56 }}>Image</th>
                     <th className="sort"><SortBtn field="name" label="Name" /></th>
                     <th>Slug</th>
                     <th className="sort"><SortBtn field="category" label="Category" /></th>
                     <th>Status</th>
                     <th className="sort"><SortBtn field="requirements" label="Reqs" /></th>
                     <th className="sort"><SortBtn field="createdAt" label="Created" /></th>
-                    <th style={{ textAlign:'right', paddingRight:'1.25rem' }}>Actions</th>
+                    <th style={{ textAlign: 'right', paddingRight: '1.25rem' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.length===0 ? (
-                    <tr><td colSpan={9} style={{ textAlign:'center', padding:'3.5rem', color:'#3a3a56' }}>
-                      <Building size={36} style={{ margin:'0 auto 0.75rem', display:'block' }} />
-                      <div style={{ color:'#55556e', fontWeight:600 }}>{activeFiltersCount>0||search?'No matches found':'No businesses yet'}</div>
+                  {filtered.length === 0 ? (
+                    <tr><td colSpan={9} style={{ textAlign: 'center', padding: '3.5rem', color: '#3a3a56' }}>
+                      <Building size={36} style={{ margin: '0 auto 0.75rem', display: 'block' }} />
+                      <div style={{ color: '#55556e', fontWeight: 600 }}>{activeFiltersCount > 0 || search ? 'No matches found' : 'No businesses yet'}</div>
                     </td></tr>
-                  ) : filtered.map(b=>(
-                    <tr key={b.id} className={selectedIds.includes(b.id)?'sel':''}>
-                      <td style={{ paddingLeft:'1.25rem' }}><input type="checkbox" checked={selectedIds.includes(b.id)} onChange={()=>toggleSelect(b.id)} style={{ accentColor:'#6366f1', cursor:'pointer' }} /></td>
-                      <td>{b.image ? <Image src={b.image} alt={b.name} width={44} height={44} style={{ borderRadius:9, objectFit:'cover', border:'1px solid rgba(255,255,255,0.07)' }} /> : <div style={{ width:44, height:44, borderRadius:9, background:'rgba(255,255,255,0.05)', border:'1px dashed rgba(255,255,255,0.1)', display:'flex', alignItems:'center', justifyContent:'center' }}><Building size={16} color="#3a3a56" /></div>}</td>
+                  ) : filtered.map(b => (
+                    <tr key={b.id} className={selectedIds.includes(b.id) ? 'sel' : ''}>
+                      <td style={{ paddingLeft: '1.25rem' }}><input type="checkbox" checked={selectedIds.includes(b.id)} onChange={() => toggleSelect(b.id)} style={{ accentColor: '#6366f1', cursor: 'pointer' }} /></td>
                       <td>
-                        <div style={{ fontWeight:600, fontSize:'0.88rem', color:'#f0f0f5' }}>{b.name}</div>
-                        {b.description && <div style={{ fontSize:'0.75rem', color:'#55556e', maxWidth:240, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginTop:'0.1rem' }}>{b.description}</div>}
+                        {b.image
+                          ? <Image src={b.image} alt={b.name} width={44} height={44} style={{ borderRadius: 9, objectFit: 'cover', border: '1px solid rgba(255,255,255,0.07)' }} />
+                          : <div style={{ width: 44, height: 44, borderRadius: 9, background: 'rgba(255,255,255,0.05)', border: '1px dashed rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Building size={16} color="#3a3a56" /></div>
+                        }
                       </td>
                       <td>
-                        <div style={{ display:'flex', alignItems:'center', gap:'0.4rem' }}>
+                        <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#f0f0f5' }}>{b.name}</div>
+                        {b.description && <div style={{ fontSize: '0.75rem', color: '#55556e', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '0.1rem' }}>{b.description}</div>}
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                           <span className="code-pill">{b.slug}</span>
-                          <button onClick={()=>{navigator.clipboard.writeText(b.slug);toast.success('Copied!');}} style={{ background:'none', border:'none', color:'#55556e', cursor:'pointer', padding:'0.1rem' }} title="Copy"><Copy size={12}/></button>
-                          <a href={`/businesses/${b.slug}`} target="_blank" rel="noopener noreferrer" style={{ color:'#55556e' }} title="View"><ExternalLink size={12}/></a>
+                          <button onClick={() => { navigator.clipboard.writeText(b.slug); toast.success('Copied!'); }} style={{ background: 'none', border: 'none', color: '#55556e', cursor: 'pointer', padding: '0.1rem' }} title="Copy"><Copy size={12} /></button>
+                          <a href={`/businesses/${b.slug}`} target="_blank" rel="noopener noreferrer" style={{ color: '#55556e' }} title="View"><ExternalLink size={12} /></a>
                         </div>
                       </td>
-                      <td>{b.category ? <span className="cat-pill"><Tag size={10}/>{b.category.name}</span> : <span style={{ color:'#3a3a56' }}>—</span>}</td>
+                      <td>{b.category ? <span className="cat-pill"><Tag size={10} />{b.category.name}</span> : <span style={{ color: '#3a3a56' }}>—</span>}</td>
                       <td>
-                        <button onClick={()=>handleTogglePublish(b)} className="status-pill"
-                          style={{ background:b.published?'rgba(16,185,129,0.12)':'rgba(255,255,255,0.06)', color:b.published?'#34d399':'#9494b0' }}>
-                          {b.published ? <><Eye size={11}/>Published</> : <><EyeOff size={11}/>Draft</>}
+                        <button onClick={() => handleTogglePublish(b)} className="status-pill"
+                          style={{ background: b.published ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.06)', color: b.published ? '#34d399' : '#9494b0' }}>
+                          {b.published ? <><Eye size={11} />Published</> : <><EyeOff size={11} />Draft</>}
                         </button>
                       </td>
-                      <td><span className="adm-mono" style={{ fontSize:'0.85rem', color:'#9494b0' }}>{b._count?.requirements||0}</span></td>
-                      <td><span style={{ fontSize:'0.78rem', color:'#55556e' }}>{new Date(b.createdAt).toLocaleDateString()}</span></td>
-                      <td style={{ paddingRight:'1.25rem', textAlign:'right' }}>
-                        <div style={{ display:'flex', justifyContent:'flex-end', gap:'0.25rem' }}>
-                          <button className="btn btn-ghost btn-icon" onClick={()=>openEditModal(b)} title="Edit"><Edit2 size={14}/></button>
-                          <button className="btn btn-danger btn-icon" onClick={()=>handleDelete(b.id)} title="Delete"><Trash2 size={14}/></button>
+                      <td>
+                        {/* Clickable requirements count */}
+                        <button
+                          className="req-count-btn"
+                          onClick={() => openReqModal(b)}
+                          title={`View requirements for ${b.name}`}
+                        >
+                          <span
+                            className="req-count-val adm-mono"
+                            style={{
+                              fontSize: '0.85rem',
+                              color: (b._count?.requirements || 0) > 0 ? '#a78bfa' : '#55556e',
+                              textDecoration: 'underline',
+                              textDecorationStyle: 'dotted',
+                              textUnderlineOffset: 3,
+                            }}
+                          >
+                            {b._count?.requirements || 0}
+                          </span>
+                        </button>
+                      </td>
+                      <td><span style={{ fontSize: '0.78rem', color: '#55556e' }}>{new Date(b.createdAt).toLocaleDateString()}</span></td>
+                      <td style={{ paddingRight: '1.25rem', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.25rem' }}>
+                          <button className="btn btn-ghost btn-icon" onClick={() => openEditModal(b)} title="Edit"><Edit2 size={14} /></button>
+                          <button className="btn btn-danger btn-icon" onClick={() => handleDelete(b.id)} title="Delete"><Trash2 size={14} /></button>
                         </div>
                       </td>
                     </tr>
@@ -443,44 +707,65 @@ export default function BusinessesAdminPage() {
                 </tbody>
               </table>
             </div>
-            <div style={{ padding:'0.65rem 1.25rem', borderTop:'1px solid rgba(255,255,255,0.04)', fontSize:'0.75rem', color:'#55556e' }}>
-              Showing <span style={{ color:'#9494b0', fontWeight:600 }}>{filtered.length}</span> of <span style={{ color:'#9494b0', fontWeight:600 }}>{businesses.length}</span> businesses
+            <div style={{ padding: '0.65rem 1.25rem', borderTop: '1px solid rgba(255,255,255,0.04)', fontSize: '0.75rem', color: '#55556e' }}>
+              Showing <span style={{ color: '#9494b0', fontWeight: 600 }}>{filtered.length}</span> of <span style={{ color: '#9494b0', fontWeight: 600 }}>{businesses.length}</span> businesses
             </div>
           </div>
         )}
 
-        {/* GRID VIEW */}
-        {viewMode==='grid' && (
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))', gap:'1rem' }}>
-            {filtered.length===0 ? (
-              <div style={{ gridColumn:'1/-1', textAlign:'center', padding:'3.5rem', color:'#3a3a56' }}>
-                <Building size={36} style={{ margin:'0 auto 0.75rem', display:'block' }} />
-                <div style={{ color:'#55556e', fontWeight:600 }}>No businesses found</div>
+        {/* ── GRID VIEW ── */}
+        {viewMode === 'grid' && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: '1rem' }}>
+            {filtered.length === 0 ? (
+              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '3.5rem', color: '#3a3a56' }}>
+                <Building size={36} style={{ margin: '0 auto 0.75rem', display: 'block' }} />
+                <div style={{ color: '#55556e', fontWeight: 600 }}>No businesses found</div>
               </div>
-            ) : filtered.map(b=>(
-              <div key={b.id} className={`g-card${selectedIds.includes(b.id)?' sel':''}`}>
-                <div style={{ position:'relative' }}>
-                  {b.image ? <Image src={b.image} alt={b.name} width={400} height={180} style={{ width:'100%', height:160, objectFit:'cover', display:'block' }} /> : <div style={{ width:'100%', height:120, background:'rgba(255,255,255,0.03)', display:'flex', alignItems:'center', justifyContent:'center', color:'#2a2a3e' }}><Building size={32}/></div>}
-                  <div style={{ position:'absolute', top:'0.6rem', left:'0.6rem' }}>
-                    <input type="checkbox" checked={selectedIds.includes(b.id)} onChange={()=>toggleSelect(b.id)} style={{ accentColor:'#6366f1', cursor:'pointer' }} />
+            ) : filtered.map(b => (
+              <div key={b.id} className={`g-card${selectedIds.includes(b.id) ? ' sel' : ''}`}>
+                <div style={{ position: 'relative' }}>
+                  {b.image
+                    ? <Image src={b.image} alt={b.name} width={400} height={180} style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }} />
+                    : <div style={{ width: '100%', height: 120, background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2a2a3e' }}><Building size={32} /></div>
+                  }
+                  <div style={{ position: 'absolute', top: '0.6rem', left: '0.6rem' }}>
+                    <input type="checkbox" checked={selectedIds.includes(b.id)} onChange={() => toggleSelect(b.id)} style={{ accentColor: '#6366f1', cursor: 'pointer' }} />
                   </div>
-                  <div style={{ position:'absolute', top:'0.5rem', right:'0.5rem', display:'flex', gap:'0.25rem' }}>
-                    <button className="btn btn-ghost btn-icon" style={{ background:'rgba(26,26,36,0.8)' }} onClick={()=>openEditModal(b)}><Edit2 size={13}/></button>
-                    <button className="btn btn-danger btn-icon" style={{ background:'rgba(239,68,68,0.2)' }} onClick={()=>handleDelete(b.id)}><Trash2 size={13}/></button>
+                  <div style={{ position: 'absolute', top: '0.5rem', right: '0.5rem', display: 'flex', gap: '0.25rem' }}>
+                    <button className="btn btn-ghost btn-icon" style={{ background: 'rgba(26,26,36,0.8)' }} onClick={() => openEditModal(b)}><Edit2 size={13} /></button>
+                    <button className="btn btn-danger btn-icon" style={{ background: 'rgba(239,68,68,0.2)' }} onClick={() => handleDelete(b.id)}><Trash2 size={13} /></button>
                   </div>
                 </div>
-                <div style={{ padding:'0.85rem 1rem' }}>
-                  <div style={{ fontWeight:700, fontSize:'0.9rem', color:'#f0f0f5', marginBottom:'0.35rem' }}>{b.name}</div>
-                  {b.description && <div style={{ fontSize:'0.75rem', color:'#55556e', lineHeight:1.5, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' as const }}>{b.description}</div>}
-                  <div style={{ display:'flex', flexWrap:'wrap', gap:'0.4rem', marginTop:'0.65rem' }}>
-                    {b.category && <span className="cat-pill"><Tag size={10}/>{b.category.name}</span>}
-                    <button onClick={()=>handleTogglePublish(b)} className="status-pill" style={{ background:b.published?'rgba(16,185,129,0.12)':'rgba(255,255,255,0.06)', color:b.published?'#34d399':'#9494b0' }}>
-                      {b.published ? <Eye size={10}/> : <EyeOff size={10}/>}{b.published?'Published':'Draft'}
+                <div style={{ padding: '0.85rem 1rem' }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#f0f0f5', marginBottom: '0.35rem' }}>{b.name}</div>
+                  {b.description && <div style={{ fontSize: '0.75rem', color: '#55556e', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>{b.description}</div>}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.65rem' }}>
+                    {b.category && <span className="cat-pill"><Tag size={10} />{b.category.name}</span>}
+                    <button onClick={() => handleTogglePublish(b)} className="status-pill" style={{ background: b.published ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.06)', color: b.published ? '#34d399' : '#9494b0' }}>
+                      {b.published ? <Eye size={10} /> : <EyeOff size={10} />}{b.published ? 'Published' : 'Draft'}
                     </button>
                   </div>
                 </div>
-                <div style={{ padding:'0.6rem 1rem', borderTop:'1px solid rgba(255,255,255,0.05)', display:'flex', justifyContent:'space-between', fontSize:'0.73rem', color:'#55556e' }}>
-                  <span>{b._count?.requirements||0} requirements</span>
+                <div style={{ padding: '0.6rem 1rem', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', fontSize: '0.73rem', color: '#55556e' }}>
+                  <button
+                    className="req-count-btn"
+                    onClick={() => openReqModal(b)}
+                    title={`View requirements for ${b.name}`}
+                  >
+                    <span
+                      className="req-count-val"
+                      style={{
+                        fontSize: '0.73rem',
+                        color: (b._count?.requirements || 0) > 0 ? '#a78bfa' : '#55556e',
+                        textDecoration: 'underline',
+                        textDecorationStyle: 'dotted',
+                        textUnderlineOffset: 3,
+                        fontFamily: 'Sora,sans-serif',
+                      }}
+                    >
+                      {b._count?.requirements || 0} requirements
+                    </span>
+                  </button>
                   <span>{new Date(b.createdAt).toLocaleDateString()}</span>
                 </div>
               </div>
@@ -488,20 +773,18 @@ export default function BusinessesAdminPage() {
           </div>
         )}
 
-        {/* ── Modal ── */}
+        {/* ── Business Edit/Create Modal ── */}
         {isModalOpen && (
           <div className="modal-overlay" onClick={closeModal}>
-            <div className="modal-box" onClick={e=>e.stopPropagation()}>
+            <div className="modal-box" onClick={e => e.stopPropagation()}>
 
-              {/* Modal header */}
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1.5rem' }}>
-                <h2 style={{ fontSize:'1.05rem', fontWeight:700 }}>{editingBusiness?'Edit':'Add'} Business</h2>
-                <button onClick={closeModal} className="btn btn-ghost btn-icon"><X size={16}/></button>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+                <h2 style={{ fontSize: '1.05rem', fontWeight: 700 }}>{editingBusiness ? 'Edit' : 'Add'} Business</h2>
+                <button onClick={closeModal} className="btn btn-ghost btn-icon"><X size={16} /></button>
               </div>
 
-              <div style={{ display:'flex', flexDirection:'column', gap:'0.9rem', maxHeight:'75vh', overflowY:'auto', paddingRight:'0.25rem' }} className="scroll">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', maxHeight: '75vh', overflowY: 'auto', paddingRight: '0.25rem' }} className="scroll">
 
-                {/* ── Core fields ── */}
                 <FormField label="Name">
                   <input
                     type="text" value={formData.name} className="f-input"
@@ -516,13 +799,13 @@ export default function BusinessesAdminPage() {
 
                 <div>
                   <label className="f-label">Category</label>
-                  <select value={selectedCatId} onChange={e=>{setSelectedCatId(e.target.value);if(e.target.value!==CREATE_NEW)setNewCatName('');}} className="f-select">
+                  <select value={selectedCatId} onChange={e => { setSelectedCatId(e.target.value); if (e.target.value !== CREATE_NEW) setNewCatName(''); }} className="f-select">
                     <option value="">No category</option>
-                    {categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     <option value={CREATE_NEW}>+ Create new</option>
                   </select>
-                  {selectedCatId===CREATE_NEW && (
-                    <input type="text" placeholder="New category name" value={newCatName} onChange={e=>setNewCatName(e.target.value)} className="f-input" style={{ marginTop:'0.5rem', borderColor:'rgba(139,92,246,0.4)' }} autoFocus />
+                  {selectedCatId === CREATE_NEW && (
+                    <input type="text" placeholder="New category name" value={newCatName} onChange={e => setNewCatName(e.target.value)} className="f-input" style={{ marginTop: '0.5rem', borderColor: 'rgba(139,92,246,0.4)' }} autoFocus />
                   )}
                 </div>
 
@@ -534,34 +817,34 @@ export default function BusinessesAdminPage() {
                   <input type="text" value={formData.image} onChange={fd('image')} className="f-input" placeholder="https://…" />
                 </FormField>
 
-                <label style={{ display:'flex', alignItems:'center', gap:'0.6rem', cursor:'pointer' }}>
-                  <input type="checkbox" checked={formData.published} onChange={e=>setFormData(p=>({...p,published:e.target.checked}))} style={{ accentColor:'#6366f1', width:16, height:16 }} />
-                  <span style={{ fontSize:'0.84rem', color:'#9494b0', fontWeight:500 }}>Publish immediately</span>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={formData.published} onChange={e => setFormData(p => ({ ...p, published: e.target.checked }))} style={{ accentColor: '#6366f1', width: 16, height: 16 }} />
+                  <span style={{ fontSize: '0.84rem', color: '#9494b0', fontWeight: 500 }}>Publish immediately</span>
                 </label>
 
-                {/* ── Business Insights — collapsible ── */}
+                {/* Business Insights — collapsible */}
                 <button
                   type="button"
                   className="section-toggle"
                   onClick={() => setShowMetaFields(v => !v)}
                 >
                   <span>Business Insights</span>
-                  {showMetaFields ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+                  {showMetaFields ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 </button>
 
                 {showMetaFields && (
-                  <div style={{ display:'flex', flexDirection:'column', gap:'0.9rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
 
-                    {/* Startup cost — read-only notice */}
-                    <div style={{ display:'flex', alignItems:'flex-start', gap:'0.65rem', padding:'0.75rem 1rem', background:'rgba(16,185,129,0.06)', border:'1px solid rgba(16,185,129,0.15)', borderRadius:9 }}>
-                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" style={{ flexShrink:0, marginTop:1 }}>
-                        <path fillRule="evenodd" clipRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z" fill="#34d399"/>
+                    {/* Startup cost notice */}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem', padding: '0.75rem 1rem', background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: 9 }}>
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0, marginTop: 1 }}>
+                        <path fillRule="evenodd" clipRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z" fill="#34d399" />
                       </svg>
                       <div>
-                        <p style={{ fontSize:'0.78rem', fontWeight:600, color:'#34d399', marginBottom:'0.2rem' }}>
+                        <p style={{ fontSize: '0.78rem', fontWeight: 600, color: '#34d399', marginBottom: '0.2rem' }}>
                           Startup Cost <span className="auto-badge">Auto-calculated</span>
                         </p>
-                        <p style={{ fontSize:'0.73rem', color:'#55556e', lineHeight:1.5 }}>
+                        <p style={{ fontSize: '0.73rem', color: '#55556e', lineHeight: 1.5 }}>
                           Cost is automatically calculated from product prices linked to this business&apos;s requirements. Add products to requirements to populate the cost estimate.
                         </p>
                       </div>
@@ -570,28 +853,25 @@ export default function BusinessesAdminPage() {
                     {/* Time to launch */}
                     <div>
                       <label className="f-label">Time to Launch (days)</label>
-                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.5rem' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                         <input type="number" value={formData.timeToLaunchMin} onChange={fd('timeToLaunchMin')} className="f-input" placeholder="Min e.g. 7" min={1} />
                         <input type="number" value={formData.timeToLaunchMax} onChange={fd('timeToLaunchMax')} className="f-input" placeholder="Max e.g. 30" min={1} />
                       </div>
                       <p className="hint">Enter number of days. Displayed as days / weeks / months automatically.</p>
                     </div>
 
-                    {/* Profit potential */}
                     <FormField label="Profit Potential">
                       <select value={formData.profitPotential} onChange={fd('profitPotential')} className="f-select">
                         {PROFIT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                       </select>
                     </FormField>
 
-                    {/* Skill level */}
                     <FormField label="Skill Level Required">
                       <select value={formData.skillLevel} onChange={fd('skillLevel')} className="f-select">
                         {SKILL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                       </select>
                     </FormField>
 
-                    {/* Best locations */}
                     <FormField
                       label="Best Locations"
                       hint="Comma-separated. e.g. Nairobi, Mombasa, Kisumu"
@@ -609,13 +889,244 @@ export default function BusinessesAdminPage() {
                 )}
 
                 {/* Footer */}
-                <div style={{ display:'flex', justifyContent:'flex-end', gap:'0.65rem', marginTop:'0.5rem', paddingTop:'0.75rem', borderTop:'1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                   <button className="btn btn-ghost" type="button" onClick={closeModal}>Cancel</button>
                   <button className="btn btn-primary" type="button" onClick={handleSubmit} disabled={loading}>
                     {loading ? 'Saving…' : editingBusiness ? 'Update' : 'Create'}
                   </button>
                 </div>
 
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Requirements Modal ── */}
+        {reqModalBiz && (
+          <div className="modal-overlay" onClick={closeReqModal}>
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{
+                background: '#1a1a24',
+                border: '1px solid rgba(255,255,255,0.09)',
+                borderRadius: 16,
+                width: '100%',
+                maxWidth: 640,
+                boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
+                margin: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                maxHeight: '88vh',
+                overflow: 'hidden',
+              }}
+            >
+              {/* Modal header */}
+              <div style={{ padding: '1.4rem 1.75rem 1rem', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.85rem' }}>
+                  <div>
+                    <h2 style={{ fontSize: '1.05rem', fontWeight: 700, fontFamily: 'Sora,sans-serif', marginBottom: '0.2rem' }}>
+                      Requirements
+                    </h2>
+                    <p style={{ fontSize: '0.8rem', color: '#55556e', fontFamily: 'Sora,sans-serif' }}>
+                      <span style={{ color: '#a5b4fc', fontWeight: 600 }}>{reqModalBiz.name}</span>
+                      <span style={{ color: '#3a3a56', margin: '0 0.4rem' }}>·</span>
+                      <span>
+                        {linkedReqs.length} requirement{linkedReqs.length !== 1 ? 's' : ''}
+                        {reqSearch && filteredReqs.length !== linkedReqs.length && (
+                          <span style={{ color: '#6366f1', marginLeft: '0.35rem' }}>({filteredReqs.length} shown)</span>
+                        )}
+                      </span>
+                    </p>
+                  </div>
+                  <button onClick={closeReqModal} className="btn btn-ghost btn-icon"><X size={16} /></button>
+                </div>
+
+                {/* Search + bulk remove */}
+                <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
+                  <div style={{ position: 'relative', flex: 1 }}>
+                    <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: '#55556e', pointerEvents: 'none' }} />
+                    <input
+                      type="text"
+                      placeholder="Search by name or category…"
+                      value={reqSearch}
+                      onChange={e => setReqSearch(e.target.value)}
+                      className="req-modal-search"
+                    />
+                    {reqSearch && (
+                      <button onClick={() => setReqSearch('')} style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#55556e', cursor: 'pointer', padding: 0 }}>
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+                  {unlinkReqIds.size > 0 && (
+                    <button
+                      className="btn btn-danger"
+                      style={{ fontSize: '0.76rem', padding: '0.4rem 0.85rem', whiteSpace: 'nowrap' }}
+                      onClick={handleBulkUnlinkReqs}
+                      disabled={unlinkReqLoading}
+                    >
+                      <Trash2 size={12} />
+                      {unlinkReqLoading ? 'Removing…' : `Remove ${unlinkReqIds.size}`}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Modal body */}
+              <div className="scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0.85rem 1.75rem 1rem' }}>
+                {reqsLoading ? (
+                  /* Skeleton */
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {[1, 2, 3, 4].map(i => (
+                      <div key={i} className="skel" style={{ height: 60, borderRadius: 9 }} />
+                    ))}
+                  </div>
+                ) : filteredReqs.length === 0 ? (
+                  /* Empty state */
+                  <div style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+                    <Building size={36} style={{ margin: '0 auto 0.75rem', display: 'block', opacity: 0.3, color: '#55556e' }} />
+                    <div style={{ fontFamily: 'Sora,sans-serif', fontSize: '0.86rem', color: '#55556e', fontWeight: 600, marginBottom: '0.35rem' }}>
+                      {reqSearch ? `No requirements match "${reqSearch}"` : 'No requirements linked yet'}
+                    </div>
+                    <div style={{ fontFamily: 'Sora,sans-serif', fontSize: '0.76rem', color: '#3a3a56' }}>
+                      {reqSearch
+                        ? <button onClick={() => setReqSearch('')} style={{ color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Sora,sans-serif', fontSize: '0.76rem' }}>Clear search</button>
+                        : 'Add requirements from the Requirement Library page.'
+                      }
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Select-all row */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem', paddingBottom: '0.55rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer', fontFamily: 'Sora,sans-serif', fontSize: '0.74rem', color: '#9494b0', userSelect: 'none' }}>
+                        <input
+                          type="checkbox"
+                          checked={allReqsSelected}
+                          onChange={() => setUnlinkReqIds(allReqsSelected ? new Set() : new Set(filteredReqs.map(r => r.linkId)))}
+                          style={{ accentColor: '#f87171', cursor: 'pointer' }}
+                        />
+                        Select all ({filteredReqs.length})
+                      </label>
+                      {unlinkReqIds.size > 0 && (
+                        <span style={{ fontFamily: 'Sora,sans-serif', fontSize: '0.72rem', color: '#f87171' }}>
+                          {unlinkReqIds.size} selected
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Requirement rows */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                      {filteredReqs.map(req => {
+                        const overrideVal = necOverrides[req.linkId];
+                        const effectiveNec = overrideVal !== undefined && overrideVal !== null ? overrideVal : req.necessity;
+                        const isSelected = unlinkReqIds.has(req.linkId);
+                        const [catBg, catClr] = REQ_CAT_COLORS[req.category] ?? ['rgba(148,148,176,0.1)', '#9494b0'];
+
+                        return (
+                          <div
+                            key={req.linkId}
+                            className="req-row"
+                            style={{
+                              border: `1px solid ${isSelected ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.06)'}`,
+                              background: isSelected ? 'rgba(239,68,68,0.04)' : 'rgba(255,255,255,0.02)',
+                            }}
+                          >
+                            <div className="req-row-inner">
+                              {/* Checkbox */}
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleUnlinkReq(req.linkId)}
+                                style={{ accentColor: '#f87171', cursor: 'pointer', flexShrink: 0 }}
+                              />
+
+                              {/* Icon / image */}
+                              {req.image ? (
+                                <Image
+                                  src={req.image}
+                                  alt={req.name}
+                                  width={34}
+                                  height={34}
+                                  style={{ borderRadius: 7, objectFit: 'cover', border: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}
+                                />
+                              ) : (
+                                <div style={{ width: 34, height: 34, borderRadius: 7, background: catBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  <Tag size={13} color={catClr} />
+                                </div>
+                              )}
+
+                              {/* Name + meta */}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontFamily: 'Sora,sans-serif', fontWeight: 600, fontSize: '0.87rem', color: '#f0f0f5', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {req.name}
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.2rem', flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: 100, background: catBg, color: catClr }}>
+                                    {req.category}
+                                  </span>
+                                  {req.productCount > 0 && (
+                                    <span style={{ fontFamily: 'DM Mono,monospace', fontSize: '0.68rem', color: '#55556e' }}>
+                                      {req.productCount} product{req.productCount !== 1 ? 's' : ''}
+                                    </span>
+                                  )}
+                                  {req.descriptionOverride && (
+                                    <span style={{ fontSize: '0.65rem', color: '#a78bfa', fontFamily: 'Sora,sans-serif' }}>
+                                      custom desc
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Necessity toggle */}
+                              <NecessityToggle
+                                templateId={req.templateId}
+                                businessId={reqModalBiz.id}
+                                linkId={req.linkId}
+                                necessity={req.necessity}
+                                necOverride={necOverrides[req.linkId] ?? null}
+                                templateNecessity={req.necessity}
+                                onUpdated={handleNecOverrideUpdated}
+                              />
+
+                              {/* Unlink button */}
+                              <button
+                                className="btn btn-danger btn-icon"
+                                style={{ padding: '0.3rem 0.5rem', flexShrink: 0 }}
+                                onClick={() => handleUnlinkSingle(req.linkId, req.name)}
+                                title={`Remove "${req.name}"`}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+
+                            {/* Description */}
+                            {(req.description || req.descriptionOverride) && (
+                              <div className="req-row-desc">
+                                {req.descriptionOverride ? (
+                                  <>
+                                    <span style={{ color: '#a78bfa' }}>{req.descriptionOverride}</span>
+                                    <span style={{ marginLeft: '0.35rem', fontSize: '0.65rem', color: '#55556e' }}>(custom)</span>
+                                  </>
+                                ) : (
+                                  <span>{req.description}</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Modal footer */}
+              <div style={{ flexShrink: 0, borderTop: '1px solid rgba(255,255,255,0.06)', padding: '0.85rem 1.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontFamily: 'Sora,sans-serif', fontSize: '0.75rem', color: '#55556e' }}>
+                  {linkedReqs.length} requirement{linkedReqs.length !== 1 ? 's' : ''} linked to this business
+                </span>
+                <button className="btn btn-ghost" onClick={closeReqModal}>Close</button>
               </div>
             </div>
           </div>

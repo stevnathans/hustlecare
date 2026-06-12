@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  Package, Eye, ShoppingCart, TrendingUp,
-  Plus, ArrowRight, AlertCircle, CheckCircle2,
-  Clock, XCircle, Archive, ShieldOff,
+  Package, Eye, ShoppingCart, TrendingUp, Plus, ArrowRight,
+  AlertCircle, CheckCircle2, Clock, XCircle, Archive, ShieldOff,
+  ArrowUpRight, RefreshCw, BarChart2, Star,
 } from 'lucide-react';
 
 type Product = {
@@ -31,141 +31,110 @@ type VendorProfile = {
 };
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-  DRAFT:          { label: 'Draft',     color: '#9494b0', bg: 'rgba(148,148,176,0.1)', icon: <Archive size={12} /> },
-  PENDING_REVIEW: { label: 'In Review', color: '#fbbf24', bg: 'rgba(245,158,11,0.1)', icon: <Clock size={12} /> },
-  ACTIVE:         { label: 'Live',      color: '#34d399', bg: 'rgba(16,185,129,0.1)', icon: <CheckCircle2 size={12} /> },
-  REJECTED:       { label: 'Rejected',  color: '#f87171', bg: 'rgba(239,68,68,0.1)',  icon: <XCircle size={12} /> },
-  ARCHIVED:       { label: 'Archived',  color: '#55556e', bg: 'rgba(85,85,110,0.1)',  icon: <Archive size={12} /> },
+  DRAFT:          { label: 'Draft',     color: '#9494b0', bg: 'rgba(148,148,176,0.1)', icon: <Archive size={11} /> },
+  PENDING_REVIEW: { label: 'In Review', color: '#fbbf24', bg: 'rgba(245,158,11,0.1)', icon: <Clock size={11} /> },
+  ACTIVE:         { label: 'Live',      color: '#34d399', bg: 'rgba(16,185,129,0.1)', icon: <CheckCircle2 size={11} /> },
+  REJECTED:       { label: 'Rejected',  color: '#f87171', bg: 'rgba(239,68,68,0.1)',  icon: <XCircle size={11} /> },
+  ARCHIVED:       { label: 'Archived',  color: '#55556e', bg: 'rgba(85,85,110,0.1)',  icon: <Archive size={11} /> },
 };
 
 export default function VendorDashboardPage() {
-  const [profile, setProfile] = useState<VendorProfile | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [profile,    setProfile]    = useState<VendorProfile | null>(null);
+  const [products,   setProducts]   = useState<Product[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    Promise.all([
-      fetch('/api/vendors/profile').then(r => r.ok ? r.json() : null),
-      fetch('/api/vendors/products').then(r => r.ok ? r.json() : []),
-    ]).then(([prof, prods]) => {
-      setProfile(prof);
-      setProducts(prods);
-    }).finally(() => setLoading(false));
-  }, []);
-
-  const isSuspended = profile?.status === 'SUSPENDED';
-
-  const totalViews    = profile?.analytics.reduce((s, a) => s + a.profileViews,  0) ?? 0;
-  const totalClicks   = profile?.analytics.reduce((s, a) => s + a.productClicks, 0) ?? 0;
-  const totalCartAdds = profile?.analytics.reduce((s, a) => s + a.cartAdds,      0) ?? 0;
-
-  const activeCount   = products.filter(p => p.status === 'ACTIVE').length;
-  const pendingCount  = products.filter(p => p.status === 'PENDING_REVIEW').length;
-  const draftCount    = products.filter(p => p.status === 'DRAFT').length;
-  const rejectedCount = products.filter(p => p.status === 'REJECTED').length;
-  const archivedCount = products.filter(p => p.status === 'ARCHIVED').length;
-
-  // The four tiles shown in the Product Overview section.
-  // When suspended: replace Live with Archived (products were archived on suspension).
-  const statusTiles = isSuspended
-    ? [
-        { key: 'ARCHIVED',       count: archivedCount },
-        { key: 'PENDING_REVIEW', count: pendingCount  },
-        { key: 'DRAFT',          count: draftCount    },
-        { key: 'REJECTED',       count: rejectedCount },
-      ]
-    : [
-        { key: 'ACTIVE',         count: activeCount   },
-        { key: 'PENDING_REVIEW', count: pendingCount  },
-        { key: 'DRAFT',          count: draftCount    },
-        { key: 'REJECTED',       count: rejectedCount },
-      ];
-
-  if (loading) {
-    return (
-      <div style={S.loadingWrap}>
-        <div style={S.skeleton} />
-        <div style={{ ...S.skeleton, width: '60%' }} />
-        <div style={{ ...S.skeleton, height: 120 }} />
-      </div>
-    );
+  async function fetchData(isRefresh = false) {
+    if (isRefresh) setRefreshing(true);
+    try {
+      const [profRes, prodRes] = await Promise.all([
+        fetch('/api/vendors/profile'),
+        fetch('/api/vendors/products'),
+      ]);
+      if (profRes.ok) setProfile(await profRes.json());
+      if (prodRes.ok) setProducts(await prodRes.json());
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }
 
+  useEffect(() => { fetchData(); }, []);
+
+  const isSuspended  = profile?.status === 'SUSPENDED';
+  const totalViews   = profile?.analytics.reduce((s, a) => s + a.profileViews,  0) ?? 0;
+  const totalClicks  = profile?.analytics.reduce((s, a) => s + a.productClicks, 0) ?? 0;
+  const totalCart    = profile?.analytics.reduce((s, a) => s + a.cartAdds,      0) ?? 0;
+  const activeCount  = products.filter(p => p.status === 'ACTIVE').length;
+  const pendingCount = products.filter(p => p.status === 'PENDING_REVIEW').length;
+  const draftCount   = products.filter(p => p.status === 'DRAFT').length;
+  const rejectedCount= products.filter(p => p.status === 'REJECTED').length;
+  const avgRating    = products.reduce((sum, p) => sum + p._count.reviews, 0);
+
+  if (loading) return <PageSkeleton />;
+
   return (
-    <div style={S.page}>
+    <div style={P.page}>
       <style>{CSS}</style>
+
+      {/* Header */}
+      <div style={P.header}>
+        <div>
+          <h1 style={P.h1}>
+            {profile?.name ? `Welcome back, ${profile.name.split(' ')[0]}` : 'Vendor Dashboard'}
+          </h1>
+          <p style={P.subtitle}>
+            {isSuspended
+              ? 'Your account is currently suspended. Contact support for assistance.'
+              : "Here's how your storefront is performing today."}
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap' as const }}>
+          {!isSuspended && profile?.slug && (
+            <Link href={`/vendors/${profile.slug}`} target="_blank" style={P.btnSecondary}>
+              <Eye size={13} /> View Store
+            </Link>
+          )}
+          <button
+            className={`vd-refresh${refreshing ? ' vd-spinning' : ''}`}
+            style={P.refreshBtn}
+            onClick={() => fetchData(true)}
+          >
+            <RefreshCw size={13} />
+            {refreshing ? 'Refreshing…' : 'Refresh'}
+          </button>
+          {!isSuspended ? (
+            <Link href="/vendor/dashboard/products/new" style={P.btnPrimary}>
+              <Plus size={13} /> Add Product
+            </Link>
+          ) : (
+            <button style={{ ...P.btnPrimary, ...P.btnDisabled }} disabled>
+              <Plus size={13} /> Add Product
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Suspension banner */}
       {isSuspended && (
-        <div style={S.suspendBanner}>
-          <div style={S.suspendBannerInner}>
-            <div style={S.suspendIconWrap}>
-              <ShieldOff size={18} color="#f87171" />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={S.suspendTitle}>Your account has been suspended</div>
-              <div style={S.suspendBody}>
-                Your storefront and all products are hidden from the marketplace.
-                You cannot add new products until your account is reinstated by an admin.
-                {profile?.suspendReason && (
-                  <span style={S.suspendReasonText}> Reason: {profile.suspendReason}</span>
-                )}
-              </div>
+        <div style={P.suspendBanner}>
+          <div style={P.suspendIconWrap}><ShieldOff size={16} color="#f87171" /></div>
+          <div style={{ flex: 1 }}>
+            <div style={P.suspendTitle}>Account Suspended</div>
+            <div style={P.suspendBody}>
+              Your storefront and all products are hidden from the marketplace.
+              {profile?.suspendReason && <span style={{ color: '#fca5a5', fontStyle: 'italic' }}> Reason: {profile.suspendReason}</span>}
             </div>
           </div>
         </div>
       )}
 
-      {/* Welcome header */}
-      <div style={S.pageHeader}>
-        <div>
-          <h1 style={S.h1}>
-            Welcome back{profile?.name ? `, ${profile.name.split(' ')[0]}` : ''}
-          </h1>
-          <p style={S.subtitle}>
-            {isSuspended
-              ? 'Your account is currently suspended. Contact support for assistance.'
-              : "Here's how your storefront is performing"}
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: '0.65rem' }}>
-          {!isSuspended && (
-            <Link href={`/vendors/${profile?.slug}`} target="_blank" style={S.btnSecondary}>
-              <Eye size={14} /> View Storefront
-            </Link>
-          )}
-          {isSuspended ? (
-            <button
-              style={{ ...S.btnPrimary, ...S.btnPrimaryDisabled }}
-              onClick={() => document.getElementById('suspend-notice')?.scrollIntoView({ behavior: 'smooth' })}
-            >
-              <Plus size={14} /> Add Product
-            </button>
-          ) : (
-            <Link href="/vendor/dashboard/products/new" style={S.btnPrimary}>
-              <Plus size={14} /> Add Product
-            </Link>
-          )}
-        </div>
-      </div>
-
-      {/* Suspended — inline notice anchored below header */}
-      {isSuspended && (
-        <div id="suspend-notice" style={S.suspendNotice}>
-          <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-          <span>
-            New products cannot be added while your account is suspended.
-            Once reinstated by an admin, you&rsquo;ll be able to add and manage products again.
-          </span>
-        </div>
-      )}
-
-      {/* Rejection alert — only when not suspended */}
+      {/* Rejection alert */}
       {!isSuspended && rejectedCount > 0 && (
-        <div style={S.alertBanner}>
-          <AlertCircle size={15} />
+        <div style={P.alertBanner}>
+          <AlertCircle size={14} />
           <span>
-            {rejectedCount} product{rejectedCount > 1 ? 's' : ''} need{rejectedCount === 1 ? 's' : ''} your attention —{' '}
+            {rejectedCount} product{rejectedCount > 1 ? 's need' : ' needs'} attention —{' '}
             <Link href="/vendor/dashboard/products?status=REJECTED" style={{ color: '#fca5a5', textDecoration: 'underline' }}>
               review feedback
             </Link>
@@ -173,123 +142,206 @@ export default function VendorDashboardPage() {
         </div>
       )}
 
-      {/* Stats */}
-      <div style={S.statsGrid}>
-        {[
-          { label: 'Profile Views',  value: totalViews,    icon: <Eye          size={18} color="#818cf8" />, bg: 'rgba(99,102,241,0.1)',  color: '#818cf8' },
-          { label: 'Product Clicks', value: totalClicks,   icon: <Package      size={18} color="#34d399" />, bg: 'rgba(16,185,129,0.1)',  color: '#34d399' },
-          { label: 'Added to Cart',  value: totalCartAdds, icon: <ShoppingCart size={18} color="#f59e0b" />, bg: 'rgba(245,158,11,0.1)',  color: '#f59e0b' },
-          {
-            label: isSuspended ? 'Archived Products' : 'Live Products',
-            value: isSuspended ? archivedCount : activeCount,
-            icon:  <TrendingUp size={18} color={isSuspended ? '#f87171' : '#a78bfa'} />,
-            bg:    isSuspended ? 'rgba(239,68,68,0.08)' : 'rgba(139,92,246,0.1)',
-            color: isSuspended ? '#f87171' : '#a78bfa',
-          },
-        ].map(stat => (
-          <div key={stat.label} style={S.statCard}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <div style={S.statLabel}>{stat.label}</div>
-                <div style={S.statValue}>{stat.value.toLocaleString()}</div>
-              </div>
-              <div style={{ ...S.statIconWrap, background: stat.bg }}>
-                {stat.icon}
-              </div>
-            </div>
-          </div>
-        ))}
+      {/* Stat cards */}
+      <div style={P.statsGrid}>
+        <StatCard title="Profile Views"   value={totalViews}   icon={Eye}         color="#818cf8" bg="rgba(99,102,241,0.12)"  />
+        <StatCard title="Product Clicks"  value={totalClicks}  icon={Package}     color="#34d399" bg="rgba(16,185,129,0.12)" />
+        <StatCard title="Cart Adds"       value={totalCart}    icon={ShoppingCart} color="#f59e0b" bg="rgba(245,158,11,0.12)" />
+        <StatCard
+          title={isSuspended ? 'Archived' : 'Live Products'}
+          value={isSuspended ? products.filter(p => p.status === 'ARCHIVED').length : activeCount}
+          icon={TrendingUp}
+          color={isSuspended ? '#f87171' : '#a78bfa'}
+          bg={isSuspended ? 'rgba(239,68,68,0.1)' : 'rgba(139,92,246,0.12)'}
+        />
       </div>
 
-      {/* Product status breakdown */}
-      <div style={S.section}>
-        <div style={S.sectionHeader}>
-          <h2 style={S.sectionTitle}>Product Overview</h2>
-          <Link href="/vendor/dashboard/products" style={S.seeAll}>
-            See all <ArrowRight size={13} />
-          </Link>
-        </div>
+      {/* Product status row + Recent products */}
+      <div style={P.twoColGrid}>
 
-        <div style={S.statusRow}>
-          {statusTiles.map(({ key, count }) => {
-            const meta = STATUS_META[key];
-            return (
-              <Link
-                key={key}
-                href={`/vendor/dashboard/products?status=${key}`}
-                style={{ ...S.statusTile, borderColor: count > 0 ? meta.color + '33' : 'rgba(255,255,255,0.06)' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
-                  <span style={{ color: meta.color }}>{meta.icon}</span>
-                  <span style={{ fontSize: '0.72rem', color: meta.color, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.07em' }}>
-                    {meta.label}
-                  </span>
-                </div>
-                <div style={{ fontSize: '1.6rem', fontFamily: "'DM Mono', monospace", fontWeight: 700, color: count > 0 ? meta.color : '#3a3a56' }}>
-                  {count}
-                </div>
+        {/* Left: status tiles + recent */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+
+          {/* Product status breakdown */}
+          <div style={P.card}>
+            <div style={P.cardHeader}>
+              <div style={P.cardTitle}>Product Overview</div>
+              <Link href="/vendor/dashboard/products" style={P.cardLink}>
+                See all <ArrowRight size={12} />
               </Link>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Recent products */}
-      {products.length > 0 && (
-        <div style={S.section}>
-          <div style={S.sectionHeader}>
-            <h2 style={S.sectionTitle}>Recent Products</h2>
-            <Link href="/vendor/dashboard/products" style={S.seeAll}>
-              Manage all <ArrowRight size={13} />
-            </Link>
-          </div>
-
-          <div style={S.productList}>
-            {products.slice(0, 5).map(product => {
-              const meta = STATUS_META[product.status] ?? STATUS_META.ARCHIVED;
-              return (
-                <Link key={product.id} href={`/vendor/dashboard/products/${product.id}`} style={S.productRow}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={S.productName}>{product.name}</div>
-                    <div style={S.productMeta}>
-                      {product.template && (
-                        <span style={S.templateTag}>{product.template.name}</span>
-                      )}
-                      <span style={{ color: '#55556e', fontSize: '0.75rem' }}>
-                        {product._count.cartItems} cart adds · {product._count.reviews} reviews
+            </div>
+            <div style={P.statusGrid}>
+              {[
+                { key: isSuspended ? 'ARCHIVED' : 'ACTIVE', count: isSuspended ? products.filter(p => p.status === 'ARCHIVED').length : activeCount },
+                { key: 'PENDING_REVIEW', count: pendingCount  },
+                { key: 'DRAFT',          count: draftCount    },
+                { key: 'REJECTED',       count: rejectedCount },
+              ].map(({ key, count }) => {
+                const meta = STATUS_META[key];
+                return (
+                  <Link
+                    key={key}
+                    href={`/vendor/dashboard/products?status=${key}`}
+                    style={{ ...P.statusTile, borderColor: count > 0 ? meta.color + '30' : 'rgba(255,255,255,0.06)' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.5rem' }}>
+                      <span style={{ color: meta.color }}>{meta.icon}</span>
+                      <span style={{ fontSize: '0.65rem', color: meta.color, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.07em' }}>
+                        {isSuspended && key === 'ARCHIVED' ? 'Inactive' : meta.label}
                       </span>
                     </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
-                    {product.price && (
-                      <span style={S.productPrice}>KES {product.price.toLocaleString()}</span>
-                    )}
-                    <span style={{ ...S.statusBadge, background: meta.bg, color: meta.color }}>
-                      {meta.icon} {meta.label}
-                    </span>
-                  </div>
+                    <div style={{ fontSize: '1.75rem', fontFamily: "'DM Mono', monospace", fontWeight: 700, color: count > 0 ? meta.color : '#3a3a56', lineHeight: 1 }}>
+                      {count}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Recent products */}
+          {products.length > 0 && (
+            <div style={P.card}>
+              <div style={P.cardHeader}>
+                <div style={P.cardTitle}>Recent Products</div>
+                <Link href="/vendor/dashboard/products" style={P.cardLink}>
+                  Manage all <ArrowRight size={12} />
                 </Link>
-              );
-            })}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {products.slice(0, 5).map((product, i) => {
+                  const meta = STATUS_META[product.status] ?? STATUS_META.ARCHIVED;
+                  return (
+                    <Link
+                      key={product.id}
+                      href={`/vendor/dashboard/products/${product.id}`}
+                      style={{
+                        ...P.productRow,
+                        borderBottom: i < Math.min(products.length, 5) - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                      }}
+                    >
+                      <div style={P.productIconBox}>
+                        <Package size={14} style={{ color: '#55556e' }} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={P.productName}>{product.name}</div>
+                        {product.template && (
+                          <div style={P.productMeta}>{product.template.name}</div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                        {product.price && (
+                          <span style={P.productPrice}>KES {product.price.toLocaleString()}</span>
+                        )}
+                        <span style={{ ...P.statusBadge, background: meta.bg, color: meta.color }}>
+                          {meta.icon}
+                          {meta.label}
+                        </span>
+                      </div>
+                      <ArrowUpRight size={12} style={{ color: '#3a3a56', flexShrink: 0 }} />
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right: quick stats panels */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+          {/* Engagement */}
+          <div style={P.card}>
+            <div style={{ ...P.cardHeader, marginBottom: '0.85rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <BarChart2 size={14} style={{ color: '#818cf8' }} />
+                <div style={P.cardTitle}>Engagement</div>
+              </div>
+            </div>
+            {[
+              { label: 'Total Views',   value: totalViews,  bar: Math.min(totalViews  / Math.max(totalViews, 1) * 100, 100), color: '#818cf8' },
+              { label: 'Product Clicks',value: totalClicks, bar: Math.min(totalClicks / Math.max(totalViews, 1) * 100, 100), color: '#34d399' },
+              { label: 'Cart Adds',     value: totalCart,   bar: Math.min(totalCart   / Math.max(totalViews, 1) * 100, 100), color: '#f59e0b' },
+            ].map(r => (
+              <div key={r.label} style={{ marginBottom: '0.85rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+                  <span style={{ fontSize: '0.78rem', color: '#9494b0' }}>{r.label}</span>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 700, fontFamily: "'DM Mono', monospace", color: '#f0f0f5' }}>{r.value.toLocaleString()}</span>
+                </div>
+                <div style={{ height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 999 }}>
+                  <div style={{ height: '100%', width: `${Math.max(r.bar, 2)}%`, background: r.color, borderRadius: 999, transition: 'width 0.6s ease' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Reviews summary */}
+          <div style={P.card}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.85rem' }}>
+              <Star size={14} style={{ color: '#fbbf24' }} />
+              <div style={P.cardTitle}>Reviews</div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {products.filter(p => p._count.reviews > 0).slice(0, 3).map(p => (
+                <div key={p.id} style={P.reviewRow}>
+                  <span style={{ fontSize: '0.78rem', color: '#9494b0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{p.name}</span>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#fbbf24', fontFamily: "'DM Mono', monospace", flexShrink: 0 }}>
+                    ★ {p._count.reviews}
+                  </span>
+                </div>
+              ))}
+              {avgRating === 0 && (
+                <p style={{ fontSize: '0.78rem', color: '#55556e', textAlign: 'center', padding: '0.5rem 0' }}>No reviews yet</p>
+              )}
+              <Link href="/vendor/dashboard/products" style={{ ...P.cardLink, marginTop: '0.25rem', justifyContent: 'center', display: 'flex' }}>
+                View all products <ArrowRight size={12} />
+              </Link>
+            </div>
+          </div>
+
+          {/* Quick actions */}
+          <div style={P.card}>
+            <div style={{ marginBottom: '0.85rem' }}>
+              <div style={P.cardTitle}>Quick Actions</div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {!isSuspended && (
+                <Link href="/vendor/dashboard/products/new" style={P.quickAction}>
+                  <Plus size={14} style={{ color: '#f59e0b' }} />
+                  <span>Add new product</span>
+                  <ChevronRight size={13} style={{ marginLeft: 'auto', color: '#55556e' }} />
+                </Link>
+              )}
+              <Link href="/vendor/dashboard/profile" style={P.quickAction}>
+                <Eye size={14} style={{ color: '#818cf8' }} />
+                <span>Edit store profile</span>
+                <ChevronRight size={13} style={{ marginLeft: 'auto', color: '#55556e' }} />
+              </Link>
+              {profile?.slug && (
+                <Link href={`/vendors/${profile.slug}`} target="_blank" style={P.quickAction}>
+                  <ArrowUpRight size={14} style={{ color: '#34d399' }} />
+                  <span>Preview storefront</span>
+                  <ChevronRight size={13} style={{ marginLeft: 'auto', color: '#55556e' }} />
+                </Link>
+              )}
+            </div>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Empty state */}
-      {products.length === 0 && (
-        <div style={S.emptyState}>
-          <Package size={36} style={{ color: '#3a3a56', marginBottom: '1rem' }} />
-          <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#9494b0', marginBottom: '0.4rem' }}>
-            No products yet
-          </h3>
-          <p style={{ fontSize: '0.83rem', color: '#55556e', marginBottom: '1.25rem' }}>
+      {products.length === 0 && !loading && (
+        <div style={P.emptyState}>
+          <Package size={36} style={{ color: '#3a3a56', marginBottom: '0.85rem' }} />
+          <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#9494b0', marginBottom: '0.4rem' }}>No products yet</h3>
+          <p style={{ fontSize: '0.82rem', color: '#55556e', marginBottom: '1.1rem' }}>
             {isSuspended
-              ? 'Your account is suspended. Products will be restored once your account is reinstated.'
-              : 'Add your first product and start reaching entrepreneurs on Hustlecare.'}
+              ? 'Products will be restored once your account is reinstated.'
+              : 'Add your first product to start reaching entrepreneurs on Hustlecare.'}
           </p>
           {!isSuspended && (
-            <Link href="/vendor/dashboard/products/new" style={S.btnPrimary}>
-              <Plus size={14} /> Add your first product
+            <Link href="/vendor/dashboard/products/new" style={P.btnPrimary}>
+              <Plus size={13} /> Add your first product
             </Link>
           )}
         </div>
@@ -298,46 +350,88 @@ export default function VendorDashboardPage() {
   );
 }
 
+function StatCard({ title, value, icon: Icon, color, bg }: {
+  title: string; value: number; icon: React.ElementType; color: string; bg: string;
+}) {
+  return (
+    <div style={P.statCard}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <div style={P.statLabel}>{title}</div>
+          <div style={P.statValue}>{value.toLocaleString()}</div>
+        </div>
+        <div style={{ ...P.statIcon, background: bg }}>
+          <Icon size={17} color={color} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PageSkeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <style>{CSS}</style>
+      <div style={P.skelBlock} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: '0.75rem' }}>
+        {[1,2,3,4].map(i => <div key={i} style={{ ...P.skelBlock, height: 88 }} />)}
+      </div>
+      <div style={{ ...P.skelBlock, height: 200 }} />
+    </div>
+  );
+}
+
+function ChevronRight({ size, style }: { size: number; style?: React.CSSProperties }) {
+  return <ArrowRight size={size} style={style} />;
+}
+
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
   a { text-decoration: none; color: inherit; }
+  .vd-refresh { font-family: 'DM Sans', sans-serif; }
+  .vd-spinning svg { animation: vd-rot 0.7s linear infinite; }
+  @keyframes vd-rot { to { transform: rotate(360deg); } }
+
+  @media (max-width: 640px) {
+    .vd-two-col { grid-template-columns: 1fr !important; }
+    .vd-stats   { grid-template-columns: repeat(2,1fr) !important; }
+  }
 `;
 
-const S: Record<string, React.CSSProperties> = {
-  page:               { fontFamily: "'DM Sans', sans-serif", color: '#f0f0f5', maxWidth: 900 },
-  loadingWrap:        { display: 'flex', flexDirection: 'column', gap: '0.75rem' },
-  skeleton:           { height: 48, borderRadius: 10, background: 'rgba(255,255,255,0.04)', animation: 'pulse 1.5s ease infinite' },
-  suspendBanner:      { marginBottom: '1.25rem', borderRadius: 12, background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.25)', padding: '1rem 1.25rem' },
-  suspendBannerInner: { display: 'flex', alignItems: 'flex-start', gap: '0.85rem' },
-  suspendIconWrap:    { width: 36, height: 36, borderRadius: 9, background: 'rgba(239,68,68,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  suspendTitle:       { fontSize: '0.9rem', fontWeight: 700, color: '#fca5a5', marginBottom: '0.3rem' },
-  suspendBody:        { fontSize: '0.8rem', color: '#9494b0', lineHeight: 1.6 },
-  suspendReasonText:  { color: '#fca5a5', fontStyle: 'italic' },
-  suspendNotice:      { display: 'flex', alignItems: 'flex-start', gap: '0.6rem', padding: '0.75rem 1rem', borderRadius: 9, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', color: '#f87171', fontSize: '0.8rem', lineHeight: 1.55, marginBottom: '1.25rem' },
-  pageHeader:         { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap' as const, gap: '1rem', marginBottom: '1.25rem' },
-  h1:                 { fontSize: '1.6rem', fontFamily: "'Instrument Serif', serif", fontWeight: 400, letterSpacing: '-0.02em', marginBottom: '0.2rem' },
-  subtitle:           { fontSize: '0.83rem', color: '#55556e' },
-  alertBanner:        { display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.75rem 1rem', borderRadius: 10, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#fca5a5', fontSize: '0.83rem', marginBottom: '1.25rem' },
-  statsGrid:          { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '0.75rem', marginBottom: '2rem' },
-  statCard:           { background: '#0f0f1a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '1rem 1.25rem' },
-  statLabel:          { fontSize: '0.72rem', color: '#55556e', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.07em', marginBottom: '0.4rem' },
-  statValue:          { fontSize: '1.8rem', fontFamily: "'DM Mono', monospace", fontWeight: 700 },
-  statIconWrap:       { width: 38, height: 38, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  section:            { marginBottom: '2rem' },
-  sectionHeader:      { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' },
-  sectionTitle:       { fontSize: '0.9rem', fontWeight: 700, color: '#e2e2f0' },
-  seeAll:             { display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', color: '#818cf8' },
-  statusRow:          { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '0.65rem' },
-  statusTile:         { display: 'block', background: '#0f0f1a', border: '1px solid', borderRadius: 11, padding: '0.9rem 1rem', textDecoration: 'none', transition: 'all 0.15s' },
-  productList:        { background: '#0f0f1a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, overflow: 'hidden' },
-  productRow:         { display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.9rem 1.1rem', borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background 0.15s' },
-  productName:        { fontSize: '0.87rem', fontWeight: 600, color: '#f0f0f5', marginBottom: '0.2rem', whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' },
-  productMeta:        { display: 'flex', alignItems: 'center', gap: '0.6rem' },
-  templateTag:        { fontSize: '0.72rem', color: '#818cf8', background: 'rgba(99,102,241,0.1)', padding: '0.15rem 0.5rem', borderRadius: 100 },
-  productPrice:       { fontFamily: "'DM Mono', monospace", fontSize: '0.83rem', color: '#34d399' },
-  statusBadge:        { display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.22rem 0.6rem', borderRadius: 100, fontSize: '0.72rem', fontWeight: 700 },
-  emptyState:         { background: '#0f0f1a', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 14, padding: '3rem', textAlign: 'center' as const },
-  btnPrimary:         { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 1.2rem', borderRadius: 9, background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#0a0a0f', fontSize: '0.84rem', fontWeight: 700, border: 'none', cursor: 'pointer', textDecoration: 'none' },
-  btnPrimaryDisabled: { background: 'rgba(245,158,11,0.25)', color: 'rgba(10,10,15,0.5)', cursor: 'not-allowed' },
-  btnSecondary:       { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 1.1rem', borderRadius: 9, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.09)', color: '#9494b0', fontSize: '0.84rem', fontWeight: 600, textDecoration: 'none' },
+const P: Record<string, React.CSSProperties> = {
+  page:        { fontFamily: "'DM Sans', sans-serif", color: '#f0f0f5', maxWidth: 1020, paddingBottom: '2rem' },
+  header:      { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' },
+  h1:          { fontSize: '1.6rem', fontWeight: 700, letterSpacing: '-0.025em', marginBottom: '0.2rem', color: '#f0f0f5' },
+  subtitle:    { fontSize: '0.82rem', color: '#55556e' },
+  suspendBanner:{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem', padding: '1rem 1.25rem', borderRadius: 12, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', marginBottom: '1.25rem' },
+  suspendIconWrap: { width: 34, height: 34, borderRadius: 8, background: 'rgba(239,68,68,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  suspendTitle:{ fontSize: '0.88rem', fontWeight: 700, color: '#fca5a5', marginBottom: '0.2rem' },
+  suspendBody: { fontSize: '0.78rem', color: '#9494b0', lineHeight: 1.6 },
+  alertBanner: { display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.7rem 1rem', borderRadius: 10, background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.18)', color: '#fca5a5', fontSize: '0.82rem', marginBottom: '1.25rem' },
+  statsGrid:   { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(190px,1fr))', gap: '0.75rem', marginBottom: '1.5rem' },
+  statCard:    { background: '#13131a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 13, padding: '1.1rem 1.25rem', transition: 'all 0.15s', cursor: 'default' },
+  statLabel:   { fontSize: '0.7rem', fontWeight: 700, color: '#55556e', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.45rem' },
+  statValue:   { fontSize: '1.75rem', fontWeight: 700, fontFamily: "'DM Mono', monospace", color: '#f0f0f5', lineHeight: 1 },
+  statIcon:    { width: 38, height: 38, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  twoColGrid:  { display: 'grid', gridTemplateColumns: '1fr 300px', gap: '1.25rem', alignItems: 'start' },
+  card:        { background: '#13131a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 13, padding: '1.1rem 1.25rem' },
+  cardHeader:  { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' },
+  cardTitle:   { fontSize: '0.88rem', fontWeight: 700, color: '#e2e2f0' },
+  cardLink:    { display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.76rem', fontWeight: 600, color: '#818cf8' },
+  statusGrid:  { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '0.6rem' },
+  statusTile:  { display: 'block', background: '#1a1a24', border: '1px solid', borderRadius: 10, padding: '0.75rem 0.85rem', textDecoration: 'none', transition: 'all 0.15s' },
+  productRow:  { display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 0', transition: 'all 0.15s', cursor: 'pointer' },
+  productIconBox: { width: 32, height: 32, borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  productName: { fontSize: '0.84rem', fontWeight: 600, color: '#f0f0f5', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  productMeta: { fontSize: '0.7rem', color: '#55556e', marginTop: '0.1rem' },
+  productPrice:{ fontFamily: "'DM Mono', monospace", fontSize: '0.78rem', color: '#34d399' },
+  statusBadge: { display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.18rem 0.55rem', borderRadius: 100, fontSize: '0.68rem', fontWeight: 700 },
+  reviewRow:   { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0.6rem', borderRadius: 7, background: 'rgba(255,255,255,0.02)' },
+  quickAction: { display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.6rem 0.75rem', borderRadius: 9, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', fontSize: '0.82rem', color: '#9494b0', transition: 'all 0.15s', fontWeight: 500 },
+  emptyState:  { background: '#13131a', border: '1px dashed rgba(255,255,255,0.09)', borderRadius: 14, padding: '3rem', textAlign: 'center' },
+  skelBlock:   { height: 48, borderRadius: 10, background: 'rgba(255,255,255,0.04)', animation: 'vd-shimmer 1.4s linear infinite', backgroundSize: '200% 100%' },
+  btnPrimary:  { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1.1rem', borderRadius: 9, background: '#f59e0b', color: '#0a0a0f', fontSize: '0.83rem', fontWeight: 700, border: 'none', cursor: 'pointer', textDecoration: 'none' },
+  btnSecondary:{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', borderRadius: 9, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', color: '#9494b0', fontSize: '0.83rem', fontWeight: 600, textDecoration: 'none' },
+  btnDisabled: { background: 'rgba(245,158,11,0.2)', color: 'rgba(10,10,15,0.4)', cursor: 'not-allowed' },
+  refreshBtn:  { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', borderRadius: 9, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', color: '#818cf8', fontSize: '0.83rem', fontWeight: 600, cursor: 'pointer' },
 };

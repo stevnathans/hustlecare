@@ -4,23 +4,27 @@ import { useSession } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, Package, User, Store,
   LogOut, ChevronRight, Loader2, Clock, Shield,
+  Menu, X, Bell, ExternalLink,
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 
 const NAV_ITEMS = [
-  { href: '/vendor/dashboard', label: 'Overview', icon: LayoutDashboard, exact: true },
-  { href: '/vendor/dashboard/products', label: 'Products', icon: Package },
-  { href: '/vendor/dashboard/profile', label: 'My Profile', icon: User },
+  { href: '/vendor/dashboard',          label: 'Overview',   icon: LayoutDashboard, exact: true },
+  { href: '/vendor/dashboard/products', label: 'Products',   icon: Package },
+  { href: '/vendor/dashboard/profile',  label: 'My Profile', icon: User },
 ];
 
 export default function VendorDashboardLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
-  const router = useRouter();
+  const router   = useRouter();
   const pathname = usePathname();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => { setSidebarOpen(false); }, [pathname]);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -30,15 +34,14 @@ export default function VendorDashboardLayout({ children }: { children: React.Re
 
   if (status === 'loading') {
     return (
-      <div style={loadingStyles.wrap}>
-        <Loader2 size={28} style={{ animation: 'spin 1s linear infinite', color: '#f59e0b' }} />
-        <style>{'@keyframes spin { to { transform: rotate(360deg); } }'}</style>
+      <div style={L.loadWrap}>
+        <Loader2 size={28} className="vd-spin" style={{ color: '#f59e0b' }} />
+        <style>{BASE_CSS}</style>
       </div>
     );
   }
 
-  // Not a vendor — show gate
-  if (status === 'authenticated' && String(session.user.role) !== 'vendor' && String(session.user.role) !== 'admin') {
+  if (status === 'authenticated' && !['vendor', 'admin'].includes(String(session.user.role))) {
     return <VendorGate role={String(session.user.role)} />;
   }
 
@@ -47,319 +50,238 @@ export default function VendorDashboardLayout({ children }: { children: React.Re
     return pathname.startsWith(href);
   }
 
-  return (
-    <div style={layoutStyles.wrap}>
-      <style>{LAYOUT_CSS}</style>
-
-      {/* Sidebar */}
-      <aside style={layoutStyles.sidebar}>
-        <div style={layoutStyles.sidebarTop}>
-          <Link href="/" style={layoutStyles.logoLink}>
-            <Store size={18} color="#f59e0b" />
-            <span style={layoutStyles.logoText}>Hustlecare</span>
-          </Link>
-          <div style={layoutStyles.vendorBadge}>Vendor Portal</div>
+  const Sidebar = () => (
+    <aside style={L.sidebar}>
+      {/* Brand */}
+      <div style={L.brand}>
+        <div style={L.brandIcon}>
+          <Store size={16} color="#f59e0b" />
         </div>
+        <div>
+          <div style={L.brandName}>Hustlecare</div>
+          <div style={L.brandSub}>Vendor Portal</div>
+        </div>
+      </div>
 
-        <nav style={layoutStyles.nav}>
-          {NAV_ITEMS.map(item => {
-            const active = isActive(item.href, item.exact);
-            return (
-              <Link key={item.href} href={item.href} style={{
-                ...layoutStyles.navLink,
-                ...(active ? layoutStyles.navLinkActive : {}),
-              }}>
-                <item.icon size={16} />
-                <span>{item.label}</span>
-                {active && <ChevronRight size={13} style={{ marginLeft: 'auto', opacity: 0.5 }} />}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div style={layoutStyles.sidebarBottom}>
-          <div style={layoutStyles.userRow}>
-            {session?.user?.image ? (
-              <Image src={session.user.image} alt="" width={40} height={40} style={layoutStyles.avatar} />
-            ) : (
-              <div style={layoutStyles.avatarFallback}>
-                {session?.user?.name?.[0]?.toUpperCase() ?? '?'}
-              </div>
-            )}
-            <div style={{ minWidth: 0 }}>
-              <div style={layoutStyles.userName}>{session?.user?.name}</div>
-              <div style={layoutStyles.userEmail}>{session?.user?.email}</div>
+      {/* User */}
+      <div style={L.userBlock}>
+        <div style={L.avatarWrap}>
+          {session?.user?.image ? (
+            <Image src={session.user.image} alt="" width={36} height={36} style={L.avatarImg} />
+          ) : (
+            <div style={L.avatarFallback}>
+              {session?.user?.name?.[0]?.toUpperCase() ?? 'V'}
             </div>
-          </div>
-          <button style={layoutStyles.signOutBtn} onClick={() => signOut({ callbackUrl: '/' })}>
-            <LogOut size={14} /> Sign out
-          </button>
+          )}
         </div>
-      </aside>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={L.userName}>{session?.user?.name || 'Vendor'}</div>
+          <div style={L.userEmail}>{session?.user?.email}</div>
+        </div>
+      </div>
 
-      {/* Main content */}
-      <main style={layoutStyles.main}>
-        {children}
-      </main>
-    </div>
+      {/* Nav */}
+      <nav style={L.nav}>
+        <div style={L.navLabel}>Navigation</div>
+        {NAV_ITEMS.map(item => {
+          const active = isActive(item.href, item.exact);
+          return (
+            <Link key={item.href} href={item.href} style={{
+              ...L.navLink,
+              ...(active ? L.navLinkActive : {}),
+            }}>
+              {active && <span style={L.activeBar} />}
+              <item.icon size={16} style={{ color: active ? '#f59e0b' : '#55556e', flexShrink: 0 }} />
+              <span style={{ flex: 1 }}>{item.label}</span>
+              {active && <ChevronRight size={13} style={{ color: '#f59e0b', opacity: 0.6 }} />}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Footer */}
+      <div style={L.sideFooter}>
+        <Link
+          href="/vendors"
+          target="_blank"
+          style={{ ...L.footerLink, color: '#9494b0' }}
+        >
+          <ExternalLink size={14} style={{ color: '#55556e' }} />
+          <span>View Marketplace</span>
+        </Link>
+        <button style={{ ...L.footerLink, ...L.signOutBtn }} onClick={() => signOut({ callbackUrl: '/' })}>
+          <LogOut size={14} />
+          <span>Sign Out</span>
+        </button>
+      </div>
+    </aside>
+  );
+
+  return (
+    <>
+      <style>{BASE_CSS}</style>
+      <div className="vd-shell" style={L.shell}>
+
+        {/* Desktop sidebar */}
+        <div style={L.desktopSidebar}>
+          <Sidebar />
+        </div>
+
+        {/* Mobile overlay */}
+        {sidebarOpen && (
+          <div style={L.overlay} onClick={() => setSidebarOpen(false)} />
+        )}
+
+        {/* Mobile sidebar */}
+        <div style={{
+          ...L.mobileSidebar,
+          transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
+        }}>
+          <button
+            style={L.mobileClose}
+            onClick={() => setSidebarOpen(false)}
+          >
+            <X size={18} />
+          </button>
+          <Sidebar />
+        </div>
+
+        {/* Main content */}
+        <main style={L.main}>
+          {/* Mobile header */}
+          <header style={L.mobileHeader}>
+            <button style={L.menuBtn} onClick={() => setSidebarOpen(true)}>
+              <Menu size={20} />
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ ...L.brandIcon, width: 28, height: 28 }}>
+                <Store size={14} color="#f59e0b" />
+              </div>
+              <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#f0f0f5' }}>Vendor Portal</span>
+            </div>
+            <button style={L.menuBtn}>
+              <Bell size={18} style={{ color: '#55556e' }} />
+            </button>
+          </header>
+
+          <div style={L.content}>
+            {children}
+          </div>
+        </main>
+      </div>
+    </>
   );
 }
 
 function VendorGate({ role }: { role: string }) {
-  const hasApplied = role === 'user'; // they haven't applied yet, or application is pending
-
+  const hasApplied = role === 'user';
   return (
-    <div style={gateStyles.wrap}>
-      <style>{LAYOUT_CSS}</style>
-      <div style={gateStyles.card}>
-        <div style={gateStyles.iconWrap}>
+    <div style={G.wrap}>
+      <style>{BASE_CSS}</style>
+      <div style={G.card}>
+        <div style={G.iconWrap}>
           {hasApplied ? <Clock size={28} color="#f59e0b" /> : <Shield size={28} color="#818cf8" />}
         </div>
-        <h1 style={gateStyles.title}>Vendor Access Required</h1>
-        <p style={gateStyles.desc}>
+        <h1 style={G.title}>Vendor Access Required</h1>
+        <p style={G.desc}>
           {hasApplied
-            ? 'Your account needs to be approved as a vendor to access this area. If you\'ve already applied, check your email for updates.'
-            : 'You need to apply as a vendor to access the vendor dashboard.'}
+            ? "Your account hasn't been approved as a vendor yet. If you've already applied, check your email for updates."
+            : 'Apply to become a vendor to access the vendor dashboard.'}
         </p>
-        <div style={gateStyles.actions}>
-          <Link href="/vendor/apply" style={gateStyles.btnPrimary}>
+        <div style={G.actions}>
+          <Link href="/vendor/apply" style={G.btnPrimary}>
             {hasApplied ? 'Check Application Status' : 'Apply to Become a Vendor'}
           </Link>
-          <Link href="/" style={gateStyles.btnSecondary}>Back to Home</Link>
+          <Link href="/" style={G.btnSecondary}>Back to Home</Link>
         </div>
       </div>
     </div>
   );
 }
 
-const LAYOUT_CSS = `
+const BASE_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-  @keyframes spin { to { transform: rotate(360deg); } }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #080810; }
-  a { text-decoration: none; }
+
+  .vd-shell {
+    --vd-bg:         #0d0d12;
+    --vd-surface:    #13131a;
+    --vd-surface-2:  #1a1a24;
+    --vd-border:     rgba(255,255,255,0.07);
+    --vd-fg:         #f0f0f5;
+    --vd-muted:      #9494b0;
+    --vd-subtle:     #55556e;
+    --vd-hover:      rgba(255,255,255,0.04);
+    --vd-amber:      #f59e0b;
+    --vd-amber-dim:  rgba(245,158,11,0.12);
+    --vd-amber-ring: rgba(245,158,11,0.22);
+  }
+
+  .vd-spin { animation: vd-rotate 1s linear infinite; }
+  @keyframes vd-rotate { to { transform: rotate(360deg); } }
+
+  .vd-shell * { box-sizing: border-box; margin: 0; padding: 0; }
+  .vd-shell a { text-decoration: none; color: inherit; }
+
+  /* Scrollbar */
+  .vd-shell nav::-webkit-scrollbar { width: 3px; }
+  .vd-shell nav::-webkit-scrollbar-track { background: transparent; }
+  .vd-shell nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 999px; }
+
+  /* Sidebar transition */
+  .vd-mobile-sidebar { transition: transform 0.28s cubic-bezier(0.4,0,0.2,1); }
+
+  @media (max-width: 768px) {
+    .vd-desktop-sidebar { display: none !important; }
+    .vd-mobile-header   { display: flex !important; }
+    .vd-main            { padding-left: 0 !important; }
+  }
+  @media (min-width: 769px) {
+    .vd-mobile-sidebar  { display: none !important; }
+    .vd-mobile-header   { display: none !important; }
+  }
 `;
 
-const layoutStyles: Record<string, React.CSSProperties> = {
-  wrap: {
-    display: 'flex',
-    minHeight: '100vh',
-    background: '#080810',
-    fontFamily: "'DM Sans', sans-serif",
-    color: '#f0f0f5',
-  },
-  sidebar: {
-    width: 240,
-    flexShrink: 0,
-    background: '#0c0c16',
-    borderRight: '1px solid rgba(255,255,255,0.06)',
-    display: 'flex',
-    flexDirection: 'column',
-    position: 'sticky' as const,
-    top: 0,
-    height: '100vh',
-  },
-  sidebarTop: {
-    padding: '1.25rem 1.25rem 0.75rem',
-    borderBottom: '1px solid rgba(255,255,255,0.06)',
-  },
-  logoLink: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    marginBottom: '0.5rem',
-    color: '#f0f0f5',
-  },
-  logoText: {
-    fontFamily: "'Instrument Serif', serif",
-    fontSize: '1.1rem',
-    color: '#f0f0f5',
-  },
-  vendorBadge: {
-    display: 'inline-flex',
-    padding: '0.2rem 0.6rem',
-    borderRadius: 100,
-    background: 'rgba(245,158,11,0.1)',
-    border: '1px solid rgba(245,158,11,0.2)',
-    color: '#f59e0b',
-    fontSize: '0.68rem',
-    fontWeight: 700,
-    textTransform: 'uppercase' as const,
-    letterSpacing: '0.08em',
-  },
-  nav: {
-    flex: 1,
-    padding: '0.75rem 0.75rem',
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '0.2rem',
-  },
-  navLink: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.6rem',
-    padding: '0.6rem 0.85rem',
-    borderRadius: 9,
-    color: '#55556e',
-    fontSize: '0.85rem',
-    fontWeight: 500,
-    transition: 'all 0.15s',
-    textDecoration: 'none',
-  },
-  navLinkActive: {
-    background: 'rgba(245,158,11,0.1)',
-    color: '#fbbf24',
-    border: '1px solid rgba(245,158,11,0.18)',
-  },
-  sidebarBottom: {
-    padding: '0.75rem',
-    borderTop: '1px solid rgba(255,255,255,0.06)',
-  },
-  userRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.6rem',
-    padding: '0.5rem',
-    marginBottom: '0.5rem',
-    overflow: 'hidden',
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: '50%',
-    flexShrink: 0,
-    objectFit: 'cover' as const,
-  },
-  avatarFallback: {
-    width: 32,
-    height: 32,
-    borderRadius: '50%',
-    flexShrink: 0,
-    background: 'rgba(245,158,11,0.15)',
-    color: '#f59e0b',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '0.82rem',
-    fontWeight: 700,
-  },
-  userName: {
-    fontSize: '0.82rem',
-    fontWeight: 600,
-    color: '#e2e2f0',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap' as const,
-  },
-  userEmail: {
-    fontSize: '0.7rem',
-    color: '#55556e',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap' as const,
-  },
-  signOutBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.4rem',
-    width: '100%',
-    padding: '0.5rem 0.85rem',
-    borderRadius: 8,
-    background: 'transparent',
-    border: '1px solid rgba(255,255,255,0.07)',
-    color: '#55556e',
-    fontFamily: "'DM Sans', sans-serif",
-    fontSize: '0.8rem',
-    cursor: 'pointer',
-    transition: 'all 0.15s',
-  },
-  main: {
-    flex: 1,
-    overflow: 'auto',
-    padding: '2rem',
-    minWidth: 0,
-  },
+const SIDEBAR_W = 248;
+
+const L: Record<string, React.CSSProperties> = {
+  shell:         { display: 'flex', minHeight: '100vh', background: '#0d0d12', fontFamily: "'DM Sans', sans-serif" },
+  desktopSidebar:{ width: SIDEBAR_W, flexShrink: 0, position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 10 } as React.CSSProperties,
+  mobileSidebar: { position: 'fixed', top: 0, left: 0, bottom: 0, width: SIDEBAR_W, zIndex: 50, willChange: 'transform' } as React.CSSProperties,
+  overlay:       { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(3px)', zIndex: 40 } as React.CSSProperties,
+  sidebar:       { width: SIDEBAR_W, height: '100%', background: '#13131a', borderRight: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
+  brand:         { display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1.25rem 1.25rem 1rem', borderBottom: '1px solid rgba(255,255,255,0.07)' },
+  brandIcon:     { width: 34, height: 34, borderRadius: 9, background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  brandName:     { fontSize: '0.9rem', fontWeight: 700, color: '#f0f0f5', lineHeight: 1.2 },
+  brandSub:      { fontSize: '0.65rem', fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: 1 },
+  userBlock:     { display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.85rem 1.1rem', margin: '0.5rem 0.75rem', background: 'rgba(255,255,255,0.03)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)' },
+  avatarWrap:    { flexShrink: 0 },
+  avatarImg:     { width: 34, height: 34, borderRadius: '50%', objectFit: 'cover' } as React.CSSProperties,
+  avatarFallback:{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(245,158,11,0.15)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: 700 },
+  userName:      { fontSize: '0.82rem', fontWeight: 600, color: '#f0f0f5', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  userEmail:     { fontSize: '0.68rem', color: '#55556e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  nav:           { flex: 1, padding: '0.5rem 0.75rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.15rem' },
+  navLabel:      { fontSize: '0.62rem', fontWeight: 700, color: '#55556e', textTransform: 'uppercase', letterSpacing: '0.12em', padding: '0.5rem 0.75rem 0.4rem' },
+  navLink:       { display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.6rem 0.75rem', borderRadius: 9, color: '#9494b0', fontSize: '0.84rem', fontWeight: 500, position: 'relative', transition: 'all 0.15s' } as React.CSSProperties,
+  navLinkActive: { background: 'rgba(245,158,11,0.08)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.15)' },
+  activeBar:     { position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: 2, height: '55%', background: '#f59e0b', borderRadius: '0 2px 2px 0' } as React.CSSProperties,
+  sideFooter:    { padding: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', gap: '0.15rem' },
+  footerLink:    { display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.55rem 0.75rem', borderRadius: 8, fontSize: '0.82rem', fontWeight: 500, transition: 'all 0.15s', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", width: '100%', textAlign: 'left' as const },
+  signOutBtn:    { color: '#f87171' },
+  mobileHeader:  { display: 'none', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: '#13131a', borderBottom: '1px solid rgba(255,255,255,0.07)', position: 'sticky', top: 0, zIndex: 20 } as React.CSSProperties,
+  menuBtn:       { width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#9494b0', cursor: 'pointer' },
+  mobileClose:   { position: 'absolute', top: '0.85rem', right: '0.85rem', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 7, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#9494b0', cursor: 'pointer', zIndex: 1 } as React.CSSProperties,
+  main:          { flex: 1, marginLeft: SIDEBAR_W, minWidth: 0, display: 'flex', flexDirection: 'column' },
+  content:       { padding: '2rem 2.25rem', flex: 1, color: '#f0f0f5' },
+  loadWrap:      { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d0d12' },
 };
 
-const loadingStyles: Record<string, React.CSSProperties> = {
-  wrap: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: '#080810',
-  },
-};
-
-const gateStyles: Record<string, React.CSSProperties> = {
-  wrap: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: '#080810',
-    fontFamily: "'DM Sans', sans-serif",
-    padding: '1rem',
-  },
-  card: {
-    maxWidth: 460,
-    width: '100%',
-    background: '#0f0f1a',
-    border: '1px solid rgba(255,255,255,0.07)',
-    borderRadius: 16,
-    padding: '2.5rem',
-    textAlign: 'center',
-  },
-  iconWrap: {
-    width: 60,
-    height: 60,
-    borderRadius: '50%',
-    background: 'rgba(245,158,11,0.1)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    margin: '0 auto 1.25rem',
-  },
-  title: {
-    fontSize: '1.3rem',
-    fontFamily: "'Instrument Serif', serif",
-    fontWeight: 400,
-    color: '#f0f0f5',
-    marginBottom: '0.75rem',
-  },
-  desc: {
-    fontSize: '0.84rem',
-    color: '#9494b0',
-    lineHeight: 1.7,
-    marginBottom: '1.75rem',
-  },
-  actions: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '0.65rem',
-  },
-  btnPrimary: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '0.7rem 1.4rem',
-    borderRadius: 10,
-    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-    color: '#0a0a0f',
-    fontSize: '0.88rem',
-    fontWeight: 700,
-    textDecoration: 'none',
-  },
-  btnSecondary: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '0.7rem 1.4rem',
-    borderRadius: 10,
-    background: 'rgba(255,255,255,0.05)',
-    border: '1px solid rgba(255,255,255,0.09)',
-    color: '#9494b0',
-    fontSize: '0.88rem',
-    textDecoration: 'none',
-  },
+const G: Record<string, React.CSSProperties> = {
+  wrap:       { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d0d12', fontFamily: "'DM Sans', sans-serif", padding: '1rem' },
+  card:       { maxWidth: 440, width: '100%', background: '#13131a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: '2.5rem', textAlign: 'center' },
+  iconWrap:   { width: 60, height: 60, borderRadius: '50%', background: 'rgba(245,158,11,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem' },
+  title:      { fontSize: '1.25rem', fontFamily: "'Instrument Serif', serif", fontWeight: 400, color: '#f0f0f5', marginBottom: '0.75rem' },
+  desc:       { fontSize: '0.84rem', color: '#9494b0', lineHeight: 1.7, marginBottom: '1.75rem' },
+  actions:    { display: 'flex', flexDirection: 'column', gap: '0.65rem' },
+  btnPrimary: { display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0.7rem 1.4rem', borderRadius: 10, background: '#f59e0b', color: '#0a0a0f', fontSize: '0.88rem', fontWeight: 700, textDecoration: 'none' },
+  btnSecondary:{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0.7rem 1.4rem', borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', color: '#9494b0', fontSize: '0.88rem', textDecoration: 'none' },
 };
