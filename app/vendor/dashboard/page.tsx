@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Package, Eye, ShoppingCart, TrendingUp, Plus, ArrowRight,
-  AlertCircle, CheckCircle2, Clock, XCircle, Archive, ShieldOff,
+  AlertCircle, CheckCircle2, Clock, XCircle, Archive,
   ArrowUpRight, RefreshCw,
 } from 'lucide-react';
+import { SuspensionBanner, AppealModal } from '@/components/vendors/SuspensionNotice';
 
 type Product = {
   id: number;
@@ -28,6 +29,12 @@ type VendorProfile = {
   logo: string | null;
   _count: { products: number };
   analytics: { date: string; profileViews: number; productClicks: number; cartAdds: number }[];
+  appealStatus: 'NONE' | 'PENDING' | 'REJECTED';
+  appealMessage: string | null;
+  issueResolved: boolean;
+  appealedAt: string | null;
+  appealResponse: string | null;
+  appealRespondedAt: string | null;
 };
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
@@ -43,6 +50,7 @@ export default function VendorDashboardPage() {
   const [products,   setProducts]   = useState<Product[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [appealOpen, setAppealOpen] = useState(false);
 
   async function fetchData(isRefresh = false) {
     if (isRefresh) setRefreshing(true);
@@ -115,17 +123,20 @@ export default function VendorDashboardPage() {
       </div>
 
       {/* Suspension banner */}
-      {isSuspended && (
-        <div style={P.suspendBanner}>
-          <div style={P.suspendIconWrap}><ShieldOff size={16} color="#f87171" /></div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={P.suspendTitle}>Account Suspended</div>
-            <div style={P.suspendBody}>
-              Your storefront and all products are hidden from the marketplace.
-              {profile?.suspendReason && <span style={{ color: '#fca5a5', fontStyle: 'italic' }}> Reason: {profile.suspendReason}</span>}
-            </div>
-          </div>
-        </div>
+      {isSuspended && profile && (
+        <SuspensionBanner vendor={profile} onAppeal={() => setAppealOpen(true)} />
+      )}
+
+      {/* Appeal modal */}
+      {appealOpen && profile && (
+        <AppealModal
+          vendor={profile}
+          onClose={() => setAppealOpen(false)}
+          onSubmitted={(update) => {
+            setProfile(p => p ? { ...p, ...update } : p);
+            setAppealOpen(false);
+          }}
+        />
       )}
 
       {/* Rejection alert */}
@@ -255,10 +266,11 @@ export default function VendorDashboardPage() {
                   <ArrowRight size={13} style={{ marginLeft: 'auto', color: '#55556e' }} />
                 </Link>
               ) : (
-                <div style={{ ...P.quickAction, opacity: 0.5 }}>
+                <button style={{ ...P.quickAction, width: '100%', border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' }} onClick={() => setAppealOpen(true)}>
                   <Plus size={14} style={{ color: '#55556e' }} />
-                  <span>Add new product (suspended)</span>
-                </div>
+                  <span>Add new product — account suspended</span>
+                  <ArrowRight size={13} style={{ marginLeft: 'auto', color: '#55556e' }} />
+                </button>
               )}
               {profile?.slug && (
                 <Link href={`/vendors/${profile.slug}`} target="_blank" style={P.quickAction}>
@@ -356,10 +368,6 @@ const P: Record<string, React.CSSProperties> = {
   header:      { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' },
   h1:          { fontSize: '1.4rem', fontWeight: 700, letterSpacing: '-0.025em', marginBottom: '0.2rem', color: '#f0f0f5' },
   subtitle:    { fontSize: '0.82rem', color: '#55556e' },
-  suspendBanner:{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem', padding: '1rem 1.25rem', borderRadius: 12, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', marginBottom: '1.25rem' },
-  suspendIconWrap: { width: 34, height: 34, borderRadius: 8, background: 'rgba(239,68,68,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  suspendTitle:{ fontSize: '0.88rem', fontWeight: 700, color: '#fca5a5', marginBottom: '0.2rem' },
-  suspendBody: { fontSize: '0.78rem', color: '#9494b0', lineHeight: 1.6 },
   alertBanner: { display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.7rem 1rem', borderRadius: 10, background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.18)', color: '#fca5a5', fontSize: '0.82rem', marginBottom: '1.25rem' },
   statsGrid:   { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem', marginBottom: '1.5rem' },
   statCard:    { background: '#13131a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 13, padding: '1rem 1.1rem', transition: 'all 0.15s', cursor: 'default', minWidth: 0, overflow: 'hidden' },

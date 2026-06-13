@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import {
   Users, ShoppingCart, Building, Star, MessageSquare,
   TrendingUp, DollarSign, Eye, Activity, ArrowUpRight,
-  Clock, AlertCircle, RefreshCw
+  Clock, AlertCircle, RefreshCw, Store
 } from 'lucide-react';
 
 /* ─── Types ────────────────────────────────────────────────────── */
@@ -17,6 +17,7 @@ interface Stats {
   reviews:      { total: number; averageRating: number; pending: number };
   searches:     { total: number; uniqueKeywords: number; topKeyword: string };
   carts:        { total: number; totalValue: number; averageValue: number };
+  vendors?:     { pendingApplications: number; pendingAppeals: number; pendingProducts: number };
 }
 interface RecentActivity {
   id: string; action: string; entity: string; user: string; timestamp: string;
@@ -231,7 +232,10 @@ export default function AdminDashboard() {
   const hasPending =
     (stats?.comments.pending||0)>0 ||
     (stats?.reviews.pending||0)>0 ||
-    (stats?.businesses.draft||0)>0;
+    (stats?.businesses.draft||0)>0 ||
+    (stats?.vendors?.pendingApplications||0)>0 ||
+    (stats?.vendors?.pendingAppeals||0)>0 ||
+    (stats?.vendors?.pendingProducts||0)>0;
 
   return (
     <>
@@ -268,6 +272,11 @@ export default function AdminDashboard() {
                   <AlertItem title="Pending Comments" count={stats?.comments.pending||0} color="#f59e0b" onClick={()=>router.push('/admin/comments')} />
                   <AlertItem title="Pending Reviews"  count={stats?.reviews.pending||0}  color="#f59e0b" onClick={()=>router.push('/admin/reviews')} />
                   <AlertItem title="Draft Businesses" count={stats?.businesses.draft||0}  color="#6366f1" onClick={()=>router.push('/admin/businesses')} />
+
+                  {/* Vendor-related pending actions — only shown if the API provides them */}
+                  <AlertItem title="Vendor Applications" count={stats?.vendors?.pendingApplications||0} color="#34d399" onClick={()=>router.push('/admin/vendors')} />
+                  <AlertItem title="Vendor Suspension Appeals" count={stats?.vendors?.pendingAppeals||0} color="#f87171" onClick={()=>router.push('/admin/vendors')} />
+                  <AlertItem title="Vendor Products Awaiting Review" count={stats?.vendors?.pendingProducts||0} color="#fbbf24" onClick={()=>router.push('/admin/products')} />
                 </div>
               </div>
             )}
@@ -405,6 +414,25 @@ export default function AdminDashboard() {
                     </button>
                   ))}
                 </div>
+
+                {/* Vendors — only shown if the API provides vendor stats */}
+                {stats?.vendors && (
+                  <div className="mini-panel">
+                    <div className="sec-hd">Vendors</div>
+                    {[
+                      { label:'Applications Pending', val:stats.vendors.pendingApplications, href:'/admin/vendors', warn:true },
+                      { label:'Suspension Appeals',   val:stats.vendors.pendingAppeals,       href:'/admin/vendors', warn:true },
+                      { label:'Products Awaiting Review', val:stats.vendors.pendingProducts,  href:'/admin/products', warn:true },
+                    ].map(r=>(
+                      <button key={r.label} className="mini-row" style={{ width:'100%', border:'none', background:'transparent', fontFamily:'Sora,sans-serif' }} onClick={()=>router.push(r.href)}>
+                        <span style={{ display:'flex', alignItems:'center', gap:'0.4rem' }}>
+                          <Store size={12} style={{ color:'#55556e' }} /> {r.label}
+                        </span>
+                        <span className="adm-mono" style={{ color: r.val>0&&r.warn ? '#fbbf24' : '#f0f0f5' }}>{r.val}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 

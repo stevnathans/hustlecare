@@ -5,7 +5,7 @@ import Image from 'next/image';
 import {
   CheckCircle2, XCircle, Clock, Eye, Search,
   Store, Globe, ChevronDown, ChevronUp, Loader2,
-  ShieldOff, Trash2, ShieldCheck, Package,
+  ShieldOff, Trash2, ShieldCheck, Package, MessageSquare, CheckSquare,
 } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
 
@@ -29,6 +29,12 @@ type Application = {
     id: number; slug: string; status: string;
     _count: { products: number };
     activeProducts?: number;
+    suspendReason?: string | null;
+    appealStatus?: 'NONE' | 'PENDING' | 'REJECTED';
+    appealMessage?: string | null;
+    issueResolved?: boolean;
+    appealedAt?: string | null;
+    appealResponse?: string | null;
   } | null;
 };
 
@@ -45,6 +51,10 @@ const VENDOR_STATUS_META: Record<string, { color: string; bg: string; label: str
   REJECTED:  { color: '#9494b0', bg: 'rgba(148,148,176,0.1)', label: 'Rejected'   },
 };
 
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 export default function AdminVendorApplicationsPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,6 +69,15 @@ export default function AdminVendorApplicationsPage() {
   } | null>(null);
   const [actionNote, setActionNote] = useState('');
   const [actionSubmitting, setActionSubmitting] = useState(false);
+
+  // Appeal review modal
+  const [appealModal, setAppealModal] = useState<{
+    vendorId: number; vendorName: string; suspendReason: string | null;
+    appealMessage: string | null; issueResolved?: boolean; appealedAt: string | null;
+  } | null>(null);
+  const [appealAction, setAppealAction] = useState<'accept' | 'dismiss' | null>(null);
+  const [appealResponse, setAppealResponse] = useState('');
+  const [appealSubmitting, setAppealSubmitting] = useState(false);
 
   useEffect(() => { fetchApplications(); }, []);
 
@@ -115,6 +134,27 @@ export default function AdminVendorApplicationsPage() {
     } finally { setActionSubmitting(false); }
   }
 
+  async function handleAppealResolve() {
+    if (!appealModal || !appealAction) return;
+    setAppealSubmitting(true);
+    try {
+      const res = await fetch(`/api/admin/vendors/${appealModal.vendorId}/appeal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: appealAction, response: appealResponse }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      toast.success(appealAction === 'accept' ? 'Appeal accepted — vendor reinstated' : 'Appeal dismissed');
+      setAppealModal(null);
+      setAppealAction(null);
+      setAppealResponse('');
+      fetchApplications();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally { setAppealSubmitting(false); }
+  }
+
   const filtered = useMemo(() => {
     return applications
       .filter(a => filter === 'ALL' || a.status === filter)
@@ -131,6 +171,11 @@ export default function AdminVendorApplicationsPage() {
     REJECTED: applications.filter(a => a.status === 'REJECTED').length,
   }), [applications]);
 
+  const pendingAppeals = useMemo(
+    () => applications.filter(a => a.vendor?.appealStatus === 'PENDING'),
+    [applications]
+  );
+
   return (
     <div style={S.page}>
       <style>{CSS}</style>
@@ -145,6 +190,53 @@ export default function AdminVendorApplicationsPage() {
           <p style={S.subtitle}>Review, approve, and manage vendors on the Hustlecare marketplace</p>
         </div>
       </div>
+
+      {/* Pending appeals strip */}
+      {pendingAppeals.length > 0 && (
+        <div style={S.appealsStrip}>
+          <div style={S.appealsStripHead}>
+            <MessageSquare size={14} color="#fbbf24" />
+            <span>{pendingAppeals.length} suspension appeal{pendingAppeals.length > 1 ? 's' : ''} awaiting review</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {pendingAppeals.map(a => (
+              <div key={a.id} style={S.appealRow}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.84rem', color: '#e2e2f0' }}>{a.businessName}</div>
+                  <div style={{ fontSize: '0.76rem', color: '#55556e', marginTop: '0.1rem' }}>
+                    Suspended: {a.vendor?.suspendReason ?? '—'}
+                  </div>
+                  {a.vendor?.appealMessage && (
+                    <div style={S.appealQuote}>
+                      {a.vendor.issueResolved && (
+                        <span style={S.resolvedTag}><CheckSquare size={11} /> Vendor marked issue resolved</span>
+                      )}
+                      &ldquo;{a.vendor.appealMessage}&rdquo;
+                      {a.vendor.appealedAt && <span style={{ color: '#3a3a56' }}> — {formatDate(a.vendor.appealedAt)}</span>}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
+                  <button style={S.appealAcceptBtn} onClick={() => {
+                    setAppealModal({ vendorId: a.vendor!.id, vendorName: a.businessName, suspendReason: a.vendor?.suspendReason ?? null, appealMessage: a.vendor?.appealMessage ?? null, issueResolved: a.vendor?.issueResolved, appealedAt: a.vendor?.appealedAt ?? null });
+                    setAppealAction('accept');
+                    setAppealResponse('');
+                  }}>
+                    <ShieldCheck size={12} /> Accept & Reinstate
+                  </button>
+                  <button style={S.appealDismissBtn} onClick={() => {
+                    setAppealModal({ vendorId: a.vendor!.id, vendorName: a.businessName, suspendReason: a.vendor?.suspendReason ?? null, appealMessage: a.vendor?.appealMessage ?? null, issueResolved: a.vendor?.issueResolved, appealedAt: a.vendor?.appealedAt ?? null });
+                    setAppealAction('dismiss');
+                    setAppealResponse('');
+                  }}>
+                    <XCircle size={12} /> Dismiss
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Stats strip */}
       <div style={S.statsStrip}>
@@ -220,6 +312,7 @@ export default function AdminVendorApplicationsPage() {
                 const isOpen = expanded === app.id;
                 const vendorStatus = app.vendor?.status;
                 const productCount = app.vendor?._count?.products ?? 0;
+                const appealStatus = app.vendor?.appealStatus;
 
                 return (
                   <>
@@ -262,7 +355,7 @@ export default function AdminVendorApplicationsPage() {
                       {/* Products */}
                       <td style={S.td}>
                         {app.vendor ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' as const }}>
                             <Package size={13} style={{ color: productCount > 0 ? '#818cf8' : '#3a3a56' }} />
                             <span style={{
                               fontFamily: "'DM Mono', monospace",
@@ -279,6 +372,11 @@ export default function AdminVendorApplicationsPage() {
                                 color: VENDOR_STATUS_META[vendorStatus]?.color ?? '#9494b0',
                               }}>
                                 {VENDOR_STATUS_META[vendorStatus]?.label ?? vendorStatus}
+                              </span>
+                            )}
+                            {appealStatus === 'PENDING' && (
+                              <span style={S.appealBadge} title="Appeal pending review">
+                                <MessageSquare size={10} /> Appeal
                               </span>
                             )}
                           </div>
@@ -391,6 +489,49 @@ export default function AdminVendorApplicationsPage() {
                                   }}>
                                     {app.reviewNote}
                                   </p>
+                                </div>
+                              )}
+
+                              {/* Suspension / appeal details */}
+                              {vendorStatus === 'SUSPENDED' && (
+                                <div>
+                                  <div style={S.detailLabel}>Suspension</div>
+                                  <p style={{ ...S.detailText, color: '#f87171' }}>{app.vendor?.suspendReason ?? '—'}</p>
+                                  {appealStatus && appealStatus !== 'NONE' && (
+                                    <div style={{ marginTop: '0.5rem' }}>
+                                      <span style={{
+                                        ...S.appealBadge,
+                                        background: appealStatus === 'PENDING' ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.08)',
+                                        color: appealStatus === 'PENDING' ? '#fbbf24' : '#f87171',
+                                        borderColor: appealStatus === 'PENDING' ? 'rgba(245,158,11,0.2)' : 'rgba(239,68,68,0.18)',
+                                      }}>
+                                        {appealStatus === 'PENDING' ? 'Appeal pending' : 'Appeal dismissed'}
+                                      </span>
+                                      {app.vendor?.appealMessage && (
+                                        <p style={{ ...S.detailText, marginTop: '0.4rem', fontStyle: 'italic' }}>
+                                          &ldquo;{app.vendor.appealMessage}&rdquo;
+                                        </p>
+                                      )}
+                                      {appealStatus === 'PENDING' && (
+                                        <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.5rem' }}>
+                                          <button style={S.appealAcceptBtn} onClick={() => {
+                                            setAppealModal({ vendorId: app.vendor!.id, vendorName: app.businessName, suspendReason: app.vendor?.suspendReason ?? null, appealMessage: app.vendor?.appealMessage ?? null, issueResolved: app.vendor?.issueResolved, appealedAt: app.vendor?.appealedAt ?? null });
+                                            setAppealAction('accept');
+                                            setAppealResponse('');
+                                          }}>
+                                            <ShieldCheck size={12} /> Accept & Reinstate
+                                          </button>
+                                          <button style={S.appealDismissBtn} onClick={() => {
+                                            setAppealModal({ vendorId: app.vendor!.id, vendorName: app.businessName, suspendReason: app.vendor?.suspendReason ?? null, appealMessage: app.vendor?.appealMessage ?? null, issueResolved: app.vendor?.issueResolved, appealedAt: app.vendor?.appealedAt ?? null });
+                                            setAppealAction('dismiss');
+                                            setAppealResponse('');
+                                          }}>
+                                            <XCircle size={12} /> Dismiss
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -527,6 +668,75 @@ export default function AdminVendorApplicationsPage() {
           </div>
         </div>
       )}
+
+      {/* Appeal resolution modal */}
+      {appealModal && appealAction && (
+        <div style={S.overlay} onClick={() => { setAppealModal(null); setAppealAction(null); }}>
+          <div style={S.modal} onClick={e => e.stopPropagation()}>
+            <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+              <div style={{
+                width: 52, height: 52, borderRadius: '50%', margin: '0 auto 0.85rem',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: appealAction === 'accept' ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
+              }}>
+                {appealAction === 'accept'
+                  ? <ShieldCheck size={24} color="#34d399" />
+                  : <XCircle size={24} color="#f87171" />}
+              </div>
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#f0f0f5', marginBottom: '0.35rem' }}>
+                {appealAction === 'accept' ? `Reinstate "${appealModal.vendorName}"?` : `Dismiss appeal from "${appealModal.vendorName}"?`}
+              </h3>
+              <p style={{ fontSize: '0.8rem', color: '#9494b0', lineHeight: 1.6 }}>
+                {appealAction === 'accept'
+                  ? 'The vendor\'s status will be set to Active, their storefront and products restored, and the appeal cleared.'
+                  : 'The vendor remains suspended. They\'ll see your response and can submit a new appeal.'}
+              </p>
+            </div>
+
+            {/* Context */}
+            <div style={S.appealContext}>
+              <div style={S.detailLabel}>Suspension reason</div>
+              <p style={{ ...S.detailText, color: '#f87171', marginBottom: '0.6rem' }}>{appealModal.suspendReason ?? '—'}</p>
+              {appealModal.issueResolved && (
+                <span style={S.resolvedTag}><CheckSquare size={11} /> Vendor marked issue resolved</span>
+              )}
+              <div style={S.detailLabel}>Vendor&apos;s appeal</div>
+              <p style={{ ...S.detailText, fontStyle: 'italic' }}>&ldquo;{appealModal.appealMessage ?? '—'}&rdquo;</p>
+              {appealModal.appealedAt && (
+                <p style={{ fontSize: '0.72rem', color: '#3a3a56', marginTop: '0.3rem' }}>Submitted {formatDate(appealModal.appealedAt)}</p>
+              )}
+            </div>
+
+            {appealAction === 'dismiss' && (
+              <div style={{ margin: '1.25rem 0' }}>
+                <label style={S.modalLabel}>
+                  Response to vendor <span style={{ color: '#f87171' }}>*</span>
+                </label>
+                <textarea style={S.modalTextarea} rows={3}
+                  placeholder="Explain why the appeal is being dismissed and what they still need to do…"
+                  value={appealResponse} onChange={e => setAppealResponse(e.target.value)} />
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '0.65rem', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
+              <button style={S.cancelBtn} onClick={() => { setAppealModal(null); setAppealAction(null); }}>Cancel</button>
+              <button style={{
+                ...S.confirmBtn,
+                background: appealAction === 'accept'
+                  ? 'linear-gradient(135deg, #10b981, #059669)'
+                  : 'rgba(239,68,68,0.15)',
+                color: appealAction === 'accept' ? '#fff' : '#f87171',
+                boxShadow: appealAction === 'accept' ? '0 4px 14px rgba(16,185,129,0.25)' : 'none',
+              }}
+                onClick={handleAppealResolve}
+                disabled={appealSubmitting || (appealAction === 'dismiss' && !appealResponse.trim())}>
+                {appealSubmitting && <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />}
+                {appealAction === 'accept' ? 'Accept & Reinstate' : 'Dismiss Appeal'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -544,6 +754,17 @@ const S: Record<string, React.CSSProperties> = {
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' },
   h1: { fontSize: '1.75rem', fontWeight: 700, letterSpacing: '-0.03em', marginBottom: '0.2rem' },
   subtitle: { fontSize: '0.83rem', color: '#55556e' },
+
+  appealsStrip: { background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.18)', borderRadius: 12, padding: '1rem 1.1rem', marginBottom: '1.25rem' },
+  appealsStripHead: { display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.84rem', fontWeight: 700, color: '#fbbf24', marginBottom: '0.75rem' },
+  appealRow: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.85rem', padding: '0.75rem 0.9rem', borderRadius: 9, background: 'rgba(0,0,0,0.18)', border: '1px solid rgba(255,255,255,0.05)', flexWrap: 'wrap' as const },
+  appealQuote: { fontSize: '0.78rem', color: '#9494b0', lineHeight: 1.6, marginTop: '0.35rem', fontStyle: 'italic' as const },
+  resolvedTag: { display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.12rem 0.5rem', borderRadius: 100, fontSize: '0.66rem', fontWeight: 700, background: 'rgba(16,185,129,0.1)', color: '#34d399', marginBottom: '0.4rem' },
+  appealBadge: { display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.12rem 0.45rem', borderRadius: 100, fontSize: '0.66rem', fontWeight: 700, marginLeft: '0.25rem', background: 'rgba(245,158,11,0.1)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.2)' },
+  appealAcceptBtn: { display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.7rem', borderRadius: 7, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#34d399', fontSize: '0.74rem', fontFamily: "'DM Sans', sans-serif", cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' as const },
+  appealDismissBtn: { display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.7rem', borderRadius: 7, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)', color: '#f87171', fontSize: '0.74rem', fontFamily: "'DM Sans', sans-serif", cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' as const },
+  appealContext: { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '0.85rem 1rem' },
+
   statsStrip: { display: 'flex', gap: '0.65rem', marginBottom: '1.25rem', flexWrap: 'wrap' },
   statPill: { display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.45rem 1rem', borderRadius: 100, background: '#13131a', border: '1px solid rgba(255,255,255,0.07)' },
   statValue: { fontFamily: "'DM Mono', monospace", fontSize: '1.1rem', fontWeight: 700 },
@@ -579,7 +800,7 @@ const S: Record<string, React.CSSProperties> = {
   detailLabel: { fontSize: '0.68rem', fontWeight: 700, color: '#55556e', textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: '0.35rem' },
   detailText: { fontSize: '0.82rem', color: '#9494b0', lineHeight: 1.6, margin: 0 },
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', backdropFilter: 'blur(4px)' },
-  modal: { background: '#1a1a24', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 16, padding: '1.75rem', width: '100%', maxWidth: 440, boxShadow: '0 24px 80px rgba(0,0,0,0.6)' },
+  modal: { background: '#1a1a24', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 16, padding: '1.75rem', width: '100%', maxWidth: 460, maxHeight: '90vh', overflowY: 'auto' as const, boxShadow: '0 24px 80px rgba(0,0,0,0.6)' },
   modalLabel: { display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#9494b0', marginBottom: '0.35rem', textTransform: 'uppercase' as const, letterSpacing: '0.06em' },
   modalTextarea: { width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 8, padding: '0.65rem 0.85rem', color: '#f0f0f5', fontFamily: "'DM Sans', sans-serif", fontSize: '0.84rem', outline: 'none', resize: 'none' as const, lineHeight: 1.6 },
   cancelBtn: { padding: '0.55rem 1.1rem', borderRadius: 9, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.09)', color: '#9494b0', fontSize: '0.84rem', fontFamily: "'DM Sans', sans-serif", cursor: 'pointer' },

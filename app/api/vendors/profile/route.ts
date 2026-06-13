@@ -1,4 +1,4 @@
-// app/api/vendor/profile/route.ts
+// app/api/vendors/profile/route.ts
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
@@ -15,6 +15,10 @@ export async function GET() {
       return NextResponse.json({ error: 'Vendor access required.' }, { status: 403 });
     }
 
+    // No `select` here, so all scalar fields are returned automatically —
+    // including appealStatus, appealMessage, issueResolved, appealedAt,
+    // appealResponse, appealRespondedAt once the migration has run.
+    // Nothing else to change in this route.
     const vendor = await prisma.vendor.findUnique({
       where: { userId: session.user.id },
       include: {
@@ -63,7 +67,11 @@ export async function PATCH(request: Request) {
       linkedinUrl,
     } = body;
 
-    // Slug is NOT editable after approval — admin must change it
+    // Slug is NOT editable after approval — admin must change it.
+    // Appeal fields (appealStatus, appealMessage, issueResolved, etc.) are
+    // intentionally NOT accepted here — those are only writable via
+    // PATCH /api/vendors/appeal (vendor) and
+    // POST /api/admin/vendors/[id]/appeal (admin).
     const updatedVendor = await prisma.vendor.update({
       where: { userId: session.user.id },
       data: {

@@ -1,4 +1,4 @@
-// app/api/admin/vendors/route.ts  (updated — includes active product count)
+// app/api/admin/vendors/route.ts  (updated — includes appeal fields)
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
@@ -37,6 +37,14 @@ export async function GET(request: Request) {
               where: { status: 'ACTIVE' },
               select: { id: true },
             },
+
+            // ── Suspension appeals ──────────────────────────────
+            appealStatus: true,
+            appealMessage: true,
+            issueResolved: true,
+            appealedAt: true,
+            appealResponse: true,
+            appealRespondedAt: true,
           },
         },
       },

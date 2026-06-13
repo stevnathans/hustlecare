@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 'use client';
 // app/vendor/dashboard/layout.tsx
 import { useSession } from 'next-auth/react';

@@ -320,7 +320,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
             {
               '@type': 'ItemList',
               '@id': `${pageUrl}#requirements`,
-              name: `Complete Requirements for Starting a ${business.name} Business`,
+              name: `Complete Requirements for Starting a ${business.name} Business In Kenya`,
               description: `All ${requirementCount} requirements needed to start a ${business.name} business in Kenya, covering essential and optional items.`,
               numberOfItems: requirementCount,
               itemListElement: requirementListItems,

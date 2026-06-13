@@ -7,6 +7,7 @@ import {
   ChevronLeft, Save, Send, Loader2, AlertCircle, CheckCircle2,
   Tag, Package, DollarSign, Layers, Info,
 } from 'lucide-react';
+import { AppealModal, VendorAppealData } from '@/components/vendors/SuspensionNotice';
 
 type Template = {
   id: number;
@@ -33,6 +34,7 @@ export function ProductForm({ productId }: ProductFormProps) {
   const [checkingAccess,  setCheckingAccess]  = useState(!isEditing);
   const [error,           setError]           = useState('');
   const [saved,           setSaved]           = useState(false);
+  const [suspendedVendor, setSuspendedVendor] = useState<VendorAppealData | null>(null);
 
   const [form, setForm] = useState({
     name: '', description: '', price: '', priceMin: '', priceMax: '',
@@ -69,7 +71,12 @@ export function ProductForm({ productId }: ProductFormProps) {
     if (!isEditing) {
       fetch('/api/vendors/profile')
         .then(r => r.ok ? r.json() : null)
-        .then(p => { if (p?.status === 'SUSPENDED') router.replace('/vendor/dashboard'); else setCheckingAccess(false); })
+        .then(p => {
+          if (p?.status === 'SUSPENDED') {
+            setSuspendedVendor(p as VendorAppealData);
+          }
+          setCheckingAccess(false);
+        })
         .catch(() => setCheckingAccess(false));
     }
     fetchTemplates();
@@ -99,7 +106,11 @@ export function ProductForm({ productId }: ProductFormProps) {
       const res    = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data   = await res.json();
       if (!res.ok) {
-        if (data.code === 'VENDOR_SUSPENDED') { router.replace('/vendor/dashboard'); return; }
+        if (data.code === 'VENDOR_SUSPENDED') {
+          const profRes = await fetch('/api/vendors/profile');
+          if (profRes.ok) setSuspendedVendor(await profRes.json());
+          return;
+        }
         throw new Error(data.error);
       }
       setSaved(true);
@@ -129,6 +140,21 @@ export function ProductForm({ productId }: ProductFormProps) {
   return (
     <div style={F.page}>
       <style>{CSS}</style>
+
+      {suspendedVendor && (
+        <AppealModal
+          vendor={suspendedVendor}
+          context="addProduct"
+          onClose={() => {
+            if (isEditing) {
+              setSuspendedVendor(null);
+            } else {
+              router.push('/vendor/dashboard/products');
+            }
+          }}
+          onSubmitted={(update) => setSuspendedVendor(v => v ? { ...v, ...update } : v)}
+        />
+      )}
 
       {/* Header */}
       <div style={F.pageHead}>

@@ -291,6 +291,12 @@ enum ProductStatus {
   ARCHIVED        // vendor manually unlisted
 }
 
+enum AppealStatus {
+  NONE      // no appeal submitted (or none since last suspension)
+  PENDING   // vendor submitted an appeal, awaiting admin review
+  REJECTED  // admin reviewed and dismissed the appeal (vendor can appeal again)
+}
+
 model Review {
   id         String   @id @default(uuid())
   productId  Int
@@ -342,6 +348,14 @@ model Vendor {
   verifiedAt    DateTime?
   suspendedAt   DateTime?
   suspendReason String?
+
+  // ── Suspension appeals ────────────────────────────────────
+  appealStatus      AppealStatus @default(NONE)
+  appealMessage     String?      // vendor's free-text explanation
+  issueResolved     Boolean      @default(false) // structured field: "I have resolved this issue"
+  appealedAt        DateTime?
+  appealResponse    String?      // admin's note when dismissing an appeal
+  appealRespondedAt DateTime?
 
   // ── Metadata ──────────────────────────────────────────────
   createdAt     DateTime  @default(now())

@@ -2,6 +2,11 @@
 // Dashboard statistics — updated to reflect the new requirement library architecture.
 // requirements.templates = count of RequirementTemplate records (library size)
 // requirements.businessLinks = total BusinessRequirement links across all businesses
+//
+// Also now includes vendor-related pending-action counts:
+// vendors.pendingApplications = VendorApplication rows awaiting admin review
+// vendors.pendingAppeals      = Vendor rows with a suspension appeal awaiting review
+// vendors.pendingProducts     = Product rows submitted by vendors awaiting review
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -37,6 +42,10 @@ export async function GET() {
       topKeyword,
       totalCarts,
       cartValue,
+      // Vendor pending actions
+      pendingVendorApplications,
+      pendingVendorAppeals,
+      pendingVendorProducts,
     ] = await Promise.all([
       // Users
       prisma.user.count(),
@@ -78,6 +87,11 @@ export async function GET() {
       // Carts
       prisma.cart.count(),
       prisma.cart.aggregate({ _sum: { totalCost: true } }),
+
+      // Vendor pending actions
+      prisma.vendorApplication.count({ where: { status: 'PENDING' } }),
+      prisma.vendor.count({ where: { appealStatus: 'PENDING' } }),
+      prisma.product.count({ where: { status: 'PENDING_REVIEW' } }),
     ]);
 
     // User trend (compare new users this week vs last week)
@@ -137,6 +151,11 @@ export async function GET() {
         total: totalCarts,
         totalValue: Math.round(cartValue._sum.totalCost ?? 0),
         averageValue: totalCarts > 0 ? Math.round((cartValue._sum.totalCost ?? 0) / totalCarts) : 0,
+      },
+      vendors: {
+        pendingApplications: pendingVendorApplications,
+        pendingAppeals: pendingVendorAppeals,
+        pendingProducts: pendingVendorProducts,
       },
     });
   } catch (error) {

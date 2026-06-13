@@ -8,6 +8,7 @@ import {
   ShoppingBagIcon,
   CurrencyDollarIcon,
 } from "@heroicons/react/24/outline";
+import Link from "next/link";
 import { FiPlus, FiCheck, FiShoppingCart, FiChevronDown, FiTrash2 } from "react-icons/fi";
 
 // ─── Shared animation helper ──────────────────────────────────────────────────
@@ -463,7 +464,7 @@ export function HowItWorksSection() {
       stepLabel: "Discover",
       title: "Find every requirement your business needs",
       description:
-        "Explore a structured list of legal, equipment, software, branding, and operational requirements—specific to your business type. Nothing missed, nothing guessed.",
+        "Explore a structured list of legal, equipment, software, branding, and operational requirements specific to your business type. Nothing missed, nothing guessed.",
       mockup: <RequirementsMockup />,
       accentColor: "bg-emerald-300",
       reverse: false,
@@ -548,7 +549,7 @@ export function HowItWorksSection() {
             className="text-slate-500 text-xl max-w-2xl mx-auto leading-relaxed"
           >
             Hustlecare cuts through the noise so you can go from business idea
-            to a fully costed launch plan — without the guesswork.
+            to a fully costed launch plan, without the guesswork.
           </motion.p>
         </div>
 
@@ -586,21 +587,21 @@ export function HowItWorksSection() {
           transition={{ duration: 0.7 }}
           className="mt-24 text-center"
         >
-          <a
-            href="/businesses"
-            className="inline-flex items-center gap-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-lg px-10 py-4 rounded-2xl shadow-xl shadow-emerald-200 transition-all duration-200"
-          >
-            Start Building Your Business
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2.5}
-              viewBox="0 0 24 24"
+          <Link
+              href="/businesses"
+              className="inline-flex items-center gap-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-lg px-10 py-4 rounded-2xl shadow-xl shadow-emerald-200 transition-all duration-200"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-            </svg>
-          </a>
+              Start Building Your Business
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2.5}
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+              </svg>
+            </Link>
         </motion.div>
       </div>
     </section>

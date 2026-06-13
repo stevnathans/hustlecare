@@ -36,19 +36,19 @@ export default function ContactSection() {
     {
       icon: Mail,
       label: 'Email',
-      value: 'hello@yourcompany.com',
-      href: 'mailto:hello@yourcompany.com'
+      value: 'info@hustlecare.net',
+      href: 'mailto:info@hustlecare.net'
     },
     {
       icon: Phone,
       label: 'Phone',
-      value: '+1 (555) 123-4567',
-      href: 'tel:+15551234567'
+      value: '+254713140158',
+      href: 'tel:+254713140158'
     },
     {
       icon: MapPin,
       label: 'Address',
-      value: '123 Business Ave, Suite 100\nNew York, NY 10001',
+      value: 'Nairobi, Kenya',
       href: 'https://maps.google.com'
     }
   ];
