@@ -50,7 +50,7 @@ export default function VendorDashboardLayout({ children }: { children: React.Re
     return pathname.startsWith(href);
   }
 
-  // isSuspended is computed per-page when needed; not used in the shared layout
+  const isSuspended = false; // computed per-page; layout doesn't gate the Add button to keep nav simple
 
   const Sidebar = () => (
     <aside style={L.sidebar}>
@@ -260,10 +260,16 @@ const BASE_CSS = `
   @media (max-width: 768px) {
     .vd-desktop-sidebar { display: none !important; }
     .vd-mobile-header   { display: flex !important; }
-    .vd-main            { padding-left: 0 !important; }
-    .vd-content         { padding: 1rem !important; }
+    .vd-main            { margin-left: 0 !important; width: 100% !important; }
+    .vd-content         { padding: 1rem !important; max-width: 100% !important; overflow-x: hidden; }
     .vd-bottom-nav      { display: flex !important; }
     .vd-bottom-spacer   { display: block !important; }
+  }
+
+  /* Belt-and-braces: prevent any accidental horizontal scroll on mobile */
+  @media (max-width: 768px) {
+    html, body { overflow-x: hidden; }
+    .vd-shell { overflow-x: hidden; max-width: 100vw; }
   }
   @media (min-width: 769px) {
     .vd-mobile-sidebar  { display: none !important; }
