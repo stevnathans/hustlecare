@@ -4,19 +4,21 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { 
-  ArrowLeft, 
-  Copy, 
-  Eye, 
-  User, 
-  Package, 
+import {
+  ArrowLeft,
+  Copy,
+  Eye,
+  User,
+  Package,
   DollarSign,
-  ShoppingBag,
   CheckCircle,
-  Calendar
+  Calendar,
+  AlertCircle,
+  ExternalLink,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import Image from "next/image";
+import Link from "next/link";
 
 interface BusinessItem {
   id: string;
@@ -54,11 +56,18 @@ interface SharedBusinessDetails {
   itemsByCategory: Record<string, BusinessItem[]>;
 }
 
+type CopyState =
+  | "idle"
+  | "copying"
+  | "already_copied"
+  | "own_list"
+  | "error";
+
 export default function SharedBusinessPreviewPage() {
   const params = useParams();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [copying, setCopying] = useState(false);
+  const [copyState, setCopyState] = useState<CopyState>("idle");
   const [business, setBusiness] = useState<SharedBusinessDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,40 +79,106 @@ export default function SharedBusinessPreviewPage() {
     try {
       setLoading(true);
       const response = await fetch(`/api/community/${params.sharedBusinessId}`);
-      
+
       if (!response.ok) {
-        throw new Error('Failed to load business details');
+        throw new Error("Failed to load business details");
       }
 
       const data = await response.json();
       setBusiness(data);
     } catch (error) {
-      console.error('Error fetching business:', error);
-      setError('Failed to load business details');
+      console.error("Error fetching business:", error);
+      setError("Failed to load business details");
     } finally {
       setLoading(false);
     }
   };
 
   const handleCopy = async () => {
-    setCopying(true);
-    try {
-      const response = await fetch(`/api/community/${params.sharedBusinessId}/copy`, {
-        method: 'POST',
-      });
+    if (copyState !== "idle") return;
+    setCopyState("copying");
 
-      if (!response.ok) {
-        throw new Error('Failed to copy business');
-      }
+    try {
+      const response = await fetch(
+        `/api/community/${params.sharedBusinessId}/copy`,
+        { method: "POST" }
+      );
 
       const data = await response.json();
-      
-      // Redirect to the new business
-      router.push(`/business/${data.newBusinessSlug}`);
+
+      if (!response.ok) {
+        if (data.code === "ALREADY_COPIED") {
+          setCopyState("already_copied");
+          return;
+        }
+        if (data.code === "OWN_LIST") {
+          setCopyState("own_list");
+          return;
+        }
+        throw new Error(data.error || "Failed to copy business");
+      }
+
+      // Redirect to the requirements page for the business
+      router.push(`/businesses/${data.newBusinessSlug}/requirements`);
     } catch (error) {
-      console.error('Error copying business:', error);
-      alert('Failed to copy business. Please make sure you are logged in.');
-      setCopying(false);
+      console.error("Error copying business:", error);
+      setCopyState("error");
+    }
+  };
+
+  const copyButtonContent = () => {
+    switch (copyState) {
+      case "copying":
+        return (
+          <span className="flex items-center">
+            <div className="animate-spin mr-2 h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
+            Copying...
+          </span>
+        );
+      case "already_copied":
+        return (
+          <span className="flex items-center">
+            <CheckCircle className="w-5 h-5 mr-2" />
+            Already in your list
+          </span>
+        );
+      case "own_list":
+        return (
+          <span className="flex items-center">
+            <AlertCircle className="w-5 h-5 mr-2" />
+            This is your list
+          </span>
+        );
+      case "error":
+        return (
+          <span className="flex items-center">
+            <AlertCircle className="w-5 h-5 mr-2" />
+            Failed — try again
+          </span>
+        );
+      default:
+        return (
+          <span className="flex items-center">
+            <Copy className="w-5 h-5 mr-2" />
+            Copy to My List
+          </span>
+        );
+    }
+  };
+
+  const copyButtonClass = () => {
+    const base = "px-8 py-4 rounded-xl font-semibold text-lg transition-all shadow-lg";
+    switch (copyState) {
+      case "already_copied":
+        return `${base} bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 cursor-default`;
+      case "own_list":
+        return `${base} bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 cursor-default`;
+      case "error":
+        return `${base} bg-red-500 text-white hover:bg-red-600 cursor-pointer hover:shadow-xl`;
+      case "copying":
+        return `${base} bg-emerald-400 text-white cursor-wait`;
+      default:
+        return `${base} bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 hover:shadow-xl cursor-pointer`;
     }
   };
 
@@ -112,9 +187,9 @@ export default function SharedBusinessPreviewPage() {
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
         <div className="max-w-6xl mx-auto px-4">
           <div className="animate-pulse space-y-8">
-            <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
-            <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded"></div>
-            <div className="h-96 bg-gray-200 dark:bg-gray-700 rounded"></div>
+            <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded w-1/3" />
+            <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded" />
+            <div className="h-96 bg-gray-200 dark:bg-gray-700 rounded" />
           </div>
         </div>
       </div>
@@ -130,10 +205,10 @@ export default function SharedBusinessPreviewPage() {
               Business Not Found
             </h2>
             <p className="text-red-700 dark:text-red-500 mb-6">
-              {error || 'This shared business could not be found or is no longer available.'}
+              {error || "This shared business could not be found or is no longer available."}
             </p>
             <button
-              onClick={() => router.push('/community')}
+              onClick={() => router.push("/community")}
               className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
             >
               Back to Community
@@ -149,11 +224,11 @@ export default function SharedBusinessPreviewPage() {
       <div className="max-w-6xl mx-auto px-4">
         {/* Back Button */}
         <button
-          onClick={() => router.back()}
+          onClick={() => router.push("/community")}
           className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6 transition-colors"
         >
           <ArrowLeft className="w-5 h-5 mr-2" />
-          Back
+          Back to Community
         </button>
 
         {/* Header Section */}
@@ -162,13 +237,14 @@ export default function SharedBusinessPreviewPage() {
           <div className="bg-gradient-to-r from-emerald-500 to-blue-500 p-8">
             <div className="flex items-start justify-between">
               <div className="flex-1">
+                <p className="text-white/70 text-sm font-medium uppercase tracking-wide mb-1">
+                  {business.business.name}
+                </p>
                 <h1 className="text-3xl font-bold text-white mb-2">
                   {business.name}
                 </h1>
                 {business.description && (
-                  <p className="text-white/90 text-lg">
-                    {business.description}
-                  </p>
+                  <p className="text-white/90 text-lg">{business.description}</p>
                 )}
               </div>
             </div>
@@ -200,9 +276,7 @@ export default function SharedBusinessPreviewPage() {
                   )}
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Shared by
-                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Shared by</p>
                   <p className="text-lg font-semibold text-gray-900 dark:text-white">
                     {business.author.name}
                   </p>
@@ -213,28 +287,40 @@ export default function SharedBusinessPreviewPage() {
                 </div>
               </div>
 
-              {/* Copy Button */}
-              <button
-                onClick={handleCopy}
-                disabled={copying}
-                className={`px-8 py-4 rounded-xl font-semibold text-lg transition-all shadow-lg hover:shadow-xl ${
-                  copying
-                    ? 'bg-emerald-400 text-white cursor-wait'
-                    : 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700'
-                }`}
-              >
-                {copying ? (
-                  <span className="flex items-center">
-                    <div className="animate-spin mr-2 h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
-                    Copying...
-                  </span>
-                ) : (
-                  <span className="flex items-center">
-                    <Copy className="w-5 h-5 mr-2" />
-                    Copy to My List
-                  </span>
+              {/* Copy / Status Button */}
+              <div className="flex flex-col items-end gap-2">
+                <button
+                  onClick={copyState === "error" ? () => setCopyState("idle") : handleCopy}
+                  disabled={
+                    copyState === "copying" ||
+                    copyState === "already_copied" ||
+                    copyState === "own_list"
+                  }
+                  className={copyButtonClass()}
+                >
+                  {copyButtonContent()}
+                </button>
+
+                {copyState === "already_copied" && (
+                  <Link
+                    href={`/businesses/${business.business.slug}/requirements`}
+                    className="flex items-center text-sm text-emerald-600 dark:text-emerald-400 hover:underline"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 mr-1" />
+                    View your requirements
+                  </Link>
                 )}
-              </button>
+
+                {copyState === "own_list" && (
+                  <Link
+                    href={`/businesses/${business.business.slug}/requirements`}
+                    className="flex items-center text-sm text-emerald-600 dark:text-emerald-400 hover:underline"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 mr-1" />
+                    Go to your list
+                  </Link>
+                )}
+              </div>
             </div>
 
             {/* Stats Grid */}
@@ -365,15 +451,37 @@ export default function SharedBusinessPreviewPage() {
             Ready to use this template?
           </h3>
           <p className="text-white/90 mb-6">
-            Copy this business setup to your account and customize it to your needs
+            Copy this requirement list to your account and customise it for your business
           </p>
           <button
-            onClick={handleCopy}
-            disabled={copying}
-            className="px-8 py-4 bg-white text-emerald-600 rounded-xl font-semibold text-lg hover:bg-gray-100 transition-all shadow-lg"
+            onClick={copyState === "error" ? () => setCopyState("idle") : handleCopy}
+            disabled={
+              copyState === "copying" ||
+              copyState === "already_copied" ||
+              copyState === "own_list"
+            }
+            className="px-8 py-4 bg-white text-emerald-600 rounded-xl font-semibold text-lg hover:bg-gray-100 transition-all shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {copying ? 'Copying...' : 'Copy to My List'}
+            {copyState === "already_copied"
+              ? "Already in your list"
+              : copyState === "own_list"
+              ? "This is your list"
+              : copyState === "copying"
+              ? "Copying..."
+              : "Copy to My List"}
           </button>
+
+          {copyState === "already_copied" && (
+            <p className="mt-3 text-white/80 text-sm">
+              You already have this list.{" "}
+              <Link
+                href={`/businesses/${business.business.slug}/requirements`}
+                className="underline text-white font-medium"
+              >
+                View your requirements →
+              </Link>
+            </p>
+          )}
         </div>
       </div>
     </div>

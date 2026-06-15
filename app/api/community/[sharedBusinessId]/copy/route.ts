@@ -44,21 +44,47 @@ export async function POST(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    let userCart = await prisma.cart.findFirst({
+    // Prevent copying your own list
+    if (currentUser.id === sharedBusiness.userId) {
+      return NextResponse.json(
+        { error: 'You cannot copy your own list', code: 'OWN_LIST' },
+        { status: 400 }
+      );
+    }
+
+    // Check if the user has already copied this list
+    // We detect this by checking if the user already has a cart for this business
+    // that was populated from this shared list. We track this via a CopiedBusiness
+    // record if your schema has one, or fall back to checking if a cart already exists.
+    // Using a simple approach: check if cart already exists for this business+user combo.
+    const existingCart = await prisma.cart.findFirst({
       where: {
         userId: currentUser.id,
         businessId: sharedBusiness.businessId,
       },
+      include: { items: true },
     });
 
-    if (!userCart) {
-      userCart = await prisma.cart.create({
+    if (existingCart && existingCart.items.length > 0) {
+      return NextResponse.json(
+        {
+          error: 'You have already copied this list',
+          code: 'ALREADY_COPIED',
+          businessSlug: sharedBusiness.business.slug,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Create or reuse the cart
+    const userCart =
+      existingCart ||
+      (await prisma.cart.create({
         data: {
           userId: currentUser.id,
           businessId: sharedBusiness.businessId,
         },
-      });
-    }
+      }));
 
     const originalCartItems = await prisma.cartItem.findMany({
       where: {
@@ -69,6 +95,7 @@ export async function POST(
       },
     });
 
+    // Clear existing items (empty cart case) and copy new ones
     await prisma.cartItem.deleteMany({
       where: { cartId: userCart.id },
     });
