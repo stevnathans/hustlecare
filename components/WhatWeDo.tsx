@@ -1,4 +1,4 @@
-import { Search, BarChart2, ShoppingBag, Download, Community, Rocket } from "lucide-react";
+import { Search, BarChart2, ShoppingBag, Download, Group, Rocket } from "lucide-react";
 
 export function WhatWeDoSection() {
   return (
@@ -37,7 +37,7 @@ export function WhatWeDoSection() {
           description: "Customizable templates for business plans and compliance documents." 
         },
         { 
-          icon: <Community className="w-6 h-6 text-emerald-600" />, 
+          icon: <Group className="w-6 h-6 text-emerald-600" />, 
           title: "Community Support", 
           description: "Networking with like-minded entrepreneurs." 
         },
