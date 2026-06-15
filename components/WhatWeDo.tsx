@@ -1,13 +1,11 @@
-import { Search, BarChart2, ShoppingBag, Download, ShoppingCart, Rocket } from "lucide-react";
+import { Search, BarChart2, ShoppingBag, Download, Community, Rocket } from "lucide-react";
 
 export function WhatWeDoSection() {
   return (
     <section className="py-20 bg-emerald-50"> {/* Subtle light emerald tint */}
   <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div className="text-center mb-16">
-      <span className="inline-block px-4 py-2 text-sm font-medium text-emerald-700 bg-emerald-100/50 rounded-full mb-4">
-        Our Services
-      </span>
+  
       <h2 className="text-3xl font-bold text-gray-900 mb-4">
         What <span className="text-emerald-600">We Do</span>
       </h2>
@@ -21,27 +19,27 @@ export function WhatWeDoSection() {
         { 
           icon: <Search className="w-6 h-6 text-emerald-600" />, 
           title: "Requirements Discovery", 
-          description: "Detailed breakdown of legal and operational needs for your specific business type." 
+          description: "Detailed breakdown of of all the resources needed to start your business, from permits to equipment." 
         },
         { 
           icon: <BarChart2 className="w-6 h-6 text-emerald-600" />, 
           title: "Cost Analysis", 
-          description: "Accurate startup and operational cost estimates with regional pricing." 
+          description: "Accurate startup cost estimates based on your requirements." 
         },
         { 
           icon: <ShoppingBag className="w-6 h-6 text-emerald-600" />, 
           title: "Vendor Network", 
-          description: "Access to verified suppliers and service providers in your area." 
+          description: "Access to a wide range of trusted vendors." 
         },
         { 
           icon: <Download className="w-6 h-6 text-emerald-600" />, 
           title: "Document Toolkit", 
-          description: "Customizable templates for business plans and compliance docs." 
+          description: "Customizable templates for business plans and compliance documents." 
         },
         { 
-          icon: <ShoppingCart className="w-6 h-6 text-emerald-600" />, 
-          title: "Procurement Hub", 
-          description: "Streamlined purchasing with exclusive partner discounts." 
+          icon: <Community className="w-6 h-6 text-emerald-600" />, 
+          title: "Community Support", 
+          description: "Networking with like-minded entrepreneurs." 
         },
         { 
           icon: <Rocket className="w-6 h-6 text-emerald-600" />, 
