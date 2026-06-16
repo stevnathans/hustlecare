@@ -12,7 +12,10 @@ import { compare } from 'bcrypt';
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60,
+    // FIX: Reduced from 30 days to 8 hours. A 30-day session means a stolen
+    // token is valid for a month. Since roles are re-fetched from DB on every
+    // JWT callback anyway, a short maxAge costs nothing and limits exposure.
+    maxAge: 8 * 60 * 60,
   },
   providers: [
     GoogleProvider({
@@ -34,29 +37,37 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          throw new Error('Email and password are required');
+          // FIX: Generic error message. Previously distinct messages revealed
+          // whether an email existed ("No user found with this email") which
+          // enables user enumeration attacks.
+          throw new Error('Invalid email or password');
         }
+
+        // FIX: Normalize email to lowercase before lookup so
+        // User@Example.com and user@example.com resolve to the same account.
+        const email = credentials.email.toLowerCase().trim();
 
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
+          where: { email },
         });
 
-        if (!user) {
-          throw new Error('No user found with this email');
-        }
-
-        if (!user.password) {
-          throw new Error('This account was registered using a social provider. Please sign in with Google.');
+        // FIX: Unified "Invalid email or password" for all failure cases —
+        // missing user, missing password (social account), wrong password.
+        // Previously each had a distinct message that leaked account info.
+        if (!user || !user.password) {
+          throw new Error('Invalid email or password');
         }
 
         if (!user.isActive) {
-          throw new Error('Account is inactive');
+          // This one is intentionally distinct — it's not an enumeration risk,
+          // it's actionable information the real account owner needs.
+          throw new Error('Account is inactive. Please contact support.');
         }
 
         const isValid = await compare(credentials.password, user.password);
 
         if (!isValid) {
-          throw new Error('Invalid password');
+          throw new Error('Invalid email or password');
         }
 
         await prisma.user.update({
@@ -71,23 +82,20 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async signIn({ user, account, profile }) {
-      console.log("🔐 SIGN IN CALLBACK - Provider:", account?.provider);
-
+      // FIX: Removed console.log statements that logged user emails and
+      // provider info. These appear in Vercel function logs which may be
+      // accessible to team members who shouldn't see user PII.
       if (account?.provider === "google") {
         const email = user.email || profile?.email;
 
         if (!email) {
-          console.error("❌ No email from Google");
           return false;
         }
 
-        // Safe defaults in case DB operations fail
         (user as any).role = 'user';
         (user as any).vendorId = null;
 
         try {
-          console.log("📊 Attempting database operations for:", email);
-
           const dbUser = await prisma.user.upsert({
             where: { email },
             update: {
@@ -108,10 +116,7 @@ export const authOptions: NextAuthOptions = {
             },
           });
 
-          console.log("✅ User upserted:", dbUser.id);
-
           if (!dbUser.isActive) {
-            console.error("❌ Account is inactive");
             return false;
           }
 
@@ -142,12 +147,9 @@ export const authOptions: NextAuthOptions = {
             },
           });
 
-          console.log("✅ Account linked");
-
           user.id = dbUser.id;
           (user as any).role = dbUser.role;
 
-          // Fetch vendorId if this user is an approved vendor
           if (dbUser.role === 'vendor') {
             const vendor = await prisma.vendor.findUnique({
               where: { userId: dbUser.id },
@@ -156,13 +158,18 @@ export const authOptions: NextAuthOptions = {
             (user as any).vendorId = vendor?.id ?? null;
           }
 
-          console.log("✅ Sign in successful with database");
           return true;
 
         } catch (error) {
-          console.error("⚠️ Database operation failed:", error);
-          console.error("Error details:", (error as Error).message);
-          return true; // Allow sign-in even if DB fails — JWT-only session
+          // FIX: Log error without PII. Previously logged the full error
+          // object which may contain email addresses or query details.
+          console.error("Sign-in DB error:", (error as Error).message);
+          // FIX: Return false instead of true on DB failure.
+          // Previously allowed sign-in even when the DB upsert failed,
+          // meaning a user could get a JWT with stale/default role data.
+          // It's safer to fail closed and show an error than to issue a
+          // token with potentially wrong role ('user' default).
+          return false;
         }
       }
 
@@ -170,7 +177,6 @@ export const authOptions: NextAuthOptions = {
     },
 
     async jwt({ token, user, account }) {
-      // On initial sign-in, seed from the user object
       if (user) {
         token.id = user.id;
         token.email = user.email;
@@ -180,8 +186,9 @@ export const authOptions: NextAuthOptions = {
         token.vendorId = (user as any).vendorId ?? null;
       }
 
-      // On every request, refresh from DB so role/vendorId changes take effect
-      // without the user needing to sign out and back in.
+      // Re-fetch from DB on every request to keep role/isActive current.
+      // This is already correct and addresses the stale JWT role issue
+      // flagged in the proxy.ts audit.
       if (token.email) {
         try {
           const dbUser = await prisma.user.findUnique({
@@ -198,16 +205,21 @@ export const authOptions: NextAuthOptions = {
           });
 
           if (dbUser) {
+            // FIX: If user has been deactivated, invalidate the token
+            // by returning an empty/null signal. Previously an inactive
+            // user with a valid JWT could continue making requests
+            // indefinitely until their token expired.
+            if (!dbUser.isActive) {
+              return { ...token, invalidated: true };
+            }
+
             token.id = dbUser.id;
             token.role = dbUser.role as any;
             token.isActive = dbUser.isActive;
-            // Keep vendorId in sync — critical so the vendor dashboard
-            // knows which vendor record belongs to the logged-in user.
             token.vendorId = dbUser.vendorProfile?.id ?? null;
           }
         } catch (error) {
-          console.error("⚠️ Error fetching user in JWT callback:", error);
-          // Continue with existing token data if DB query fails
+          console.error("JWT callback DB error:", (error as Error).message);
         }
       }
 
@@ -215,6 +227,12 @@ export const authOptions: NextAuthOptions = {
     },
 
     async session({ session, token }) {
+      // FIX: Reject invalidated tokens (deactivated accounts).
+      // Return a session with no user so the client treats it as logged out.
+      if ((token as any).invalidated) {
+        return { ...session, user: undefined as any };
+      }
+
       if (token && session.user) {
         const user = session.user as any;
         user.id = token.id as string;
@@ -232,7 +250,9 @@ export const authOptions: NextAuthOptions = {
     error: '/signin',
   },
   secret: process.env.NEXTAUTH_SECRET,
-  debug: process.env.NODE_ENV === 'development',
+  // FIX: Explicitly disable debug in production. Previously relied on
+  // NODE_ENV check but making it explicit prevents accidental enabling.
+  debug: process.env.NODE_ENV === 'development' && process.env.NEXTAUTH_DEBUG === 'true',
 };
 
 export const getCurrentUser = async () => {

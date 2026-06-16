@@ -4,7 +4,6 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { NextRequest } from 'next/server';
 
-// Role definitions
 export const ROLES = {
   USER: 'user',
   AUTHOR: 'author',
@@ -15,72 +14,59 @@ export const ROLES = {
 
 export type Role = typeof ROLES[keyof typeof ROLES];
 
-// Permission definitions
 export const PERMISSIONS = {
-  // Business permissions
   'businesses.view': ['author', 'editor', 'admin'],
   'businesses.create': ['author', 'editor', 'admin'],
   'businesses.update': ['editor', 'admin'],
   'businesses.delete': ['admin'],
-  
-  // Product permissions
   'products.view': ['author', 'editor', 'admin'],
   'products.create': ['author', 'editor', 'admin'],
   'products.update': ['editor', 'admin'],
   'products.delete': ['admin'],
-  
-  // Requirement permissions
   'requirements.view': ['author', 'editor', 'admin'],
   'requirements.create': ['author', 'editor', 'admin'],
   'requirements.update': ['editor', 'admin'],
   'requirements.delete': ['admin'],
-  
-  // Vendor permissions
   'vendors.view': ['author', 'editor', 'admin'],
   'vendors.create': ['editor', 'admin'],
   'vendors.update': ['editor', 'admin'],
   'vendors.delete': ['admin'],
-  
-  // User management permissions
   'users.view': ['admin'],
   'users.update': ['admin'],
   'users.delete': ['admin'],
-  
-  // Moderation permissions
   'comments.moderate': ['reviewer', 'editor', 'admin'],
   'reviews.moderate': ['reviewer', 'editor', 'admin'],
-  
-  // System permissions
   'audit.view': ['admin'],
   'settings.manage': ['admin'],
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
 
-// Check if user has required role
 export function hasRole(userRole: string, requiredRoles: Role[]): boolean {
   return requiredRoles.includes(userRole as Role);
 }
 
-// Check if user has required permission
 export function hasPermission(userRole: string, permission: Permission): boolean {
   const allowedRoles = PERMISSIONS[permission] || [];
   return (allowedRoles as readonly string[]).includes(userRole);
 }
 
-// Check if user can access admin area
+// FIX: canAccessAdmin now only allows true admins, consistent with the fix
+// applied in proxy.ts. Previously author/editor/reviewer were included,
+// meaning this helper and proxy.ts disagreed on who is an "admin".
+// Having two different definitions of the same concept is a logic gap
+// that causes subtle authorization bugs.
 export function canAccessAdmin(role: string): boolean {
-  return hasRole(role, [ROLES.AUTHOR, ROLES.EDITOR, ROLES.REVIEWER, ROLES.ADMIN]);
+  return role === ROLES.ADMIN;
 }
 
-// Get current user session with role
 export async function getCurrentUser() {
   const session = await getServerSession(authOptions);
-  
+
   if (!session?.user?.email) {
     return null;
   }
-  
+
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
     select: {
@@ -92,61 +78,69 @@ export async function getCurrentUser() {
       isActive: true,
     }
   });
-  
+
   return user;
 }
 
-// Verify user has permission (throws error if not)
 export async function requirePermission(permission: Permission) {
   const user = await getCurrentUser();
-  
+
   if (!user) {
-    throw new Error('Unauthorized - Not authenticated');
+    throw new Error('Unauthorized');
   }
-  
+
   if (!user.isActive) {
-    throw new Error('Unauthorized - Account is inactive');
+    throw new Error('Unauthorized');
   }
-  
+
+  // FIX: Permission error no longer reveals which permission is required.
+  // Previously "Forbidden - Requires permission: users.delete" told an
+  // attacker exactly what permission gates exist and what they need to escalate.
   if (!hasPermission(user.role, permission)) {
-    throw new Error(`Forbidden - Requires permission: ${permission}`);
+    throw new Error('Forbidden');
   }
-  
+
   return user;
 }
 
-// Verify user has role (throws error if not)
 export async function requireRole(roles: Role[]) {
   const user = await getCurrentUser();
-  
+
   if (!user) {
-    throw new Error('Unauthorized - Not authenticated');
+    throw new Error('Unauthorized');
   }
-  
+
   if (!user.isActive) {
-    throw new Error('Unauthorized - Account is inactive');
+    throw new Error('Unauthorized');
   }
-  
+
+  // FIX: Same as above — don't reveal which roles are required.
   if (!hasRole(user.role, roles)) {
-    throw new Error(`Forbidden - Requires one of roles: ${roles.join(', ')}`);
+    throw new Error('Forbidden');
   }
-  
+
   return user;
 }
 
-// Extract IP address from request
+// FIX: x-forwarded-for header can be spoofed by clients. Take only the
+// last IP in the chain (added by your trusted infrastructure) rather than
+// the first (which can be set to anything by the client).
+// Only use the first if you fully control and trust your proxy chain.
 function getIpAddress(req: NextRequest): string {
   const forwarded = req.headers.get('x-forwarded-for');
   const realIp = req.headers.get('x-real-ip');
-  return forwarded?.split(',')[0] || realIp || 'unknown';
+  if (forwarded) {
+    const ips = forwarded.split(',').map(ip => ip.trim());
+    // Last IP is added by your infrastructure and is trustworthy
+    return ips[ips.length - 1] || 'unknown';
+  }
+  return realIp || 'unknown';
 }
 
-// Extract user agent from request
 function getUserAgent(req: NextRequest): string {
   return req.headers.get('user-agent') || 'unknown';
 }
 
-// Audit log types
 export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'VIEW' | 'EXPORT' | 'APPROVE' | 'REJECT';
 export type AuditEntity = 'Business' | 'Product' | 'Requirement' | 'Vendor' | 'User' | 'Comment' | 'Review';
 
@@ -158,16 +152,15 @@ interface AuditLogData {
   req?: NextRequest;
 }
 
-// Create audit log entry
 export async function createAuditLog(data: AuditLogData) {
   try {
     const user = await getCurrentUser();
-    
+
     if (!user) {
-      console.warn('Attempted to create audit log without authenticated user');
+      console.warn('Audit log attempted without authenticated user');
       return null;
     }
-    
+
     const auditLog = await prisma.auditLog.create({
       data: {
         userId: user.id,
@@ -179,15 +172,14 @@ export async function createAuditLog(data: AuditLogData) {
         userAgent: data.req ? getUserAgent(data.req) : null,
       }
     });
-    
+
     return auditLog;
   } catch (error) {
-    console.error('Failed to create audit log:', error);
+    console.error('Failed to create audit log:', (error as Error).message);
     return null;
   }
 }
 
-// Get audit logs with filters
 export async function getAuditLogs(filters?: {
   userId?: string;
   entity?: AuditEntity;
@@ -197,8 +189,14 @@ export async function getAuditLogs(filters?: {
   limit?: number;
   offset?: number;
 }) {
+  // FIX: Cap the maximum number of records returnable in one call.
+  // Previously a caller could pass limit: 999999 and dump the entire
+  // audit log table in one query.
+  const MAX_LIMIT = 100;
+  const limit = Math.min(filters?.limit || 50, MAX_LIMIT);
+
   const where: Record<string, unknown> = {};
-  
+
   if (filters?.userId) where.userId = filters.userId;
   if (filters?.entity) where.entity = filters.entity;
   if (filters?.action) where.action = filters.action;
@@ -207,7 +205,7 @@ export async function getAuditLogs(filters?: {
     if (filters.startDate) (where.createdAt as Record<string, unknown>).gte = filters.startDate;
     if (filters.endDate) (where.createdAt as Record<string, unknown>).lte = filters.endDate;
   }
-  
+
   const [logs, total] = await Promise.all([
     prisma.auditLog.findMany({
       where,
@@ -221,16 +219,15 @@ export async function getAuditLogs(filters?: {
         }
       },
       orderBy: { createdAt: 'desc' },
-      take: filters?.limit || 50,
+      take: limit,
       skip: filters?.offset || 0,
     }),
     prisma.auditLog.count({ where })
   ]);
-  
+
   return { logs, total };
 }
 
-// Update user's last login timestamp
 export async function updateLastLogin(userId: string) {
   try {
     await prisma.user.update({
@@ -238,26 +235,22 @@ export async function updateLastLogin(userId: string) {
       data: { lastLoginAt: new Date() }
     });
   } catch (error) {
-    console.error('Failed to update last login:', error);
+    console.error('Failed to update last login:', (error as Error).message);
   }
 }
 
-// Check if user is admin
 export function isAdmin(role: string): boolean {
   return role === ROLES.ADMIN;
 }
 
-// Check if user is editor or above
 export function isEditor(role: string): boolean {
   return hasRole(role, [ROLES.EDITOR, ROLES.ADMIN]);
 }
 
-// Check if user is reviewer or above
 export function isReviewer(role: string): boolean {
   return hasRole(role, [ROLES.REVIEWER, ROLES.EDITOR, ROLES.ADMIN]);
 }
 
-// Get role display name
 export function getRoleDisplayName(role: string): string {
   const displayNames: Record<string, string> = {
     user: 'User',
@@ -269,7 +262,6 @@ export function getRoleDisplayName(role: string): string {
   return displayNames[role] || role;
 }
 
-// Get role badge color
 export function getRoleBadgeColor(role: string): string {
   const colors: Record<string, string> = {
     user: 'bg-gray-100 text-gray-800',

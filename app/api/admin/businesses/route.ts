@@ -2,9 +2,35 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requirePermission, createAuditLog } from '@/lib/admin-utils';
 
+// FIX: Whitelist of fields that are allowed to be updated via PATCH.
+// Previously the PATCH handler spread `updateData` (everything in the body
+// except known keys) directly into prisma.business.update — meaning a caller
+// could set any column on the business table, including userId, id, or
+// internal flags that should never be client-settable.
+const ALLOWED_UPDATE_FIELDS = new Set([
+  'name', 'slug', 'description', 'image', 'published',
+  'profitPotential', 'skillLevel', 'bestLocations',
+  'costMin', 'costMax', 'timeToLaunchMin', 'timeToLaunchMax',
+]);
+
+// FIX: Slug must be URL-safe. Validate before hitting the DB.
+function isValidSlug(slug: string): boolean {
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug);
+}
+
+// FIX: Validate and sanitize numeric fields. Previously Number(value) was
+// called on raw user input without range checks — a caller could pass
+// Infinity, NaN, or negative values and they'd be written to the DB.
+function toPositiveInt(value: unknown): number | null {
+  if (value === undefined || value === null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.floor(n);
+}
+
 async function resolveCategoryId(categoryName?: string): Promise<number | undefined> {
   if (!categoryName || !categoryName.trim()) return undefined;
-  const trimmedName = categoryName.trim();
+  const trimmedName = categoryName.trim().slice(0, 100); // FIX: cap length
   const slug = trimmedName.toLowerCase().replace(/\s+/g, '-');
   const category = await prisma.businessCategory.upsert({
     where: { name: trimmedName },
@@ -12,6 +38,18 @@ async function resolveCategoryId(categoryName?: string): Promise<number | undefi
     create: { name: trimmedName, slug },
   });
   return category.id;
+}
+
+function handleAuthError(error: unknown): NextResponse | null {
+  if (error instanceof Error) {
+    if (error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (error.message === 'Forbidden') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+  }
+  return null;
 }
 
 export async function GET() {
@@ -31,15 +69,9 @@ export async function GET() {
 
     return NextResponse.json(businesses);
   } catch (error) {
-    console.error('Error fetching businesses:', error);
-    if (error instanceof Error) {
-      if (error.message.includes('Unauthorized') || error.message.includes('Forbidden')) {
-        return NextResponse.json(
-          { error: error.message },
-          { status: error.message.includes('Unauthorized') ? 401 : 403 }
-        );
-      }
-    }
+    const authResponse = handleAuthError(error);
+    if (authResponse) return authResponse;
+    console.error('Error fetching businesses:', (error as Error).message);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -57,41 +89,52 @@ export async function POST(req: NextRequest) {
       bestLocations,
     } = body;
 
-    if (!name || !slug) {
+    // FIX: Validate name and slug length and content, not just presence.
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    }
+    if (!slug || typeof slug !== 'string') {
+      return NextResponse.json({ error: 'Slug is required' }, { status: 400 });
+    }
+    if (!isValidSlug(slug)) {
       return NextResponse.json(
-        { error: 'Name and slug are required' },
+        { error: 'Slug must be lowercase letters, numbers, and hyphens only' },
         { status: 400 }
       );
+    }
+    if (name.trim().length > 200) {
+      return NextResponse.json({ error: 'Name must be 200 characters or fewer' }, { status: 400 });
+    }
+    if (slug.length > 200) {
+      return NextResponse.json({ error: 'Slug must be 200 characters or fewer' }, { status: 400 });
     }
 
     const existingBusiness = await prisma.business.findUnique({ where: { slug } });
     if (existingBusiness) {
-      return NextResponse.json(
-        { error: 'A business with this slug already exists' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'A business with this slug already exists' }, { status: 409 });
     }
 
     const categoryId = await resolveCategoryId(categoryName);
 
     const business = await prisma.business.create({
       data: {
-        name, slug,
-        description: description || null,
-        image:       image       || null,
-        published,
+        name: name.trim(),
+        slug,
+        description: description ? String(description).slice(0, 5000) : null,
+        image: image ? String(image) : null,
+        published: Boolean(published),
         userId: user.id,
         ...(categoryId ? { categoryId } : {}),
-        costMin:         costMin         ? Number(costMin)         : null,
-        costMax:         costMax         ? Number(costMax)         : null,
-        timeToLaunchMin: timeToLaunchMin ? Number(timeToLaunchMin) : null,
-        timeToLaunchMax: timeToLaunchMax ? Number(timeToLaunchMax) : null,
-        profitPotential: profitPotential || null,
-        skillLevel:      skillLevel      || null,
+        costMin:         toPositiveInt(costMin),
+        costMax:         toPositiveInt(costMax),
+        timeToLaunchMin: toPositiveInt(timeToLaunchMin),
+        timeToLaunchMax: toPositiveInt(timeToLaunchMax),
+        profitPotential: profitPotential ? String(profitPotential).slice(0, 100) : null,
+        skillLevel:      skillLevel      ? String(skillLevel).slice(0, 100)      : null,
         bestLocations: Array.isArray(bestLocations)
-          ? bestLocations.filter(Boolean)
+          ? bestLocations.filter((l: unknown) => typeof l === 'string' && l.trim()).slice(0, 50)
           : typeof bestLocations === 'string'
-            ? bestLocations.split(',').map((s: string) => s.trim()).filter(Boolean)
+            ? bestLocations.split(',').map((s: string) => s.trim()).filter(Boolean).slice(0, 50)
             : [],
       },
       include: {
@@ -100,7 +143,6 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // ── Auto-link all global requirements ──────────────────────────────────
     const globalTemplates = await prisma.requirementTemplate.findMany({
       where: { isGlobal: true, isDeprecated: false },
       select: { id: true },
@@ -116,7 +158,6 @@ export async function POST(req: NextRequest) {
         skipDuplicates: true,
       });
     }
-    // ── End auto-link ──────────────────────────────────────────────────────
 
     await createAuditLog({
       action: 'CREATE',
@@ -136,15 +177,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(business, { status: 201 });
   } catch (error) {
-    console.error('Error creating business:', error);
-    if (error instanceof Error) {
-      if (error.message.includes('Unauthorized') || error.message.includes('Forbidden')) {
-        return NextResponse.json(
-          { error: error.message },
-          { status: error.message.includes('Unauthorized') ? 401 : 403 }
-        );
-      }
-    }
+    const authResponse = handleAuthError(error);
+    if (authResponse) return authResponse;
+    console.error('Error creating business:', (error as Error).message);
     return NextResponse.json({ error: 'Failed to create business' }, { status: 500 });
   }
 }
@@ -159,11 +194,29 @@ export async function PATCH(req: NextRequest) {
       timeToLaunchMin, timeToLaunchMax,
       profitPotential, skillLevel,
       bestLocations,
-      ...updateData
+      ...rest
     } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Business ID is required' }, { status: 400 });
+    }
+
+    // FIX: Strip any fields from `rest` that are not in the whitelist.
+    // Previously the entire rest object was passed to prisma.update, allowing
+    // arbitrary column writes (e.g. userId, createdAt, internal flags).
+    const updateData: Record<string, unknown> = {};
+    for (const key of Object.keys(rest)) {
+      if (ALLOWED_UPDATE_FIELDS.has(key)) {
+        updateData[key] = rest[key];
+      }
+    }
+
+    // FIX: Validate slug format if being updated
+    if (updateData.slug && !isValidSlug(String(updateData.slug))) {
+      return NextResponse.json(
+        { error: 'Slug must be lowercase letters, numbers, and hyphens only' },
+        { status: 400 }
+      );
     }
 
     const oldBusiness = await prisma.business.findUnique({
@@ -176,39 +229,31 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (updateData.slug && updateData.slug !== oldBusiness.slug) {
-      const slugExists = await prisma.business.findUnique({
-        where: { slug: updateData.slug },
-      });
+      const slugExists = await prisma.business.findUnique({ where: { slug: String(updateData.slug) } });
       if (slugExists) {
-        return NextResponse.json(
-          { error: 'A business with this slug already exists' },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: 'A business with this slug already exists' }, { status: 409 });
       }
     }
 
     let categoryUpdate: { categoryId?: number | null } = {};
     if (categoryName !== undefined) {
-      if (!categoryName?.trim()) {
-        categoryUpdate = { categoryId: null };
-      } else {
-        const resolvedId = await resolveCategoryId(categoryName);
-        categoryUpdate = { categoryId: resolvedId };
-      }
+      categoryUpdate = !categoryName?.trim()
+        ? { categoryId: null }
+        : { categoryId: await resolveCategoryId(categoryName) };
     }
 
     const metaUpdate: Record<string, unknown> = {};
-    if (costMin         !== undefined) metaUpdate.costMin         = costMin         ? Number(costMin)         : null;
-    if (costMax         !== undefined) metaUpdate.costMax         = costMax         ? Number(costMax)         : null;
-    if (timeToLaunchMin !== undefined) metaUpdate.timeToLaunchMin = timeToLaunchMin ? Number(timeToLaunchMin) : null;
-    if (timeToLaunchMax !== undefined) metaUpdate.timeToLaunchMax = timeToLaunchMax ? Number(timeToLaunchMax) : null;
-    if (profitPotential !== undefined) metaUpdate.profitPotential = profitPotential || null;
-    if (skillLevel      !== undefined) metaUpdate.skillLevel      = skillLevel      || null;
+    if (costMin         !== undefined) metaUpdate.costMin         = toPositiveInt(costMin);
+    if (costMax         !== undefined) metaUpdate.costMax         = toPositiveInt(costMax);
+    if (timeToLaunchMin !== undefined) metaUpdate.timeToLaunchMin = toPositiveInt(timeToLaunchMin);
+    if (timeToLaunchMax !== undefined) metaUpdate.timeToLaunchMax = toPositiveInt(timeToLaunchMax);
+    if (profitPotential !== undefined) metaUpdate.profitPotential = profitPotential ? String(profitPotential).slice(0, 100) : null;
+    if (skillLevel      !== undefined) metaUpdate.skillLevel      = skillLevel      ? String(skillLevel).slice(0, 100)      : null;
     if (bestLocations   !== undefined) {
       metaUpdate.bestLocations = Array.isArray(bestLocations)
-        ? bestLocations.filter(Boolean)
+        ? bestLocations.filter((l: unknown) => typeof l === 'string' && l.trim()).slice(0, 50)
         : typeof bestLocations === 'string'
-          ? bestLocations.split(',').map((s: string) => s.trim()).filter(Boolean)
+          ? bestLocations.split(',').map((s: string) => s.trim()).filter(Boolean).slice(0, 50)
           : [];
     }
 
@@ -224,25 +269,16 @@ export async function PATCH(req: NextRequest) {
     const changes: Record<string, { old: unknown; new: unknown }> = {};
     for (const key in updateData) {
       if (oldBusiness[key as keyof typeof oldBusiness] !== updateData[key]) {
-        changes[key] = {
-          old: oldBusiness[key as keyof typeof oldBusiness],
-          new: updateData[key],
-        };
+        changes[key] = { old: oldBusiness[key as keyof typeof oldBusiness], new: updateData[key] };
       }
     }
     for (const key in metaUpdate) {
       if (oldBusiness[key as keyof typeof oldBusiness] !== metaUpdate[key]) {
-        changes[key] = {
-          old: oldBusiness[key as keyof typeof oldBusiness],
-          new: metaUpdate[key],
-        };
+        changes[key] = { old: oldBusiness[key as keyof typeof oldBusiness], new: metaUpdate[key] };
       }
     }
     if (categoryName !== undefined && oldBusiness.category?.name !== categoryName) {
-      changes['category'] = {
-        old: oldBusiness.category?.name ?? null,
-        new: categoryName || null,
-      };
+      changes['category'] = { old: oldBusiness.category?.name ?? null, new: categoryName || null };
     }
 
     await createAuditLog({
@@ -255,15 +291,9 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json(business);
   } catch (error) {
-    console.error('Error updating business:', error);
-    if (error instanceof Error) {
-      if (error.message.includes('Unauthorized') || error.message.includes('Forbidden')) {
-        return NextResponse.json(
-          { error: error.message },
-          { status: error.message.includes('Unauthorized') ? 401 : 403 }
-        );
-      }
-    }
+    const authResponse = handleAuthError(error);
+    if (authResponse) return authResponse;
+    console.error('Error updating business:', (error as Error).message);
     return NextResponse.json({ error: 'Failed to update business' }, { status: 500 });
   }
 }
@@ -289,9 +319,7 @@ export async function DELETE(req: NextRequest) {
 
     if (business._count.requirements > 0) {
       return NextResponse.json(
-        {
-          error: `This business has ${business._count.requirements} linked requirement(s). Remove them first or confirm deletion.`,
-        },
+        { error: `This business has ${business._count.requirements} linked requirement(s). Remove them first.` },
         { status: 400 }
       );
     }
@@ -315,15 +343,9 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ message: 'Business deleted successfully' });
   } catch (error) {
-    console.error('Error deleting business:', error);
-    if (error instanceof Error) {
-      if (error.message.includes('Unauthorized') || error.message.includes('Forbidden')) {
-        return NextResponse.json(
-          { error: error.message },
-          { status: error.message.includes('Unauthorized') ? 401 : 403 }
-        );
-      }
-    }
+    const authResponse = handleAuthError(error);
+    if (authResponse) return authResponse;
+    console.error('Error deleting business:', (error as Error).message);
     return NextResponse.json({ error: 'Failed to delete business' }, { status: 500 });
   }
 }

@@ -1,22 +1,45 @@
 // app/api/admin/businesses/[id]/requirements/route.ts
-// Manages requirements from the business side.
-// Handles: listing linked requirements, adding (link existing or create+link), unlinking, updating override.
 
 import { prisma } from "@/lib/prisma";
+import { requirePermission, createAuditLog } from "@/lib/admin-utils";
 import { NextRequest, NextResponse } from "next/server";
 
 interface Params {
   params: Promise<{ id: string }>;
 }
 
+function handleAuthError(error: unknown): NextResponse | null {
+  if (error instanceof Error) {
+    if (error.message === 'Unauthorized') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (error.message === 'Forbidden') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  return null;
+}
+
+// FIX: Validate that a route param is a positive integer before passing to Prisma.
+// Previously Number(id) on a non-numeric string like "abc" produces NaN, which
+// Prisma passes through and throws an unhelpful internal error.
+function parseId(value: string): number | null {
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 // GET /api/admin/businesses/:id/requirements
-// Returns all requirements linked to this business, with resolved effective description.
 export async function GET(_: NextRequest, { params }: Params) {
   try {
+    // FIX: All four handlers were missing auth entirely. Anyone — unauthenticated
+    // or a basic user — could read, add, update, and delete business requirements
+    // by hitting these endpoints directly. Added requirePermission to every handler.
+    await requirePermission('businesses.view');
+
     const { id } = await params;
+    const businessId = parseId(id);
+    if (!businessId) {
+      return NextResponse.json({ error: 'Invalid business ID' }, { status: 400 });
+    }
 
     const business = await prisma.business.findUnique({
-      where: { id: Number(id) },
+      where: { id: businessId },
       select: { id: true, name: true },
     });
 
@@ -25,19 +48,16 @@ export async function GET(_: NextRequest, { params }: Params) {
     }
 
     const links = await prisma.businessRequirement.findMany({
-      where: { businessId: Number(id) },
+      where: { businessId },
       include: {
         template: {
-          include: {
-            _count: { select: { products: true } },
-          },
+          include: { _count: { select: { products: true } } },
         },
       },
       orderBy: [{ displayOrder: "asc" }, { createdAt: "asc" }],
     });
 
     const shaped = links.map((link) => {
-      // Resolve effective description: override wins, else resolve token in template description
       const templateDesc = link.template.description ?? "";
       const resolvedTemplateDesc = templateDesc.replace(/\[businessName\]/gi, business.name);
       const effectiveDescription = link.descriptionOverride ?? resolvedTemplateDesc;
@@ -63,23 +83,31 @@ export async function GET(_: NextRequest, { params }: Params) {
 
     return NextResponse.json(shaped);
   } catch (error) {
-    console.error("Error fetching business requirements:", error);
+    const authResponse = handleAuthError(error);
+    if (authResponse) return authResponse;
+    console.error("Error fetching business requirements:", (error as Error).message);
     return NextResponse.json({ error: "Failed to fetch requirements" }, { status: 500 });
   }
 }
 
 // POST /api/admin/businesses/:id/requirements
-// Two modes:
 // Mode A — link existing: { templateId: number }
 // Mode B — create new + link: { name, description, image, category, necessity }
 export async function POST(req: NextRequest, { params }: Params) {
   try {
+    await requirePermission('requirements.create');
+
     const { id } = await params;
+    const businessId = parseId(id);
+    if (!businessId) {
+      return NextResponse.json({ error: 'Invalid business ID' }, { status: 400 });
+    }
+
     const body = await req.json();
     const { templateId, name, description, image, category, necessity } = body;
 
     const business = await prisma.business.findUnique({
-      where: { id: Number(id) },
+      where: { id: businessId },
       select: { id: true, name: true },
     });
 
@@ -89,9 +117,15 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     let resolvedTemplateId = templateId ? Number(templateId) : null;
 
-    // Mode B: create new template first, then link
     if (!resolvedTemplateId) {
-      if (!name || !category || !necessity) {
+      // Mode B: create new template
+      if (!name || typeof name !== 'string' || !name.trim()) {
+        return NextResponse.json(
+          { error: "name, category, and necessity are required to create a new requirement" },
+          { status: 400 }
+        );
+      }
+      if (!category || !necessity) {
         return NextResponse.json(
           { error: "name, category, and necessity are required to create a new requirement" },
           { status: 400 }
@@ -99,13 +133,19 @@ export async function POST(req: NextRequest, { params }: Params) {
       }
 
       const newTemplate = await prisma.requirementTemplate.create({
-        data: { name, description, image, category, necessity },
+        data: {
+          // FIX: Explicitly pick and sanitize each field instead of spreading body.
+          name: String(name).trim().slice(0, 200),
+          description: description ? String(description).slice(0, 5000) : null,
+          image: image ? String(image) : null,
+          category: String(category).slice(0, 100),
+          necessity: String(necessity).slice(0, 50),
+        },
       });
 
       resolvedTemplateId = newTemplate.id;
     }
 
-    // Validate template exists and is not deprecated
     const template = await prisma.requirementTemplate.findUnique({
       where: { id: resolvedTemplateId },
     });
@@ -116,18 +156,14 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     if (template.isDeprecated) {
       return NextResponse.json(
-        { error: "This requirement has been deprecated and cannot be added to new businesses." },
+        { error: "This requirement has been deprecated and cannot be added." },
         { status: 400 }
       );
     }
 
-    // Check for duplicate link — return 409 with a clear message
     const existing = await prisma.businessRequirement.findUnique({
       where: {
-        businessId_templateId: {
-          businessId: Number(id),
-          templateId: resolvedTemplateId,
-        },
+        businessId_templateId: { businessId, templateId: resolvedTemplateId },
       },
     });
 
@@ -143,21 +179,21 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
 
     const link = await prisma.businessRequirement.create({
-      data: {
-        businessId: Number(id),
-        templateId: resolvedTemplateId,
-        source: "admin",
-      },
+      data: { businessId, templateId: resolvedTemplateId, source: "admin" },
       include: {
-        template: {
-          include: { _count: { select: { products: true } } },
-        },
+        template: { include: { _count: { select: { products: true } } } },
       },
     });
 
-    // Resolve description for the response
-    const templateDesc = link.template.description ?? "";
-    const resolvedDesc = templateDesc.replace(/\[businessName\]/gi, business.name);
+    const resolvedDesc = (link.template.description ?? "").replace(/\[businessName\]/gi, business.name);
+
+    await createAuditLog({
+      action: 'CREATE',
+      entity: 'Requirement',
+      entityId: link.id.toString(),
+      changes: { businessId, templateId: resolvedTemplateId, templateName: template.name },
+      req,
+    });
 
     return NextResponse.json(
       {
@@ -172,22 +208,29 @@ export async function POST(req: NextRequest, { params }: Params) {
         source: link.source,
         productCount: link.template._count.products,
         linkedAt: link.createdAt,
-        wasCreated: !templateId, // true if we just created a new template
+        wasCreated: !templateId,
       },
       { status: 201 }
     );
   } catch (error) {
-    console.error("Error adding requirement to business:", error);
+    const authResponse = handleAuthError(error);
+    if (authResponse) return authResponse;
+    console.error("Error adding requirement to business:", (error as Error).message);
     return NextResponse.json({ error: "Failed to add requirement" }, { status: 500 });
   }
 }
 
 // PATCH /api/admin/businesses/:id/requirements
-// Updates the link-level fields: descriptionOverride, isActive, displayOrder.
-// Body: { linkId: number, descriptionOverride?: string | null, isActive?: boolean, displayOrder?: number }
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
+    await requirePermission('requirements.update');
+
     const { id } = await params;
+    const businessId = parseId(id);
+    if (!businessId) {
+      return NextResponse.json({ error: 'Invalid business ID' }, { status: 400 });
+    }
+
     const body = await req.json();
     const { linkId, descriptionOverride, isActive, displayOrder } = body;
 
@@ -196,7 +239,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const link = await prisma.businessRequirement.findFirst({
-      where: { id: Number(linkId), businessId: Number(id) },
+      where: { id: Number(linkId), businessId },
     });
 
     if (!link) {
@@ -206,13 +249,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const updated = await prisma.businessRequirement.update({
       where: { id: Number(linkId) },
       data: {
-        ...(descriptionOverride !== undefined && { descriptionOverride }),
-        ...(isActive !== undefined && { isActive }),
-        ...(displayOrder !== undefined && { displayOrder }),
+        // FIX: Explicitly type-check each field before writing.
+        // Previously raw body values were spread in without validation.
+        ...(descriptionOverride !== undefined && {
+          descriptionOverride: descriptionOverride === null
+            ? null
+            : String(descriptionOverride).slice(0, 5000),
+        }),
+        ...(isActive !== undefined && { isActive: Boolean(isActive) }),
+        ...(displayOrder !== undefined && { displayOrder: Math.max(0, Math.floor(Number(displayOrder))) }),
       },
-      include: {
-        template: true,
-      },
+      include: { template: true },
     });
 
     return NextResponse.json({
@@ -224,18 +271,24 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       updatedAt: updated.updatedAt,
     });
   } catch (error) {
-    console.error("Error updating business requirement:", error);
+    const authResponse = handleAuthError(error);
+    if (authResponse) return authResponse;
+    console.error("Error updating business requirement:", (error as Error).message);
     return NextResponse.json({ error: "Failed to update requirement" }, { status: 500 });
   }
 }
 
 // DELETE /api/admin/businesses/:id/requirements
-// Unlinks a requirement from this business.
-// Body: { linkId: number }
-// Does NOT delete the template from the library.
 export async function DELETE(req: NextRequest, { params }: Params) {
   try {
+    await requirePermission('requirements.delete');
+
     const { id } = await params;
+    const businessId = parseId(id);
+    if (!businessId) {
+      return NextResponse.json({ error: 'Invalid business ID' }, { status: 400 });
+    }
+
     const body = await req.json();
     const { linkId } = body;
 
@@ -244,7 +297,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     }
 
     const link = await prisma.businessRequirement.findFirst({
-      where: { id: Number(linkId), businessId: Number(id) },
+      where: { id: Number(linkId), businessId },
       include: {
         template: { select: { name: true } },
         business: { select: { name: true } },
@@ -257,11 +310,21 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
     await prisma.businessRequirement.delete({ where: { id: Number(linkId) } });
 
+    await createAuditLog({
+      action: 'DELETE',
+      entity: 'Requirement',
+      entityId: linkId.toString(),
+      changes: { unlinkedFrom: link.business.name, requirementName: link.template.name },
+      req,
+    });
+
     return NextResponse.json({
       message: `"${link.template.name}" removed from "${link.business.name}"`,
     });
   } catch (error) {
-    console.error("Error unlinking requirement from business:", error);
+    const authResponse = handleAuthError(error);
+    if (authResponse) return authResponse;
+    console.error("Error unlinking requirement from business:", (error as Error).message);
     return NextResponse.json({ error: "Failed to remove requirement" }, { status: 500 });
   }
 }

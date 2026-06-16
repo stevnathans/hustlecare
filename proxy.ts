@@ -4,7 +4,6 @@ import { NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import type { NextRequest } from 'next/server';
 
-// Define role hierarchy
 const ROLES = {
   USER: 'user',
   AUTHOR: 'author',
@@ -13,7 +12,6 @@ const ROLES = {
   ADMIN: 'admin'
 } as const;
 
-// Role permissions map
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   [ROLES.USER]: [],
   [ROLES.AUTHOR]: ['businesses.create', 'requirements.create', 'products.create'],
@@ -22,44 +20,63 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
   [ROLES.ADMIN]: ['*']
 };
 
-// Check if user has required permission
 function hasPermission(userRole: string, requiredPermission: string): boolean {
   const permissions = ROLE_PERMISSIONS[userRole] || [];
-
   if (permissions.includes('*')) return true;
   if (permissions.includes(requiredPermission)) return true;
-
-  const hasWildcard = permissions.some(perm => {
+  return permissions.some(perm => {
     if (perm.endsWith('.*')) {
       const prefix = perm.slice(0, -2);
       return requiredPermission.startsWith(prefix);
     }
     return false;
   });
-
-  return hasWildcard;
 }
 
-// Check if role can access admin area
+// FIX: Only true admins can access the admin area.
+// Previously author/editor/reviewer were granted entry, meaning
+// any new /admin/* page was accessible to them unless explicitly blocked.
 function canAccessAdmin(role: string): boolean {
-  return [ROLES.AUTHOR, ROLES.EDITOR, ROLES.REVIEWER, ROLES.ADMIN].includes(role as any);
+  return role === ROLES.ADMIN;
 }
 
-export async function proxy (req: NextRequest) {
+// FIX: Validate callbackUrl is a same-origin relative path to prevent open redirects.
+// Previously the raw pathname was passed directly into the redirect URL.
+function safeCallbackUrl(path: string, requestUrl: string): string {
+  try {
+    const base = new URL(requestUrl);
+    const resolved = new URL(path, base);
+    if (resolved.origin !== base.origin) return '/dashboard';
+    // Only allow paths, never full URLs
+    return resolved.pathname;
+  } catch {
+    return '/dashboard';
+  }
+}
+
+function applySecurityHeaders(response: NextResponse): NextResponse {
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  // FIX: Added HSTS. Previously absent entirely.
+  response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+  return response;
+}
+
+export async function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
 
-  // 🚨 CRITICAL: Skip ALL NextAuth routes (including callback routes)
   if (path.startsWith('/api/auth')) {
     return NextResponse.next();
   }
 
-  // Get token with proper secret
-  const token = await getToken({ 
-    req, 
+  const token = await getToken({
+    req,
     secret: process.env.NEXTAUTH_SECRET,
     secureCookie: process.env.NODE_ENV === 'production'
   });
-  
+
   const isAuthenticated = !!token;
   const userRole = ((token?.role as string) || ROLES.USER) as
     | 'author'
@@ -68,7 +85,6 @@ export async function proxy (req: NextRequest) {
     | 'admin'
     | 'user';
 
-  // Define route patterns
   const protectedRoutes = ['/dashboard', '/profile', '/settings'];
   const authRoutes = ['/signin', '/signup'];
   const adminRoutes = ['/admin'];
@@ -77,23 +93,16 @@ export async function proxy (req: NextRequest) {
   const isAuthRoute = authRoutes.some(route => path === route);
   const isAdminRoute = adminRoutes.some(route => path.startsWith(route));
 
-  // 🔐 Handle auth routes - redirect authenticated users away from signin/signup
-  // BUT: Only redirect if this is a direct visit, not part of OAuth flow
+  // FIX: Removed the OAuth flow bypass that allowed authenticated users to stay
+  // on /signin by appending ?callbackUrl=anything. NextAuth handles continuation
+  // internally; we don't need to inspect params here.
   if (isAuthRoute && isAuthenticated) {
-    // Check if there's a callbackUrl or error parameter (OAuth flow indicators)
-    const hasCallbackUrl = req.nextUrl.searchParams.has('callbackUrl');
-    const hasError = req.nextUrl.searchParams.has('error');
-    
-    // Don't redirect during OAuth flow
-    if (!hasCallbackUrl && !hasError) {
-      return NextResponse.redirect(new URL('/dashboard', req.url));
-    }
+    return NextResponse.redirect(new URL('/dashboard', req.url));
   }
 
-  // 🔐 Handle admin routes
   if (isAdminRoute) {
     if (!isAuthenticated) {
-      const callbackUrl = encodeURIComponent(path);
+      const callbackUrl = encodeURIComponent(safeCallbackUrl(path, req.url));
       return NextResponse.redirect(new URL(`/signin?callbackUrl=${callbackUrl}`, req.url));
     }
 
@@ -101,41 +110,47 @@ export async function proxy (req: NextRequest) {
       return NextResponse.redirect(new URL('/unauthorized', req.url));
     }
 
+    // FIX: Deny-by-default for admin sub-routes. Previously any new /admin/* page
+    // added to the app was silently accessible to all roles that passed canAccessAdmin.
+    // Now: if a route has no entry in the map, access is denied.
     const specificPermissions: Record<string, string[]> = {
-      '/admin/users': ['users.*', '*'],
-      '/admin/businesses': ['businesses.*', '*'],
-      '/admin/products': ['products.*', '*'],
-      '/admin/requirements': ['requirements.*', '*'],
-      '/admin/vendors': ['vendors.*', '*'],
-      '/admin/comments': ['comments.moderate', '*'],
-      '/admin/reviews': ['reviews.moderate', '*'],
+      '/admin':                ['*'],
+      '/admin/users':          ['users.*', '*'],
+      '/admin/businesses':     ['businesses.*', '*'],
+      '/admin/products':       ['products.*', '*'],
+      '/admin/requirements':   ['requirements.*', '*'],
+      '/admin/vendors':        ['vendors.*', '*'],
+      '/admin/comments':       ['comments.moderate', '*'],
+      '/admin/reviews':        ['reviews.moderate', '*'],
     };
 
-    for (const [route, perms] of Object.entries(specificPermissions)) {
-      if (path.startsWith(route)) {
-        const hasRequiredPerm = perms.some(perm => hasPermission(userRole, perm));
-        if (!hasRequiredPerm) {
-          return NextResponse.redirect(new URL('/admin/unauthorized', req.url));
-        }
-      }
+    // Match longest prefix first so /admin/users beats /admin
+    const matchedRoute = Object.keys(specificPermissions)
+      .sort((a, b) => b.length - a.length)
+      .find(route => path.startsWith(route));
+
+    if (!matchedRoute) {
+      return NextResponse.redirect(new URL('/admin/unauthorized', req.url));
     }
 
-    const response = NextResponse.next();
-    response.headers.set('X-Frame-Options', 'DENY');
-    response.headers.set('X-Content-Type-Options', 'nosniff');
-    response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-    response.headers.set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+    const hasRequiredPerm = specificPermissions[matchedRoute]
+      .some(perm => hasPermission(userRole, perm));
 
-    return response;
+    if (!hasRequiredPerm) {
+      return NextResponse.redirect(new URL('/admin/unauthorized', req.url));
+    }
+
+    return applySecurityHeaders(NextResponse.next());
   }
 
-  // 🔐 Handle regular protected routes
   if (isProtectedRoute && !isAuthenticated) {
-    const callbackUrl = encodeURIComponent(path);
+    const callbackUrl = encodeURIComponent(safeCallbackUrl(path, req.url));
     return NextResponse.redirect(new URL(`/signin?callbackUrl=${callbackUrl}`, req.url));
   }
 
-  return NextResponse.next();
+  // FIX: Apply security headers to ALL responses, not just admin routes.
+  // Previously dashboard, profile, settings and public pages had no security headers.
+  return applySecurityHeaders(NextResponse.next());
 }
 
 export const config = {
