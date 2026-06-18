@@ -125,18 +125,18 @@ function RefPopover({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start gap-3">
-          <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0 font-bold text-emerald-700 text-sm border border-emerald-200">
+          <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0 font-bold text-emerald-700 text-base border border-emerald-200">
             {activeRef.refNumber}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-gray-900 text-sm mb-1">
+            <p className="font-semibold text-gray-900 text-base mb-1">
               {activeRef.title}
             </p>
             <a
               href={activeRef.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-emerald-600 hover:text-emerald-700 flex items-center gap-1 break-all"
+              className="text-base text-emerald-600 hover:text-emerald-700 flex items-center gap-1 break-all"
             >
               <ExternalLink className="w-3 h-3 flex-shrink-0" />
               {activeRef.url}
@@ -145,7 +145,7 @@ function RefPopover({
         </div>
         <button
           onClick={onClose}
-          className="mt-4 w-full py-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-sm font-medium text-gray-600 transition-colors"
+          className="mt-4 w-full py-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-base font-medium text-gray-600 transition-colors"
         >
           Close
         </button>
@@ -164,7 +164,7 @@ function FaqItem({ faq }: { faq: Faq }) {
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center justify-between gap-4 px-6 py-4 text-left bg-white hover:bg-gray-50 transition-colors"
       >
-        <span className="font-semibold text-gray-800 text-sm leading-snug">
+        <span className="font-semibold text-gray-800 text-base leading-snug">
           {faq.question}
         </span>
         {open ? (
@@ -175,7 +175,7 @@ function FaqItem({ faq }: { faq: Faq }) {
       </button>
       {open && (
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-100">
-          <p className="text-sm text-gray-600 leading-relaxed">{faq.answer}</p>
+          <p className="text-base text-gray-600 leading-relaxed">{faq.answer}</p>
         </div>
       )}
     </div>
@@ -216,7 +216,7 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
             {/* Breadcrumb */}
             <nav
               aria-label="Breadcrumb"
-              className="flex flex-wrap items-center gap-1.5 text-sm text-white/70 mb-5"
+              className="flex flex-wrap items-center gap-1.5 text-base text-white/70 mb-5"
             >
               <Link
                 href="/businesses"
@@ -246,14 +246,14 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
 
             <div className="flex flex-wrap gap-3">
               {guide.steps.length > 0 && (
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/15 backdrop-blur-sm border border-white/20 rounded-xl text-sm text-white">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/15 backdrop-blur-sm border border-white/20 rounded-xl text-base text-white">
                   <span className="font-semibold">{guide.steps.length}</span>
                   <span className="text-white/70">steps</span>
                 </div>
               )}
 
               {guide.faqs.length > 0 && (
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/15 backdrop-blur-sm border border-white/20 rounded-xl text-sm text-white">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/15 backdrop-blur-sm border border-white/20 rounded-xl text-base text-white">
                   <span className="font-semibold">{guide.faqs.length}</span>
                   <span className="text-white/70">FAQs</span>
                 </div>
@@ -266,10 +266,10 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
             {/* Main content — 3/4 width */}
-            <main className="lg:col-span-3 space-y-8">
+            <main className="lg:col-span-3 space-y-8 text-base">
               {/* Intro */}
               {guide.intro && (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-7">
+                <div className="bg-white text-base rounded-lg border border-gray-50 p-10">
                   <h2 className="text-xl font-bold text-gray-900 mb-4">
                     Overview
                   </h2>
@@ -277,7 +277,7 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
                     text={guide.intro}
                     references={refs}
                     onRefClick={(r) => setActiveRef(r as Reference)}
-                    className="text-gray-600"
+                    className="text-gray-900"
                   />
                 </div>
               )}
@@ -296,35 +296,39 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
                       <li
                         key={step.id}
                         id={`step-${i + 1}`}
-                        className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
+                        className="bg-white rounded-lg border border-gray-50 relative overflow-visible pt-8"
                       >
-                        <div className="flex gap-5 p-7">
-                          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-sm shadow">
+                        {/* Step number circle – centered and protruding above card */}
+                        <div className="absolute left-1/2 transform -translate-x-1/2 -top-2">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-base shadow-lg border-2 border-white">
                             {i + 1}
                           </div>
+                        </div>
 
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-base font-bold text-gray-900 mb-3 leading-snug">
-                              {step.title}
-                            </h3>
-                            {step.imageUrl && (
-                              <div className="px-7 pb-7">
-                                <Image
-                                  src={step.imageUrl}
-                                  alt={step.title}
-                                  width={700}
-                                  height={400}
-                                  className="rounded-xl w-full object-cover border border-gray-100"
-                                />
-                              </div>
-                            )}
-                            <RenderRichText
-                              text={step.description}
-                              references={refs}
-                              onRefClick={(r) => setActiveRef(r as Reference)}
-                              className="text-gray-600"
-                            />
-                          </div>
+                        {/* Card body – title, image, description */}
+                        <div className="p-10 pt-2">
+                          <h3 className="text-center text-xl font-bold text-gray-900 mb-3 leading-snug">
+                            {step.title}
+                          </h3>
+
+                          {step.imageUrl && (
+                            <div className="mb-4">
+                              <Image
+                                src={step.imageUrl}
+                                alt={step.title}
+                                width={700}
+                                height={400}
+                                className="rounded-xl w-full object-cover border border-gray-100"
+                              />
+                            </div>
+                          )}
+
+                          <RenderRichText
+                            text={step.description}
+                            references={refs}
+                            onRefClick={(r) => setActiveRef(r as Reference)}
+                            className="text-gray-800 text-base"
+                          />
                         </div>
                       </li>
                     ))}
@@ -343,7 +347,7 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
                     return (
                       <div
                         key={sec.id}
-                        className={`rounded-2xl border ${meta.bg} ${meta.border} p-6`}
+                        className={`rounded-lg border ${meta.bg} ${meta.border} p-10`}
                       >
                         <div className="flex items-center gap-3 mb-4">
                           <div className="w-9 h-9 rounded-xl bg-white/70 flex items-center justify-center flex-shrink-0 text-lg">
@@ -351,11 +355,11 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
                           </div>
                           <div>
                             <div
-                              className={`text-xs font-bold uppercase tracking-wide ${meta.iconCls} mb-0.5`}
+                              className={`text-base font-bold uppercase tracking-wide ${meta.iconCls} mb-0.5`}
                             >
                               {meta.label}
                             </div>
-                            <h3 className={`font-bold text-sm ${meta.title}`}>
+                            <h3 className={`font-bold text-base ${meta.title}`}>
                               {sec.title}
                             </h3>
                           </div>
@@ -414,9 +418,9 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
                     {guide.references.map((ref) => (
                       <li
                         key={ref.id}
-                        className="flex items-baseline gap-3 text-sm"
+                        className="flex items-baseline gap-3 text-base"
                       >
-                        <span className="flex-shrink-0 w-6 h-6 rounded bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold flex items-center justify-center text-xs">
+                        <span className="flex-shrink-0 w-6 h-6 rounded bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold flex items-center justify-center text-base">
                           {ref.refNumber}
                         </span>
                         <span className="text-gray-600">
@@ -445,9 +449,9 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
                 {guide.steps.length > 0 && (
                   <nav
                     aria-label="Table of contents"
-                    className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4"
+                    className="bg-white rounded-lg border border-gray-50 p-4"
                   >
-                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
+                    <h3 className="text-base font-bold text-gray-500 uppercase tracking-widest mb-3">
                       Contents
                     </h3>
                     <ol className="space-y-1">
@@ -459,9 +463,9 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
                               e.preventDefault();
                               window.scrollTo({ top: 0, behavior: "smooth" });
                             }}
-                            className="text-xs text-gray-500 hover:text-emerald-600 transition-colors flex items-center gap-1.5 py-0.5"
+                            className="text-base text-gray-500 hover:text-emerald-600 transition-colors flex items-center gap-1.5 py-0.5"
                           >
-                            <span className="w-4 h-4 rounded bg-gray-100 text-gray-400 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                            <span className="w-4 h-4 rounded bg-gray-100 text-gray-400 flex items-center justify-center text-base font-bold flex-shrink-0">
                               ·
                             </span>
                             Overview
@@ -472,9 +476,9 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
                         <li key={step.id}>
                           <a
                             href={`#step-${i + 1}`}
-                            className="text-xs text-gray-500 hover:text-emerald-600 transition-colors flex items-center gap-1.5 py-0.5"
+                            className="text-base text-gray-500 hover:text-emerald-600 transition-colors flex items-center gap-1.5 py-0.5"
                           >
-                            <span className="w-4 h-4 rounded bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                            <span className="w-4 h-4 rounded bg-emerald-100 text-emerald-600 flex items-center justify-center text-base font-bold flex-shrink-0">
                               {i + 1}
                             </span>
                             <span className="leading-snug line-clamp-2">
@@ -487,9 +491,9 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
                         <li>
                           <a
                             href="#faq-heading"
-                            className="text-xs text-gray-500 hover:text-emerald-600 transition-colors flex items-center gap-1.5 py-0.5"
+                            className="text-base text-gray-500 hover:text-emerald-600 transition-colors flex items-center gap-1.5 py-0.5"
                           >
-                            <span className="w-4 h-4 rounded bg-amber-100 text-amber-600 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                            <span className="w-4 h-4 rounded bg-amber-100 text-amber-600 flex items-center justify-center text-base font-bold flex-shrink-0">
                               ?
                             </span>
                             FAQs
@@ -500,16 +504,16 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
                   </nav>
                 )}
 
-                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border border-emerald-100 p-4">
-                  <p className="text-xs font-semibold text-emerald-700 mb-1">
+                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-lg border border-emerald-100 p-4">
+                  <p className="text-base font-semibold text-emerald-700 mb-1">
                     Full Business Guide
                   </p>
-                  <p className="text-xs text-gray-500 mb-3 leading-snug">
+                  <p className="text-base text-gray-500 mb-3 leading-snug">
                     Requirements, costs, and everything you need to launch.
                   </p>
                   <Link
                     href={`/businesses/${slug}`}
-                    className="flex items-center justify-center gap-2 w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-colors"
+                    className="flex items-center justify-center gap-2 w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-base font-bold rounded-xl transition-colors"
                   >
                     View Full Guide
                     <ChevronRight className="w-3.5 h-3.5" />
@@ -518,16 +522,16 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
 
                 <Link
                   href={`/businesses/${slug}/requirements`}
-                  className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm hover:border-emerald-200 hover:bg-emerald-50/50 transition-all group"
+                  className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-50 hover:border-emerald-200 hover:bg-emerald-50/50 transition-all group"
                 >
                   <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
                     <FileText className="w-4 h-4 text-emerald-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-gray-800 group-hover:text-emerald-700 transition-colors">
+                    <p className="text-base font-bold text-gray-800 group-hover:text-emerald-700 transition-colors">
                       Requirements
                     </p>
-                    <p className="text-xs text-gray-400">
+                    <p className="text-base text-gray-400">
                       What you need to start
                     </p>
                   </div>

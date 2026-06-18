@@ -247,7 +247,7 @@ function RenderRichTextInner({ text, references, onRefClick, keyPrefix }: {
     if (h3) { nodes.push(<h3 key={k} style={{ fontSize: '0.97rem', fontWeight: 700, color: '#1f2937', margin: '0.85rem 0 0.35rem', lineHeight: 1.3 }}>{parseInline(h3[1], references, onRefClick, k)}</h3>); i++; continue; }
 
     const h4 = line.match(/^#### (.+)$/);
-    if (h4) { nodes.push(<h4 key={k} style={{ fontSize: '0.88rem', fontWeight: 700, color: '#374151', margin: '0.75rem 0 0.3rem', lineHeight: 1.3 }}>{parseInline(h4[1], references, onRefClick, k)}</h4>); i++; continue; }
+    if (h4) { nodes.push(<h4 key={k} style={{ fontSize: '1rem', fontWeight: 700, color: '#374151', margin: '0.75rem 0 0.3rem', lineHeight: 1.3 }}>{parseInline(h4[1], references, onRefClick, k)}</h4>); i++; continue; }
 
     // Bullet list — collect consecutive bullet lines
     if (line.match(/^- /)) {
@@ -259,7 +259,7 @@ function RenderRichTextInner({ text, references, onRefClick, keyPrefix }: {
       nodes.push(
         <ul key={k} style={{ paddingLeft: '1.4rem', margin: '0.5rem 0', display: 'flex', flexDirection: 'column', gap: '0.3rem', listStyleType: 'disc' }}>
           {items.map((item, j) => (
-            <li key={j} style={{ fontSize: '0.875rem', color: '#374151', lineHeight: 1.65, display: 'list-item' }}>
+            <li key={j} style={{ fontSize: '1rem', color: '#111827', lineHeight: 1.65, display: 'list-item' }}>
               {parseInline(item, references, onRefClick, `${k}-li-${j}`)}
             </li>
           ))}
@@ -283,7 +283,7 @@ function RenderRichTextInner({ text, references, onRefClick, keyPrefix }: {
     }
     if (paraLines.length > 0) {
       nodes.push(
-        <p key={k} style={{ fontSize: '0.875rem', color: '#4b5563', lineHeight: 1.75, margin: '0.4rem 0' }}>
+        <p key={k} style={{ fontSize: '1rem', color: '#111827', lineHeight: 1.75, margin: '0.4rem 0' }}>
           {parseInline(paraLines.join(' '), references, onRefClick, k)}
         </p>
       );
