@@ -1,5 +1,6 @@
 // app/api/admin/businesses/[id]/how-to-start/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';                                   // ← ADDED
 import { prisma } from '@/lib/prisma';
 import { requirePermission, createAuditLog } from '@/lib/admin-utils';
 
@@ -66,8 +67,11 @@ export async function PUT(
       references = [],
     } = body;
 
-    // Verify business exists
-    const business = await prisma.business.findUnique({ where: { id: businessId }, select: { id: true, name: true } });
+    // Verify business exists — slug added for revalidatePath below
+    const business = await prisma.business.findUnique({           // ← CHANGED
+      where:  { id: businessId },                                 // ← CHANGED
+      select: { id: true, name: true, slug: true },               // ← slug added
+    });
     if (!business) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 });
     }
@@ -175,6 +179,10 @@ export async function PUT(
       },
       req,
     });
+
+    // Purge stale static cache — next request to these pages re-renders from DB  // ← ADDED
+    revalidatePath(`/businesses/${business.slug}/how-to-start`);                  // ← ADDED
+    revalidatePath(`/businesses/${business.slug}`);                                // ← ADDED
 
     return NextResponse.json({ guide: saved });
   } catch (error) {
