@@ -287,7 +287,7 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
                 <section aria-labelledby="steps-heading">
                   <h2
                     id="steps-heading"
-                    className="text-2xl font-bold text-gray-900 mb-6 px-4 text-center"
+                    className="text-2xl font-bold text-gray-900 mb-6 px-4 sm:px-0"
                   >
                     Step-by-Step Guide to Starting a {name} Business
                   </h2>
@@ -390,7 +390,7 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
                 <section aria-labelledby="faq-heading">
                   <h2
                     id="faq-heading"
-                    className="text-2xl font-bold text-gray-900 mb-6 px-4 text-center"
+                    className="text-2xl font-bold text-gray-900 mb-6 px-4 sm:px-0"
                   >
                     Frequently Asked Questions
                   </h2>
