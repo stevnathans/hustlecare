@@ -1,90 +1,71 @@
-/* eslint-disable react/no-unescaped-entities */
 // app/about/OurStory.tsx
 'use client';
-import { Lightbulb, Compass, Target, Users, Heart, Sparkles, Building, Mail } from 'lucide-react';
+import { Lightbulb, Target, Users, Heart, Building, Mail } from 'lucide-react';
 
 export default function OurStory() {
   const sections = [
     {
       icon: Lightbulb,
-      title: "1. Why We Created Hustlecare",
+      title: "Why We Created Hustlecare",
       content: (
         <>
           <p className="text-gray-600 mb-4">
-            Starting a business is one of the most exciting choices anyone can make. But let’s be honest—it is also incredibly confusing. 
+            Hustlecare started with a simple observation: starting a business is often harder than it needs to be.
           </p>
           <p className="text-gray-600 mb-4">
-            Too many brilliant ideas die before they even get off the ground. Not because the founder didn&apos;t work hard enough, but because the path to opening a simple shop is locked behind a wall of guesswork. 
+            A lot of people have ideas they want to pursue, but turning those ideas into actual plans can be confusing. Before spending any money, there are many things to figure out — what equipment you need, which documents are required, what software can help, how much the setup might cost, and where to even begin.
           </p>
           <p className="text-gray-600">
-            We noticed that everyday entrepreneurs spend weeks walking around markets, dealing with unpredictable prices from middlemen, and trying to decipher local council permits. We built Hustlecare to put an end to that frustration. We wanted to build a transparent, friendly map that gives you the exact answers from day one.
-          </p>
-        </>
-      )
-    },
-    {
-      icon: Compass,
-      title: "2. The Big Difference: Requirements vs. Products",
-      content: (
-        <>
-          <p className="text-gray-600 mb-4">
-            If you search the internet for tips on starting a business, you usually find generic blog posts filled with rough estimates. We realized that estimates don&apos;t help you pay the bills. You need the hard facts.
-          </p>
-          <p className="text-gray-600 mb-3">
-            That is why we split our platform into two powerful layers:
-          </p>
-          <ul className="list-disc list-inside text-gray-600 space-y-2 mb-4">
-            <li><strong>The Requirements (The "What"):</strong> This is your ultimate safety checklist. It reminds you of the critical things you might forget—like fire extinguishers, specific county business permits, or specialized plumbing.</li>
-            <li><strong>The Products (The "How Much"):</strong> We link those needs directly to real items from real local vendors. This allows you to toggle between budget setups and premium equipment to see exactly how your choices shift your launch costs in real time.</li>
-          </ul>
-          <p className="text-gray-600">
-            By shifting from random guesses to actual market pricing, we help you build a solid plan that keeps you from running out of money before your doors even open.
+            The challenge is not that information does not exist. It is that it is scattered across different places, often written in ways that are difficult to apply. If you are looking to start a business, you may find yourself spending hours searching, comparing, and trying to connect the pieces yourself.
           </p>
         </>
       )
     },
     {
       icon: Target,
-      title: "3. What We Are Trying to Achieve",
+      title: "Bringing Everything Together",
       content: (
         <>
           <p className="text-gray-600 mb-4">
-            Our goal is simple: **We want to lower the barrier to entry for anyone who wants to build a business.** 
+            We built Hustlecare to bring those pieces together.
           </p>
           <p className="text-gray-600 mb-4">
-            We want to see a world where starting a standard executive salon, a local bakery, a cyber cafe, or a neighborhood car wash doesn&apos;t require years of painful trial and error. 
+            The idea was to create a practical starting point where you can understand what you need before taking the next step. A place where business requirements, estimated costs, and useful resources are organized in a way that makes sense.
           </p>
           <p className="text-gray-600">
-            By organizing the messy world of local setup requirements, supplier tracking, and licensing protocols into one clean web dashboard, we are turning abstract dreams into solid, bank-ready roadmaps.
+            Whether you are exploring an idea, preparing a budget, or getting ready to launch, Hustlecare is designed to help you make better decisions before you invest your time and money.
           </p>
         </>
       )
     },
     {
       icon: Users,
-      title: "4. Built Out in the Open",
+      title: "Built Around Real Business Needs",
       content: (
         <>
           <p className="text-gray-600 mb-4">
-            Hustlecare wasn&apos;t built by a faceless, distant corporation behind closed doors. It was created right here in the community as a "build in public" project. 
+            Hustlecare is built around the practical questions people ask when they are preparing to start a business.
           </p>
           <p className="text-gray-600">
-            We share our development milestones, gather feedback directly from local builders on community forums, and continuously adapt the application based on the real-world advice of people running businesses on the ground. We believe that software is at its best when it is co-created with the very people who rely on it to make a living.
+            We focus on organizing the information that matters most during the early stages, helping people understand what they need and how different parts of starting a business fit together.
           </p>
         </>
       )
     },
     {
       icon: Heart,
-      title: "5. Our Core Values",
+      title: "Our Mission and Vision",
       content: (
         <>
-          <p className="text-gray-600 mb-3">Everything we design on this platform is guided by three principles:</p>
-          <ul className="list-disc list-inside text-gray-600 space-y-2">
-            <li><strong>Honesty First:</strong> We don&apos;t paint romantic pictures. If a business type requires heavy capital or rigorous regulatory paperwork, our checklists show it upfront.</li>
-            <li><strong>Simplicity Rules:</strong> No complex technical phrasing, no confusing accounting code. We keep our layout easy to navigate for everyone.</li>
-            <li><strong>Community-Driven:</strong> True business intelligence lives on the street. We rely on your feedback to keep vendor selections accurate and our tips hyper-local.</li>
-          </ul>
+          <p className="text-gray-600 mb-4">
+            We believe that good businesses are built on good preparation. Having the right information at the right time can make it easier to move from an idea to action.
+          </p>
+          <p className="text-gray-600 mb-3">
+            <strong>Our Mission:</strong> To make starting a business simpler by helping people find the information, resources, and guidance they need to plan with confidence.
+          </p>
+          <p className="text-gray-600">
+            <strong>Our Vision:</strong> To become a trusted starting point for people building businesses by making the early stages of entrepreneurship clearer and more manageable.
+          </p>
         </>
       )
     }
@@ -96,13 +77,13 @@ export default function OurStory() {
         
         {/* Hero Header */}
         <div className="text-center mb-16">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-r from-emerald-500 to-green-500 rounded-full mb-6">
-            <Sparkles className="w-10 h-10 text-white" />
-          </div>
+          
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">Our Story</h1>
-          <p className="text-xl text-emerald-700 font-medium mb-4">Democratizing business planning for the modern hustler economy.</p>
+          <p className="text-xl text-emerald-700 font-medium mb-4">
+            Making the process of starting a business clearer.
+          </p>
           <p className="text-gray-600 max-w-3xl mx-auto leading-relaxed">
-            Hustlecare is a friendly startup ecosystem built to take you from a basic concept to a fully costed, compliance-ready launch plan. We strip away the confusing guesswork of what it actually takes to start a business locally.
+            Hustlecare was created to help people understand what it takes to start a business by bringing requirements, costs, and useful resources into one place.
           </p>
         </div>
 
@@ -113,9 +94,9 @@ export default function OurStory() {
               <Building className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2">Our Ultimate Promise</h3>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Why Hustlecare Exists</h3>
               <p className="text-gray-600 leading-relaxed">
-                We believe that finding business requirements should be as simple as searching for a video online. We are here to bring total transparency, accurate real-market pricing, and clear compliance maps to every determined entrepreneur.
+                Starting a business involves many decisions. We created Hustlecare to make those decisions easier by helping people find the information they need before they invest their time and money.
               </p>
             </div>
           </div>
@@ -143,7 +124,7 @@ export default function OurStory() {
         <div className="mt-12 bg-gradient-to-r from-emerald-600 to-green-600 rounded-2xl shadow-xl p-8 md:p-10 text-center text-white">
           <h3 className="text-2xl font-bold mb-4">Want to connect with us?</h3>
           <p className="text-emerald-50 mb-6 max-w-2xl mx-auto">
-            Whether you are a local supplier looking to list products, an experienced business owner wanting to offer community feedback, or a founder with a feature suggestion, we would love to chat.
+            Whether you have feedback, questions, or ideas on how we can improve Hustlecare, we would love to hear from you.
           </p>
           <a href="mailto:info@hustlecare.net" className="inline-flex items-center gap-2 bg-white text-emerald-600 px-8 py-3 rounded-lg font-semibold hover:bg-emerald-50 transition-colors duration-200">
             <Mail className="w-5 h-5" /> Say Hello

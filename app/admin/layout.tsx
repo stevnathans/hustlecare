@@ -19,7 +19,8 @@ import {
   Settings,
   FileText,
   LayoutGrid,
-  GitMerge
+  GitMerge,
+  BookOpen
 } from "lucide-react";
 
 interface NavItem {
@@ -33,13 +34,14 @@ const navItems: NavItem[] = [
   { name: "Dashboard",    href: "/admin",                icon: Home,          requiredRoles: ["author","editor","reviewer","admin"] },
   { name: "Users",        href: "/admin/users",          icon: Users,         requiredRoles: ["admin"] },
   { name: "Businesses",   href: "/admin/businesses",     icon: Building,      requiredRoles: ["author","editor","admin"] },
+  { name: "Guides",       href: "/admin/guides",         icon: BookOpen,      requiredRoles: ["author","editor","admin"] },
   { name: "Categories",   href: "/admin/categories",     icon: LayoutGrid,    requiredRoles: ["author","editor","admin"] },
   { name: "Requirements", href: "/admin/requirements",   icon: ClipboardList, requiredRoles: ["author","editor","admin"] },
   { name: "Products",     href: "/admin/products",       icon: ShoppingCart,  requiredRoles: ["author","editor","admin"] },
   { name: "Vendors",      href: "/admin/vendors",        icon: Store,         requiredRoles: ["editor","admin"] },
   { name: "Comments",     href: "/admin/comments",       icon: MessageSquare, requiredRoles: ["reviewer","editor","admin"] },
   { name: "Reviews",      href: "/admin/reviews",        icon: Star,          requiredRoles: ["reviewer","editor","admin"] },
-  { name: "Redirects", href: "/admin/redirects", icon: GitMerge, requiredRoles: ["editor", "admin"] },
+  { name: "Redirects",    href: "/admin/redirects",      icon: GitMerge,      requiredRoles: ["editor", "admin"] },
   { name: "Audit Logs",   href: "/admin/audit",          icon: FileText,      requiredRoles: ["admin"] },
 ];
 

@@ -28,9 +28,7 @@ export default function AboutPage() {
       {/* Hero Section */}
       <section className="relative py-24 px-4 sm:px-6 lg:px-8 text-center bg-gray-50">
         <div className="max-w-4xl mx-auto">
-          <span className="inline-block px-4 py-2 mb-6 text-sm font-medium text-emerald-700 bg-emerald-100/50 rounded-full">
-            Entrepreneurial Toolkit
-          </span>
+          
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6">
             About <span className="text-emerald-600">Hustlecare</span>
           </h1>

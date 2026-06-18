@@ -239,10 +239,7 @@ function HeroSection() {
       />
 
       <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <span className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold tracking-widest uppercase px-4 py-1.5 rounded-full mb-6">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          Hustlecare Services
-        </span>
+      
 
         <h1 className="text-4xl sm:text-6xl font-extrabold text-slate-900 leading-tight tracking-tight mb-6">
           Startup Services to Help You{" "}
@@ -278,7 +275,7 @@ function HeroSection() {
             <ArrowIcon />
           </a>
           <Link
-            href="/"
+            href="/businesses"
             className="inline-flex items-center gap-2 bg-white border-2 border-slate-200 hover:border-emerald-400 text-slate-700 font-semibold px-7 py-3.5 rounded-xl transition-colors"
           >
             Find Business Requirements
@@ -303,9 +300,7 @@ function HowWeHelpSection() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           <div>
-            <span className="inline-block text-emerald-400 text-xs font-bold tracking-widest uppercase mb-4">
-              The Platform
-            </span>
+            
             <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight mb-6">
               Everything You Need to Start a Business
             </h2>
@@ -357,9 +352,7 @@ function ServicesGrid() {
     <section id="services" className="bg-white py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="inline-block text-emerald-600 text-xs font-bold tracking-widest uppercase mb-3">
-            What We Offer
-          </span>
+          
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
             Our Startup Services
           </h2>
@@ -397,9 +390,7 @@ function CategoriesSection() {
     <section className="bg-slate-50 py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="inline-block text-emerald-600 text-xs font-bold tracking-widest uppercase mb-3">
-            By Stage
-          </span>
+        
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
             Services for Every Stage of Starting a Business
           </h2>
@@ -438,9 +429,7 @@ function ValueSection() {
     <section className="bg-white py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="inline-block text-emerald-600 text-xs font-bold tracking-widest uppercase mb-3">
-            Why Hustlecare
-          </span>
+          
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
             Why Founders Choose Hustlecare
           </h2>
@@ -471,9 +460,7 @@ function BundleSection() {
         <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-10 lg:p-14">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              <span className="inline-block text-emerald-400 text-xs font-bold tracking-widest uppercase mb-4">
-                Startup Bundle
-              </span>
+              
               <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-5">
                 Launch Your Business Faster
               </h2>
@@ -531,9 +518,7 @@ function FAQAccordion() {
     <section className="bg-white py-20">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="inline-block text-emerald-600 text-xs font-bold tracking-widest uppercase mb-3">
-            FAQ
-          </span>
+          
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
             Frequently Asked Questions
           </h2>

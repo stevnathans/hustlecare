@@ -464,7 +464,7 @@ export default function BusinessesContent() {
                 </span>
                 {selectedCategory !== "all" && (
                   <Link
-                    href="/categories"
+                    href="/businesses/categories"
                     className="text-xs text-emerald-600 hover:text-emerald-700 underline underline-offset-2"
                   >
                     View all categories →
@@ -519,7 +519,7 @@ export default function BusinessesContent() {
                     </span>
                   </p>
                   <Link
-                    href={`/categories/${categorySlug(selectedCategory)}`}
+                    href={`/businesses/categories/${categorySlug(selectedCategory)}`}
                     className="text-xs text-emerald-600 hover:text-emerald-700 font-medium border border-emerald-200 rounded-lg px-3 py-1.5 hover:bg-emerald-50 transition-colors"
                   >
                     Full {selectedCategory} page →

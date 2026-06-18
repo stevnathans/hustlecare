@@ -66,7 +66,7 @@ function getSubPages(slug: string) {
       href: `/businesses/${slug}/requirements`,
       icon: FileText,
       label: 'Requirements Checklist',
-      description: 'Full list of everything you need — documents, equipment, licences, and more.',
+      description: 'Full list of everything you need — documents, equipment, software, licences, and more.',
       badge: null,
       color: 'emerald',
       available: true,
@@ -85,9 +85,9 @@ function getSubPages(slug: string) {
       icon: BookOpen,
       label: 'How to Start Guide',
       description: 'Step-by-step walkthrough — registration, sourcing, hiring, and first customers.',
-      badge: 'Coming soon',
+      badge: null,
       color: 'violet',
-      available: false,
+      available: true,
     },
     {
       href: `/businesses/${slug}/success-stories`,
@@ -189,28 +189,46 @@ export default function HubPageContent({
         <div className="relative z-10 max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 pb-10 pt-20">
 
           {/* Breadcrumb */}
-          <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm text-white/70 mb-6">
-            <Link
-              href="/businesses"
-              className="inline-flex items-center gap-1 hover:text-white transition-colors group"
-            >
-              <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
-              All businesses
-            </Link>
-            {category && (
-              <>
-                <ChevronRight className="w-3.5 h-3.5 text-white/40" />
-                <Link
-                  href={`/businesses?category=${encodeURIComponent(category)}`}
-                  className="hover:text-white transition-colors"
-                >
-                  {category}
-                </Link>
-              </>
-            )}
-            <ChevronRight className="w-3.5 h-3.5 text-white/40" />
-            <span className="text-white/90 font-medium">{name}</span>
-          </nav>
+<nav
+  aria-label="Breadcrumb"
+  className="flex items-center gap-2 text-sm text-white/70 mb-6"
+>
+  <Link
+    href="/businesses"
+    className="inline-flex items-center gap-1 hover:text-white transition-colors group"
+  >
+    <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+    Businesses
+  </Link>
+
+  {category && (
+    <>
+      <ChevronRight className="w-3.5 h-3.5 text-white/40" />
+
+      <Link
+        href="/businesses/categories"
+        className="hover:text-white transition-colors"
+      >
+        Categories
+      </Link>
+
+      <ChevronRight className="w-3.5 h-3.5 text-white/40" />
+
+      <Link
+        href={`/businesses/categories/${encodeURIComponent(
+          category.toLowerCase().replace(/\s+/g, "-")
+        )}`}
+        className="hover:text-white transition-colors"
+      >
+        {category}
+      </Link>
+    </>
+  )}
+
+  <ChevronRight className="w-3.5 h-3.5 text-white/40" />
+
+  <span className="text-white/90 font-medium">{name}</span>
+</nav>
 
           {/* Title */}
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white tracking-tight leading-tight mb-6 max-w-3xl">
