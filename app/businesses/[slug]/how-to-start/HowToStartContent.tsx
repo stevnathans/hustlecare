@@ -263,13 +263,13 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
         </div>
 
         {/* Body */}
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <div className="max-w-5xl mx-auto px-0 sm:px-6 lg:px-8 sm:px-6 lg:px-8 py-10">
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
             {/* Main content — 3/4 width */}
             <main className="lg:col-span-3 space-y-8 text-base">
               {/* Intro */}
               {guide.intro && (
-                <div className="bg-white text-base rounded-lg border border-gray-50 p-10">
+                <div className="bg-white text-base rounded-lg border border-gray-50 p-5 sm:p-10">
                   <h2 className="text-xl font-bold text-gray-900 mb-4">
                     Overview
                   </h2>
@@ -287,7 +287,7 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
                 <section aria-labelledby="steps-heading">
                   <h2
                     id="steps-heading"
-                    className="text-2xl font-bold text-gray-900 mb-6"
+                    className="text-2xl font-bold text-gray-900 mb-6 px-4 text-center"
                   >
                     Step-by-Step Guide to Starting a {name} Business
                   </h2>
@@ -306,7 +306,7 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
                         </div>
 
                         {/* Card body – title, image, description */}
-                        <div className="p-10 pt-2">
+                        <div className="p-5 pt-2 sm:p-10">
                           <h3 className="text-center text-xl font-bold text-gray-900 mb-3 leading-snug">
                             {step.title}
                           </h3>
@@ -390,7 +390,7 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
                 <section aria-labelledby="faq-heading">
                   <h2
                     id="faq-heading"
-                    className="text-2xl font-bold text-gray-900 mb-6"
+                    className="text-2xl font-bold text-gray-900 mb-6 px-4 text-center"
                   >
                     Frequently Asked Questions
                   </h2>
@@ -406,7 +406,7 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
               {guide.references.length > 0 && (
                 <section
                   aria-labelledby="refs-heading"
-                  className="border-t border-gray-200 pt-8"
+                  className="border-t border-gray-200 pt-8 px-4 sm:px-0"
                 >
                   <h2
                     id="refs-heading"

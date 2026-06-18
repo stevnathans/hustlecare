@@ -127,7 +127,7 @@ function parseTable(lines: string[], references: RenderReference[], onRefClick: 
 
   return (
     <div key={key} style={{ overflowX: 'auto', margin: '0.75rem 0' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '1rem' }}>
         <thead>
           <tr>
             {headers.map((h, i) => (
@@ -244,7 +244,7 @@ function RenderRichTextInner({ text, references, onRefClick, keyPrefix }: {
     if (h2) { nodes.push(<h2 key={k} style={{ fontSize: '1.1rem', fontWeight: 700, color: '#111827', margin: '1rem 0 0.4rem', lineHeight: 1.3 }}>{parseInline(h2[1], references, onRefClick, k)}</h2>); i++; continue; }
 
     const h3 = line.match(/^### (.+)$/);
-    if (h3) { nodes.push(<h3 key={k} style={{ fontSize: '0.97rem', fontWeight: 700, color: '#1f2937', margin: '0.85rem 0 0.35rem', lineHeight: 1.3 }}>{parseInline(h3[1], references, onRefClick, k)}</h3>); i++; continue; }
+    if (h3) { nodes.push(<h3 key={k} style={{ fontSize: '1rem', fontWeight: 700, color: '#1f2937', margin: '0.85rem 0 0.35rem', lineHeight: 1.3 }}>{parseInline(h3[1], references, onRefClick, k)}</h3>); i++; continue; }
 
     const h4 = line.match(/^#### (.+)$/);
     if (h4) { nodes.push(<h4 key={k} style={{ fontSize: '1rem', fontWeight: 700, color: '#374151', margin: '0.75rem 0 0.3rem', lineHeight: 1.3 }}>{parseInline(h4[1], references, onRefClick, k)}</h4>); i++; continue; }
