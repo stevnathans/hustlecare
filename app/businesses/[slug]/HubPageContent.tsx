@@ -13,7 +13,7 @@ import {
   CheckCircle2,
   Circle,
   ChevronRight,
-  Layers,
+  
 } from 'lucide-react';
 import BusinessInsights from './BusinessInsights';
 import BusinessFaqSection from './BusinessFaqSection';
@@ -72,15 +72,6 @@ function getSubPages(slug: string) {
       available: true,
     },
     {
-      href: `/businesses/${slug}/costs`,
-      icon: DollarSign,
-      label: 'Startup Cost Calculator',
-      description: 'Detailed cost breakdown per requirement with low / medium / high estimates in KES.',
-      badge: 'Coming soon',
-      color: 'blue',
-      available: false,
-    },
-    {
       href: `/businesses/${slug}/how-to-start`,
       icon: BookOpen,
       label: 'How to Start Guide',
@@ -88,6 +79,15 @@ function getSubPages(slug: string) {
       badge: null,
       color: 'violet',
       available: true,
+    },
+    {
+      href: `/businesses/${slug}/costs`,
+      icon: DollarSign,
+      label: 'Startup Cost Calculator',
+      description: 'Detailed cost breakdown per requirement with low / medium / high estimates in KES.',
+      badge: 'Coming soon',
+      color: 'blue',
+      available: false,
     },
     {
       href: `/businesses/${slug}/success-stories`,
@@ -242,11 +242,7 @@ export default function HubPageContent({
               <span className="font-semibold">{requirementCount}</span>
               <span className="text-white/70">requirements</span>
             </div>
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/15 backdrop-blur-sm border border-white/20 rounded-xl text-sm text-white">
-              <Layers className="w-4 h-4 text-blue-300" />
-              <span className="font-semibold">{categoryBreakdown.length}</span>
-              <span className="text-white/70">categories</span>
-            </div>
+            
             <BusinessCostBadge slug={slug} />
             <Link
               href={`/businesses/${slug}/requirements`}

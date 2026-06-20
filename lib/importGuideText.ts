@@ -343,7 +343,7 @@ export const GUIDE_IMPORT_PROMPT = `You are writing a "How to Start a [BUSINESS 
 FORMATTING RULES (used inside any body text):
 - **bold** for emphasis
 - ## Heading for an H2, ### Heading for an H3, #### Heading for an H4. All headings should be in title case (capitalize each major word).
-- - item for bullet list items (one per line) — use to break up dense instructions into clear steps, tips, warnings, etc.
+- - item for bullet list items (one per line, use '-' explicitly for bullet points, not '*' or '•'.) — use to break up dense instructions into clear steps, tips, warnings, etc.However, avoid too many bullet points.
 - [link label](https://example.com) for internal links
 - A markdown table: | Col 1 | Col 2 | then | --- | --- | then data rows
 - Example table:
@@ -352,7 +352,8 @@ FORMATTING RULES (used inside any body text):
 | Single Business Permit | KES 10,000/year | Issued by county government |
 | Food Handling License | KES 5,000/year | Required if handling food products |
 - To insert a citation anywhere inside a STEP or SECTION body, use:
- [1], [2] etc. to cite a reference inline — every citation number MUST have a matching # REFERENCE block at the end
+ [1], [2] etc. to cite a reference inline — every citation number MUST have a matching # REFERENCE block at the end. When adding several citations in one place, do not seperate them with commas (e.g. [1] [2] [3] is correct, [1], [2], [3] is not). Add spaces between citations.
+ The citation should be placed immediately after the relevant sentence or phrase, but after the period or any punctuation with space. Example: "The business license costs KES 10,000 per year. [1] " or "The business license costs KES 10,000 per year. [1][2]."
 - To insert a callout box anywhere inside a STEP or SECTION body, use:
   :::tips
   Your tip text here.
@@ -381,7 +382,7 @@ Image: [leave this Image line out entirely if you don't have one]
 [Step 2 title]
 [Step 2 body]
 
-[... repeat # STEP for every step in the process ...]
+[... repeat # STEP for every step in the process. Do not label the steps as "Step 1", "Step 2", etc. ...]
 
 # SECTION TIPS: [optional title, e.g. "Tips for starting a successful [BUSINESS TYPE] business". This can have subheadings or bullet points.] 
 [Practical tips content]
@@ -403,14 +404,14 @@ Image: [leave this Image line out entirely if you don't have one]
 [... repeat # FAQ for 4-8 common questions ...]
 
 # REFERENCE 1
-Title: [Source name]
+Title: [Source title and name]
 URL: https://[actual source url]
 
 # REFERENCE 2
 Title: [Source name]
 URL: https://[actual source url]
 
-[... repeat # REFERENCE for every citation used above, numbered to match the [1] [2] markers in the body text ...]
+[... repeat # REFERENCE for every citation used above, numbered to match the [1] [2] markers in the body text. For the URL, provide the exact naked URL, not markdown link syntax like [Title](url).  ...]
 
 IMPORTANT: Only cite real, plausible sources you're confident exist (government bodies, established organizations). Number references sequentially starting at 1, matching the [1] [2] markers used in the body text. Each reference MUST use exactly this 3-line shape — the directive line, then "Title:" on its own line, then "URL:" on its own line, in that order, with nothing else on either line:
 # REFERENCE 1
