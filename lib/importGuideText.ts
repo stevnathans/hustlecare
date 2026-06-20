@@ -344,7 +344,7 @@ FORMATTING RULES (used inside any body text):
 - **bold** for emphasis
 - ## Heading for an H2, ### Heading for an H3, #### Heading for an H4. All headings should be in title case (capitalize each major word).
 - - item for bullet list items (one per line, use '-' explicitly for bullet points, not '*' or '•'.) — use to break up dense instructions into clear steps, tips, warnings, etc.However, avoid too many bullet points.
-- [link label](https://example.com) for internal links
+- [link label](https://example.com) for internal links. Check hustlecare.net for relevant content to link to.
 - A markdown table: | Col 1 | Col 2 | then | --- | --- | then data rows
 - Example table:
 | License Type | Cost | Notes |
