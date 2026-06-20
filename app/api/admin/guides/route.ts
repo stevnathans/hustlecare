@@ -29,10 +29,7 @@ export async function GET() {
             isPublished: true,
             updatedAt:   true,
             _count: {
-              select: {
-                steps:  true,
-                faqs:   true,
-              },
+              select: { steps: true, faqs: true },
             },
           },
         },
@@ -40,7 +37,6 @@ export async function GET() {
       orderBy: { name: 'asc' },
     });
 
-    // Shape the response — flatten _count into stepCount / faqCount
     const shaped = businesses.map(b => ({
       id:        b.id,
       name:      b.name,
@@ -63,7 +59,8 @@ export async function GET() {
   } catch (error) {
     const authResponse = handleAuthError(error);
     if (authResponse) return authResponse;
-    console.error('GET /api/admin/guides:', error);
+    // FIX: Log message only, not the full error object.
+    console.error('GET /api/admin/guides:', (error as Error).message);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

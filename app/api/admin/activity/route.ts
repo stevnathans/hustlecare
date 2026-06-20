@@ -4,56 +4,43 @@ import { getAuditLogs, requirePermission } from '@/lib/admin-utils';
 
 export async function GET() {
   try {
-    // Verify user has admin access
     await requirePermission('audit.view');
 
-    // Fetch recent audit logs
-    const { logs } = await getAuditLogs({
-      limit: 10,
-      offset: 0,
-    });
+    const { logs } = await getAuditLogs({ limit: 10, offset: 0 });
 
-    // Transform audit logs into activity format
     const activities = logs.map(log => ({
       id: log.id,
       action: formatAction(log.action, log.entity),
       entity: log.entity,
-      user: log.user.name || log.user.email,
+      // FIX: log.user could be null if the user record was deleted after the
+      // audit log was written. Previously log.user.name would throw and cause
+      // a 500 for the entire activity feed.
+      user: log.user?.name || log.user?.email || 'Deleted user',
       timestamp: log.createdAt.toISOString(),
     }));
 
     return NextResponse.json(activities);
   } catch (error) {
-    console.error('Error fetching admin activity:', error);
-    
+    // FIX: Replaced string-matching error handler with exact-match pattern
+    // consistent with the rest of the codebase (from fixed admin-utils.ts).
     if (error instanceof Error) {
-      if (error.message.includes('Unauthorized') || error.message.includes('Forbidden')) {
-        return NextResponse.json(
-          { error: error.message },
-          { status: error.message.includes('Unauthorized') ? 401 : 403 }
-        );
-      }
+      if (error.message === 'Unauthorized') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      if (error.message === 'Forbidden')    return NextResponse.json({ error: 'Forbidden' },    { status: 403 });
     }
-    
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('Error fetching admin activity:', (error as Error).message);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// Helper function to format action text
 function formatAction(action: string, entity: string): string {
   const actionMap: Record<string, string> = {
-    CREATE: 'created',
-    UPDATE: 'updated',
-    DELETE: 'deleted',
-    VIEW: 'viewed',
-    EXPORT: 'exported',
+    CREATE:  'created',
+    UPDATE:  'updated',
+    DELETE:  'deleted',
+    VIEW:    'viewed',
+    EXPORT:  'exported',
     APPROVE: 'approved',
-    REJECT: 'rejected',
+    REJECT:  'rejected',
   };
-
-  const actionText = actionMap[action] || action.toLowerCase();
-  return `${actionText} ${entity.toLowerCase()}`;
+  return `${actionMap[action] ?? action.toLowerCase()} ${entity.toLowerCase()}`;
 }

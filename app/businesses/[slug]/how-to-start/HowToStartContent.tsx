@@ -11,6 +11,8 @@ import {
   ChevronUp,
   ExternalLink,
   FileText,
+  List,
+  X,
 } from "lucide-react";
 import {
   RenderRichText,
@@ -182,6 +184,138 @@ function FaqItem({ faq }: { faq: Faq }) {
   );
 }
 
+// ── Mobile sticky Table of Contents ───────────────────────────────────────────
+
+function MobileToc({
+  slug,
+  guide,
+}: {
+  slug: string;
+  guide: Guide;
+}) {
+  const [open, setOpen] = useState(false);
+
+  if (guide.steps.length === 0) return null;
+
+  const handleJump = (href: string) => {
+    setOpen(false);
+    if (href === "#") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    // Let the anchor handle the scroll after the sheet closes.
+    requestAnimationFrame(() => {
+      document.querySelector(href)?.scrollIntoView({ behavior: "smooth" });
+    });
+  };
+
+  return (
+    <div className="lg:hidden fixed bottom-0 inset-x-0 z-40">
+      {/* Backdrop when expanded */}
+      {open && (
+        <div
+          className="fixed inset-0 bg-black/30 -z-10"
+          onClick={() => setOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      <div className="bg-white border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] rounded-t-2xl overflow-hidden">
+        {/* Expanded content */}
+        {open && (
+          <div className="max-h-[60vh] overflow-y-auto px-5 pt-5 pb-2">
+            <h3 className="text-base font-bold text-gray-500 uppercase tracking-widest mb-3">
+              Contents
+            </h3>
+            <ol className="space-y-1 mb-4">
+              {guide.intro && (
+                <li>
+                  <a
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleJump("#");
+                    }}
+                    className="text-base text-gray-600 hover:text-emerald-600 transition-colors flex items-center gap-2.5 py-1.5"
+                  >
+                    <span className="w-5 h-5 rounded bg-gray-100 text-gray-400 flex items-center justify-center text-base font-bold flex-shrink-0">
+                      ·
+                    </span>
+                    Overview
+                  </a>
+                </li>
+              )}
+              {guide.steps.map((step, i) => (
+                <li key={step.id}>
+                  <a
+                    href={`#step-${i + 1}`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleJump(`#step-${i + 1}`);
+                    }}
+                    className="text-base text-gray-600 hover:text-emerald-600 transition-colors flex items-center gap-2.5 py-1.5"
+                  >
+                    <span className="w-5 h-5 rounded bg-emerald-100 text-emerald-600 flex items-center justify-center text-base font-bold flex-shrink-0">
+                      {i + 1}
+                    </span>
+                    <span className="leading-snug line-clamp-2">
+                      {step.title}
+                    </span>
+                  </a>
+                </li>
+              ))}
+              {guide.faqs.length > 0 && (
+                <li>
+                  <a
+                    href="#faq-heading"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleJump("#faq-heading");
+                    }}
+                    className="text-base text-gray-600 hover:text-emerald-600 transition-colors flex items-center gap-2.5 py-1.5"
+                  >
+                    <span className="w-5 h-5 rounded bg-amber-100 text-amber-600 flex items-center justify-center text-base font-bold flex-shrink-0">
+                      ?
+                    </span>
+                    FAQs
+                  </a>
+                </li>
+              )}
+            </ol>
+
+            <Link
+              href={`/businesses/${slug}/requirements`}
+              className="flex items-center justify-center gap-2 w-full py-3 mb-4 bg-emerald-600 hover:bg-emerald-700 text-white text-base font-bold rounded-xl transition-colors"
+            >
+              See Full Requirements
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        )}
+
+        {/* Toggle bar — always visible */}
+        <button
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="w-full flex items-center justify-between gap-3 px-5 py-3.5 bg-white"
+        >
+          <span className="flex items-center gap-2.5 font-bold text-gray-800 text-base">
+            {open ? (
+              <X className="w-4 h-4 text-gray-500" />
+            ) : (
+              <List className="w-4 h-4 text-emerald-600" />
+            )}
+            {open ? "Close" : "Table of Contents"}
+          </span>
+          {!open && (
+            <ChevronUp className="w-4 h-4 text-gray-400" />
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function HowToStartContent({ slug, name, image, guide }: Props) {
@@ -263,10 +397,10 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
         </div>
 
         {/* Body */}
-        <div className="max-w-5xl mx-auto px-0 sm:px-6 lg:px-8 sm:px-6 lg:px-8 py-10">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-            {/* Main content — 3/4 width */}
-            <main className="lg:col-span-3 space-y-8 text-base">
+        <div className="max-w-5xl mx-auto px-0 sm:px-6 lg:px-8 sm:px-6 lg:px-8 py-10 pb-28 lg:pb-10">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
+            {/* Main content */}
+            <main className="space-y-8 text-base min-w-0">
               {/* Intro */}
               {guide.intro && (
                 <div className="bg-white text-base rounded-lg border border-gray-50 p-5 sm:p-10">
@@ -289,14 +423,14 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
                     id="steps-heading"
                     className="text-2xl font-bold text-gray-900 mb-6 px-4 sm:px-0"
                   >
-                    Step-by-Step Guide to Starting a {name} Business
+                    Step-by-Step Guide to Starting a {name} Business in Kenya
                   </h2>
                   <ol className="space-y-5" role="list">
                     {guide.steps.map((step, i) => (
                       <li
                         key={step.id}
                         id={`step-${i + 1}`}
-                        className="bg-white rounded-lg border border-gray-50 relative overflow-visible pt-8"
+                        className="bg-white rounded-lg border border-gray-50 relative overflow-visible pt-8 scroll-mt-6"
                       >
                         {/* Step number circle – centered and protruding above card */}
                         <div className="absolute left-1/2 transform -translate-x-1/2 -top-2">
@@ -387,7 +521,7 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
 
               {/* FAQs */}
               {guide.faqs.length > 0 && (
-                <section aria-labelledby="faq-heading">
+                <section aria-labelledby="faq-heading" className="scroll-mt-6">
                   <h2
                     id="faq-heading"
                     className="text-2xl font-bold text-gray-900 mb-6 px-4 sm:px-0"
@@ -443,13 +577,13 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
               )}
             </main>
 
-            {/* Sidebar */}
-            <aside className="lg:col-span-1">
+            {/* Sidebar — desktop only */}
+            <aside className="hidden lg:block">
               <div className="sticky top-6 space-y-4">
                 {guide.steps.length > 0 && (
                   <nav
                     aria-label="Table of contents"
-                    className="bg-white rounded-lg border border-gray-50 p-4"
+                    className="bg-white rounded-lg border border-gray-50 p-5"
                   >
                     <h3 className="text-base font-bold text-gray-500 uppercase tracking-widest mb-3">
                       Contents
@@ -463,9 +597,9 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
                               e.preventDefault();
                               window.scrollTo({ top: 0, behavior: "smooth" });
                             }}
-                            className="text-base text-gray-500 hover:text-emerald-600 transition-colors flex items-center gap-1.5 py-0.5"
+                            className="text-base text-gray-500 hover:text-emerald-600 transition-colors flex items-center gap-2 py-1"
                           >
-                            <span className="w-4 h-4 rounded bg-gray-100 text-gray-400 flex items-center justify-center text-base font-bold flex-shrink-0">
+                            <span className="w-5 h-5 rounded bg-gray-100 text-gray-400 flex items-center justify-center text-base font-bold flex-shrink-0">
                               ·
                             </span>
                             Overview
@@ -476,9 +610,9 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
                         <li key={step.id}>
                           <a
                             href={`#step-${i + 1}`}
-                            className="text-base text-gray-500 hover:text-emerald-600 transition-colors flex items-center gap-1.5 py-0.5"
+                            className="text-base text-gray-500 hover:text-emerald-600 transition-colors flex items-center gap-2 py-1"
                           >
-                            <span className="w-4 h-4 rounded bg-emerald-100 text-emerald-600 flex items-center justify-center text-base font-bold flex-shrink-0">
+                            <span className="w-5 h-5 rounded bg-emerald-100 text-emerald-600 flex items-center justify-center text-base font-bold flex-shrink-0">
                               {i + 1}
                             </span>
                             <span className="leading-snug line-clamp-2">
@@ -491,9 +625,9 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
                         <li>
                           <a
                             href="#faq-heading"
-                            className="text-base text-gray-500 hover:text-emerald-600 transition-colors flex items-center gap-1.5 py-0.5"
+                            className="text-base text-gray-500 hover:text-emerald-600 transition-colors flex items-center gap-2 py-1"
                           >
-                            <span className="w-4 h-4 rounded bg-amber-100 text-amber-600 flex items-center justify-center text-base font-bold flex-shrink-0">
+                            <span className="w-5 h-5 rounded bg-amber-100 text-amber-600 flex items-center justify-center text-base font-bold flex-shrink-0">
                               ?
                             </span>
                             FAQs
@@ -504,7 +638,7 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
                   </nav>
                 )}
 
-                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-lg border border-emerald-100 p-4">
+                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-lg border border-emerald-100 p-5">
                   <p className="text-base font-semibold text-emerald-700 mb-1">
                     Full Business Guide
                   </p>
@@ -524,7 +658,7 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
                   href={`/businesses/${slug}/requirements`}
                   className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-50 hover:border-emerald-200 hover:bg-emerald-50/50 transition-all group"
                 >
-                  <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
                     <FileText className="w-4 h-4 text-emerald-600" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -542,6 +676,9 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Mobile sticky table of contents */}
+      <MobileToc slug={slug} guide={guide} />
     </>
   );
 }

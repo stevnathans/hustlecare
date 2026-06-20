@@ -3,7 +3,41 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requirePermission } from '@/lib/admin-utils';
 
-// GET - List all categories with business counts and a preview of up to 5 businesses
+function handleAuthError(error: unknown): NextResponse | null {
+  if (error instanceof Error) {
+    if (error.message === 'Unauthorized') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (error.message === 'Forbidden')    return NextResponse.json({ error: 'Forbidden' },    { status: 403 });
+  }
+  return null;
+}
+
+function handleError(error: unknown, fallback = 'Internal server error'): NextResponse {
+  const authResponse = handleAuthError(error);
+  if (authResponse) return authResponse;
+  // FIX: Log message only, not the full error object (avoids leaking stack
+  // traces or query details into Vercel logs accessible to team members).
+  console.error(fallback + ':', (error as Error).message);
+  return NextResponse.json({ error: fallback }, { status: 500 });
+}
+
+// FIX: Validate slug format — same rule as businesses route.
+function isValidSlug(slug: string): boolean {
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug);
+}
+
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+// FIX: Validate and parse numeric IDs consistently across all routes.
+function parseId(value: unknown): number | null {
+  const n = parseInt(String(value), 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 export async function GET() {
   try {
     await requirePermission('businesses.view');
@@ -11,14 +45,14 @@ export async function GET() {
     const categories = await prisma.businessCategory.findMany({
       orderBy: { name: 'asc' },
       select: {
-        id: true,
+        id:   true,
         name: true,
         slug: true,
         _count: { select: { businesses: true } },
         businesses: {
-          where: { published: true },
-          select: { id: true, name: true, slug: true },
-          take: 5,
+          where:   { published: true },
+          select:  { id: true, name: true, slug: true },
+          take:    5,
           orderBy: { name: 'asc' },
         },
       },
@@ -26,12 +60,10 @@ export async function GET() {
 
     return NextResponse.json(categories);
   } catch (error) {
-    console.error('Error fetching categories:', error);
     return handleError(error);
   }
 }
 
-// POST - Create a new category
 export async function POST(req: NextRequest) {
   try {
     await requirePermission('businesses.create');
@@ -39,28 +71,34 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { name, slug } = body;
 
-    if (!name?.trim()) {
+    if (!name || typeof name !== 'string' || !name.trim()) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    }
+    // FIX: Cap name length.
+    if (name.trim().length > 100) {
+      return NextResponse.json({ error: 'Name must be 100 characters or fewer' }, { status: 400 });
     }
 
     const resolvedSlug = (slug?.trim() || generateSlug(name)).toLowerCase();
 
     if (!resolvedSlug) {
-      return NextResponse.json({ error: 'Slug is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Slug could not be generated from name' }, { status: 400 });
+    }
+    // FIX: Validate generated/provided slug is URL-safe before storing.
+    if (!isValidSlug(resolvedSlug)) {
+      return NextResponse.json(
+        { error: 'Slug must be lowercase letters, numbers, and hyphens only' },
+        { status: 400 }
+      );
     }
 
-    // Check uniqueness
     const [nameTaken, slugTaken] = await Promise.all([
       prisma.businessCategory.findFirst({ where: { name: { equals: name.trim(), mode: 'insensitive' } } }),
       prisma.businessCategory.findFirst({ where: { slug: resolvedSlug } }),
     ]);
 
-    if (nameTaken) {
-      return NextResponse.json({ error: 'A category with this name already exists' }, { status: 400 });
-    }
-    if (slugTaken) {
-      return NextResponse.json({ error: 'A category with this slug already exists' }, { status: 400 });
-    }
+    if (nameTaken) return NextResponse.json({ error: 'A category with this name already exists' }, { status: 409 });
+    if (slugTaken) return NextResponse.json({ error: 'A category with this slug already exists' }, { status: 409 });
 
     const category = await prisma.businessCategory.create({
       data: { name: name.trim(), slug: resolvedSlug },
@@ -69,12 +107,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(category, { status: 201 });
   } catch (error) {
-    console.error('Error creating category:', error);
     return handleError(error, 'Failed to create category');
   }
 }
 
-// PATCH - Update an existing category
 export async function PATCH(req: NextRequest) {
   try {
     await requirePermission('businesses.update');
@@ -82,67 +118,69 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const { id, name, slug } = body;
 
-    if (!id) {
-      return NextResponse.json({ error: 'Category ID is required' }, { status: 400 });
+    const categoryId = parseId(id);
+    if (!categoryId) {
+      return NextResponse.json({ error: 'Valid category ID is required' }, { status: 400 });
     }
-    if (!name?.trim()) {
+    if (!name || typeof name !== 'string' || !name.trim()) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    }
+    if (name.trim().length > 100) {
+      return NextResponse.json({ error: 'Name must be 100 characters or fewer' }, { status: 400 });
     }
 
     const resolvedSlug = slug?.trim()
       ? slug.trim().toLowerCase()
       : generateSlug(name);
 
-    // Confirm it exists
-    const existing = await prisma.businessCategory.findUnique({ where: { id: Number(id) } });
+    if (!isValidSlug(resolvedSlug)) {
+      return NextResponse.json(
+        { error: 'Slug must be lowercase letters, numbers, and hyphens only' },
+        { status: 400 }
+      );
+    }
+
+    const existing = await prisma.businessCategory.findUnique({ where: { id: categoryId } });
     if (!existing) {
       return NextResponse.json({ error: 'Category not found' }, { status: 404 });
     }
 
-    // Check conflicts on name/slug (excluding self)
     const [nameTaken, slugTaken] = await Promise.all([
       prisma.businessCategory.findFirst({
-        where: { name: { equals: name.trim(), mode: 'insensitive' }, NOT: { id: Number(id) } },
+        where: { name: { equals: name.trim(), mode: 'insensitive' }, NOT: { id: categoryId } },
       }),
       prisma.businessCategory.findFirst({
-        where: { slug: resolvedSlug, NOT: { id: Number(id) } },
+        where: { slug: resolvedSlug, NOT: { id: categoryId } },
       }),
     ]);
 
-    if (nameTaken) {
-      return NextResponse.json({ error: 'A category with this name already exists' }, { status: 400 });
-    }
-    if (slugTaken) {
-      return NextResponse.json({ error: 'A category with this slug already exists' }, { status: 400 });
-    }
+    if (nameTaken) return NextResponse.json({ error: 'A category with this name already exists' }, { status: 409 });
+    if (slugTaken) return NextResponse.json({ error: 'A category with this slug already exists' }, { status: 409 });
 
     const updated = await prisma.businessCategory.update({
-      where: { id: Number(id) },
-      data: { name: name.trim(), slug: resolvedSlug },
+      where: { id: categoryId },
+      data:  { name: name.trim(), slug: resolvedSlug },
       include: { _count: { select: { businesses: true } } },
     });
 
     return NextResponse.json(updated);
   } catch (error) {
-    console.error('Error updating category:', error);
     return handleError(error, 'Failed to update category');
   }
 }
 
-// DELETE - Delete a category (only if no businesses are attached)
 export async function DELETE(req: NextRequest) {
   try {
     await requirePermission('businesses.delete');
 
     const body = await req.json();
-    const { id } = body;
-
-    if (!id) {
-      return NextResponse.json({ error: 'Category ID is required' }, { status: 400 });
+    const categoryId = parseId(body.id);
+    if (!categoryId) {
+      return NextResponse.json({ error: 'Valid category ID is required' }, { status: 400 });
     }
 
     const category = await prisma.businessCategory.findUnique({
-      where: { id: Number(id) },
+      where:   { id: categoryId },
       include: { _count: { select: { businesses: true } } },
     });
 
@@ -161,32 +199,10 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    await prisma.businessCategory.delete({ where: { id: Number(id) } });
+    await prisma.businessCategory.delete({ where: { id: categoryId } });
 
     return NextResponse.json({ message: 'Category deleted successfully' });
   } catch (error) {
-    console.error('Error deleting category:', error);
     return handleError(error, 'Failed to delete category');
   }
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-function generateSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-}
-
-function handleError(error: unknown, fallback = 'Internal server error') {
-  if (error instanceof Error) {
-    if (error.message.includes('Unauthorized')) {
-      return NextResponse.json({ error: error.message }, { status: 401 });
-    }
-    if (error.message.includes('Forbidden')) {
-      return NextResponse.json({ error: error.message }, { status: 403 });
-    }
-  }
-  return NextResponse.json({ error: fallback }, { status: 500 });
 }

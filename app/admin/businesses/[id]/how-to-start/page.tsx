@@ -6,9 +6,12 @@ import {
   Plus, Trash2, ChevronDown, ChevronUp, Save,
   Eye, EyeOff, ArrowLeft, GripVertical, Link as LinkIcon, X,
   AlertTriangle, Info, Lightbulb, FileText, Pencil, Check, Hash, BookOpen,
+  Upload,
 } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
 import { RichTextEditor, type ReferenceDraft } from 'components/RichTextEditor';
+import { ImportGuideModal } from 'components/ImportGuideModal';
+import type { ParsedGuide } from 'lib/importGuideText';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -58,7 +61,6 @@ const S = `
   .btn-add { background:rgba(16,185,129,0.06); color:#34d399; border:1px dashed rgba(16,185,129,0.28); border-radius:8px; padding:0.7rem 1rem; width:100%; justify-content:center; font-size:0.82rem; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:0.4rem; font-family:'Sora',sans-serif; transition:all 0.15s; }
   .btn-add:hover { background:rgba(16,185,129,0.12); border-color:rgba(16,185,129,0.45); }
 
-  /* Cards: softer shadow, less aggressive rounding */
   .card { background:#13131a; border:1px solid rgba(255,255,255,0.07); border-radius:10px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.25), 0 1px 3px rgba(0,0,0,0.15); }
   .card-header { display:flex; align-items:center; gap:0.75rem; padding:0.95rem 1.5rem; cursor:pointer; user-select:none; transition:background 0.15s; }
   .card-header:hover { background:rgba(255,255,255,0.025); }
@@ -86,7 +88,6 @@ const S = `
   .scroll::-webkit-scrollbar-track { background:transparent; }
   .scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:2px; }
 
-  /* Wider outer wrapper — less lateral squeeze */
   .adm-inner { max-width:1080px; margin:0 auto; padding:1.5rem 2rem 5rem; }
   @media (max-width:768px) { .adm-inner { padding:1.25rem 1rem 5rem; } }
 `;
@@ -262,26 +263,75 @@ export default function HowToStartAdminPage() {
   const [showSEO,       setShowSEO]       = useState(false);
   const [showRefModal,  setShowRefModal]  = useState(false);
   const [showRefsPanel, setShowRefsPanel] = useState(true);
+  const [showImportModal, setShowImportModal] = useState(false);
+
+  // ── FIX: Track when initial load has fully completed so that the
+  // isDirty effect and the bizName/guideExists effect don't fire
+  // during the load sequence and overwrite freshly-loaded content.
+  const initialLoadDone = useRef(false);
 
   const nextRefNumber = references.length > 0 ? Math.max(...references.map(r => r.refNumber)) + 1 : 1;
 
-  useEffect(() => { setIsDirty(true); }, [title, intro, isPublished, metaTitle, metaDescription, keywords, steps, sections, faqs, references]);
+  // ── FIX: Only mark dirty after the initial load has finished.
+  // Previously this effect fired for every setState call inside load(),
+  // which (a) set isDirty=true mid-load and (b) interfered with the
+  // bizName effect that resets the title.
+  useEffect(() => {
+    if (!initialLoadDone.current) return;
+    setIsDirty(true);
+  }, [title, intro, isPublished, metaTitle, metaDescription, keywords, steps, sections, faqs, references]);
+
+  // ── Build the save payload from current state (shared by handleSave
+  // and handleTogglePublished so they always send identical shapes).
+  const buildPayload = useCallback((publishedOverride?: boolean) => ({
+    title: title || defaultTitle(bizName),
+    intro: intro || null,
+    isPublished: publishedOverride !== undefined ? publishedOverride : isPublished,
+    metaTitle: metaTitle || null,
+    metaDescription: metaDescription || null,
+    keywords: keywords.split(',').map(k => k.trim()).filter(Boolean),
+    steps: steps.map(s => ({ title: s.title, description: s.description, imageUrl: s.imageUrl || null })),
+    sections: sections.map(s => ({ type: s.type, title: s.title, content: s.content, imageUrl: s.imageUrl || null })),
+    faqs: faqs.map(f => ({ question: f.question, answer: f.answer })),
+    references,
+  }), [title, bizName, intro, isPublished, metaTitle, metaDescription, keywords, steps, sections, faqs, references]);
 
   const load = useCallback(async () => {
+    initialLoadDone.current = false;
     setLoading(true);
     try {
+      // Fetch business metadata
       const bRes = await fetch('/api/admin/businesses');
+      let loadedBizName = '';
       if (bRes.ok) {
         const all = await bRes.json();
         const biz = all.find((b: { id: number; name: string; slug: string }) => b.id === bizId);
-        if (biz) { setBizName(biz.name); setBizSlug(biz.slug); setTitle(defaultTitle(biz.name)); }
+        if (biz) {
+          loadedBizName = biz.name;
+          setBizName(biz.name);
+          setBizSlug(biz.slug);
+          // Set a default title immediately so it's available if there's no guide
+          setTitle(defaultTitle(biz.name));
+        }
       }
+
+      // Fetch guide
       const gRes = await fetch(`/api/admin/businesses/${bizId}/how-to-start`);
       if (!gRes.ok) return;
       const { guide } = await gRes.json();
-      if (!guide) { setIsDirty(false); return; }
+
+      if (!guide) {
+        // No guide yet — keep the default title we set above
+        setIsDirty(false);
+        return;
+      }
+
+      // ── FIX: Set all guide state in one synchronous sequence, then
+      // mark load as done. We also strip DB-only fields (id, createdAt,
+      // updatedAt) from references so only the ReferenceDraft shape is
+      // stored, preventing stale data from reaching the save payload.
       setGuideExists(true);
-      setTitle(guide.title ?? defaultTitle(bizName));
+      setTitle(guide.title ?? defaultTitle(loadedBizName));
       setIntro(guide.intro ?? '');
       setIsPublished(guide.isPublished ?? false);
       setMetaTitle(guide.metaTitle ?? '');
@@ -296,14 +346,40 @@ export default function HowToStartAdminPage() {
       setFaqs((guide.faqs ?? []).map((f: { question: string; answer: string }) => ({
         _key: uid(), question: f.question, answer: f.answer, expanded: false,
       })));
-      setReferences(guide.references ?? []);
+      // Strip DB-only fields — only keep the three ReferenceDraft fields
+      setReferences((guide.references ?? []).map((r: { refNumber: number; title: string; url: string }) => ({
+        refNumber: r.refNumber,
+        title: r.title,
+        url: r.url,
+      })));
       setIsDirty(false);
-    } catch (e) { toast.error('Failed to load guide'); console.error(e); }
-    finally { setLoading(false); }
-  }, [bizId]); // eslint-disable-line react-hooks/exhaustive-deps
+    } catch (e) {
+      toast.error('Failed to load guide');
+      console.error(e);
+    } finally {
+      setLoading(false);
+      // ── FIX: Mark load complete *after* all state setters have been
+      // called. React batches the state updates above, so by the time
+      // any effect re-runs after this render, initialLoadDone is true
+      // and the bizName/guideExists effect below will no longer fire.
+      initialLoadDone.current = true;
+    }
+  }, [bizId]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { if (bizName && !guideExists) { setTitle(defaultTitle(bizName)); setIsDirty(false); } }, [bizName, guideExists]);
+
+  // ── FIX: This effect previously ran immediately after setBizName()
+  // inside load(), before setGuideExists(true) had taken effect, so it
+  // would see guideExists=false and overwrite all the loaded content
+  // with a bare default title. The initialLoadDone guard prevents that.
+  useEffect(() => {
+    if (initialLoadDone.current && bizName && !guideExists) {
+      setTitle(defaultTitle(bizName));
+      setIsDirty(false);
+    }
+  }, [bizName, guideExists]);
+
+  // ── Save (full) ───────────────────────────────────────────────────────────
 
   async function handleSave() {
     setSaving(true);
@@ -311,35 +387,103 @@ export default function HowToStartAdminPage() {
       const res = await fetch(`/api/admin/businesses/${bizId}/how-to-start`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: title || defaultTitle(bizName), intro: intro || null, isPublished,
-          metaTitle: metaTitle || null, metaDescription: metaDescription || null,
-          keywords: keywords.split(',').map(k => k.trim()).filter(Boolean),
-          steps: steps.map(s => ({ title: s.title, description: s.description, imageUrl: s.imageUrl || null })),
-          sections: sections.map(s => ({ type: s.type, title: s.title, content: s.content, imageUrl: s.imageUrl || null })),
-          faqs: faqs.map(f => ({ question: f.question, answer: f.answer })),
-          references,
-        }),
+        body: JSON.stringify(buildPayload()),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
-      setGuideExists(true); setIsDirty(false); toast.success('Guide saved!');
-    } catch (e) { toast.error(e instanceof Error ? e.message : 'Failed to save'); }
-    finally { setSaving(false); }
+      setGuideExists(true);
+      setIsDirty(false);
+      toast.success('Guide saved!');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to save');
+    } finally {
+      setSaving(false);
+    }
   }
+
+  // ── FIX: Toggle publish and immediately persist so that the Guides
+  // list page always reflects the true DB state. Previously the toggle
+  // only changed local state, so the two pages would show different
+  // values until the user manually clicked Save.
+  async function handleTogglePublished() {
+    const newValue = !isPublished;
+    setIsPublished(newValue);
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/businesses/${bizId}/how-to-start`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildPayload(newValue)),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
+      setGuideExists(true);
+      setIsDirty(false);
+      toast.success(newValue ? 'Guide published!' : 'Guide set to draft');
+    } catch (e) {
+      // Revert optimistic update on failure
+      setIsPublished(!newValue);
+      toast.error(e instanceof Error ? e.message : 'Failed to update status');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // ── Import handler ────────────────────────────────────────────────────────
+  // Maps the parsed article (from the paste-in template format) onto the
+  // same draft shapes the editor already manages by hand. Title/intro/meta
+  // are only overwritten if the import actually included them, so a
+  // partial paste (e.g. just new FAQs) won't blank out existing fields —
+  // but steps/sections/faqs/references are always fully replaced, since
+  // there's no reliable way to "merge" an ordered list import.
+  function handleApplyImport(parsed: ParsedGuide) {
+    if (parsed.title) setTitle(parsed.title);
+    if (parsed.intro) setIntro(parsed.intro);
+    if (parsed.metaTitle) setMetaTitle(parsed.metaTitle);
+    if (parsed.metaDescription) setMetaDescription(parsed.metaDescription);
+    if (parsed.keywords) setKeywords(parsed.keywords);
+
+    if (parsed.steps.length > 0) {
+      setSteps(parsed.steps.map(s => ({
+        _key: uid(), title: s.title, description: s.description, imageUrl: s.imageUrl, expanded: false,
+      })));
+    }
+    if (parsed.sections.length > 0) {
+      setSections(parsed.sections.map(s => ({
+        _key: uid(), type: s.type, title: s.title, content: s.content, imageUrl: s.imageUrl, expanded: false,
+      })));
+    }
+    if (parsed.faqs.length > 0) {
+      setFaqs(parsed.faqs.map(f => ({
+        _key: uid(), question: f.question, answer: f.answer, expanded: false,
+      })));
+    }
+    if (parsed.references.length > 0) {
+      setReferences(parsed.references);
+    }
+
+    toast.success('Article applied — review the fields below, then Save Guide');
+  }
+
+  // ── Reference helpers ─────────────────────────────────────────────────────
 
   function handleAddReference(ref: ReferenceDraft) { setReferences(p => [...p, ref]); toast.success(`Reference [${ref.refNumber}] added`); }
   function removeReference(n: number) { setReferences(p => p.filter(r => r.refNumber !== n)); }
   function updateReference(n: number, patch: Partial<Pick<ReferenceDraft, 'title' | 'url'>>) { setReferences(p => p.map(r => r.refNumber === n ? { ...r, ...patch } : r)); }
+
+  // ── Step helpers ──────────────────────────────────────────────────────────
 
   function addStep()  { setSteps(p => [...p, { _key: uid(), title: '', description: '', imageUrl: '', expanded: true }]); }
   function removeStep(k: string) { setSteps(p => p.filter(s => s._key !== k)); }
   function updateStep(k: string, patch: Partial<StepDraft>) { setSteps(p => p.map(s => s._key === k ? { ...s, ...patch } : s)); }
   function toggleStep(k: string) { setSteps(p => p.map(s => s._key === k ? { ...s, expanded: !s.expanded } : s)); }
 
+  // ── Section helpers ───────────────────────────────────────────────────────
+
   function addSection() { setSections(p => [...p, { _key: uid(), type: 'TIPS', title: '', content: '', imageUrl: '', expanded: true }]); }
   function removeSection(k: string) { setSections(p => p.filter(s => s._key !== k)); }
   function updateSection(k: string, patch: Partial<SectionDraft>) { setSections(p => p.map(s => s._key === k ? { ...s, ...patch } : s)); }
   function toggleSection(k: string) { setSections(p => p.map(s => s._key === k ? { ...s, expanded: !s.expanded } : s)); }
+
+  // ── FAQ helpers ───────────────────────────────────────────────────────────
 
   function addFaq()  { setFaqs(p => [...p, { _key: uid(), question: '', answer: '', expanded: true }]); }
   function removeFaq(k: string) { setFaqs(p => p.filter(f => f._key !== k)); }
@@ -347,6 +491,9 @@ export default function HowToStartAdminPage() {
   function toggleFaq(k: string) { setFaqs(p => p.map(f => f._key === k ? { ...f, expanded: !f.expanded } : f)); }
 
   const previewUrl = (guideExists && isPublished && bizSlug) ? `/businesses/${bizSlug}/how-to-start` : null;
+  const hasExistingContent = steps.length > 0 || sections.length > 0 || faqs.length > 0 || references.length > 0;
+
+  // ── Loading skeleton ──────────────────────────────────────────────────────
 
   if (loading) return (
     <div className="adm" style={{ padding: '2rem' }}>
@@ -358,11 +505,21 @@ export default function HowToStartAdminPage() {
     </div>
   );
 
+  // ── Render ────────────────────────────────────────────────────────────────
+
   return (
     <>
       <style>{S}</style>
       <Toaster position="top-right" toastOptions={{ style: { background: '#1a1a24', color: '#f0f0f5', border: '1px solid rgba(255,255,255,0.09)' } }} />
       {showRefModal && <AddReferenceModal nextNumber={nextRefNumber} onAdd={handleAddReference} onClose={() => setShowRefModal(false)} />}
+      {showImportModal && (
+        <ImportGuideModal
+          bizName={bizName}
+          hasExistingContent={hasExistingContent}
+          onApply={handleApplyImport}
+          onClose={() => setShowImportModal(false)}
+        />
+      )}
 
       <div className="adm adm-inner">
 
@@ -377,8 +534,16 @@ export default function HowToStartAdminPage() {
               {bizSlug && <><span style={{ color: '#3a3a56', margin: '0 0.35rem' }}>·</span><span style={{ fontFamily: 'DM Mono,monospace', fontSize: '0.76rem' }}>/businesses/{bizSlug}/how-to-start</span></>}
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
-            <button className={isPublished ? 'btn btn-success' : 'btn btn-ghost'} onClick={() => setIsPublished(v => !v)}>
+          <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button className="btn btn-ghost" onClick={() => setShowImportModal(true)}>
+              <Upload size={14} /> Import Article
+            </button>
+            {/* FIX: onClick calls handleTogglePublished (auto-saves) instead of bare setIsPublished */}
+            <button
+              className={isPublished ? 'btn btn-success' : 'btn btn-ghost'}
+              onClick={handleTogglePublished}
+              disabled={saving}
+            >
               {isPublished ? <Eye size={14} /> : <EyeOff size={14} />}
               {isPublished ? 'Published' : 'Draft'}
             </button>
@@ -483,7 +648,6 @@ export default function HowToStartAdminPage() {
                         <label className="f-label">Step Title</label>
                         <input type="text" className="f-input" placeholder="e.g. Register your business name" value={step.title} onChange={e => updateStep(step._key, { title: e.target.value })} />
                       </div>
-                      {/* ── Image URL (new) ── */}
                       <div>
                         <label className="f-label">Step Image URL <span style={{ color: '#3a3a56', fontWeight: 400 }}>(optional)</span></label>
                         <input
@@ -621,7 +785,12 @@ export default function HowToStartAdminPage() {
 
           {/* Sticky save bar */}
           <div style={{ position: 'sticky', bottom: '1rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', background: 'rgba(10,10,18,0.9)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 9, padding: '0.75rem 1.25rem' }}>
-            <button className={`btn ${isPublished ? 'btn-success' : 'btn-ghost'}`} onClick={() => setIsPublished(v => !v)}>
+            {/* FIX: Same auto-save toggle here */}
+            <button
+              className={`btn ${isPublished ? 'btn-success' : 'btn-ghost'}`}
+              onClick={handleTogglePublished}
+              disabled={saving}
+            >
               {isPublished ? <Eye size={14} /> : <EyeOff size={14} />}
               {isPublished ? 'Published' : 'Draft'}
             </button>
