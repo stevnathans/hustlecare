@@ -338,7 +338,7 @@ export function parseGuideText(raw: string): ParseGuideResult {
 // ── The prompt to hand to an LLM (Claude, ChatGPT, etc.) ───────────────────
 // Kept here so the UI and the parser never drift out of sync.
 
-export const GUIDE_IMPORT_PROMPT = `You are writing a "How to Start a Gym Business in Kenya" guide. Output ONLY plain text in the exact template below — no extra commentary, no markdown code fences.
+export const GUIDE_IMPORT_PROMPT = `You are writing a "How to Start a [BUSINESS TYPE] Business in Kenya" guide. Output ONLY plain text in the exact template below — no extra commentary, no markdown code fences.
 
 FORMATTING RULES (used inside any body text):
 - **bold** for emphasis
@@ -362,7 +362,7 @@ FORMATTING RULES (used inside any body text):
 TEMPLATE TO FILL IN:
 
 # TITLE
-How To Start a Gym Business In Kenya
+How To Start a [BUSINESS TYPE] Business In Kenya
 
 # META
 Meta Title: [60 chars max, Title - How To Start a [BUSINESS TYPE] Business In Kenya [Complete Guide]]
