@@ -401,7 +401,7 @@ Image: [leave this Image line out entirely if you don't have one]
 [Question 2]?
 [Answer 2]
 
-[... repeat # FAQ for 4-8 common questions. Don't label the questions as "Question 1", "Question 2",. 
+[... repeat # FAQ for 4-8 common questions. Note that each QA section should start with # FAQ. Don't label the questions as "Question 1", "Question 2",. 
 Don't add citations inside question answers ...Common questions to focus on are around costs, requirements, timelines, profitability, location, etc.]
 
 # REFERENCE 1
