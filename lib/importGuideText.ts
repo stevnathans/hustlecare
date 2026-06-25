@@ -371,7 +371,7 @@ Meta Description: [160 chars max]
 Keywords: [comma-separated keyword phrases]
 
 # INTRO
-[2-4 paragraphs introducing the business opportunity. Cite sources with [1], [2] where relevant. Provide as much data as possible to make the article authoritative, trustworthy resource.]
+[2-4 paragraphs introducing the business opportunity. Cite sources with [1], [2] where relevant. Provide as much data as possible to make the article authoritative, trustworthy resource. Focus on the business itself and not requirements etc  ]
 
 # STEP
 [Step 1 title]

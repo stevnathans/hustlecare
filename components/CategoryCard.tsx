@@ -86,8 +86,8 @@ export default function CategoryCard({ category, accentIndex }: CategoryCardProp
   const businesses = category.businesses ?? [];
 
   const categoryHref = category.slug
-    ? `/categories/${category.slug}`
-    : `/categories/${category.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
+    ? `/businesses/categories/${category.slug}`
+    : `/businesses/categories/${category.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
 
   return (
     <div className="group flex flex-col bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5 border border-gray-100 h-full">

@@ -11,8 +11,7 @@ export default async function DashboardPage() {
   if (!session?.user?.email) {
     redirect("/signin");
   }
-  
-  // Get basic user info
+
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
     select: {
@@ -22,14 +21,15 @@ export default async function DashboardPage() {
       phone: true,
       image: true,
       createdAt: true,
+      // Add these three — they now flow to SettingsTab
+      emailNotifications: true,
+      pushNotifications: true,
+      marketingEmails: true,
     },
   });
 
-  if (!user) {
-    redirect("/signin");
-  }
+  if (!user) redirect("/signin");
 
-  // Get user's carts with business and items data (same as the API endpoint)
   const carts = await prisma.cart.findMany({
     where: { userId: user.id },
     include: {
@@ -43,31 +43,20 @@ export default async function DashboardPage() {
           unitPrice: true,
           requirementName: true,
           createdAt: true,
-          product: {
-            select: {
-              name: true,
-              price: true,
-            },
-          },
+          product: { select: { name: true, price: true } },
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: { createdAt: 'desc' },
       },
     },
-    orderBy: {
-      updatedAt: 'desc',
-    },
+    orderBy: { updatedAt: 'desc' },
   });
 
-  // Calculate stats
   const totalBusinesses = carts.length;
   const totalItems = carts.reduce((sum, cart) => sum + cart.items.length, 0);
   const totalCost = carts.reduce((sum, cart) => sum + (cart.totalCost ?? 0), 0);
 
-  // Get recent activity from all cart items
   const recentActivity = carts
-    .flatMap(cart => 
+    .flatMap(cart =>
       cart.items.map(item => ({
         id: item.id,
         businessName: cart.business.name,
@@ -88,12 +77,11 @@ export default async function DashboardPage() {
         phone: user.phone,
         image: user.image,
         createdAt: user.createdAt.toISOString(),
+        emailNotifications: user.emailNotifications,
+        pushNotifications: user.pushNotifications,
+        marketingEmails: user.marketingEmails,
       }}
-      stats={{
-        totalBusinesses,
-        totalItems,
-        totalCost,
-      }}
+      stats={{ totalBusinesses, totalItems, totalCost }}
       recentActivity={recentActivity}
     />
   );

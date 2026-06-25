@@ -1,131 +1,58 @@
 // app/api/user/settings/notifications/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
-
-export async function PUT(req: NextRequest) {
-  try {
-    // Get the current session
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user?.email) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Please log in' },
-        { status: 401 }
-      );
-    }
-
-    const { emailNotifications, pushNotifications, marketingEmails } = await req.json();
-
-    // Validate input
-    if (
-      typeof emailNotifications !== 'boolean' ||
-      typeof pushNotifications !== 'boolean' ||
-      typeof marketingEmails !== 'boolean'
-    ) {
-      return NextResponse.json(
-        { error: 'Invalid notification settings format' },
-        { status: 400 }
-      );
-    }
-
-    // Get user
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-      select: { id: true }
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
-    }
-
-    // Update user notification preferences
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        emailNotifications,
-        pushNotifications,
-        marketingEmails
-      }
-    });
-    
-    return NextResponse.json(
-      { 
-        message: 'Notification settings saved successfully',
-        settings: {
-          emailNotifications,
-          pushNotifications,
-          marketingEmails
-        }
-      },
-      { status: 200 }
-    );
-
-  } catch (error) {
-    console.error('Error saving notification settings:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  } finally {
-    await prisma.$disconnect();
-  }
-}
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   try {
-    // Get the current session
-    const session = await getServerSession(authOptions);
-    
+    const session = await getServerSession(authOptions)
     if (!session?.user?.email) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Please log in' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user notification preferences
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
-      select: { 
-        id: true,
-        emailNotifications: true,
-        pushNotifications: true,
-        marketingEmails: true
-      }
-    });
+      select: { emailNotifications: true, pushNotifications: true, marketingEmails: true },
+    })
 
-    if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+
+    return NextResponse.json({ settings: user })
+  } catch (error) {
+    console.error('[notifications GET]', (error instanceof Error ? error.message : error))
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Return user's notification settings
-    const userSettings = {
-      emailNotifications: user.emailNotifications,
-      pushNotifications: user.pushNotifications,
-      marketingEmails: user.marketingEmails
-    };
+    const { emailNotifications, pushNotifications, marketingEmails } = await req.json()
+
+    if (
+      typeof emailNotifications !== 'boolean' ||
+      typeof pushNotifications  !== 'boolean' ||
+      typeof marketingEmails    !== 'boolean'
+    ) {
+      return NextResponse.json({ error: 'Invalid settings format' }, { status: 400 })
+    }
+
+    await prisma.user.update({
+      where: { email: session.user.email },
+      data: { emailNotifications, pushNotifications, marketingEmails },
+    })
 
     return NextResponse.json({
-      settings: userSettings
-    });
-
+      message: 'Notification settings saved',
+      settings: { emailNotifications, pushNotifications, marketingEmails },
+    })
   } catch (error) {
-    console.error('Error fetching notification settings:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  } finally {
-    await prisma.$disconnect();
+    console.error('[notifications PUT]', (error instanceof Error ? error.message : error))
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

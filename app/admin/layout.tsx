@@ -20,7 +20,8 @@ import {
   FileText,
   LayoutGrid,
   GitMerge,
-  BookOpen
+  BookOpen,
+  Mail,
 } from "lucide-react";
 
 interface NavItem {
@@ -43,6 +44,7 @@ const navItems: NavItem[] = [
   { name: "Reviews",      href: "/admin/reviews",        icon: Star,          requiredRoles: ["reviewer","editor","admin"] },
   { name: "Redirects",    href: "/admin/redirects",      icon: GitMerge,      requiredRoles: ["editor", "admin"] },
   { name: "Audit Logs",   href: "/admin/audit",          icon: FileText,      requiredRoles: ["admin"] },
+  { name: "Emails", href: "/admin/emails",               icon: Mail,          requiredRoles: ["admin"] },
 ];
 
 const ROLE_BADGE: Record<string, string> = {

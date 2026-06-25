@@ -19,6 +19,9 @@ interface User {
   phone: string | null;
   image: string | null;
   createdAt: string;
+  emailNotifications: boolean;
+  pushNotifications: boolean;
+  marketingEmails: boolean;
 }
 
 interface Stats {
@@ -43,12 +46,10 @@ interface DashboardClientProps {
 
 export default function DashboardClient({ user, stats, recentActivity }: DashboardClientProps) {
   const [activeTab, setActiveTab] = useState("dashboard");
-  const { theme, setTheme } = useTheme(); 
+  const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => { setMounted(true); }, []);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -61,7 +62,18 @@ export default function DashboardClient({ user, stats, recentActivity }: Dashboa
       case "community":
         return <CommunityTab />;
       case "settings":
-        return <SettingsTab user={user} theme={theme} setTheme={setTheme} />;
+        return (
+          <SettingsTab
+            user={user}
+            theme={theme}
+            setTheme={setTheme}
+            initialNotifications={{
+              emailNotifications: user.emailNotifications,
+              pushNotifications: user.pushNotifications,
+              marketingEmails: user.marketingEmails,
+            }}
+          />
+        );
       case "help":
         return <HelpTab />;
       default:

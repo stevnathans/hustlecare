@@ -21,13 +21,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.9,
     },
     {
+      url: `${SITE_URL}/guides`,
+      lastModified: new Date(),
+      changeFrequency: 'daily',
+      priority: 0.9,
+    },
+    {
       url: `${SITE_URL}/services`,
       lastModified: new Date(),
       changeFrequency: 'monthly',
       priority: 0.8,
     },
     {
-      url: `${SITE_URL}/categories`,
+      url: `${SITE_URL}/businesses/categories`,
       lastModified: new Date(),
       changeFrequency: 'weekly',
       priority: 0.7,
@@ -77,14 +83,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   // ── Dynamic business pages ──────────────────────────────────────────────────
-  // Each business produces:
-  //   /businesses/[slug]              — hub / overview         priority 0.85
-  //   /businesses/[slug]/requirements — requirements checklist priority 0.80
-  //
-  // Add more sub-pages here as you build them out, e.g.:
-  //   /businesses/[slug]/how-to-start
-  //   /businesses/[slug]/costs
-  //   /businesses/[slug]/success-stories
   let businessPages: MetadataRoute.Sitemap = [];
 
   try {
@@ -105,9 +103,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         changeFrequency: 'weekly' as const,
         priority: 0.85,
       },
-      // Requirements sub-page
       {
         url: `${SITE_URL}/businesses/${business.slug}/requirements`,
+        lastModified: business.updatedAt,
+        changeFrequency: 'weekly' as const,
+        priority: 0.80,
+      },
+      // Active "How-to-Start" Sub-page
+      {
+        url: `${SITE_URL}/businesses/${business.slug}/how-to-start`,
         lastModified: business.updatedAt,
         changeFrequency: 'weekly' as const,
         priority: 0.80,
@@ -130,7 +134,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     });
 
     categoryPages = categories.map((cat) => ({
-      url: `${SITE_URL}/categories/${cat.name
+      // Restructured mapping endpoint path to /businesses/categories/
+      url: `${SITE_URL}/businesses/categories/${cat.name
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '')}`,

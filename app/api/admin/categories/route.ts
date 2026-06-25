@@ -40,8 +40,7 @@ function parseId(value: unknown): number | null {
 
 export async function GET() {
   try {
-    await requirePermission('businesses.view');
-
+    // REMOVED administrative view check to make categories fetch public-accessible.
     const categories = await prisma.businessCategory.findMany({
       orderBy: { name: 'asc' },
       select: {

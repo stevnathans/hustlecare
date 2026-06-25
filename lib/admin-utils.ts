@@ -141,7 +141,7 @@ function getUserAgent(req: NextRequest): string {
   return req.headers.get('user-agent') || 'unknown';
 }
 
-export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'VIEW' | 'EXPORT' | 'APPROVE' | 'REJECT';
+export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'VIEW' | 'EXPORT' | 'APPROVE' | 'REJECT' | 'SEND';
 export type AuditEntity = 'Business' | 'Product' | 'Requirement' | 'Vendor' | 'User' | 'Comment' | 'Review';
 
 interface AuditLogData {

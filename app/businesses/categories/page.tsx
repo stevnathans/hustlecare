@@ -1,4 +1,4 @@
-// app/categories/page.tsx
+// app/businesses/categories/page.tsx
 import { Metadata } from 'next';
 import { Suspense } from 'react';
 import { prisma } from '@/lib/prisma';
@@ -100,7 +100,8 @@ export default async function CategoriesServerPage() {
         '@id': `${PAGE_URL}#breadcrumb`,
         itemListElement: [
           { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
-          { '@type': 'ListItem', position: 2, name: 'Business Categories', item: PAGE_URL },
+          { '@type': 'ListItem', position: 2, name: 'Businesses', item: `${SITE_URL}/businesses` },
+          { '@type': 'ListItem', position: 3, name: 'Business Categories', item: PAGE_URL },
         ],
       },
       {
@@ -130,7 +131,7 @@ export default async function CategoriesServerPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
       <Suspense
-        fallback={
+        fallback = {
           <div className="min-h-screen flex items-center justify-center bg-gray-50">
             <div className="w-10 h-10 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
           </div>

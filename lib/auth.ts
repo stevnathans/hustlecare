@@ -8,13 +8,12 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import GoogleProvider from 'next-auth/providers/google';
 import { prisma } from '@/lib/prisma';
 import { compare } from 'bcrypt';
+import { sendEmail } from '@/lib/email';
+import WelcomeEmail from '@/emails/WelcomeEmail';
 
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: 'jwt',
-    // FIX: Reduced from 30 days to 8 hours. A 30-day session means a stolen
-    // token is valid for a month. Since roles are re-fetched from DB on every
-    // JWT callback anyway, a short maxAge costs nothing and limits exposure.
     maxAge: 8 * 60 * 60,
   },
   providers: [
@@ -37,35 +36,22 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          // FIX: Generic error message. Previously distinct messages revealed
-          // whether an email existed ("No user found with this email") which
-          // enables user enumeration attacks.
           throw new Error('Invalid email or password');
         }
 
-        // FIX: Normalize email to lowercase before lookup so
-        // User@Example.com and user@example.com resolve to the same account.
         const email = credentials.email.toLowerCase().trim();
 
-        const user = await prisma.user.findUnique({
-          where: { email },
-        });
+        const user = await prisma.user.findUnique({ where: { email } });
 
-        // FIX: Unified "Invalid email or password" for all failure cases —
-        // missing user, missing password (social account), wrong password.
-        // Previously each had a distinct message that leaked account info.
         if (!user || !user.password) {
           throw new Error('Invalid email or password');
         }
 
         if (!user.isActive) {
-          // This one is intentionally distinct — it's not an enumeration risk,
-          // it's actionable information the real account owner needs.
           throw new Error('Account is inactive. Please contact support.');
         }
 
         const isValid = await compare(credentials.password, user.password);
-
         if (!isValid) {
           throw new Error('Invalid email or password');
         }
@@ -82,20 +68,21 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async signIn({ user, account, profile }) {
-      // FIX: Removed console.log statements that logged user emails and
-      // provider info. These appear in Vercel function logs which may be
-      // accessible to team members who shouldn't see user PII.
       if (account?.provider === "google") {
         const email = user.email || profile?.email;
-
-        if (!email) {
-          return false;
-        }
+        if (!email) return false;
 
         (user as any).role = 'user';
         (user as any).vendorId = null;
 
         try {
+          // Check if this is a brand new user BEFORE upserting
+          const existingUser = await prisma.user.findUnique({
+            where: { email },
+            select: { id: true },
+          });
+          const isNewUser = !existingUser;
+
           const dbUser = await prisma.user.upsert({
             where: { email },
             update: {
@@ -116,9 +103,7 @@ export const authOptions: NextAuthOptions = {
             },
           });
 
-          if (!dbUser.isActive) {
-            return false;
-          }
+          if (!dbUser.isActive) return false;
 
           await prisma.account.upsert({
             where: {
@@ -158,17 +143,24 @@ export const authOptions: NextAuthOptions = {
             (user as any).vendorId = vendor?.id ?? null;
           }
 
+          // Send welcome email only on first-ever Google sign-in.
+          // Fire and forget — never block auth flow for email failure.
+          if (isNewUser) {
+            sendEmail({
+              to: dbUser.email,
+              subject: 'Welcome to HustleCare 🚀',
+              react: WelcomeEmail({ name: dbUser.name }),
+              type: 'WELCOME',
+              userId: dbUser.id,
+            }).catch((err) =>
+              console.error('[email] Google welcome email failed for', dbUser.id, err?.message)
+            );
+          }
+
           return true;
 
         } catch (error) {
-          // FIX: Log error without PII. Previously logged the full error
-          // object which may contain email addresses or query details.
           console.error("Sign-in DB error:", (error as Error).message);
-          // FIX: Return false instead of true on DB failure.
-          // Previously allowed sign-in even when the DB upsert failed,
-          // meaning a user could get a JWT with stale/default role data.
-          // It's safer to fail closed and show an error than to issue a
-          // token with potentially wrong role ('user' default).
           return false;
         }
       }
@@ -186,9 +178,6 @@ export const authOptions: NextAuthOptions = {
         token.vendorId = (user as any).vendorId ?? null;
       }
 
-      // Re-fetch from DB on every request to keep role/isActive current.
-      // This is already correct and addresses the stale JWT role issue
-      // flagged in the proxy.ts audit.
       if (token.email) {
         try {
           const dbUser = await prisma.user.findUnique({
@@ -205,14 +194,9 @@ export const authOptions: NextAuthOptions = {
           });
 
           if (dbUser) {
-            // FIX: If user has been deactivated, invalidate the token
-            // by returning an empty/null signal. Previously an inactive
-            // user with a valid JWT could continue making requests
-            // indefinitely until their token expired.
             if (!dbUser.isActive) {
               return { ...token, invalidated: true };
             }
-
             token.id = dbUser.id;
             token.role = dbUser.role as any;
             token.isActive = dbUser.isActive;
@@ -227,8 +211,6 @@ export const authOptions: NextAuthOptions = {
     },
 
     async session({ session, token }) {
-      // FIX: Reject invalidated tokens (deactivated accounts).
-      // Return a session with no user so the client treats it as logged out.
       if ((token as any).invalidated) {
         return { ...session, user: undefined as any };
       }
@@ -250,8 +232,6 @@ export const authOptions: NextAuthOptions = {
     error: '/signin',
   },
   secret: process.env.NEXTAUTH_SECRET,
-  // FIX: Explicitly disable debug in production. Previously relied on
-  // NODE_ENV check but making it explicit prevents accidental enabling.
   debug: process.env.NODE_ENV === 'development' && process.env.NEXTAUTH_DEBUG === 'true',
 };
 
