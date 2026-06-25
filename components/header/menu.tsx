@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Menu as MenuIcon, X, LogIn, Sparkles, Handshake, Briefcase, Mail, Info, Search } from "lucide-react";
+import { Menu as MenuIcon, X, LogIn, Handshake, Briefcase, Mail, Info, Search } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
@@ -310,7 +310,7 @@ export default function Menu() {
                     onClick={handleDashboardClick}
                     className="w-full flex items-center justify-center space-x-2 px-6 py-3 bg-gradient-to-r from-emerald-600 to-emerald-600 hover:from-emerald-700 hover:to-emerald-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg"
                   >
-                    <Sparkles className="h-5 w-5" />
+                    
                     <span>Go to Dashboard</span>
                   </button>
                   
