@@ -96,7 +96,7 @@ let _keyCounter = 0;
 const uid = () => `k${++_keyCounter}`;
 
 const SECTION_TYPE_META: Record<SectionType, { label: string; color: string; bg: string; Icon: React.ElementType }> = {
-  TIPS:       { label: 'Tip',       color: '#34d399', bg: 'rgba(16,185,129,0.12)',  Icon: Lightbulb     },
+  TIPS:       { label: 'Tips',       color: '#34d399', bg: 'rgba(16,185,129,0.12)',  Icon: Lightbulb     },
   WARNING:    { label: 'Warning',    color: '#f87171', bg: 'rgba(239,68,68,0.12)',   Icon: AlertTriangle },
   NOTE:       { label: 'Note',       color: '#60a5fa', bg: 'rgba(59,130,246,0.12)',  Icon: FileText      },
   INFO:       { label: 'Info',       color: '#fbbf24', bg: 'rgba(245,158,11,0.12)',  Icon: Info          },

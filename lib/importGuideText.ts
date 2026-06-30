@@ -39,6 +39,15 @@
 //
 // Everything after a directive line, up to the next directive, is that
 // block's body. Blocks can appear in any order and repeat freely.
+//
+// ── Normalization layer ─────────────────────────────────────────────────
+// Different LLMs (ChatGPT, Claude, Perplexity, etc.) drift from the
+// template in their own predictable ways — wrong bullet markers, bare
+// callout fences, citation links instead of numbered markers. Rather than
+// chasing this with ever-more-specific prompt engineering (which breaks
+// again the moment a model updates), known quirks are normalized or
+// flagged here, in one place, before parsing begins. See
+// normalizeImportedText() and detectMisusedLinkCitations() below.
 
 export type SectionType = 'TIPS' | 'WARNING' | 'NOTE' | 'INFO' | 'CONCLUSION';
 
@@ -124,10 +133,115 @@ function extractImageLine(body: string): { imageUrl: string; rest: string } {
   return { imageUrl: m[1].trim(), rest: body.replace(m[0], '').trim() };
 }
 
+// ── Text normalization ─────────────────────────────────────────────────────
+// Runs once on the raw paste, before directive parsing. Fixes known
+// model-specific quirks that would otherwise silently break rendering on
+// the front end (wrong bullet markers, untyped callout fences).
+
+interface NormalizeResult {
+  text: string;
+  fixes: string[];
+}
+
+function normalizeImportedText(raw: string): NormalizeResult {
+  const fixes: string[] = [];
+  let text = raw;
+
+  // ── Fix 1: bullet markers ──────────────────────────────────────────────
+  // ChatGPT (and others) often use "* item" or "• item" instead of "- item".
+  // Only touch lines that are clearly a bullet (marker + space + content) so
+  // we don't mangle "**bold**" text or asterisks used for emphasis mid-line.
+  const bulletRe = /^(\s*)[*•]\s+(?!\*)/gm;
+  const bulletMatches = text.match(bulletRe);
+  if (bulletMatches && bulletMatches.length > 0) {
+    text = text.replace(bulletRe, '$1- ');
+    fixes.push(`Converted ${bulletMatches.length} bullet point${bulletMatches.length === 1 ? '' : 's'} from "*"/"•" to "-".`);
+  }
+
+  // ── Fix 2: bare ::: callout blocks missing a type ──────────────────────
+  // Some models write ":::" with no type on the opening line instead of
+  // ":::tips". We default these to "info" — safe and visually neutral —
+  // and warn so the admin can manually change the type if a better one
+  // (warning, tips, etc.) is obvious from the content.
+  //
+  // Both opening and closing fences look identical when bare ("::: " vs
+  // ":::"), so we can't tell them apart with a single regex. Instead we
+  // walk every ":::"-prefixed line in order and track open/close state:
+  // a typed fence (":::tips") always opens a block, and a bare fence
+  // alternates between "this opens a block with no type" (even position)
+  // and "this legitimately closes the previous block" (odd position).
+  const lines = text.split('\n');
+  let openCount = 0;
+  let fixedCount = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (/^:::\w+/.test(trimmed)) {
+      openCount++; // already-typed opening fence
+    } else if (/^:::[ \t]*$/.test(trimmed)) {
+      if (openCount % 2 === 0) {
+        // Opening fence with no type — default to info
+        lines[i] = ':::info';
+        openCount++;
+        fixedCount++;
+      } else {
+        openCount--; // legitimate closing fence
+      }
+    }
+  }
+  if (fixedCount > 0) {
+    text = lines.join('\n');
+    fixes.push(`Added a default type ("info") to ${fixedCount} callout block${fixedCount === 1 ? '' : 's'} that were missing one (e.g. bare ":::" instead of ":::tips"). Review and change the type if a more specific one fits.`);
+  }
+
+  return { text, fixes };
+}
+
+// ── Suspicious citation detection ───────────────────────────────────────────
+// Some models (Perplexity especially) write inline citations as markdown
+// links — [Some Source](https://...) — instead of the numbered [1] [2]
+// marker format the editor expects. We can't safely auto-convert these
+// (we'd have to invent reference numbers and guess at titles), so instead
+// we detect the pattern in body text and warn, pointing at the exact
+// offending snippet so it's fast to find and fix by hand.
+function detectMisusedLinkCitations(parsed: ParsedGuide, warnings: string[]) {
+  // A misused citation link is the tell-tale "[Source Name](url)" sitting
+  // right after a sentence — close to where a [1] would normally go.
+  // Genuine content links (the kind the prompt explicitly allows for
+  // internal hustlecare.net links) are usually embedded mid-sentence, not
+  // immediately following terminal punctuation.
+  const suspiciousRe = /([.!?])\s*\[([^\]]{1,60})\]\((https?:\/\/[^\s)]+)\)/g;
+
+  const bodies: { label: string; text: string }[] = [
+    { label: 'Intro', text: parsed.intro },
+    ...parsed.steps.map((s, i) => ({ label: `Step "${s.title || i + 1}"`, text: s.description })),
+    ...parsed.sections.map((s) => ({ label: `Section "${s.title || s.type}"`, text: s.content })),
+  ];
+
+  let totalFound = 0;
+  for (const { label, text } of bodies) {
+    const matches = [...text.matchAll(suspiciousRe)];
+    for (const m of matches) {
+      totalFound++;
+      if (totalFound <= 3) {
+        // Cap detailed examples at 3 so warnings don't flood the modal;
+        // the summary line below covers the rest.
+        warnings.push(`${label} has a link-style citation "[${m[2]}](…)" right after a sentence — this looks like it should be a numbered citation like [1] instead, with a matching "# REFERENCE" block. Markdown links are fine for actual content links, but not for citing sources.`);
+      }
+    }
+  }
+  if (totalFound > 3) {
+    warnings.push(`…and ${totalFound - 3} more link-style citation${totalFound - 3 === 1 ? '' : 's'} found — search the pasted text for "](http" right after sentence punctuation to find them all.`);
+  }
+}
+
 export function parseGuideText(raw: string): ParseGuideResult {
   const errors: string[] = [];
   const warnings: string[] = [];
-  const text = raw.replace(/\r\n/g, '\n').trim();
+
+  // ── Normalize known model-specific quirks before parsing ───────────────
+  const { text: normalizedRaw, fixes } = normalizeImportedText(raw.replace(/\r\n/g, '\n').trim());
+  warnings.push(...fixes);
+  const text = normalizedRaw;
 
   if (!text) {
     errors.push('Paste the article text first.');
@@ -329,6 +443,9 @@ export function parseGuideText(raw: string): ParseGuideResult {
     }
   }
 
+  // ── Detect markdown-link-style citations misused as references ─────────
+  detectMisusedLinkCitations(result, warnings);
+
   if (!result.title) warnings.push('No # TITLE block found — the business name default will be used.');
   if (result.steps.length === 0) warnings.push('No # STEP blocks found.');
 
@@ -354,11 +471,12 @@ FORMATTING RULES (used inside any body text):
 - To insert a citation anywhere inside a STEP or SECTION body, use:
  [1], [2] etc. to cite a reference inline — every citation number MUST have a matching # REFERENCE block at the end. When adding several citations in one place, do not seperate them with commas (e.g. [1] [2] [3] is correct, [1], [2], [3] is not). Add spaces between citations.
  The citation should be placed immediately after the relevant sentence or phrase, but after the period or any punctuation with space. Example: "The business license costs KES 10,000 per year. [1] " or "The business license costs KES 10,000 per year. [1][2]."
+ Citations must always be the plain [1] [2] marker format — never write a citation as a markdown link like [Source Name](https://...). Markdown links are reserved for genuine internal hustlecare.net links only.
 - To insert a callout box anywhere inside a STEP or SECTION body, use:
   :::tips
   Your tip text here.
   :::
-  (replace "tips" with warning, note, info, or conclusion as needed)
+  (replace "tips" with warning, note, info, or conclusion as needed — the opening fence must always include the type immediately after the three colons, with no space, e.g. ":::warning" not ":::" on its own line)
 
 TEMPLATE TO FILL IN:
 
