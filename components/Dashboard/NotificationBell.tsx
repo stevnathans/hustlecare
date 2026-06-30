@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Bell, CheckCheck, ExternalLink, Info, CheckCircle, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
+import { useSession } from 'next-auth/react'
 
 type NotifType = 'INFO' | 'SUCCESS' | 'WARNING'
 
@@ -17,9 +18,9 @@ type Notification = {
 }
 
 const TYPE_CONFIG: Record<NotifType, { icon: React.ElementType; color: string; bg: string }> = {
-  INFO:    { icon: Info,          color: '#818cf8', bg: 'rgba(99,102,241,0.1)' },
-  SUCCESS: { icon: CheckCircle,   color: '#34d399', bg: 'rgba(16,185,129,0.1)' },
-  WARNING: { icon: AlertTriangle, color: '#fbbf24', bg: 'rgba(245,158,11,0.1)' },
+  INFO:    { icon: Info,          color: '#059669', bg: 'rgba(16,185,129,0.1)' },
+  SUCCESS: { icon: CheckCircle,   color: '#059669', bg: 'rgba(16,185,129,0.1)' },
+  WARNING: { icon: AlertTriangle, color: '#d97706', bg: 'rgba(245,158,11,0.1)' },
 }
 
 function timeAgo(dateStr: string) {
@@ -34,13 +35,15 @@ function timeAgo(dateStr: string) {
 }
 
 export default function NotificationBell() {
-  const [open,         setOpen]         = useState(false)
-  const [notifications,setNotifications]= useState<Notification[]>([])
-  const [unreadCount,  setUnreadCount]  = useState(0)
-  const [loading,      setLoading]      = useState(false)
+  const { status } = useSession()
+  const [open,          setOpen]          = useState(false)
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [unreadCount,   setUnreadCount]   = useState(0)
+  const [loading,       setLoading]       = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const fetchNotifications = useCallback(async () => {
+    if (status !== 'authenticated') return
     setLoading(true)
     try {
       const r = await fetch('/api/user/notifications')
@@ -52,16 +55,15 @@ export default function NotificationBell() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [status])
 
-  // Poll every 60 seconds for new notifications
   useEffect(() => {
+    if (status !== 'authenticated') return
     fetchNotifications()
     const interval = setInterval(fetchNotifications, 60000)
     return () => clearInterval(interval)
-  }, [fetchNotifications])
+  }, [fetchNotifications, status])
 
-  // Close on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -72,10 +74,11 @@ export default function NotificationBell() {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
+  // Don't render at all for signed-out visitors
+  if (status !== 'authenticated') return null
+
   async function markOne(id: string) {
-    setNotifications(prev =>
-      prev.map(n => n.id === id ? { ...n, isRead: true } : n)
-    )
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n))
     setUnreadCount(prev => Math.max(0, prev - 1))
     await fetch('/api/user/notifications', {
       method: 'PATCH',
@@ -94,31 +97,25 @@ export default function NotificationBell() {
     })
   }
 
-  function handleOpen() {
-    setOpen(prev => !prev)
-  }
-
   return (
     <div ref={dropdownRef} style={{ position: 'relative' }}>
-      {/* Bell button */}
       <button
-        onClick={handleOpen}
-        className="relative p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+        onClick={() => setOpen(prev => !prev)}
+        className="relative inline-flex items-center justify-center p-2 rounded-lg text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500 transition-all duration-200"
         aria-label="Notifications"
       >
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-emerald-500 text-white text-[10px] font-bold leading-none">
+          <span className="absolute top-1 right-1 flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-emerald-600 text-white text-[10px] font-bold leading-none">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
-      {/* Dropdown */}
       {open && (
         <div
-          className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden"
-          style={{ maxHeight: '420px', display: 'flex', flexDirection: 'column' }}
+          className="absolute right-0 mt-2 w-80 sm:w-96 bg-white/95 dark:bg-gray-900/95 backdrop-blur-lg border border-gray-200/50 dark:border-gray-700/50 rounded-2xl shadow-xl z-50 overflow-hidden"
+          style={{ maxHeight: '440px', display: 'flex', flexDirection: 'column' }}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
@@ -169,7 +166,6 @@ export default function NotificationBell() {
                 const Icon = cfg.icon
                 const content = (
                   <div
-                    key={notif.id}
                     onClick={() => !notif.isRead && markOne(notif.id)}
                     className={`flex gap-3 px-4 py-3 border-b border-gray-50 dark:border-gray-800/60 last:border-0 transition-colors cursor-pointer ${
                       notif.isRead
@@ -177,7 +173,6 @@ export default function NotificationBell() {
                         : 'bg-emerald-50/50 dark:bg-emerald-900/10 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
                     }`}
                   >
-                    {/* Icon */}
                     <div
                       className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center mt-0.5"
                       style={{ background: cfg.bg }}
@@ -185,7 +180,6 @@ export default function NotificationBell() {
                       <Icon className="h-4 w-4" style={{ color: cfg.color }} />
                     </div>
 
-                    {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
                         <p className={`text-sm font-semibold leading-tight ${
@@ -204,10 +198,11 @@ export default function NotificationBell() {
                           )}
                         </div>
                       </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed line-clamp-2">
+                      {/* Full message — no truncation, no line-clamp */}
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed whitespace-pre-line">
                         {notif.message}
                       </p>
-                      <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">
+                      <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1.5">
                         {timeAgo(notif.createdAt)}
                       </p>
                     </div>
@@ -215,7 +210,7 @@ export default function NotificationBell() {
                 )
 
                 return notif.link ? (
-                  <Link key={notif.id} href={notif.link} onClick={() => !notif.isRead && markOne(notif.id)}>
+                  <Link key={notif.id} href={notif.link} onClick={() => { setOpen(false); if (!notif.isRead) markOne(notif.id) }}>
                     {content}
                   </Link>
                 ) : (

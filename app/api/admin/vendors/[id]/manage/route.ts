@@ -4,6 +4,8 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { notify } from '@/lib/notify'
+import { sendEmail } from '@/lib/email'
+import VendorStatusEmail from '@/emails/VendorStatusEmail'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -28,7 +30,7 @@ export async function POST(request: Request, { params }: Params) {
 
     const vendor = await prisma.vendor.findUnique({
       where: { id: vendorId },
-      include: { user: { select: { id: true } } },
+      include: { user: { select: { id: true, name: true, email: true } } },
     })
 
     if (!vendor) {
@@ -58,14 +60,22 @@ export async function POST(request: Request, { params }: Params) {
         })
       })
 
-      if (vendor.userId) {
+      if (vendor.user) {
         await notify({
-          userId:  vendor.userId,
+          userId:  vendor.user.id,
           title:   'Account suspended',
           message: `Your Hustlecare vendor account has been suspended. Reason: ${reason.trim()}. You can submit an appeal from your dashboard.`,
           type:    'WARNING',
           link:    '/vendor/dashboard',
         })
+
+        await sendEmail({
+          to:      vendor.user.email,
+          subject: 'Your Hustlecare vendor account has been suspended',
+          react:   VendorStatusEmail({ name: vendor.user.name, status: 'suspended', reason: reason.trim() }),
+          type:    'NOTIFICATION',
+          userId:  vendor.user.id,
+        }).catch((err) => console.error('[email] Vendor suspension email failed:', err?.message))
       }
 
       return NextResponse.json({ message: 'Vendor suspended and products archived.' })
@@ -95,14 +105,22 @@ export async function POST(request: Request, { params }: Params) {
         })
       })
 
-      if (vendor.userId) {
+      if (vendor.user) {
         await notify({
-          userId:  vendor.userId,
+          userId:  vendor.user.id,
           title:   'Account reinstated',
           message: 'Your Hustlecare vendor account is active again. Your products have been restored to the marketplace.',
           type:    'SUCCESS',
           link:    '/vendor/dashboard',
         })
+
+        await sendEmail({
+          to:      vendor.user.email,
+          subject: 'Your Hustlecare vendor account is active again',
+          react:   VendorStatusEmail({ name: vendor.user.name, status: 'reinstated' }),
+          type:    'NOTIFICATION',
+          userId:  vendor.user.id,
+        }).catch((err) => console.error('[email] Vendor reinstatement email failed:', err?.message))
       }
 
       return NextResponse.json({ message: 'Vendor reinstated and products restored.' })
@@ -123,9 +141,9 @@ export async function POST(request: Request, { params }: Params) {
         await tx.vendor.delete({ where: { id: vendorId } })
       })
 
-      if (vendor.userId) {
+      if (vendor.user) {
         await notify({
-          userId:  vendor.userId,
+          userId:  vendor.user.id,
           title:   'Vendor account removed',
           message: 'Your Hustlecare vendor account has been removed. Contact support if you have any questions.',
           type:    'WARNING',

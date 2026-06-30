@@ -7,6 +7,7 @@ import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import MenuSearchBar from "./MenuSearchBar";
+import NotificationBell from "@/components/Dashboard/NotificationBell";
 
 export default function Menu() {
   const [isOpen, setIsOpen] = useState(false);
@@ -15,7 +16,6 @@ export default function Menu() {
   const router = useRouter();
   const isAuthenticated = status === "authenticated";
 
-  // Listen for profile update events
   useEffect(() => {
     const handleProfileUpdate = async () => {
       try {
@@ -24,10 +24,7 @@ export default function Menu() {
         console.error('Error updating session:', error);
       }
     };
-
-    // Listen for custom profile update event
     window.addEventListener('profileUpdated', handleProfileUpdate);
-
     return () => {
       window.removeEventListener('profileUpdated', handleProfileUpdate);
     };
@@ -45,18 +42,12 @@ export default function Menu() {
 
   const handleSearchToggle = () => {
     setIsSearchOpen(!isSearchOpen);
-    // Close the main menu if it's open
-    if (isOpen) {
-      setIsOpen(false);
-    }
+    if (isOpen) setIsOpen(false);
   };
 
   const handleMenuToggle = () => {
     setIsOpen(!isOpen);
-    // Close the search if it's open
-    if (isSearchOpen) {
-      setIsSearchOpen(false);
-    }
+    if (isSearchOpen) setIsSearchOpen(false);
   };
 
   return (
@@ -66,19 +57,19 @@ export default function Menu() {
           {/* Logo */}
           <div className="flex-shrink-0 flex items-center space-x-2">
             <Link href="/" className="flex items-center space-x-2 group">
-  <div className="h-8 w-8 flex items-center justify-center group-hover:scale-105 transition-all duration-200">
-    <Image
-      src="/images/Favicon.png"
-      alt="Hustlecare Logo"
-      width={32}
-      height={32}
-      className="h-8 w-8"
-    />
-  </div>
-  <span className="font-bold text-xl bg-gradient-to-r from-emerald-600 to-emerald-600 bg-clip-text text-transparent group-hover:from-emerald-700 group-hover:to-emerald-700 transition-all duration-200">
-    Hustlecare
-  </span>
-</Link>
+              <div className="h-8 w-8 flex items-center justify-center group-hover:scale-105 transition-all duration-200">
+                <Image
+                  src="/images/Favicon.png"
+                  alt="Hustlecare Logo"
+                  width={32}
+                  height={32}
+                  className="h-8 w-8"
+                />
+              </div>
+              <span className="font-bold text-xl bg-gradient-to-r from-emerald-600 to-emerald-600 bg-clip-text text-transparent group-hover:from-emerald-700 group-hover:to-emerald-700 transition-all duration-200">
+                Hustlecare
+              </span>
+            </Link>
           </div>
 
           {/* Search Bar - Desktop */}
@@ -88,33 +79,32 @@ export default function Menu() {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex md:items-center md:space-x-8">
-            {/* Navigation Links */}
             <div className="flex items-center space-x-6">
-              <Link 
-                href="/businesses" 
+              <Link
+                href="/businesses"
                 className="flex items-center space-x-1 text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200 font-medium group"
               >
                 <Briefcase className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
                 <span>Businesses</span>
               </Link>
-              <Link 
-                href="/services" 
+              <Link
+                href="/services"
                 className="flex items-center space-x-1 text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200 font-medium group"
               >
                 <Handshake className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
                 <span>Services</span>
               </Link>
-              
-              <Link 
-                href="/about" 
+
+              <Link
+                href="/about"
                 className="flex items-center space-x-1 text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200 font-medium group"
               >
                 <Info className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
                 <span>About</span>
               </Link>
-              
-              <Link 
-                href="/contact" 
+
+              <Link
+                href="/contact"
                 className="flex items-center space-x-1 text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200 font-medium group"
               >
                 <Mail className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
@@ -124,7 +114,10 @@ export default function Menu() {
 
             {/* Authentication Section */}
             {isAuthenticated ? (
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-3">
+                {/* Notification Bell */}
+                <NotificationBell />
+
                 <button
                   onClick={handleDashboardClick}
                   className="flex items-center space-x-3 bg-gradient-to-r from-emerald-50 to-emerald-50 dark:from-emerald-900/30 dark:to-emerald-900/30 hover:from-emerald-100 hover:to-emerald-100 dark:hover:from-emerald-900/50 dark:hover:to-emerald-900/50 px-4 py-2 rounded-full border border-emerald-200/50 dark:border-emerald-700/50 transition-all duration-200 hover:shadow-md group"
@@ -152,7 +145,7 @@ export default function Menu() {
                     </span>
                   </div>
                 </button>
-                
+
                 <button
                   onClick={handleSignOut}
                   className="text-sm text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors duration-200"
@@ -171,8 +164,8 @@ export default function Menu() {
             )}
           </div>
 
-          {/* Mobile Controls - Search and Menu Icons */}
-          <div className="md:hidden flex items-center space-x-2">
+          {/* Mobile Controls - Search, Bell, Menu Icons */}
+          <div className="md:hidden flex items-center space-x-1">
             {/* Mobile Search Button */}
             <button
               onClick={handleSearchToggle}
@@ -180,6 +173,9 @@ export default function Menu() {
             >
               <Search className="h-6 w-6" />
             </button>
+
+            {/* Mobile Notification Bell — shown right after search, only if authenticated */}
+            <NotificationBell />
 
             {/* Mobile Menu Button */}
             <button
@@ -199,13 +195,10 @@ export default function Menu() {
       {/* Mobile Search Bar */}
       {isSearchOpen && (
         <>
-          {/* Search Backdrop */}
-          <div 
+          <div
             className="md:hidden fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
             onClick={() => setIsSearchOpen(false)}
           />
-          
-          {/* Mobile Search Panel */}
           <div className="md:hidden absolute top-full left-0 right-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-lg border-b border-gray-200/50 dark:border-gray-700/50 shadow-lg z-50">
             <div className="px-4 py-4">
               <MenuSearchBar />
@@ -217,21 +210,16 @@ export default function Menu() {
       {/* Mobile Menu */}
       {isOpen && (
         <>
-          {/* Backdrop */}
-          <div 
+          <div
             className="md:hidden fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
             onClick={() => setIsOpen(false)}
           />
-          
-          {/* Mobile Menu Panel */}
           <div className="md:hidden absolute top-full left-0 right-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-lg border-b border-gray-200/50 dark:border-gray-700/50 shadow-lg z-50">
             <div className="px-4 py-6 space-y-4">
-              {/* Mobile Search Bar */}
               <div className="pb-4 border-b border-gray-200/50 dark:border-gray-700/50">
                 <MenuSearchBar />
               </div>
 
-              {/* Navigation Links */}
               <div className="space-y-2">
                 <Link
                   href="/businesses"
@@ -250,7 +238,7 @@ export default function Menu() {
                   <Handshake className="h-5 w-5" />
                   <span>Services</span>
                 </Link>
-                
+
                 <Link
                   href="/about"
                   className="flex items-center space-x-3 px-4 py-3 rounded-xl text-base font-medium text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-all duration-200"
@@ -259,7 +247,7 @@ export default function Menu() {
                   <Info className="h-5 w-5" />
                   <span>About</span>
                 </Link>
-                
+
                 <Link
                   href="/contact"
                   className="flex items-center space-x-3 px-4 py-3 rounded-xl text-base font-medium text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-all duration-200"
@@ -269,14 +257,11 @@ export default function Menu() {
                   <span>Contact</span>
                 </Link>
               </div>
-              
-              {/* Divider */}
+
               <div className="border-t border-gray-200/50 dark:border-gray-700/50 my-4"></div>
-              
-              {/* Authentication Section */}
+
               {isAuthenticated ? (
                 <div className="space-y-4">
-                  {/* User Info */}
                   <div className="flex items-center space-x-4 px-4 py-3 bg-gradient-to-r from-emerald-50 to-emerald-50 dark:from-emerald-900/30 dark:to-emerald-900/30 rounded-xl">
                     {session?.user?.image ? (
                       <div className="h-12 w-12 rounded-full overflow-hidden ring-2 ring-emerald-200 dark:ring-emerald-700">
@@ -304,17 +289,14 @@ export default function Menu() {
                       </p>
                     </div>
                   </div>
-                  
-                  {/* Dashboard Button */}
+
                   <button
                     onClick={handleDashboardClick}
                     className="w-full flex items-center justify-center space-x-2 px-6 py-3 bg-gradient-to-r from-emerald-600 to-emerald-600 hover:from-emerald-700 hover:to-emerald-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg"
                   >
-                    
                     <span>Go to Dashboard</span>
                   </button>
-                  
-                  {/* Sign Out */}
+
                   <button
                     onClick={handleSignOut}
                     className="w-full text-center px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors duration-200"
