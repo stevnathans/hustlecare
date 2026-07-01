@@ -19,6 +19,9 @@ const NAV_ITEMS = [
   { href: '/vendor/dashboard/profile',  label: 'My Profile', short: 'Profile',  icon: User },
 ];
 
+const SIDEBAR_W = 248;
+const BOTTOM_NAV_H = 64;
+
 export default function VendorDashboardLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const router   = useRouter();
@@ -35,9 +38,8 @@ export default function VendorDashboardLayout({ children }: { children: React.Re
 
   if (status === 'loading') {
     return (
-      <div style={L.loadWrap}>
-        <Loader2 size={28} className="vd-spin" style={{ color: '#f59e0b' }} />
-        <style>{BASE_CSS}</style>
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <Loader2 size={28} className="animate-spin text-emerald-600" />
       </div>
     );
   }
@@ -51,68 +53,89 @@ export default function VendorDashboardLayout({ children }: { children: React.Re
     return pathname.startsWith(href);
   }
 
-  const isSuspended = false; // computed per-page; layout doesn't gate the Add button to keep nav simple
-
   const Sidebar = () => (
-    <aside style={L.sidebar}>
+    <aside className="flex h-full flex-col overflow-hidden border-r border-gray-200 bg-white" style={{ width: SIDEBAR_W }}>
       {/* Brand */}
-      <div style={L.brand}>
-        <div style={L.brandIcon}>
-          <Store size={16} color="#f59e0b" />
+      <div className="flex items-center gap-3 border-b border-gray-100 px-5 pb-4 pt-5">
+        <div className="flex h-8.5 w-8.5 flex-shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50">
+          <Store size={16} className="text-emerald-600" />
         </div>
         <div>
-          <div style={L.brandName}>Hustlecare</div>
-          <div style={L.brandSub}>Vendor Portal</div>
+          <div className="text-sm font-bold leading-tight text-gray-900">Hustlecare</div>
+          <div className="mt-0.5 text-[0.65rem] font-bold uppercase tracking-wider text-emerald-600">
+            Vendor Portal
+          </div>
         </div>
       </div>
 
       {/* User */}
-      <div style={L.userBlock}>
-        <div style={L.avatarWrap}>
+      <div className="mx-3 mt-3 flex items-center gap-2.5 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+        <div className="flex-shrink-0">
           {session?.user?.image ? (
-            <Image src={session.user.image} alt="" width={36} height={36} style={L.avatarImg} />
+            <Image
+              src={session.user.image}
+              alt=""
+              width={34}
+              height={34}
+              className="h-8.5 w-8.5 rounded-full object-cover"
+            />
           ) : (
-            <div style={L.avatarFallback}>
+            <div className="flex h-8.5 w-8.5 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">
               {session?.user?.name?.[0]?.toUpperCase() ?? 'V'}
             </div>
           )}
         </div>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={L.userName}>{session?.user?.name || 'Vendor'}</div>
-          <div style={L.userEmail}>{session?.user?.email}</div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold text-gray-900">
+            {session?.user?.name || 'Vendor'}
+          </div>
+          <div className="truncate text-xs text-gray-400">{session?.user?.email}</div>
         </div>
       </div>
 
       {/* Nav */}
-      <nav style={L.nav}>
-        <div style={L.navLabel}>Navigation</div>
+      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-2">
+        <div className="px-3 pb-1.5 pt-2 text-[0.62rem] font-bold uppercase tracking-wider text-gray-400">
+          Navigation
+        </div>
         {NAV_ITEMS.map(item => {
           const active = isActive(item.href, item.exact);
           return (
-            <Link key={item.href} href={item.href} style={{
-              ...L.navLink,
-              ...(active ? L.navLinkActive : {}),
-            }}>
-              {active && <span style={L.activeBar} />}
-              <item.icon size={16} style={{ color: active ? '#f59e0b' : '#55556e', flexShrink: 0 }} />
-              <span style={{ flex: 1 }}>{item.label}</span>
-              {active && <ChevronRight size={13} style={{ color: '#f59e0b', opacity: 0.6 }} />}
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`relative flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150 ${
+                active
+                  ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                  : 'border border-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-800'
+              }`}
+            >
+              {active && (
+                <span className="absolute left-0 top-1/2 h-[55%] w-0.5 -translate-y-1/2 rounded-r bg-emerald-600" />
+              )}
+              <item.icon size={16} className={`flex-shrink-0 ${active ? 'text-emerald-600' : 'text-gray-400'}`} />
+              <span className="flex-1">{item.label}</span>
+              {active && <ChevronRight size={13} className="text-emerald-500 opacity-60" />}
             </Link>
           );
         })}
       </nav>
 
       {/* Footer */}
-      <div style={L.sideFooter}>
+      <div className="flex flex-col gap-0.5 border-t border-gray-100 p-3">
         <Link
           href="/vendors"
           target="_blank"
-          style={{ ...L.footerLink, color: '#9494b0' }}
+          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-800"
         >
-          <ExternalLink size={14} style={{ color: '#55556e' }} />
+          <ExternalLink size={14} className="text-gray-400" />
           <span>View Marketplace</span>
         </Link>
-        <button style={{ ...L.footerLink, ...L.signOutBtn }} onClick={() => signOut({ callbackUrl: '/' })}>
+        <button
+          type="button"
+          onClick={() => signOut({ callbackUrl: '/' })}
+          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-red-500 transition-colors hover:bg-red-50"
+        >
           <LogOut size={14} />
           <span>Sign Out</span>
         </button>
@@ -121,226 +144,143 @@ export default function VendorDashboardLayout({ children }: { children: React.Re
   );
 
   return (
-    <>
-      <style>{BASE_CSS}</style>
-      <div className="vd-shell" style={L.shell}>
+    <div className="flex min-h-screen bg-gray-50">
+      {/* Desktop sidebar */}
+      <div className="fixed bottom-0 left-0 top-0 z-10 hidden md:block">
+        <Sidebar />
+      </div>
 
-        {/* Desktop sidebar */}
-        <div className="vd-desktop-sidebar" style={L.desktopSidebar}>
-          <Sidebar />
-        </div>
-
-        {/* Mobile drawer overlay (secondary menu: marketplace / sign out / brand) */}
-        {sidebarOpen && (
-          <div style={L.overlay} onClick={() => setSidebarOpen(false)} />
-        )}
-        <div className="vd-mobile-sidebar" style={{
-          ...L.mobileSidebar,
-          transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
-        }}>
-          <button style={L.mobileClose} onClick={() => setSidebarOpen(false)}>
+      {/* Mobile drawer overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      <div
+        className="fixed bottom-0 left-0 top-0 z-50 transition-transform duration-300 ease-in-out md:hidden"
+        style={{ width: SIDEBAR_W, transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)' }}
+      >
+        <div className="relative h-full">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(false)}
+            className="absolute right-3.5 top-3.5 z-10 flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm"
+          >
             <X size={18} />
           </button>
           <Sidebar />
         </div>
-
-        {/* Main content */}
-        <main className="vd-main" style={L.main}>
-          {/* Mobile top bar */}
-          <header className="vd-mobile-header" style={L.mobileHeader}>
-            <button style={L.menuBtn} onClick={() => setSidebarOpen(true)} aria-label="Open menu">
-              <Menu size={20} />
-            </button>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <div style={{ ...L.brandIcon, width: 28, height: 28 }}>
-                <Store size={14} color="#f59e0b" />
-              </div>
-              <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#f0f0f5' }}>Vendor Portal</span>
-            </div>
-            <div style={L.avatarWrap}>
-              {session?.user?.image ? (
-                <Image src={session.user.image} alt="" width={28} height={28} style={{ ...L.avatarImg, width: 28, height: 28 }} />
-              ) : (
-                <div style={{ ...L.avatarFallback, width: 28, height: 28, fontSize: '0.72rem' }}>
-                  {session?.user?.name?.[0]?.toUpperCase() ?? 'V'}
-                </div>
-              )}
-            </div>
-          </header>
-
-          <div className="vd-content" style={L.content}>
-            {children}
-          </div>
-
-          {/* Spacer so bottom nav doesn't cover content */}
-          <div className="vd-bottom-spacer" />
-        </main>
-
-        {/* Mobile bottom tab bar */}
-        <nav className="vd-bottom-nav" style={L.bottomNav}>
-          {NAV_ITEMS.map(item => {
-            const active = isActive(item.href, item.exact);
-            return (
-              <Link key={item.href} href={item.href} style={{ ...L.bottomNavItem, color: active ? '#fbbf24' : '#9494b0' }}>
-                <item.icon size={20} style={{ color: active ? '#fbbf24' : '#9494b0' }} />
-                <span style={L.bottomNavLabel}>{item.short}</span>
-                {active && <span style={L.bottomNavDot} />}
-              </Link>
-            );
-          })}
-          <Link href="/vendor/dashboard/products/new" style={L.bottomNavFab} aria-label="Add product">
-            <Plus size={22} color="#0a0a0f" />
-          </Link>
-        </nav>
       </div>
-    </>
+
+      {/* Main content */}
+      <main className="flex min-w-0 flex-1 flex-col md:ml-[248px]">
+        {/* Mobile top bar */}
+        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3 md:hidden">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Open menu"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500"
+          >
+            <Menu size={20} />
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50">
+              <Store size={14} className="text-emerald-600" />
+            </div>
+            <span className="text-sm font-bold text-gray-900">Vendor Portal</span>
+          </div>
+          <div className="flex-shrink-0">
+            {session?.user?.image ? (
+              <Image
+                src={session.user.image}
+                alt=""
+                width={28}
+                height={28}
+                className="h-7 w-7 rounded-full object-cover"
+              />
+            ) : (
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">
+                {session?.user?.name?.[0]?.toUpperCase() ?? 'V'}
+              </div>
+            )}
+          </div>
+        </header>
+
+        <div className="flex-1 p-4 text-gray-900 md:px-9 md:py-8">{children}</div>
+
+        {/* Spacer so bottom nav doesn't cover content */}
+        <div
+          className="md:hidden"
+          style={{ height: `calc(${BOTTOM_NAV_H}px + env(safe-area-inset-bottom, 0px))` }}
+        />
+      </main>
+
+      {/* Mobile bottom tab bar */}
+      <nav
+        className="fixed inset-x-0 bottom-0 z-30 flex items-stretch justify-around border-t border-gray-200 bg-white/95 backdrop-blur-lg md:hidden"
+        style={{ height: BOTTOM_NAV_H, paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
+        {NAV_ITEMS.map(item => {
+          const active = isActive(item.href, item.exact);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 text-[0.62rem] font-semibold ${
+                active ? 'text-emerald-600' : 'text-gray-400'
+              }`}
+            >
+              <item.icon size={20} className={active ? 'text-emerald-600' : 'text-gray-400'} />
+              <span>{item.short}</span>
+              {active && (
+                <span className="absolute top-1.5 h-1 w-1 rounded-full bg-emerald-600" />
+              )}
+            </Link>
+          );
+        })}
+        <Link
+          href="/vendor/dashboard/products/new"
+          aria-label="Add product"
+          className="my-auto ml-1 mr-1 flex h-12.5 w-12.5 flex-shrink-0 items-center justify-center rounded-full bg-emerald-600 shadow-lg shadow-emerald-600/30"
+        >
+          <Plus size={22} className="text-white" />
+        </Link>
+      </nav>
+    </div>
   );
 }
 
 function VendorGate({ role }: { role: string }) {
   const hasApplied = role === 'user';
   return (
-    <div style={G.wrap}>
-      <style>{BASE_CSS}</style>
-      <div style={G.card}>
-        <div style={G.iconWrap}>
-          {hasApplied ? <Clock size={28} color="#f59e0b" /> : <Shield size={28} color="#818cf8" />}
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
+      <div className="w-full max-w-[440px] rounded-2xl border border-gray-200 bg-white p-10 text-center shadow-sm">
+        <div className="mx-auto mb-5 flex h-15 w-15 items-center justify-center rounded-full bg-emerald-50" style={{ width: 60, height: 60 }}>
+          {hasApplied ? <Clock size={28} className="text-emerald-600" /> : <Shield size={28} className="text-indigo-500" />}
         </div>
-        <h1 style={G.title}>Vendor Access Required</h1>
-        <p style={G.desc}>
+        <h1 className="mb-3 text-xl font-bold text-gray-900">Vendor Access Required</h1>
+        <p className="mb-7 text-sm leading-relaxed text-gray-500">
           {hasApplied
             ? "Your account hasn't been approved as a vendor yet. If you've already applied, check your email for updates."
             : 'Apply to become a vendor to access the vendor dashboard.'}
         </p>
-        <div style={G.actions}>
-          <Link href="/vendor/apply" style={G.btnPrimary}>
+        <div className="flex flex-col gap-2.5">
+          <Link
+            href="/vendor/apply"
+            className="flex items-center justify-center rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
+          >
             {hasApplied ? 'Check Application Status' : 'Apply to Become a Vendor'}
           </Link>
-          <Link href="/" style={G.btnSecondary}>Back to Home</Link>
+          <Link
+            href="/"
+            className="flex items-center justify-center rounded-xl border border-gray-300 bg-white px-6 py-3 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
+          >
+            Back to Home
+          </Link>
         </div>
       </div>
     </div>
   );
 }
-
-const BASE_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-
-  .vd-shell {
-    --vd-bg:         #0d0d12;
-    --vd-surface:    #13131a;
-    --vd-surface-2:  #1a1a24;
-    --vd-border:     rgba(255,255,255,0.07);
-    --vd-fg:         #f0f0f5;
-    --vd-muted:      #9494b0;
-    --vd-subtle:     #55556e;
-    --vd-hover:      rgba(255,255,255,0.04);
-    --vd-amber:      #f59e0b;
-    --vd-amber-dim:  rgba(245,158,11,0.12);
-    --vd-amber-ring: rgba(245,158,11,0.22);
-    --vd-bottom-nav-h: 64px;
-  }
-
-  .vd-spin { animation: vd-rotate 1s linear infinite; }
-  @keyframes vd-rotate { to { transform: rotate(360deg); } }
-
-  .vd-shell * { box-sizing: border-box; }
-  .vd-shell a { text-decoration: none; color: inherit; }
-
-  /* Scrollbar */
-  .vd-shell nav::-webkit-scrollbar { width: 3px; }
-  .vd-shell nav::-webkit-scrollbar-track { background: transparent; }
-  .vd-shell nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 999px; }
-
-  /* Sidebar transition */
-  .vd-mobile-sidebar { transition: transform 0.28s cubic-bezier(0.4,0,0.2,1); }
-
-  .vd-bottom-spacer { display: none; height: calc(var(--vd-bottom-nav-h) + env(safe-area-inset-bottom, 0px)); }
-  .vd-bottom-nav { display: none; }
-
-  @media (max-width: 768px) {
-    .vd-desktop-sidebar { display: none !important; }
-    .vd-mobile-header   { display: flex !important; }
-    .vd-main            { margin-left: 0 !important; width: 100% !important; }
-    .vd-content         { padding: 1rem !important; max-width: 100% !important; overflow-x: hidden; }
-    .vd-bottom-nav      { display: flex !important; }
-    .vd-bottom-spacer   { display: block !important; }
-  }
-
-  /* Belt-and-braces: prevent any accidental horizontal scroll on mobile */
-  @media (max-width: 768px) {
-    html, body { overflow-x: hidden; }
-    .vd-shell { overflow-x: hidden; max-width: 100vw; }
-  }
-  @media (min-width: 769px) {
-    .vd-mobile-sidebar  { display: none !important; }
-    .vd-mobile-header   { display: none !important; }
-  }
-`;
-
-const SIDEBAR_W = 248;
-
-const L: Record<string, React.CSSProperties> = {
-  shell:         { display: 'flex', minHeight: '100vh', background: '#0d0d12', fontFamily: "'DM Sans', sans-serif" },
-  desktopSidebar:{ width: SIDEBAR_W, flexShrink: 0, position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 10 } as React.CSSProperties,
-  mobileSidebar: { position: 'fixed', top: 0, left: 0, bottom: 0, width: SIDEBAR_W, zIndex: 50, willChange: 'transform' } as React.CSSProperties,
-  overlay:       { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(3px)', zIndex: 40 } as React.CSSProperties,
-  sidebar:       { width: SIDEBAR_W, height: '100%', background: '#13131a', borderRight: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
-  brand:         { display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1.25rem 1.25rem 1rem', borderBottom: '1px solid rgba(255,255,255,0.07)' },
-  brandIcon:     { width: 34, height: 34, borderRadius: 9, background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  brandName:     { fontSize: '0.9rem', fontWeight: 700, color: '#f0f0f5', lineHeight: 1.2 },
-  brandSub:      { fontSize: '0.65rem', fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: 1 },
-  userBlock:     { display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.85rem 1.1rem', margin: '0.5rem 0.75rem', background: 'rgba(255,255,255,0.03)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)' },
-  avatarWrap:    { flexShrink: 0 },
-  avatarImg:     { width: 34, height: 34, borderRadius: '50%', objectFit: 'cover' } as React.CSSProperties,
-  avatarFallback:{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(245,158,11,0.15)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: 700 },
-  userName:      { fontSize: '0.82rem', fontWeight: 600, color: '#f0f0f5', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  userEmail:     { fontSize: '0.68rem', color: '#55556e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  nav:           { flex: 1, padding: '0.5rem 0.75rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.15rem' },
-  navLabel:      { fontSize: '0.62rem', fontWeight: 700, color: '#55556e', textTransform: 'uppercase', letterSpacing: '0.12em', padding: '0.5rem 0.75rem 0.4rem' },
-  navLink:       { display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.6rem 0.75rem', borderRadius: 9, color: '#9494b0', fontSize: '0.84rem', fontWeight: 500, position: 'relative', transition: 'all 0.15s' } as React.CSSProperties,
-  navLinkActive: { background: 'rgba(245,158,11,0.08)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.15)' },
-  activeBar:     { position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: 2, height: '55%', background: '#f59e0b', borderRadius: '0 2px 2px 0' } as React.CSSProperties,
-  sideFooter:    { padding: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', gap: '0.15rem' },
-  footerLink:    { display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.55rem 0.75rem', borderRadius: 8, fontSize: '0.82rem', fontWeight: 500, transition: 'all 0.15s', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", width: '100%', textAlign: 'left' as const },
-  signOutBtn:    { color: '#f87171' },
-  mobileHeader:  { display: 'none', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: '#13131a', borderBottom: '1px solid rgba(255,255,255,0.07)', position: 'sticky', top: 0, zIndex: 20 } as React.CSSProperties,
-  menuBtn:       { width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#9494b0', cursor: 'pointer' },
-  mobileClose:   { position: 'absolute', top: '0.85rem', right: '0.85rem', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 7, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#9494b0', cursor: 'pointer', zIndex: 1 } as React.CSSProperties,
-  main:          { flex: 1, marginLeft: SIDEBAR_W, minWidth: 0, display: 'flex', flexDirection: 'column' },
-  content:       { padding: '2rem 2.25rem', flex: 1, color: '#f0f0f5' },
-  loadWrap:      { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d0d12' },
-
-  /* Bottom tab bar (mobile) */
-  bottomNav:     {
-    position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 30,
-    background: 'rgba(19,19,26,0.92)', backdropFilter: 'blur(14px)',
-    borderTop: '1px solid rgba(255,255,255,0.07)',
-    display: 'flex', alignItems: 'stretch', justifyContent: 'space-around',
-    height: 'var(--vd-bottom-nav-h)',
-    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-  } as React.CSSProperties,
-  bottomNavItem: {
-    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-    gap: '0.2rem', fontSize: '0.62rem', fontWeight: 600, position: 'relative',
-  } as React.CSSProperties,
-  bottomNavLabel:{ fontSize: '0.62rem' },
-  bottomNavDot:  { position: 'absolute', top: 6, width: 4, height: 4, borderRadius: '50%', background: '#f59e0b' },
-  bottomNavFab:  {
-    width: 50, height: 50, borderRadius: '50%', background: '#f59e0b',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    alignSelf: 'center', marginLeft: '0.25rem', marginRight: '0.25rem',
-    boxShadow: '0 4px 14px rgba(245,158,11,0.35)', flexShrink: 0,
-  } as React.CSSProperties,
-};
-
-const G: Record<string, React.CSSProperties> = {
-  wrap:       { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d0d12', fontFamily: "'DM Sans', sans-serif", padding: '1rem' },
-  card:       { maxWidth: 440, width: '100%', background: '#13131a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: '2.5rem', textAlign: 'center' },
-  iconWrap:   { width: 60, height: 60, borderRadius: '50%', background: 'rgba(245,158,11,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem' },
-  title:      { fontSize: '1.25rem', fontFamily: "'Instrument Serif', serif", fontWeight: 400, color: '#f0f0f5', marginBottom: '0.75rem' },
-  desc:       { fontSize: '0.84rem', color: '#9494b0', lineHeight: 1.7, marginBottom: '1.75rem' },
-  actions:    { display: 'flex', flexDirection: 'column', gap: '0.65rem' },
-  btnPrimary: { display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0.7rem 1.4rem', borderRadius: 10, background: '#f59e0b', color: '#0a0a0f', fontSize: '0.88rem', fontWeight: 700, textDecoration: 'none' },
-  btnSecondary:{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0.7rem 1.4rem', borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', color: '#9494b0', fontSize: '0.88rem', textDecoration: 'none' },
-};

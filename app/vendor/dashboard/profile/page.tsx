@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 
 const externalImageLoader = ({ src }: { src: string }) => src;
+const BOTTOM_NAV_H = 64;
 
 type VendorProfile = {
   id: number;
@@ -80,116 +81,145 @@ export default function VendorProfilePage() {
     } finally { setSaving(false); }
   }
 
-  if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 220 }}>
-      <Loader2 size={24} className="vd-spin" style={{ color: '#f59e0b' }} />
-      <style>{CSS}</style>
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="flex h-56 items-center justify-center">
+        <Loader2 size={24} className="animate-spin text-emerald-600" />
+      </div>
+    );
+  }
 
   const F = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [key]: e.target.value }));
 
   return (
-    <div style={P.page}>
-      <style>{CSS}</style>
-
+    <div className="max-w-[1000px] pb-24 text-gray-900 lg:pb-4">
       {/* Toast */}
       {toast && (
-        <div style={{
-          ...P.toast,
-          background:  toast.type === 'success' ? 'rgba(16,185,129,0.12)'  : 'rgba(239,68,68,0.12)',
-          borderColor: toast.type === 'success' ? 'rgba(16,185,129,0.28)'  : 'rgba(239,68,68,0.28)',
-          color:       toast.type === 'success' ? '#6ee7b7'                 : '#fca5a5',
-        }}>
+        <div
+          className={`fixed inset-x-4 top-4 z-[9999] flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-center text-sm font-semibold ${
+            toast.type === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : 'border-red-200 bg-red-50 text-red-600'
+          }`}
+        >
           {toast.type === 'success' ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
           {toast.msg}
         </div>
       )}
 
       {/* Header */}
-      <div style={P.header}>
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 style={P.h1}>Storefront Profile</h1>
-          <p style={P.subtitle}>
+          <h1 className="mb-0.5 text-2xl font-bold tracking-tight text-gray-900">Storefront Profile</h1>
+          <p className="flex flex-wrap items-center text-sm text-gray-500">
             What customers see when they visit your vendor page.
             {profile && (
-              <a href={`/vendors/${profile.slug}`} target="_blank" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', color: '#818cf8', marginLeft: '0.4rem', fontSize: '0.8rem' }}>
+              <a
+                href={`/vendors/${profile.slug}`}
+                target="_blank"
+                className="ml-1.5 inline-flex items-center gap-1 text-sm text-indigo-600 hover:underline"
+              >
                 Preview <ExternalLink size={11} />
               </a>
             )}
           </p>
         </div>
-        <button className="vd-save-desktop" style={P.btnSave} onClick={handleSave} disabled={saving}>
-          {saving ? <Loader2 size={14} className="vd-spin" /> : <Save size={14} />}
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="hidden items-center gap-1.5 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60 lg:inline-flex"
+        >
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
           {saving ? 'Saving…' : 'Save Changes'}
         </button>
       </div>
 
       {/* Slug notice */}
       {profile && (
-        <div style={P.slugNotice}>
-          <Store size={13} style={{ color: '#818cf8', flexShrink: 0 }} />
+        <div className="mb-6 flex items-center gap-2.5 rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-2.5 text-sm text-gray-600">
+          <Store size={13} className="flex-shrink-0 text-indigo-500" />
           <span>
             Store URL:{' '}
-            <strong style={{ color: '#a5b4fc', fontFamily: "'DM Mono', monospace", fontSize: '0.82rem' }}>
-              /vendors/{profile.slug}
-            </strong>
+            <strong className="font-mono text-sm text-indigo-600">/vendors/{profile.slug}</strong>
             {' '}— contact support to change.
           </span>
         </div>
       )}
 
-      <div style={P.layout} className="vd-profile-layout">
-
-        {/* Main col */}
-        <div style={P.mainCol}>
-
+      {/* Natural stacking order on all breakpoints: form fields, then
+          preview/stats. No CSS `order` reordering + `position: sticky`
+          combo here — that pairing is what caused the sidebar to visually
+          detach/float while scrolling on mobile. Sticky is now desktop-only. */}
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[1fr_260px]">
+        {/* Main column */}
+        <div className="flex flex-col gap-4">
           {/* Identity */}
-          <section style={P.section}>
-            <div style={P.sectionHeader}>
-              <h2 style={P.sectionTitle}>Store Identity</h2>
+          <section className={sectionCls}>
+            <h2 className={sectionTitleCls}>Store Identity</h2>
+            <div className="mb-4">
+              <label className={labelCls}>
+                Store Name <span className="text-red-500">*</span>
+              </label>
+              <input className={inputCls} value={form.name} onChange={F('name')} placeholder="Your business name" />
             </div>
-            <div style={P.field}>
-              <label style={P.label}>Store Name <span style={{ color: '#f87171' }}>*</span></label>
-              <input style={P.input} value={form.name} onChange={F('name')} placeholder="Your business name" />
+            <div className="mb-4">
+              <label className={labelCls}>Tagline</label>
+              <input
+                className={inputCls}
+                value={form.tagline}
+                onChange={F('tagline')}
+                maxLength={120}
+                placeholder="One-liner that sells your store"
+              />
+              <span className="mt-1 block text-xs text-gray-400">{form.tagline.length}/120 characters</span>
             </div>
-            <div style={P.field}>
-              <label style={P.label}>Tagline</label>
-              <input style={P.input} value={form.tagline} onChange={F('tagline')} maxLength={120}
-                placeholder="One-liner that sells your store" />
-              <span style={P.hint}>{form.tagline.length}/120 characters</span>
-            </div>
-            <div style={P.field}>
-              <label style={P.label}>About Your Business</label>
-              <textarea style={P.textarea} rows={4} value={form.description} onChange={F('description')}
-                placeholder="Tell entrepreneurs who you are, what you sell, and why they should choose you…" />
+            <div>
+              <label className={labelCls}>About Your Business</label>
+              <textarea
+                className={`${inputCls} resize-y leading-relaxed`}
+                rows={4}
+                value={form.description}
+                onChange={F('description')}
+                placeholder="Tell entrepreneurs who you are, what you sell, and why they should choose you…"
+              />
             </div>
           </section>
 
           {/* Branding */}
-          <section style={P.section}>
-            <div style={P.sectionHeader}>
-              <h2 style={P.sectionTitle}>Branding</h2>
-            </div>
-            <div style={P.twoCol} className="vd-two-col">
-              <div style={P.field}>
-                <label style={P.label}>Logo URL</label>
-                <input style={P.input} value={form.logo} onChange={F('logo')} placeholder="https://…" />
+          <section className={sectionCls}>
+            <h2 className={sectionTitleCls}>Branding</h2>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className={labelCls}>Logo URL</label>
+                <input className={inputCls} value={form.logo} onChange={F('logo')} placeholder="https://…" />
                 {form.logo && (
-                  <div style={{ marginTop: '0.6rem' }}>
-                    <Image loader={externalImageLoader} src={form.logo} alt="logo" width={48} height={48}
-                      style={{ width: 48, height: 48, borderRadius: 10, objectFit: 'cover', border: '1px solid rgba(255,255,255,0.1)' }} />
+                  <div className="mt-2.5">
+                    <Image
+                      loader={externalImageLoader}
+                      src={form.logo}
+                      alt="logo"
+                      width={48}
+                      height={48}
+                      className="h-12 w-12 rounded-xl border border-gray-200 object-cover"
+                    />
                   </div>
                 )}
               </div>
-              <div style={P.field}>
-                <label style={P.label}>Cover Image URL</label>
-                <input style={P.input} value={form.coverImage} onChange={F('coverImage')} placeholder="https://…" />
+              <div>
+                <label className={labelCls}>Cover Image URL</label>
+                <input className={inputCls} value={form.coverImage} onChange={F('coverImage')} placeholder="https://…" />
                 {form.coverImage && (
-                  <div style={{ marginTop: '0.6rem' }}>
-                    <Image loader={externalImageLoader} src={form.coverImage} alt="cover" width={320} height={68}
-                      style={{ width: '100%', height: 68, borderRadius: 8, objectFit: 'cover', border: '1px solid rgba(255,255,255,0.1)' }} />
+                  <div className="mt-2.5">
+                    <Image
+                      loader={externalImageLoader}
+                      src={form.coverImage}
+                      alt="cover"
+                      width={320}
+                      height={68}
+                      className="h-17 w-full rounded-lg border border-gray-200 object-cover"
+                    />
                   </div>
                 )}
               </div>
@@ -197,109 +227,140 @@ export default function VendorProfilePage() {
           </section>
 
           {/* Contact */}
-          <section style={P.section}>
-            <div style={P.sectionHeader}>
-              <h2 style={P.sectionTitle}>Contact & Location</h2>
-            </div>
-            <div style={P.twoCol} className="vd-two-col">
-              <div style={P.field}>
-                <label style={P.label}><Globe size={11} /> Website</label>
-                <input style={P.input} value={form.website} onChange={F('website')} placeholder="https://yourbusiness.com" />
+          <section className={sectionCls}>
+            <h2 className={sectionTitleCls}>Contact & Location</h2>
+            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className={labelCls}><Globe size={11} /> Website</label>
+                <input className={inputCls} value={form.website} onChange={F('website')} placeholder="https://yourbusiness.com" />
               </div>
-              <div style={P.field}>
-                <label style={P.label}><MapPin size={11} /> Location</label>
-                <input style={P.input} value={form.location} onChange={F('location')} placeholder="Nairobi, Kenya" />
+              <div>
+                <label className={labelCls}><MapPin size={11} /> Location</label>
+                <input className={inputCls} value={form.location} onChange={F('location')} placeholder="Nairobi, Kenya" />
               </div>
             </div>
-            <div style={P.field}>
-              <label style={P.label}><Phone size={11} /> Phone</label>
-              <input value={form.phone} onChange={F('phone')} placeholder="+254 700 000 000" style={{ ...P.input, maxWidth: 280 }} className="vd-phone-input" />
+            <div>
+              <label className={labelCls}><Phone size={11} /> Phone</label>
+              <input
+                className={`${inputCls} sm:max-w-[280px]`}
+                value={form.phone}
+                onChange={F('phone')}
+                placeholder="+254 700 000 000"
+              />
             </div>
           </section>
 
           {/* Social */}
-          <section style={P.section}>
-            <div style={P.sectionHeader}>
-              <h2 style={P.sectionTitle}>Social Links</h2>
-            </div>
-            <div style={P.twoCol} className="vd-two-col">
-              {([
-                { icon: <Twitter size={11} />,   key: 'twitterUrl',   label: 'Twitter / X',  ph: 'https://x.com/…' },
-                { icon: <Instagram size={11} />, key: 'instagramUrl', label: 'Instagram',     ph: 'https://instagram.com/…' },
-                { icon: <Facebook size={11} />,  key: 'facebookUrl',  label: 'Facebook',      ph: 'https://facebook.com/…' },
-                { icon: <Linkedin size={11} />,  key: 'linkedinUrl',  label: 'LinkedIn',      ph: 'https://linkedin.com/…' },
-              ] as { icon: React.ReactNode; key: keyof typeof form; label: string; ph: string }[]).map(({ icon, key, label, ph }) => (
-                <div key={key} style={P.field}>
-                  <label style={P.label}>{icon} {label}</label>
-                  <input style={P.input} value={(form as any)[key]} onChange={F(key)} placeholder={ph} />
+          <section className={sectionCls}>
+            <h2 className={sectionTitleCls}>Social Links</h2>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {(
+                [
+                  { icon: <Twitter size={11} />, key: 'twitterUrl', label: 'Twitter / X', ph: 'https://x.com/…' },
+                  { icon: <Instagram size={11} />, key: 'instagramUrl', label: 'Instagram', ph: 'https://instagram.com/…' },
+                  { icon: <Facebook size={11} />, key: 'facebookUrl', label: 'Facebook', ph: 'https://facebook.com/…' },
+                  { icon: <Linkedin size={11} />, key: 'linkedinUrl', label: 'LinkedIn', ph: 'https://linkedin.com/…' },
+                ] as { icon: React.ReactNode; key: keyof typeof form; label: string; ph: string }[]
+              ).map(({ icon, key, label, ph }) => (
+                <div key={key}>
+                  <label className={labelCls}>{icon} {label}</label>
+                  <input className={inputCls} value={(form as any)[key]} onChange={F(key)} placeholder={ph} />
                 </div>
               ))}
             </div>
           </section>
         </div>
 
-        {/* Sidebar */}
-        <div style={P.sideCol} className="vd-profile-sidebar">
-
+        {/* Sidebar — sticky only from lg breakpoint up, never on mobile */}
+        <div className="flex flex-col gap-3.5 lg:sticky lg:top-4">
           {/* Preview card */}
-          <div style={P.sideCard}>
-            <div style={P.sideCardLabel}>Live Preview</div>
-            <div style={P.mockup}>
-              <div style={{ ...P.mockupCover, backgroundImage: form.coverImage ? `url(${form.coverImage})` : undefined, background: form.coverImage ? undefined : 'linear-gradient(135deg,rgba(99,102,241,0.15),rgba(245,158,11,0.1))' }} />
-              <div style={P.mockupBody}>
+          <div className={sideCardCls}>
+            <div className={sideCardLabelCls}>Live Preview</div>
+            <div className="overflow-hidden rounded-xl border border-gray-200">
+              <div
+                className="h-17 bg-cover bg-center"
+                style={{
+                  backgroundImage: form.coverImage ? `url(${form.coverImage})` : undefined,
+                  background: form.coverImage ? undefined : 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(16,185,129,0.1))',
+                }}
+              />
+              <div className="bg-white p-3">
                 {form.logo ? (
-                  <Image loader={externalImageLoader} src={form.logo} alt="" width={40} height={40} style={P.mockupLogo as React.CSSProperties} />
+                  <Image
+                    loader={externalImageLoader}
+                    src={form.logo}
+                    alt=""
+                    width={42}
+                    height={42}
+                    className="-mt-5 mb-2 h-10.5 w-10.5 rounded-lg border-2 border-white object-cover shadow-sm"
+                  />
                 ) : (
-                  <div style={{ ...P.mockupLogo, background: 'rgba(245,158,11,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' } as React.CSSProperties}>
-                    <Store size={18} color="#f59e0b" />
+                  <div className="-mt-5 mb-2 flex h-10.5 w-10.5 items-center justify-center rounded-lg border-2 border-white bg-emerald-50 shadow-sm">
+                    <Store size={18} className="text-emerald-600" />
                   </div>
                 )}
-                <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#f0f0f5', marginBottom: '0.15rem' }}>{form.name || 'Your Store Name'}</div>
-                {form.tagline && <div style={{ fontSize: '0.74rem', color: '#9494b0', lineHeight: 1.4, marginBottom: '0.3rem' }}>{form.tagline}</div>}
+                <div className="mb-0.5 text-sm font-bold text-gray-900">{form.name || 'Your Store Name'}</div>
+                {form.tagline && <div className="mb-1 text-xs leading-snug text-gray-500">{form.tagline}</div>}
                 {form.location && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.7rem', color: '#55556e' }}>
+                  <div className="flex items-center gap-1 text-xs text-gray-400">
                     <MapPin size={9} /> {form.location}
                   </div>
                 )}
               </div>
             </div>
-            <div style={{ fontSize: '0.68rem', color: '#3a3a56', textAlign: 'center', marginTop: '0.6rem' }}>Updates as you type</div>
+            <div className="mt-2 text-center text-[0.68rem] text-gray-300">Updates as you type</div>
           </div>
 
           {/* Account stats */}
           {profile && (
-            <div style={P.sideCard}>
-              <div style={P.sideCardLabel}>Account Stats</div>
+            <div className={sideCardCls}>
+              <div className={sideCardLabelCls}>Account Stats</div>
               {[
-                { key: 'Products',  val: profile._count.products.toString() },
-                { key: 'Status',    val: profile.status },
+                { key: 'Products', val: profile._count.products.toString() },
+                { key: 'Status', val: profile.status },
                 ...(profile.isVerified ? [{ key: 'Verified', val: '✓ Yes' }] : []),
               ].map(row => (
-                <div key={row.key} style={P.statRow}>
-                  <span style={{ fontSize: '0.78rem', color: '#55556e' }}>{row.key}</span>
-                  <span style={{
-                    fontSize: '0.82rem', fontWeight: 700, fontFamily: "'DM Mono', monospace",
-                    color: row.key === 'Status'
-                      ? profile.status === 'ACTIVE' ? '#34d399' : '#fbbf24'
-                      : row.key === 'Verified' ? '#34d399' : '#e2e2f0',
-                  }}>{row.val}</span>
+                <div key={row.key} className="flex items-center justify-between border-b border-gray-100 py-2 last:border-0">
+                  <span className="text-sm text-gray-500">{row.key}</span>
+                  <span
+                    className={`font-mono text-sm font-bold ${
+                      row.key === 'Status'
+                        ? profile.status === 'ACTIVE' ? 'text-emerald-600' : 'text-amber-600'
+                        : row.key === 'Verified' ? 'text-emerald-600' : 'text-gray-800'
+                    }`}
+                  >
+                    {row.val}
+                  </span>
                 </div>
               ))}
             </div>
           )}
 
-          {/* Save button repeated on sidebar for convenience (desktop only) */}
-          <button className="vd-save-desktop" style={{ ...P.btnSave, width: '100%', justifyContent: 'center' }} onClick={handleSave} disabled={saving}>
-            {saving ? <Loader2 size={14} className="vd-spin" /> : <Save size={14} />}
+          {/* Desktop-only sidebar save button */}
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="hidden w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60 lg:inline-flex"
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             {saving ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
       </div>
 
       {/* Sticky mobile save bar */}
-      <div className="vd-sticky-save">
-        <button style={{ ...P.btnSave, width: '100%', justifyContent: 'center' }} onClick={handleSave} disabled={saving}>
-          {saving ? <Loader2 size={14} className="vd-spin" /> : <Save size={14} />}
+      <div
+        className="fixed inset-x-0 z-20 border-t border-gray-200 bg-white/95 px-4 py-2.5 backdrop-blur-lg lg:hidden"
+        style={{ bottom: `calc(${BOTTOM_NAV_H}px + env(safe-area-inset-bottom, 0px))` }}
+      >
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
+        >
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
           {saving ? 'Saving…' : 'Save Changes'}
         </button>
       </div>
@@ -307,65 +368,10 @@ export default function VendorProfilePage() {
   );
 }
 
-const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-  @keyframes vd-spin { to { transform: rotate(360deg); } }
-  .vd-spin { animation: vd-spin 1s linear infinite; }
-  a { text-decoration: none; }
-  .vd-profile-layout { display: grid; grid-template-columns: 1fr 260px; gap: 1.25rem; align-items: start; }
-  .vd-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
-  .vd-sticky-save { display: none; }
-
-  @media (max-width: 860px) {
-    .vd-profile-layout { grid-template-columns: 1fr !important; }
-  }
-  @media (max-width: 520px) {
-    .vd-two-col { grid-template-columns: 1fr !important; }
-    .vd-phone-input { max-width: 100% !important; }
-  }
-
-  @media (max-width: 768px) {
-    .vd-save-desktop { display: none !important; }
-    .vd-profile-sidebar { order: -1; }
-    .vd-sticky-save {
-      display: block;
-      position: fixed;
-      left: 0; right: 0;
-      bottom: calc(var(--vd-bottom-nav-h, 64px) + env(safe-area-inset-bottom, 0px));
-      padding: 0.65rem 1rem;
-      background: rgba(13,13,18,0.92);
-      backdrop-filter: blur(14px);
-      border-top: 1px solid rgba(255,255,255,0.07);
-      z-index: 25;
-    }
-  }
-`;
-
-const P: Record<string, React.CSSProperties> = {
-  page:       { fontFamily: "'DM Sans', sans-serif", color: '#f0f0f5', maxWidth: 1000, paddingBottom: '4.5rem' },
-  toast:      { position: 'fixed', top: '1rem', right: '1rem', left: '1rem', zIndex: 9999, padding: '0.7rem 1.1rem', borderRadius: 10, fontSize: '0.82rem', fontWeight: 600, border: '1px solid', display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' },
-  header:     { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' },
-  h1:         { fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.025em', marginBottom: '0.2rem', color: '#f0f0f5' },
-  subtitle:   { fontSize: '0.81rem', color: '#55556e', display: 'flex', alignItems: 'center', flexWrap: 'wrap' },
-  slugNotice: { display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.65rem 1rem', borderRadius: 9, background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.14)', fontSize: '0.79rem', color: '#9494b0', marginBottom: '1.5rem' },
-  layout:     {},
-  mainCol:    { display: 'flex', flexDirection: 'column', gap: '1rem' },
-  sideCol:    { display: 'flex', flexDirection: 'column', gap: '0.85rem', position: 'sticky', top: '1rem' } as React.CSSProperties,
-  section:    { background: '#13131a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 13, padding: '1.25rem' },
-  sectionHeader:{ marginBottom: '1rem' },
-  sectionTitle: { fontSize: '0.88rem', fontWeight: 700, color: '#e2e2f0' },
-  field:      { marginBottom: '0.9rem' },
-  label:      { display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.7rem', fontWeight: 700, color: '#9494b0', marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.07em' },
-  input:      { width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 8, padding: '0.58rem 0.85rem', color: '#f0f0f5', fontFamily: "'DM Sans', sans-serif", fontSize: '0.85rem', outline: 'none' },
-  textarea:   { width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 8, padding: '0.58rem 0.85rem', color: '#f0f0f5', fontFamily: "'DM Sans', sans-serif", fontSize: '0.85rem', outline: 'none', resize: 'vertical', lineHeight: 1.6 },
-  hint:       { fontSize: '0.7rem', color: '#55556e', marginTop: '0.2rem', display: 'block' },
-  twoCol:     {},
-  sideCard:   { background: '#13131a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 13, padding: '1rem 1.1rem' },
-  sideCardLabel: { fontSize: '0.65rem', fontWeight: 700, color: '#55556e', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.75rem' },
-  mockup:     { borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.07)' },
-  mockupCover:{ height: 70, backgroundSize: 'cover', backgroundPosition: 'center' },
-  mockupBody: { padding: '0.7rem', background: '#1a1a24' },
-  mockupLogo: { width: 42, height: 42, borderRadius: 9, objectFit: 'cover', border: '2px solid #0f0f1a', marginTop: -22, marginBottom: '0.45rem' },
-  statRow:    { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0', borderBottom: '1px solid rgba(255,255,255,0.04)' },
-  btnSave:    { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 1.2rem', borderRadius: 9, background: '#f59e0b', color: '#0a0a0f', fontSize: '0.84rem', fontWeight: 700, border: 'none', cursor: 'pointer' },
-};
+const sectionCls = 'rounded-2xl border border-gray-200 bg-white p-5';
+const sectionTitleCls = 'mb-4 text-sm font-bold text-gray-900';
+const labelCls = 'mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-gray-500';
+const inputCls =
+  'w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 outline-none transition-all duration-150 placeholder:text-gray-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100';
+const sideCardCls = 'rounded-2xl border border-gray-200 bg-white p-4';
+const sideCardLabelCls = 'mb-3 text-[0.65rem] font-bold uppercase tracking-wider text-gray-400';

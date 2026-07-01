@@ -1,5 +1,5 @@
 'use client';
-// components/vendor/VendorStorefront.tsx
+// components/vendors/VendorStorefront.tsx
 import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -64,88 +64,86 @@ export default function VendorStorefront({ vendor }: { vendor: Vendor }) {
   const hasSocials = vendor.twitterUrl || vendor.instagramUrl || vendor.facebookUrl || vendor.linkedinUrl;
 
   return (
-    <div style={S.page}>
-      <style>{CSS}</style>
-
+    <div className="min-h-screen bg-white text-gray-900">
       {/* Back */}
-      <div style={S.topBar}>
-        <Link href="/marketplace" style={S.backLink} className="vs-back">
+      <div className="mx-auto max-w-[1140px] px-6 pt-4">
+        <Link
+          href="/marketplace"
+          className="inline-flex items-center gap-1.5 text-sm text-gray-400 transition-colors hover:text-emerald-600"
+        >
           <ArrowLeft size={13} /> Marketplace
         </Link>
       </div>
 
-      <div style={S.shell} className="vs-shell">
-
-        {/* ── LEFT SIDEBAR ── */}
-        <aside style={S.sidebar} className="vs-sidebar">
-          <div style={S.sidebarInner}>
-
+      <div className="mx-auto grid max-w-[1140px] grid-cols-1 items-start lg:grid-cols-[260px_1fr]">
+        {/* ── LEFT SIDEBAR (desktop only) ── */}
+        <aside className="hidden max-h-[calc(100vh-4rem)] overflow-y-auto border-r border-gray-100 py-6 lg:sticky lg:top-16 lg:block">
+          <div className="px-6">
             {/* Logo + name */}
-            <div style={S.vendorHead}>
-              <div style={S.logoWrap}>
+            <div className="mb-5 flex items-center gap-3.5">
+              <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-2xl border border-gray-200 bg-gray-50">
                 {vendor.logo ? (
-                  <Image src={vendor.logo} alt={vendor.name} fill
-                    style={{ objectFit: 'cover' }} sizes="72px" />
+                  <Image src={vendor.logo} alt={vendor.name} fill style={{ objectFit: 'cover' }} sizes="56px" />
                 ) : (
-                  <div style={S.logoFallback}>
-                    <Package size={22} color="#f59e0b" />
+                  <div className="flex h-full w-full items-center justify-center bg-emerald-50">
+                    <Package size={22} className="text-emerald-500" />
                   </div>
                 )}
               </div>
               <div>
-                <h1 style={S.vendorName}>{vendor.name}</h1>
+                <h1 className="text-base font-bold leading-snug tracking-tight text-gray-900">{vendor.name}</h1>
                 {vendor.isVerified && (
-                  <span style={S.verifiedBadge}>
+                  <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[0.66rem] font-semibold text-emerald-600">
                     <CheckCircle2 size={11} /> Verified
                   </span>
                 )}
               </div>
             </div>
 
-            <div style={S.divider} />
+            <div className="my-4 h-px bg-gray-100" />
 
             {/* Stats */}
-            <div style={S.statsRow}>
-              <div style={S.stat}>
-                <div style={S.statVal}>{activeProducts}</div>
-                <div style={S.statLbl}>Products</div>
+            <div className="flex items-center">
+              <div className="flex-1 text-center">
+                <div className="font-mono text-lg font-bold text-gray-900">{activeProducts}</div>
+                <div className="mt-0.5 text-[0.65rem] uppercase tracking-wider text-gray-400">Products</div>
               </div>
-              <div style={S.statDivider} />
-              <div style={S.stat}>
-                <div style={S.statVal}>{totalReviews}</div>
-                <div style={S.statLbl}>Reviews</div>
+              <div className="h-7 w-px bg-gray-100" />
+              <div className="flex-1 text-center">
+                <div className="font-mono text-lg font-bold text-gray-900">{totalReviews}</div>
+                <div className="mt-0.5 text-[0.65rem] uppercase tracking-wider text-gray-400">Reviews</div>
               </div>
-              <div style={S.statDivider} />
-              <div style={S.stat}>
-                <div style={S.statVal}>{memberSince}</div>
-                <div style={S.statLbl}>Since</div>
+              <div className="h-7 w-px bg-gray-100" />
+              <div className="flex-1 text-center">
+                <div className="font-mono text-lg font-bold text-gray-900">{memberSince}</div>
+                <div className="mt-0.5 text-[0.65rem] uppercase tracking-wider text-gray-400">Since</div>
               </div>
             </div>
 
-            <div style={S.divider} />
+            <div className="my-4 h-px bg-gray-100" />
 
             {/* Contact info */}
-            <div style={S.metaList}>
+            <div className="flex flex-col gap-2.5">
               {vendor.location && (
-                <div style={S.metaItem}>
-                  <MapPin size={13} style={{ color: '#55556e', flexShrink: 0 }} />
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <MapPin size={13} className="flex-shrink-0 text-gray-400" />
                   <span>{vendor.location}</span>
                 </div>
               )}
               {vendor.phone && (
-                <div style={S.metaItem}>
-                  <Phone size={13} style={{ color: '#55556e', flexShrink: 0 }} />
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Phone size={13} className="flex-shrink-0 text-gray-400" />
                   <span>{vendor.phone}</span>
                 </div>
               )}
               {vendor.website && (
-                <div style={S.metaItem}>
-                  <Globe size={13} style={{ color: '#55556e', flexShrink: 0 }} />
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Globe size={13} className="flex-shrink-0 text-gray-400" />
                   <a
                     href={vendor.website}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={S.websiteLink}
+                    className="inline-flex items-center gap-1 text-indigo-600 hover:underline"
                   >
                     {vendor.website.replace(/^https?:\/\//, '')}
                     <ExternalLink size={10} />
@@ -154,13 +152,13 @@ export default function VendorStorefront({ vendor }: { vendor: Vendor }) {
               )}
             </div>
 
-            {/* About — always visible on desktop */}
+            {/* About */}
             {vendor.description && (
               <>
-                <div style={S.divider} />
+                <div className="my-4 h-px bg-gray-100" />
                 <div>
-                  <div style={S.sideLabel}>About</div>
-                  <p style={S.aboutText}>{vendor.description}</p>
+                  <div className="mb-2 text-[0.62rem] font-bold uppercase tracking-widest text-gray-400">About</div>
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-500">{vendor.description}</p>
                 </div>
               </>
             )}
@@ -168,30 +166,14 @@ export default function VendorStorefront({ vendor }: { vendor: Vendor }) {
             {/* Socials */}
             {hasSocials && (
               <>
-                <div style={S.divider} />
+                <div className="my-4 h-px bg-gray-100" />
                 <div>
-                  <div style={S.sideLabel}>Find us on</div>
-                  <div style={S.socialsRow}>
-                    {vendor.twitterUrl && (
-                      <a href={vendor.twitterUrl} target="_blank" rel="noopener noreferrer" style={S.socialIcon} title="Twitter / X">
-                        <Twitter size={14} />
-                      </a>
-                    )}
-                    {vendor.instagramUrl && (
-                      <a href={vendor.instagramUrl} target="_blank" rel="noopener noreferrer" style={S.socialIcon} title="Instagram">
-                        <Instagram size={14} />
-                      </a>
-                    )}
-                    {vendor.facebookUrl && (
-                      <a href={vendor.facebookUrl} target="_blank" rel="noopener noreferrer" style={S.socialIcon} title="Facebook">
-                        <Facebook size={14} />
-                      </a>
-                    )}
-                    {vendor.linkedinUrl && (
-                      <a href={vendor.linkedinUrl} target="_blank" rel="noopener noreferrer" style={S.socialIcon} title="LinkedIn">
-                        <Linkedin size={14} />
-                      </a>
-                    )}
+                  <div className="mb-2 text-[0.62rem] font-bold uppercase tracking-widest text-gray-400">Find us on</div>
+                  <div className="flex flex-wrap gap-2">
+                    {vendor.twitterUrl && <SocialIcon href={vendor.twitterUrl} label="Twitter / X"><Twitter size={14} /></SocialIcon>}
+                    {vendor.instagramUrl && <SocialIcon href={vendor.instagramUrl} label="Instagram"><Instagram size={14} /></SocialIcon>}
+                    {vendor.facebookUrl && <SocialIcon href={vendor.facebookUrl} label="Facebook"><Facebook size={14} /></SocialIcon>}
+                    {vendor.linkedinUrl && <SocialIcon href={vendor.linkedinUrl} label="LinkedIn"><Linkedin size={14} /></SocialIcon>}
                   </div>
                 </div>
               </>
@@ -200,31 +182,33 @@ export default function VendorStorefront({ vendor }: { vendor: Vendor }) {
         </aside>
 
         {/* ── MAIN CONTENT ── */}
-        <main style={S.main}>
-
-          {/* Mobile vendor header — compact, no sidebar */}
-          <div style={S.mobileHeader} className="vs-mobile-header">
-            <div style={S.mobileVendorRow}>
-              <div style={{ ...S.logoWrap, width: 52, height: 52, borderRadius: 12 }}>
+        <main className="min-w-0 px-5 py-6 sm:px-7">
+          {/* Mobile vendor header */}
+          <div className="mb-6 rounded-2xl border border-gray-200 bg-gray-50 p-4 lg:hidden">
+            <div className="mb-3 flex items-center gap-3.5">
+              <div className="relative h-13 w-13 flex-shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-white">
                 {vendor.logo ? (
-                  <Image src={vendor.logo} alt={vendor.name} fill
-                    style={{ objectFit: 'cover' }} sizes="52px" />
+                  <Image src={vendor.logo} alt={vendor.name} fill style={{ objectFit: 'cover' }} sizes="52px" />
                 ) : (
-                  <div style={S.logoFallback}><Package size={18} color="#f59e0b" /></div>
+                  <div className="flex h-full w-full items-center justify-center bg-emerald-50">
+                    <Package size={18} className="text-emerald-500" />
+                  </div>
                 )}
               </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <h1 style={{ ...S.vendorName, fontSize: '1.1rem' }}>{vendor.name}</h1>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-lg font-bold tracking-tight text-gray-900">{vendor.name}</h1>
                   {vendor.isVerified && (
-                    <span style={S.verifiedBadge}><CheckCircle2 size={10} /> Verified</span>
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[0.62rem] font-semibold text-emerald-600">
+                      <CheckCircle2 size={10} /> Verified
+                    </span>
                   )}
                 </div>
-                <div style={{ display: 'flex', gap: '1rem', marginTop: '0.35rem' }}>
-                  <span style={S.mobileStatChip}><strong>{activeProducts}</strong> products</span>
-                  <span style={S.mobileStatChip}><strong>{totalReviews}</strong> reviews</span>
+                <div className="mt-1 flex flex-wrap gap-3">
+                  <span className="text-xs text-gray-500"><strong className="text-gray-700">{activeProducts}</strong> products</span>
+                  <span className="text-xs text-gray-500"><strong className="text-gray-700">{totalReviews}</strong> reviews</span>
                   {vendor.location && (
-                    <span style={S.mobileStatChip}>
+                    <span className="inline-flex items-center gap-1 text-xs text-gray-500">
                       <MapPin size={10} /> {vendor.location}
                     </span>
                   )}
@@ -232,27 +216,27 @@ export default function VendorStorefront({ vendor }: { vendor: Vendor }) {
               </div>
             </div>
 
-            {/* About accordion — mobile only */}
+            {/* About accordion */}
             {vendor.description && (
               <button
-                style={S.accordionBtn}
+                type="button"
                 onClick={() => setAboutOpen(o => !o)}
                 aria-expanded={aboutOpen}
+                className="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-semibold text-gray-600"
               >
                 <span>About {vendor.name}</span>
                 {aboutOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               </button>
             )}
             {aboutOpen && vendor.description && (
-              <div style={S.accordionBody}>
-                <p style={{ ...S.aboutText, fontSize: '0.84rem' }}>{vendor.description}</p>
-                {/* Show socials inside accordion on mobile if they exist */}
+              <div className="mt-2.5 rounded-lg border border-gray-200 bg-white p-3.5">
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-500">{vendor.description}</p>
                 {hasSocials && (
-                  <div style={{ ...S.socialsRow, marginTop: '0.85rem' }}>
-                    {vendor.twitterUrl && <a href={vendor.twitterUrl} target="_blank" rel="noopener noreferrer" style={S.socialIcon}><Twitter size={14} /></a>}
-                    {vendor.instagramUrl && <a href={vendor.instagramUrl} target="_blank" rel="noopener noreferrer" style={S.socialIcon}><Instagram size={14} /></a>}
-                    {vendor.facebookUrl && <a href={vendor.facebookUrl} target="_blank" rel="noopener noreferrer" style={S.socialIcon}><Facebook size={14} /></a>}
-                    {vendor.linkedinUrl && <a href={vendor.linkedinUrl} target="_blank" rel="noopener noreferrer" style={S.socialIcon}><Linkedin size={14} /></a>}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {vendor.twitterUrl && <SocialIcon href={vendor.twitterUrl} label="Twitter / X"><Twitter size={14} /></SocialIcon>}
+                    {vendor.instagramUrl && <SocialIcon href={vendor.instagramUrl} label="Instagram"><Instagram size={14} /></SocialIcon>}
+                    {vendor.facebookUrl && <SocialIcon href={vendor.facebookUrl} label="Facebook"><Facebook size={14} /></SocialIcon>}
+                    {vendor.linkedinUrl && <SocialIcon href={vendor.linkedinUrl} label="LinkedIn"><Linkedin size={14} /></SocialIcon>}
                   </div>
                 )}
               </div>
@@ -260,25 +244,31 @@ export default function VendorStorefront({ vendor }: { vendor: Vendor }) {
           </div>
 
           {/* Products header + view toggle */}
-          <div style={S.productsHeader}>
+          <div className="mb-6 flex items-end justify-between">
             <div>
-              <h2 style={S.productsTitle}>Products</h2>
-              <p style={S.productsCount}>{activeProducts} listing{activeProducts !== 1 ? 's' : ''}</p>
+              <h2 className="text-lg font-bold tracking-tight text-gray-900">Products</h2>
+              <p className="mt-0.5 text-xs text-gray-400">{activeProducts} listing{activeProducts !== 1 ? 's' : ''}</p>
             </div>
-            <div style={S.viewToggle}>
+            <div className="flex gap-0.5 rounded-lg border border-gray-200 bg-gray-50 p-1">
               <button
-                style={{ ...S.toggleBtn, ...(viewMode === 'grid' ? S.toggleBtnActive : {}) }}
+                type="button"
                 onClick={() => setViewMode('grid')}
                 title="Grid view"
                 aria-pressed={viewMode === 'grid'}
+                className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+                  viewMode === 'grid' ? 'bg-emerald-100 text-emerald-700' : 'text-gray-400 hover:text-gray-600'
+                }`}
               >
                 <LayoutGrid size={14} />
               </button>
               <button
-                style={{ ...S.toggleBtn, ...(viewMode === 'list' ? S.toggleBtnActive : {}) }}
+                type="button"
                 onClick={() => setViewMode('list')}
                 title="List view"
                 aria-pressed={viewMode === 'list'}
+                className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+                  viewMode === 'list' ? 'bg-emerald-100 text-emerald-700' : 'text-gray-400 hover:text-gray-600'
+                }`}
               >
                 <List size={14} />
               </button>
@@ -287,26 +277,28 @@ export default function VendorStorefront({ vendor }: { vendor: Vendor }) {
 
           {/* Empty state */}
           {vendor.products.length === 0 ? (
-            <div style={S.emptyState}>
-              <Package size={28} style={{ color: '#3a3a56', marginBottom: '0.65rem' }} />
-              <p style={{ color: '#55556e', fontSize: '0.84rem' }}>No products listed yet</p>
+            <div className="rounded-2xl border border-dashed border-gray-300 py-16 text-center">
+              <Package size={28} className="mx-auto mb-2.5 text-gray-300" />
+              <p className="text-sm text-gray-400">No products listed yet</p>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <div className="flex flex-col gap-8">
               {Object.entries(productsByCategory).map(([category, products]) => (
                 <section key={category}>
-                  <div style={S.categoryHead}>
-                    <span style={S.categoryLabel}>{category}</span>
-                    <div style={S.categoryLine} />
-                    <span style={S.categoryCount}>{products.length}</span>
+                  <div className="mb-3.5 flex items-center gap-3">
+                    <span className="whitespace-nowrap text-xs font-bold uppercase tracking-widest text-gray-500">
+                      {category}
+                    </span>
+                    <div className="h-px flex-1 bg-gray-100" />
+                    <span className="flex-shrink-0 font-mono text-xs text-gray-400">{products.length}</span>
                   </div>
 
                   {viewMode === 'grid' ? (
-                    <div className="vs-product-grid" style={S.productGrid}>
+                    <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 lg:grid-cols-3">
                       {products.map(p => <ProductCardGrid key={p.id} product={p} />)}
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                    <div className="flex flex-col gap-2.5">
                       {products.map(p => <ProductCardList key={p.id} product={p} />)}
                     </div>
                   )}
@@ -320,37 +312,74 @@ export default function VendorStorefront({ vendor }: { vendor: Vendor }) {
   );
 }
 
+function SocialIcon({ href, label, children }: { href: string; label: string; children: React.ReactNode }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={label}
+      className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 transition-colors hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-600"
+    >
+      {children}
+    </a>
+  );
+}
+
 /* ── GRID CARD ─────────────────────────────────────────────────── */
 function ProductCardGrid({ product }: { product: Product }) {
   const price = priceStr(product);
   return (
-    <div style={G.card} className="vs-card">
-      {product.isFeatured && <div style={G.featured}><Star size={9} fill="currentColor" /> Featured</div>}
-      <div style={G.imageWrap}>
+    <div className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-lg">
+      {product.isFeatured && (
+        <div className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[0.64rem] font-bold text-amber-700">
+          <Star size={9} fill="currentColor" /> Featured
+        </div>
+      )}
+      <div className="relative h-36 bg-gray-50 sm:h-40">
         {product.image ? (
-          <Image src={product.image} alt={product.name} fill
-            style={{ objectFit: 'cover' }} sizes="(max-width: 640px) 50vw, 280px" />
+          <Image src={product.image} alt={product.name} fill style={{ objectFit: 'cover' }} sizes="(max-width: 640px) 50vw, 280px" />
         ) : (
-          <div style={G.imageFallback}><Package size={20} color="#3a3a56" /></div>
+          <div className="flex h-full w-full items-center justify-center">
+            <Package size={20} className="text-gray-300" />
+          </div>
         )}
       </div>
-      <div style={G.body}>
+      <div className="p-3">
         {product.template && (
-          <Link href={`/marketplace?templateId=${product.template.id}`} style={G.reqTag}>
+          <Link
+            href={`/marketplace?templateId=${product.template.id}`}
+            className="mb-1.5 inline-flex rounded-full border border-indigo-100 bg-indigo-50 px-2 py-0.5 text-[0.65rem] font-semibold text-indigo-600"
+          >
             {product.template.name}
           </Link>
         )}
-        <h3 style={G.name}>{product.name}</h3>
-        {product.description && <p style={G.desc}>{product.description}</p>}
-        <div style={G.footer}>
-          <span style={G.price}>{price}</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <span style={G.stat}><ShoppingCart size={10} /> {product._count.cartItems}</span>
-            {product._count.reviews > 0 && <span style={G.stat}><Star size={10} /> {product._count.reviews}</span>}
+        <h3 className="mb-1 line-clamp-2 text-sm font-semibold leading-snug text-gray-900">{product.name}</h3>
+        {product.description && (
+          <p className="mb-2.5 text-xs leading-relaxed text-gray-400" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+            {product.description}
+          </p>
+        )}
+        <div className="mb-2.5 flex items-center justify-between">
+          <span className="font-mono text-sm font-bold text-emerald-600">{price}</span>
+          <div className="flex items-center gap-2.5">
+            <span className="inline-flex items-center gap-1 text-[0.65rem] text-gray-300">
+              <ShoppingCart size={10} /> {product._count.cartItems}
+            </span>
+            {product._count.reviews > 0 && (
+              <span className="inline-flex items-center gap-1 text-[0.65rem] text-gray-300">
+                <Star size={10} /> {product._count.reviews}
+              </span>
+            )}
           </div>
         </div>
         {product.url && (
-          <a href={product.url} target="_blank" rel="noopener noreferrer" style={G.buyBtn}>
+          <a
+            href={product.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-600 py-2 text-xs font-bold text-white transition-colors hover:bg-emerald-700"
+          >
             Buy now <ExternalLink size={11} />
           </a>
         )}
@@ -363,38 +392,61 @@ function ProductCardGrid({ product }: { product: Product }) {
 function ProductCardList({ product }: { product: Product }) {
   const price = priceStr(product);
   return (
-    <div style={L.card} className="vs-list-card">
-      <div style={L.imageWrap}>
+    <div className="flex items-stretch gap-4 overflow-hidden rounded-xl border border-gray-200 bg-white transition-colors hover:border-emerald-200 hover:bg-gray-50/60">
+      <div className="relative min-h-[90px] w-24 flex-shrink-0 bg-gray-50 sm:w-25">
         {product.image ? (
-          <Image src={product.image} alt={product.name} fill
-            style={{ objectFit: 'cover' }} sizes="100px" />
+          <Image src={product.image} alt={product.name} fill style={{ objectFit: 'cover' }} sizes="100px" />
         ) : (
-          <div style={L.imageFallback}><Package size={18} color="#3a3a56" /></div>
+          <div className="flex h-full w-full items-center justify-center">
+            <Package size={18} className="text-gray-300" />
+          </div>
         )}
-        {product.isFeatured && <div style={L.featured}><Star size={9} fill="currentColor" /></div>}
+        {product.isFeatured && (
+          <div className="absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+            <Star size={9} fill="currentColor" />
+          </div>
+        )}
       </div>
-      <div style={L.body}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <div style={{ minWidth: 0 }}>
+      <div className="min-w-0 flex-1 py-3 pr-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
             {product.template && (
-              <Link href={`/marketplace?templateId=${product.template.id}`} style={L.reqTag}>
+              <Link
+                href={`/marketplace?templateId=${product.template.id}`}
+                className="mb-1 inline-flex rounded-full border border-indigo-100 bg-indigo-50 px-2 py-0.5 text-[0.65rem] font-semibold text-indigo-600"
+              >
                 {product.template.name}
               </Link>
             )}
-            <h3 style={L.name}>{product.name}</h3>
-            {product.description && <p style={L.desc}>{product.description}</p>}
+            <h3 className="mb-1 text-sm font-semibold leading-snug text-gray-900">{product.name}</h3>
+            {product.description && (
+              <p className="text-xs leading-relaxed text-gray-400" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                {product.description}
+              </p>
+            )}
           </div>
-          <div style={{ flexShrink: 0, textAlign: 'right' as const }}>
-            <div style={L.price}>{price}</div>
-            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.35rem' }}>
-              <span style={L.stat}><ShoppingCart size={10} /> {product._count.cartItems}</span>
-              {product._count.reviews > 0 && <span style={L.stat}><Star size={10} /> {product._count.reviews}</span>}
+          <div className="flex-shrink-0 text-right">
+            <div className="font-mono text-sm font-bold text-emerald-600">{price}</div>
+            <div className="mt-1.5 flex justify-end gap-2">
+              <span className="inline-flex items-center gap-1 text-[0.66rem] text-gray-300">
+                <ShoppingCart size={10} /> {product._count.cartItems}
+              </span>
+              {product._count.reviews > 0 && (
+                <span className="inline-flex items-center gap-1 text-[0.66rem] text-gray-300">
+                  <Star size={10} /> {product._count.reviews}
+                </span>
+              )}
             </div>
           </div>
         </div>
         {product.url && (
-          <div style={{ marginTop: '0.65rem' }}>
-            <a href={product.url} target="_blank" rel="noopener noreferrer" style={L.buyBtn}>
+          <div className="mt-2.5">
+            <a
+              href={product.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white transition-colors hover:bg-emerald-700"
+            >
               Buy now <ExternalLink size={11} />
             </a>
           </div>
@@ -411,117 +463,3 @@ function priceStr(p: Product) {
   if (p.price) return `${c}${p.price.toLocaleString()}`;
   return 'Contact for price';
 }
-
-/* ── CSS ───────────────────────────────────────────────────────── */
-const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  a { text-decoration: none; color: inherit; }
-
-  .vs-shell { display: grid; grid-template-columns: 260px 1fr; gap: 0; align-items: start; }
-  .vs-sidebar { display: block; }
-  .vs-mobile-header { display: none; }
-
-  .vs-product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; }
-
-  .vs-card { transition: transform 0.18s, border-color 0.18s, box-shadow 0.18s; }
-  .vs-card:hover { transform: translateY(-2px); box-shadow: 0 10px 36px rgba(0,0,0,0.45); border-color: rgba(245,158,11,0.2) !important; }
-
-  .vs-list-card { transition: border-color 0.15s, background 0.15s; }
-  .vs-list-card:hover { border-color: rgba(245,158,11,0.18) !important; background: #161620 !important; }
-
-  .vs-back:hover { color: #9494b0 !important; }
-
-  @media (max-width: 860px) {
-    .vs-shell { grid-template-columns: 1fr !important; }
-    .vs-sidebar { display: none !important; }
-    .vs-mobile-header { display: block !important; }
-  }
-
-  @media (max-width: 520px) {
-    .vs-product-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 0.65rem !important; }
-  }
-`;
-
-/* ── Page-level styles ─────────────────────────────────────────── */
-const S: Record<string, React.CSSProperties> = {
-  page:           { minHeight: '100vh', background: '#08080f', fontFamily: "'Inter', sans-serif", color: '#f0f0f5' },
-  topBar:         { padding: '1.1rem 1.5rem 0', maxWidth: 1140, margin: '0 auto' },
-  backLink:       { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: '#55556e', transition: 'color 0.15s' },
-  shell:          { maxWidth: 1140, margin: '0 auto', minHeight: 'calc(100vh - 60px)' },
-
-  /* Sidebar */
-  sidebar:        { position: 'sticky', top: 0, height: '100vh', overflowY: 'auto', borderRight: '1px solid rgba(255,255,255,0.06)', padding: '1.5rem 0' } as React.CSSProperties,
-  sidebarInner:   { padding: '0 1.5rem' },
-  vendorHead:     { display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '1.25rem' },
-  logoWrap:       { position: 'relative', width: 56, height: 56, borderRadius: 13, overflow: 'hidden', background: '#18181f', border: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 },
-  logoFallback:   { width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(245,158,11,0.06)' },
-  vendorName:     { fontSize: '1rem', fontWeight: 700, color: '#f0f0f5', lineHeight: 1.3, letterSpacing: '-0.01em' },
-  verifiedBadge:  { display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.15rem 0.5rem', borderRadius: 100, background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.18)', color: '#34d399', fontSize: '0.66rem', fontWeight: 600 },
-  divider:        { height: 1, background: 'rgba(255,255,255,0.06)', margin: '1rem 0' },
-  statsRow:       { display: 'flex', alignItems: 'center', gap: '0' },
-  stat:           { flex: 1, textAlign: 'center' as const },
-  statVal:        { fontFamily: "'DM Mono', monospace", fontSize: '1.1rem', fontWeight: 700, color: '#f0f0f5' },
-  statLbl:        { fontSize: '0.65rem', color: '#55556e', marginTop: '0.15rem', textTransform: 'uppercase' as const, letterSpacing: '0.07em' },
-  statDivider:    { width: 1, height: 28, background: 'rgba(255,255,255,0.07)' },
-  metaList:       { display: 'flex', flexDirection: 'column', gap: '0.55rem' },
-  metaItem:       { display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.78rem', color: '#9494b0' },
-  websiteLink:    { display: 'inline-flex', alignItems: 'center', gap: '0.3rem', color: '#818cf8', fontSize: '0.78rem' },
-  sideLabel:      { fontSize: '0.62rem', fontWeight: 700, color: '#55556e', textTransform: 'uppercase' as const, letterSpacing: '0.1em', marginBottom: '0.55rem' },
-  aboutText:      { fontSize: '0.78rem', color: '#9494b0', lineHeight: 1.8, whiteSpace: 'pre-wrap' as const },
-  socialsRow:     { display: 'flex', gap: '0.4rem', flexWrap: 'wrap' as const },
-  socialIcon:     { width: 30, height: 30, borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9494b0', transition: 'all 0.15s' },
-
-  /* Mobile header */
-  mobileHeader:   { padding: '1.1rem 1.25rem', borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#0d0d14' },
-  mobileVendorRow:{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '0.85rem' },
-  mobileStatChip: { display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem', color: '#9494b0' },
-  accordionBtn:   { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 0.75rem', borderRadius: 9, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', color: '#9494b0', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'Inter', sans-serif" },
-  accordionBody:  { marginTop: '0.65rem', padding: '0.85rem', borderRadius: 9, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' },
-
-  /* Main */
-  main:           { padding: '1.5rem 1.75rem', minWidth: 0 },
-  productsHeader: { display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '1.5rem' },
-  productsTitle:  { fontSize: '1rem', fontWeight: 700, color: '#e2e2f0', letterSpacing: '-0.01em' },
-  productsCount:  { fontSize: '0.72rem', color: '#55556e', marginTop: '0.15rem' },
-  viewToggle:     { display: 'flex', gap: '0.2rem', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '0.2rem' },
-  toggleBtn:      { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 6, background: 'transparent', border: 'none', color: '#55556e', cursor: 'pointer', transition: 'all 0.15s' },
-  toggleBtnActive:{ background: 'rgba(245,158,11,0.12)', color: '#fbbf24' },
-  categoryHead:   { display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.85rem' },
-  categoryLabel:  { fontSize: '0.72rem', fontWeight: 700, color: '#9494b0', textTransform: 'uppercase' as const, letterSpacing: '0.1em', whiteSpace: 'nowrap' as const },
-  categoryLine:   { flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' },
-  categoryCount:  { fontSize: '0.7rem', fontFamily: "'DM Mono', monospace", color: '#55556e', flexShrink: 0 },
-  productGrid:    {},
-  emptyState:     { textAlign: 'center' as const, padding: '4rem 2rem', color: '#55556e' },
-};
-
-/* ── Grid card styles ──────────────────────────────────────────── */
-const G: Record<string, React.CSSProperties> = {
-  card:        { background: '#111118', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, overflow: 'hidden', position: 'relative' as const },
-  featured:    { position: 'absolute' as const, top: 8, right: 8, display: 'inline-flex', alignItems: 'center', gap: '0.2rem', padding: '0.18rem 0.5rem', borderRadius: 100, background: 'rgba(245,158,11,0.15)', color: '#fbbf24', fontSize: '0.64rem', fontWeight: 700, zIndex: 1 },
-  imageWrap:   { position: 'relative' as const, height: 150, background: 'rgba(255,255,255,0.02)' },
-  imageFallback:{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  body:        { padding: '0.85rem' },
-  reqTag:      { display: 'inline-flex', padding: '0.14rem 0.5rem', borderRadius: 100, fontSize: '0.65rem', fontWeight: 600, background: 'rgba(99,102,241,0.08)', color: '#818cf8', marginBottom: '0.4rem', border: '1px solid rgba(99,102,241,0.15)' },
-  name:        { fontSize: '0.84rem', fontWeight: 600, color: '#f0f0f5', marginBottom: '0.3rem', lineHeight: 1.4 },
-  desc:        { fontSize: '0.72rem', color: '#55556e', lineHeight: 1.6, marginBottom: '0.65rem', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const },
-  footer:      { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' },
-  price:       { fontFamily: "'DM Mono', monospace", fontSize: '0.84rem', fontWeight: 700, color: '#34d399' },
-  stat:        { display: 'inline-flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.65rem', color: '#3a3a56' },
-  buyBtn:      { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', width: '100%', padding: '0.5rem', borderRadius: 8, background: '#f59e0b', color: '#0a0a0f', fontSize: '0.76rem', fontWeight: 700 },
-};
-
-/* ── List card styles ──────────────────────────────────────────── */
-const L: Record<string, React.CSSProperties> = {
-  card:         { display: 'flex', alignItems: 'flex-start', gap: '1rem', background: '#111118', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, overflow: 'hidden', padding: '0' },
-  imageWrap:    { position: 'relative' as const, width: 100, flexShrink: 0, alignSelf: 'stretch' as const, minHeight: 90, background: 'rgba(255,255,255,0.02)' },
-  imageFallback:{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  featured:     { position: 'absolute' as const, top: 6, left: 6, width: 20, height: 20, borderRadius: 100, background: 'rgba(245,158,11,0.2)', color: '#fbbf24', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  body:         { flex: 1, padding: '0.85rem 0.85rem 0.85rem 0', minWidth: 0 },
-  reqTag:       { display: 'inline-flex', padding: '0.14rem 0.5rem', borderRadius: 100, fontSize: '0.65rem', fontWeight: 600, background: 'rgba(99,102,241,0.08)', color: '#818cf8', marginBottom: '0.35rem', border: '1px solid rgba(99,102,241,0.15)' },
-  name:         { fontSize: '0.88rem', fontWeight: 600, color: '#f0f0f5', marginBottom: '0.25rem', lineHeight: 1.4 },
-  desc:         { fontSize: '0.76rem', color: '#55556e', lineHeight: 1.6, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const },
-  price:        { fontFamily: "'DM Mono', monospace", fontSize: '0.9rem', fontWeight: 700, color: '#34d399' },
-  stat:         { display: 'inline-flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.66rem', color: '#3a3a56' },
-  buyBtn:       { display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.9rem', borderRadius: 8, background: '#f59e0b', color: '#0a0a0f', fontSize: '0.76rem', fontWeight: 700 },
-};

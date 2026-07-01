@@ -37,13 +37,13 @@ const STATUS_TABS = [
   { key: 'ARCHIVED',       label: 'Archived',   icon: <Archive size={11} /> },
 ];
 
-const STATUS_META: Record<string, { color: string; bg: string; label: string }> = {
-  DRAFT:          { color: '#9494b0', bg: 'rgba(148,148,176,0.12)', label: 'Draft'     },
-  PENDING_REVIEW: { color: '#fbbf24', bg: 'rgba(245,158,11,0.12)',  label: 'In Review' },
-  ACTIVE:         { color: '#34d399', bg: 'rgba(16,185,129,0.12)',  label: 'Live'      },
-  REJECTED:       { color: '#f87171', bg: 'rgba(239,68,68,0.12)',   label: 'Rejected'  },
-  ARCHIVED:       { color: '#55556e', bg: 'rgba(85,85,110,0.12)',   label: 'Archived'  },
-  INACTIVE:       { color: '#f87171', bg: 'rgba(239,68,68,0.08)',   label: 'Inactive'  },
+const STATUS_META: Record<string, { text: string; bg: string; label: string }> = {
+  DRAFT:          { text: 'text-gray-500',    bg: 'bg-gray-100',    label: 'Draft'     },
+  PENDING_REVIEW: { text: 'text-amber-600',   bg: 'bg-amber-100',   label: 'In Review' },
+  ACTIVE:         { text: 'text-emerald-600', bg: 'bg-emerald-100', label: 'Live'      },
+  REJECTED:       { text: 'text-red-500',     bg: 'bg-red-100',     label: 'Rejected'  },
+  ARCHIVED:       { text: 'text-gray-400',    bg: 'bg-gray-100',    label: 'Archived'  },
+  INACTIVE:       { text: 'text-red-500',     bg: 'bg-red-50',      label: 'Inactive'  },
 };
 
 function resolveDisplayStatus(status: string, suspended: boolean) {
@@ -113,60 +113,76 @@ export default function VendorProductsPage() {
   }
 
   return (
-    <div style={S.page}>
-      <style>{CSS}</style>
-
+    <div className="max-w-[1020px] pb-4 text-gray-900">
       {/* Toast */}
       {toast && (
-        <div style={{
-          ...S.toast,
-          background:  toast.type === 'success' ? 'rgba(16,185,129,0.14)'  : 'rgba(239,68,68,0.14)',
-          borderColor: toast.type === 'success' ? 'rgba(16,185,129,0.28)'  : 'rgba(239,68,68,0.28)',
-          color:       toast.type === 'success' ? '#6ee7b7'                 : '#fca5a5',
-        }}>
+        <div
+          className={`fixed inset-x-4 top-4 z-[9999] rounded-xl border px-4 py-3 text-center text-sm font-semibold ${
+            toast.type === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : 'border-red-200 bg-red-50 text-red-600'
+          }`}
+        >
           {toast.msg}
         </div>
       )}
 
       {/* Suspension banner */}
       {isSuspended && (
-        <div style={S.suspendBanner}>
-          <ShieldOff size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+        <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3.5 text-sm leading-relaxed text-red-600">
+          <ShieldOff size={14} className="mt-0.5 flex-shrink-0" />
           <span>
             Your account is <strong>suspended</strong>. All products are hidden and you cannot add new ones until reinstated.
-            {profile?.suspendReason && <span style={{ color: '#fca5a5', fontStyle: 'italic' }}> Reason: {profile.suspendReason}</span>}
+            {profile?.suspendReason && <span className="italic"> Reason: {profile.suspendReason}</span>}
           </span>
         </div>
       )}
 
       {/* Header */}
-      <div style={S.header}>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 style={S.h1}>Products</h1>
-          <p style={S.subtitle}>Manage what you sell on Hustlecare</p>
+          <h1 className="mb-0.5 text-2xl font-bold tracking-tight text-gray-900">Products</h1>
+          <p className="text-sm text-gray-500">Manage what you sell on Hustlecare</p>
         </div>
         <Link
           href={isSuspended ? '#' : '/vendor/dashboard/products/new'}
-          className="vd-add-btn-desktop"
-          style={{ ...S.btnPrimary, ...(isSuspended ? S.btnDisabled : {}) }}
+          className={`hidden items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold shadow-sm transition-colors sm:inline-flex ${
+            isSuspended
+              ? 'cursor-not-allowed bg-emerald-100 text-emerald-300'
+              : 'bg-emerald-600 text-white hover:bg-emerald-700'
+          }`}
           onClick={e => { if (isSuspended) { e.preventDefault(); setShowSuspendNotice(true); } }}
         >
           <Plus size={14} /> Add Product
         </Link>
       </div>
 
-      {/* Tabs - horizontally scrollable on mobile */}
-      <div style={S.tabsWrap} className="vd-tabs-scroll">
+      {/* Tabs */}
+      <div className="mb-4.5 flex flex-nowrap gap-1 overflow-x-auto border-b border-gray-200 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap">
         {STATUS_TABS.map(tab => {
           const label = isSuspended && tab.key === 'ARCHIVED' ? 'Inactive' : tab.label;
           const icon  = isSuspended && tab.key === 'ARCHIVED' ? <ShieldOff size={11} /> : tab.icon;
           const count = tab.key ? (counts[tab.key] ?? 0) : products.length;
+          const active = activeTab === tab.key;
           return (
-            <button key={tab.key} style={{ ...S.tab, ...(activeTab === tab.key ? S.tabActive : {}) }} onClick={() => setActiveTab(tab.key)}>
-              {icon && <span style={{ color: activeTab === tab.key ? '#fbbf24' : '#55556e' }}>{icon}</span>}
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+              className={`inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+                active
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                  : 'border-transparent text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              {icon && <span className={active ? 'text-emerald-600' : 'text-gray-400'}>{icon}</span>}
               {label}
               {count > 0 && (
-                <span style={{ ...S.tabBadge, background: activeTab === tab.key ? 'rgba(245,158,11,0.18)' : 'rgba(255,255,255,0.06)', color: activeTab === tab.key ? '#fbbf24' : '#55556e' }}>
+                <span
+                  className={`rounded-full px-1.5 py-0.5 text-[0.65rem] font-bold ${
+                    active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'
+                  }`}
+                >
                   {count}
                 </span>
               )}
@@ -176,32 +192,37 @@ export default function VendorProductsPage() {
       </div>
 
       {/* Search */}
-      <div style={S.searchRow}>
-        <div style={{ position: 'relative', flex: 1, maxWidth: 420 }}>
-          <Search size={14} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#55556e', pointerEvents: 'none' }} />
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="relative max-w-[420px] flex-1">
+          <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
-            style={S.searchInput}
+            className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 outline-none transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
             placeholder="Search products or requirements…"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        <div style={S.resultCount}>{filtered.length} product{filtered.length !== 1 ? 's' : ''}</div>
+        <div className="whitespace-nowrap text-xs text-gray-400">
+          {filtered.length} product{filtered.length !== 1 ? 's' : ''}
+        </div>
       </div>
 
       {/* Content */}
       {loading ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          {[1,2,3,4].map(i => <div key={i} style={S.skeleton} />)}
+        <div className="flex flex-col gap-2">
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-14 animate-pulse rounded-xl bg-gray-100" />)}
         </div>
       ) : filtered.length === 0 ? (
-        <div style={S.emptyState}>
-          <Package size={32} style={{ color: '#3a3a56', marginBottom: '0.75rem' }} />
-          <p style={{ color: '#55556e', fontSize: '0.84rem', marginBottom: '0.75rem' }}>
+        <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-12 text-center">
+          <Package size={32} className="mx-auto mb-3 text-gray-300" />
+          <p className="mb-3 text-sm text-gray-400">
             {search ? 'No products match your search' : activeTab ? `No ${activeTab.toLowerCase().replace('_', ' ')} products` : 'No products yet'}
           </p>
           {!search && !activeTab && !isSuspended && (
-            <Link href="/vendor/dashboard/products/new" style={S.btnPrimary}>
+            <Link
+              href="/vendor/dashboard/products/new"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
+            >
               <Plus size={13} /> Add your first product
             </Link>
           )}
@@ -209,15 +230,18 @@ export default function VendorProductsPage() {
       ) : (
         <>
           {/* Desktop table */}
-          <div style={S.tableWrap} className="vd-desktop-table">
-            <table style={S.table}>
+          <div className="hidden overflow-hidden rounded-2xl border border-gray-200 bg-white md:block">
+            <table className="w-full border-collapse">
               <thead>
                 <tr>
-                  <th style={S.th}>Product</th>
-                  <th style={S.th}>Requirement</th>
-                  <th style={S.th}>Price</th>
-                  <th style={S.th}>Status</th>
-                  <th style={{ ...S.th, textAlign: 'right' as const }}>Actions</th>
+                  {['Product', 'Requirement', 'Price', 'Status', ''].map((h, i) => (
+                    <th
+                      key={h + i}
+                      className={`whitespace-nowrap border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-left text-[0.67rem] font-bold uppercase tracking-wider text-gray-400 ${i === 4 ? 'text-right' : ''}`}
+                    >
+                      {h || 'Actions'}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -225,48 +249,58 @@ export default function VendorProductsPage() {
                   const displayStatus = resolveDisplayStatus(product.status, isSuspended);
                   const meta = STATUS_META[displayStatus] ?? STATUS_META.DRAFT;
                   return (
-                    <tr key={product.id} className="vd-tr">
-                      <td style={S.td}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <tr key={product.id} className="transition-colors hover:bg-gray-50">
+                      <td className="border-b border-gray-100 px-4 py-3.5 align-middle">
+                        <div className="flex items-center gap-3">
                           {product.image ? (
-                            <Image src={product.image} alt={product.name} width={36} height={36} style={S.productImg} />
+                            <Image src={product.image} alt={product.name} width={36} height={36} className="h-9 w-9 flex-shrink-0 rounded-lg border border-gray-200 object-cover" />
                           ) : (
-                            <div style={S.productImgFallback}><Package size={14} color="#55556e" /></div>
+                            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-50">
+                              <Package size={14} className="text-gray-400" />
+                            </div>
                           )}
                           <div>
-                            <div style={S.productName}>{product.name}</div>
-                            <div style={S.productSubtext}>
+                            <div className="truncate text-sm font-semibold text-gray-900">{product.name}</div>
+                            <div className="text-xs text-gray-400">
                               {product._count.cartItems} cart · {product._count.reviews} reviews
                             </div>
                             {product.status === 'REJECTED' && product.rejectReason && (
-                              <div style={S.rejectNote}>↳ {product.rejectReason}</div>
+                              <div className="mt-0.5 text-xs text-red-500">↳ {product.rejectReason}</div>
                             )}
                             {isSuspended && product.status === 'ARCHIVED' && (
-                              <div style={S.suspendNote}><ShieldOff size={9} /> Hidden</div>
+                              <div className="mt-0.5 flex items-center gap-1 text-xs text-red-500">
+                                <ShieldOff size={9} /> Hidden
+                              </div>
                             )}
                           </div>
                         </div>
                       </td>
-                      <td style={S.td}>
-                        {product.template
-                          ? <span style={S.reqTag}>{product.template.name}</span>
-                          : <span style={{ color: '#3a3a56', fontSize: '0.82rem' }}>—</span>}
+                      <td className="border-b border-gray-100 px-4 py-3.5 align-middle">
+                        {product.template ? (
+                          <span className="inline-flex rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-bold text-indigo-600">
+                            {product.template.name}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-gray-300">—</span>
+                        )}
                       </td>
-                      <td style={S.td}>
-                        <span style={S.price}>{priceDisplay(product)}</span>
+                      <td className="border-b border-gray-100 px-4 py-3.5 align-middle">
+                        <span className="font-mono text-sm text-emerald-600">{priceDisplay(product)}</span>
                       </td>
-                      <td style={S.td}>
-                        <span style={{ ...S.badge, background: meta.bg, color: meta.color }}>{meta.label}</span>
+                      <td className="border-b border-gray-100 px-4 py-3.5 align-middle">
+                        <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold ${meta.bg} ${meta.text}`}>
+                          {meta.label}
+                        </span>
                       </td>
-                      <td style={{ ...S.td, textAlign: 'right' as const }}>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.3rem' }}>
+                      <td className="border-b border-gray-100 px-4 py-3.5 text-right align-middle">
+                        <div className="flex justify-end gap-1.5">
                           {['DRAFT', 'REJECTED'].includes(product.status) && !isSuspended && (
-                            <Link href={`/vendor/dashboard/products/${product.id}`} style={S.iconBtn}><Edit2 size={12} /></Link>
+                            <Link href={`/vendor/dashboard/products/${product.id}`} className={iconBtnCls}><Edit2 size={12} /></Link>
                           )}
                           {product.status === 'ACTIVE' && !isSuspended && (
-                            <Link href={`/marketplace?product=${product.id}`} target="_blank" style={S.iconBtn}><Eye size={12} /></Link>
+                            <Link href={`/marketplace?product=${product.id}`} target="_blank" className={iconBtnCls}><Eye size={12} /></Link>
                           )}
-                          <button style={{ ...S.iconBtn, ...S.iconBtnDanger }} onClick={() => setDeleteConfirm(product.id)}>
+                          <button type="button" className={`${iconBtnCls} border-red-100 bg-red-50 text-red-500`} onClick={() => setDeleteConfirm(product.id)}>
                             <Trash2 size={12} />
                           </button>
                         </div>
@@ -279,46 +313,55 @@ export default function VendorProductsPage() {
           </div>
 
           {/* Mobile cards */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }} className="vd-mobile-cards">
+          <div className="flex flex-col gap-2.5 md:hidden">
             {filtered.map(product => {
               const displayStatus = resolveDisplayStatus(product.status, isSuspended);
               const meta = STATUS_META[displayStatus] ?? STATUS_META.DRAFT;
               return (
-                <div key={product.id} style={S.mobileCard}>
-                  <Link href={`/vendor/dashboard/products/${product.id}`} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-                    {product.image
-                      ? <Image src={product.image} alt={product.name} width={44} height={44} style={{ ...S.productImg, width: 44, height: 44 }} />
-                      : <div style={{ ...S.productImgFallback, width: 44, height: 44 }}><Package size={16} color="#55556e" /></div>}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-                        <div style={{ ...S.productName, fontSize: '0.88rem' }}>{product.name}</div>
-                        <span style={{ ...S.badge, background: meta.bg, color: meta.color, flexShrink: 0 }}>{meta.label}</span>
+                <div key={product.id} className="rounded-xl border border-gray-200 bg-white p-3.5">
+                  <Link href={`/vendor/dashboard/products/${product.id}`} className="flex items-start gap-3">
+                    {product.image ? (
+                      <Image src={product.image} alt={product.name} width={44} height={44} className="h-11 w-11 flex-shrink-0 rounded-lg border border-gray-200 object-cover" />
+                    ) : (
+                      <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-50">
+                        <Package size={16} className="text-gray-400" />
                       </div>
-                      {product.template && <div style={{ ...S.productSubtext, marginTop: '0.15rem' }}>{product.template.name}</div>}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.6rem' }}>
-                        <span style={S.price}>{priceDisplay(product)}</span>
-                        <span style={S.productSubtext}>{product._count.cartItems} cart · {product._count.reviews} reviews</span>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="truncate text-sm font-semibold text-gray-900">{product.name}</div>
+                        <span className={`flex-shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold ${meta.bg} ${meta.text}`}>
+                          {meta.label}
+                        </span>
+                      </div>
+                      {product.template && <div className="mt-0.5 text-xs text-gray-400">{product.template.name}</div>}
+                      <div className="mt-2 flex items-center justify-between">
+                        <span className="font-mono text-sm text-emerald-600">{priceDisplay(product)}</span>
+                        <span className="text-xs text-gray-400">{product._count.cartItems} cart · {product._count.reviews} reviews</span>
                       </div>
                     </div>
                   </Link>
                   {product.status === 'REJECTED' && product.rejectReason && (
-                    <div style={{ ...S.rejectNote, marginTop: '0.6rem', padding: '0.45rem 0.7rem', background: 'rgba(239,68,68,0.06)', borderRadius: 7 }}>
+                    <div className="mt-2.5 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-500">
                       Rejected: {product.rejectReason}
                     </div>
                   )}
-                  {/* Action bar */}
-                  <div style={S.mobileActionBar}>
+                  <div className="mt-3 flex gap-2 border-t border-gray-100 pt-3">
                     {['DRAFT', 'REJECTED'].includes(product.status) && !isSuspended && (
-                      <Link href={`/vendor/dashboard/products/${product.id}`} style={S.mobileActionBtn}>
+                      <Link href={`/vendor/dashboard/products/${product.id}`} className={mobileActionBtnCls}>
                         <Edit2 size={13} /> Edit
                       </Link>
                     )}
                     {product.status === 'ACTIVE' && !isSuspended && (
-                      <Link href={`/marketplace?product=${product.id}`} target="_blank" style={S.mobileActionBtn}>
+                      <Link href={`/marketplace?product=${product.id}`} target="_blank" className={mobileActionBtnCls}>
                         <Eye size={13} /> View
                       </Link>
                     )}
-                    <button style={{ ...S.mobileActionBtn, ...S.mobileActionBtnDanger }} onClick={() => setDeleteConfirm(product.id)}>
+                    <button
+                      type="button"
+                      className={`${mobileActionBtnCls} border-red-100 bg-red-50 text-red-500`}
+                      onClick={() => setDeleteConfirm(product.id)}
+                    >
                       <Trash2 size={13} /> Delete
                     </button>
                   </div>
@@ -331,16 +374,24 @@ export default function VendorProductsPage() {
 
       {/* Delete modal */}
       {deleteConfirm !== null && (
-        <div style={S.overlay} onClick={() => setDeleteConfirm(null)}>
-          <div style={S.modal} onClick={e => e.stopPropagation()}>
-            <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
-              <div style={S.modalIconWrap}><Trash2 size={20} color="#f87171" /></div>
-              <h3 style={S.modalTitle}>Delete product?</h3>
-              <p style={S.modalDesc}>Draft products are permanently deleted. Live or reviewed products will be archived.</p>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setDeleteConfirm(null)}>
+          <div className="w-full max-w-[380px] rounded-2xl border border-gray-200 bg-white p-7 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="mb-5 text-center">
+              <div className="mx-auto mb-3.5 flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
+                <Trash2 size={20} className="text-red-500" />
+              </div>
+              <h3 className="mb-1 text-base font-bold text-gray-900">Delete product?</h3>
+              <p className="text-sm leading-relaxed text-gray-500">
+                Draft products are permanently deleted. Live or reviewed products will be archived.
+              </p>
             </div>
-            <div style={{ display: 'flex', gap: '0.65rem', justifyContent: 'flex-end' }} className="vd-modal-actions">
-              <button style={S.btnSecondary} onClick={() => setDeleteConfirm(null)}>Cancel</button>
-              <button style={{ ...S.btnPrimary, background: 'rgba(239,68,68,0.15)', color: '#f87171' }} onClick={() => handleDelete(deleteConfirm)}>
+            <div className="flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
+              <button type="button" className={secondaryBtnCls} onClick={() => setDeleteConfirm(null)}>Cancel</button>
+              <button
+                type="button"
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-100"
+                onClick={() => handleDelete(deleteConfirm)}
+              >
                 Delete / Archive
               </button>
             </div>
@@ -350,20 +401,24 @@ export default function VendorProductsPage() {
 
       {/* Suspend modal */}
       {showSuspendNotice && (
-        <div style={S.overlay} onClick={() => setShowSuspendNotice(false)}>
-          <div style={S.modal} onClick={e => e.stopPropagation()}>
-            <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
-              <div style={{ ...S.modalIconWrap, background: 'rgba(239,68,68,0.12)' }}><ShieldOff size={22} color="#f87171" /></div>
-              <h3 style={S.modalTitle}>Account Suspended</h3>
-              <p style={S.modalDesc}>You cannot add products while suspended. Contact support to get reinstated.</p>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setShowSuspendNotice(false)}>
+          <div className="w-full max-w-[380px] rounded-2xl border border-gray-200 bg-white p-7 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="mb-5 text-center">
+              <div className="mx-auto mb-3.5 flex h-13 w-13 items-center justify-center rounded-full bg-red-50">
+                <ShieldOff size={22} className="text-red-500" />
+              </div>
+              <h3 className="mb-1 text-base font-bold text-gray-900">Account Suspended</h3>
+              <p className="text-sm leading-relaxed text-gray-500">
+                You cannot add products while suspended. Contact support to get reinstated.
+              </p>
               {profile?.suspendReason && (
-                <p style={{ fontSize: '0.78rem', color: '#f87171', marginTop: '0.65rem', fontStyle: 'italic', background: 'rgba(239,68,68,0.06)', padding: '0.5rem 0.75rem', borderRadius: 7 }}>
+                <p className="mt-2.5 rounded-lg bg-red-50 px-3 py-2 text-xs italic text-red-500">
                   Reason: {profile.suspendReason}
                 </p>
               )}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <button style={S.btnSecondary} onClick={() => setShowSuspendNotice(false)}>Close</button>
+            <div className="flex justify-center">
+              <button type="button" className={secondaryBtnCls} onClick={() => setShowSuspendNotice(false)}>Close</button>
             </div>
           </div>
         </div>
@@ -372,69 +427,9 @@ export default function VendorProductsPage() {
   );
 }
 
-const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-  a { text-decoration: none; color: inherit; }
-  .vd-tr:hover td { background: rgba(255,255,255,0.015) !important; }
-
-  .vd-tabs-scroll { -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-  .vd-tabs-scroll::-webkit-scrollbar { display: none; }
-
-  @media (min-width: 769px) {
-    .vd-mobile-cards { display: none !important; }
-  }
-  @media (max-width: 768px) {
-    .vd-desktop-table { display: none !important; }
-    .vd-mobile-cards  { display: flex !important; }
-    .vd-add-btn-desktop { display: none !important; }
-    .vd-tabs-scroll { display: flex !important; overflow-x: auto; flex-wrap: nowrap !important; }
-    .vd-tabs-scroll > button { flex-shrink: 0; }
-    .vd-modal-actions { flex-direction: column-reverse !important; }
-    .vd-modal-actions button { width: 100%; justify-content: center; }
-  }
-`;
-
-const S: Record<string, React.CSSProperties> = {
-  page:            { fontFamily: "'DM Sans', sans-serif", color: '#f0f0f5', maxWidth: 1020, paddingBottom: '1rem' },
-  toast:           { position: 'fixed', top: '1rem', right: '1rem', left: '1rem', zIndex: 9999, padding: '0.75rem 1.1rem', borderRadius: 10, fontSize: '0.82rem', fontWeight: 600, border: '1px solid', textAlign: 'center' as const },
-  suspendBanner:   { display: 'flex', alignItems: 'flex-start', gap: '0.6rem', padding: '0.85rem 1.1rem', borderRadius: 10, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', color: '#fca5a5', fontSize: '0.81rem', lineHeight: 1.6, marginBottom: '1.25rem' },
-  header:          { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' },
-  h1:              { fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.025em', marginBottom: '0.2rem', color: '#f0f0f5' },
-  subtitle:        { fontSize: '0.81rem', color: '#55556e' },
-  tabsWrap:        { display: 'flex', gap: '0.2rem', marginBottom: '1.1rem', flexWrap: 'wrap', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.75rem' },
-  tab:             { display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.38rem 0.75rem', borderRadius: 8, border: '1px solid transparent', background: 'transparent', color: '#55556e', fontSize: '0.78rem', fontFamily: "'DM Sans', sans-serif", cursor: 'pointer', fontWeight: 500, transition: 'all 0.15s', whiteSpace: 'nowrap' as const },
-  tabActive:       { background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.2)', color: '#fbbf24' },
-  tabBadge:        { padding: '0.08rem 0.4rem', borderRadius: 100, fontSize: '0.65rem', fontWeight: 700 },
-  searchRow:       { display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' },
-  searchInput:     { width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 9, padding: '0.55rem 0.9rem 0.55rem 2.2rem', color: '#f0f0f5', fontFamily: "'DM Sans', sans-serif", fontSize: '0.84rem', outline: 'none' },
-  resultCount:     { fontSize: '0.75rem', color: '#55556e', whiteSpace: 'nowrap' },
-  skeleton:        { height: 56, borderRadius: 10, background: 'rgba(255,255,255,0.04)' },
-  emptyState:      { background: '#13131a', border: '1px dashed rgba(255,255,255,0.09)', borderRadius: 12, padding: '3rem 1.5rem', textAlign: 'center' },
-  tableWrap:       { background: '#13131a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 13, overflow: 'hidden' },
-  table:           { width: '100%', borderCollapse: 'collapse' },
-  th:              { padding: '0.6rem 1rem', textAlign: 'left', fontSize: '0.67rem', fontWeight: 700, color: '#55556e', textTransform: 'uppercase', letterSpacing: '0.08em', borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#13131a', whiteSpace: 'nowrap' },
-  td:              { padding: '0.85rem 1rem', borderBottom: '1px solid rgba(255,255,255,0.04)', verticalAlign: 'middle' },
-  productImg:      { width: 36, height: 36, borderRadius: 8, objectFit: 'cover', border: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 } as React.CSSProperties,
-  productImgFallback: { width: 36, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  productName:     { fontWeight: 600, fontSize: '0.85rem', color: '#f0f0f5', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  productSubtext:  { fontSize: '0.7rem', color: '#55556e', marginTop: '0.1rem' },
-  rejectNote:      { fontSize: '0.7rem', color: '#f87171', marginTop: '0.15rem' },
-  suspendNote:     { fontSize: '0.7rem', color: '#f87171', marginTop: '0.15rem', display: 'flex', alignItems: 'center', gap: '0.2rem' },
-  reqTag:          { display: 'inline-flex', padding: '0.18rem 0.55rem', borderRadius: 100, fontSize: '0.7rem', fontWeight: 700, background: 'rgba(99,102,241,0.1)', color: '#818cf8' },
-  price:           { fontFamily: "'DM Mono', monospace", fontSize: '0.82rem', color: '#34d399' },
-  badge:           { display: 'inline-flex', padding: '0.2rem 0.6rem', borderRadius: 100, fontSize: '0.7rem', fontWeight: 700 },
-  iconBtn:         { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 7, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#9494b0', cursor: 'pointer', textDecoration: 'none' },
-  iconBtnDanger:   { background: 'rgba(239,68,68,0.07)', borderColor: 'rgba(239,68,68,0.14)', color: '#f87171' },
-  mobileCard:      { background: '#13131a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '0.9rem 1rem' },
-  mobileActionBar: { display: 'flex', gap: '0.5rem', marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.05)' },
-  mobileActionBtn: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', padding: '0.5rem', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#9494b0', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' },
-  mobileActionBtnDanger: { background: 'rgba(239,68,68,0.07)', borderColor: 'rgba(239,68,68,0.14)', color: '#f87171' },
-  overlay:         { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', backdropFilter: 'blur(4px)' } as React.CSSProperties,
-  modal:           { background: '#1a1a24', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 14, padding: '1.75rem', width: '100%', maxWidth: 380 },
-  modalIconWrap:   { width: 48, height: 48, borderRadius: '50%', background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.85rem' },
-  modalTitle:      { fontSize: '0.98rem', fontWeight: 700, color: '#f0f0f5', marginBottom: '0.4rem' },
-  modalDesc:       { fontSize: '0.81rem', color: '#9494b0', lineHeight: 1.6 },
-  btnPrimary:      { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1.1rem', borderRadius: 9, background: '#f59e0b', color: '#0a0a0f', fontSize: '0.83rem', fontWeight: 700, border: 'none', cursor: 'pointer', textDecoration: 'none' },
-  btnDisabled:     { background: 'rgba(245,158,11,0.2)', color: 'rgba(10,10,15,0.4)', cursor: 'not-allowed' },
-  btnSecondary:    { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', borderRadius: 9, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', color: '#9494b0', fontSize: '0.83rem', fontWeight: 600, cursor: 'pointer' },
-};
+const iconBtnCls =
+  'inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-gray-50 text-gray-500 transition-colors hover:bg-gray-100';
+const mobileActionBtnCls =
+  'flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-sm font-semibold text-gray-600';
+const secondaryBtnCls =
+  'inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50';

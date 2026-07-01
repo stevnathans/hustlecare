@@ -37,12 +37,12 @@ type VendorProfile = {
   appealRespondedAt: string | null;
 };
 
-const STATUS_META: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-  DRAFT:          { label: 'Draft',     color: '#9494b0', bg: 'rgba(148,148,176,0.1)', icon: <Archive size={11} /> },
-  PENDING_REVIEW: { label: 'In Review', color: '#fbbf24', bg: 'rgba(245,158,11,0.1)', icon: <Clock size={11} /> },
-  ACTIVE:         { label: 'Live',      color: '#34d399', bg: 'rgba(16,185,129,0.1)', icon: <CheckCircle2 size={11} /> },
-  REJECTED:       { label: 'Rejected',  color: '#f87171', bg: 'rgba(239,68,68,0.1)',  icon: <XCircle size={11} /> },
-  ARCHIVED:       { label: 'Archived',  color: '#55556e', bg: 'rgba(85,85,110,0.1)',  icon: <Archive size={11} /> },
+const STATUS_META: Record<string, { label: string; text: string; bg: string; ring: string; icon: React.ReactNode }> = {
+  DRAFT:          { label: 'Draft',     text: 'text-gray-500',   bg: 'bg-gray-50',    ring: 'border-gray-200',    icon: <Archive size={11} /> },
+  PENDING_REVIEW: { label: 'In Review', text: 'text-amber-600',  bg: 'bg-amber-50',   ring: 'border-amber-200',   icon: <Clock size={11} /> },
+  ACTIVE:         { label: 'Live',      text: 'text-emerald-600',bg: 'bg-emerald-50', ring: 'border-emerald-200', icon: <CheckCircle2 size={11} /> },
+  REJECTED:       { label: 'Rejected',  text: 'text-red-500',    bg: 'bg-red-50',     ring: 'border-red-200',     icon: <XCircle size={11} /> },
+  ARCHIVED:       { label: 'Archived',  text: 'text-gray-400',   bg: 'bg-gray-50',    ring: 'border-gray-200',    icon: <Archive size={11} /> },
 };
 
 export default function VendorDashboardPage() {
@@ -81,41 +81,49 @@ export default function VendorDashboardPage() {
   if (loading) return <PageSkeleton />;
 
   return (
-    <div style={P.page}>
-      <style>{CSS}</style>
-
+    <div className="w-full max-w-[1020px] pb-4 text-gray-900">
       {/* Header */}
-      <div className="vd-dash-header" style={P.header}>
-        <div style={{ minWidth: 0 }}>
-          <h1 style={P.h1}>
+      <div className="mb-6 flex flex-col items-stretch gap-3.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          <h1 className="mb-0.5 text-2xl font-bold tracking-tight text-gray-900">
             {profile?.name ? `Welcome back, ${profile.name.split(' ')[0]}` : 'Vendor Dashboard'}
           </h1>
-          <p style={P.subtitle}>
+          <p className="text-sm text-gray-500">
             {isSuspended
               ? 'Your account is currently suspended. Contact support for assistance.'
               : "Here's how your storefront is performing today."}
           </p>
         </div>
-        <div className="vd-header-actions" style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap' as const }}>
+        <div className="flex flex-wrap gap-2.5">
           {!isSuspended && profile?.slug && (
-            <Link href={`/vendors/${profile.slug}`} target="_blank" className="vd-hide-mobile" style={P.btnSecondary}>
+            <Link
+              href={`/vendors/${profile.slug}`}
+              target="_blank"
+              className="hidden items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50 sm:inline-flex"
+            >
               <Eye size={13} /> View Store
             </Link>
           )}
           <button
-            className={`vd-refresh${refreshing ? ' vd-spinning' : ''}`}
-            style={P.refreshBtn}
+            type="button"
             onClick={() => fetchData(true)}
+            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-600 transition-colors hover:bg-indigo-100 sm:flex-initial"
           >
-            <RefreshCw size={13} />
+            <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
             {refreshing ? 'Refreshing…' : 'Refresh'}
           </button>
           {!isSuspended ? (
-            <Link href="/vendor/dashboard/products/new" className="vd-hide-mobile" style={P.btnPrimary}>
+            <Link
+              href="/vendor/dashboard/products/new"
+              className="hidden items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 sm:inline-flex"
+            >
               <Plus size={13} /> Add Product
             </Link>
           ) : (
-            <button className="vd-hide-mobile" style={{ ...P.btnPrimary, ...P.btnDisabled }} disabled>
+            <button
+              disabled
+              className="hidden cursor-not-allowed items-center gap-1.5 rounded-lg bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-300 sm:inline-flex"
+            >
               <Plus size={13} /> Add Product
             </button>
           )}
@@ -141,11 +149,11 @@ export default function VendorDashboardPage() {
 
       {/* Rejection alert */}
       {!isSuspended && rejectedCount > 0 && (
-        <div style={P.alertBanner}>
-          <AlertCircle size={14} style={{ flexShrink: 0 }} />
+        <div className="mb-5 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-600">
+          <AlertCircle size={14} className="flex-shrink-0" />
           <span>
             {rejectedCount} product{rejectedCount > 1 ? 's need' : ' needs'} attention —{' '}
-            <Link href="/vendor/dashboard/products?status=REJECTED" style={{ color: '#fca5a5', textDecoration: 'underline' }}>
+            <Link href="/vendor/dashboard/products?status=REJECTED" className="underline">
               review feedback
             </Link>
           </span>
@@ -153,153 +161,153 @@ export default function VendorDashboardPage() {
       )}
 
       {/* Stat cards */}
-      <div className="vd-stats" style={P.statsGrid}>
-        <StatCard title="Profile Views"   value={totalViews}   icon={Eye}         color="#818cf8" bg="rgba(99,102,241,0.12)"  />
-        <StatCard title="Product Clicks"  value={totalClicks}  icon={Package}     color="#34d399" bg="rgba(16,185,129,0.12)" />
-        <StatCard title="Cart Adds"       value={totalCart}    icon={ShoppingCart} color="#f59e0b" bg="rgba(245,158,11,0.12)" />
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard title="Profile Views"  value={totalViews}  icon={Eye}          iconClass="text-indigo-500"  iconBg="bg-indigo-50" />
+        <StatCard title="Product Clicks" value={totalClicks} icon={Package}      iconClass="text-emerald-600" iconBg="bg-emerald-50" />
+        <StatCard title="Cart Adds"      value={totalCart}   icon={ShoppingCart} iconClass="text-amber-500"   iconBg="bg-amber-50" />
         <StatCard
           title={isSuspended ? 'Archived' : 'Live Products'}
           value={isSuspended ? products.filter(p => p.status === 'ARCHIVED').length : activeCount}
           icon={TrendingUp}
-          color={isSuspended ? '#f87171' : '#a78bfa'}
-          bg={isSuspended ? 'rgba(239,68,68,0.1)' : 'rgba(139,92,246,0.12)'}
+          iconClass={isSuspended ? 'text-red-500' : 'text-purple-500'}
+          iconBg={isSuspended ? 'bg-red-50' : 'bg-purple-50'}
         />
       </div>
 
-      {/* Product status row + Recent products */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: 0 }}>
+      <div className="flex flex-col gap-4">
+        {/* Product status breakdown */}
+        <div className={cardCls}>
+          <div className="mb-4 flex items-center justify-between">
+            <div className={cardTitleCls}>Product Overview</div>
+            <Link href="/vendor/dashboard/products" className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600">
+              See all <ArrowRight size={12} />
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+            {[
+              { key: isSuspended ? 'ARCHIVED' : 'ACTIVE', count: isSuspended ? products.filter(p => p.status === 'ARCHIVED').length : activeCount },
+              { key: 'PENDING_REVIEW', count: pendingCount  },
+              { key: 'DRAFT',          count: draftCount    },
+              { key: 'REJECTED',       count: rejectedCount },
+            ].map(({ key, count }) => {
+              const meta = STATUS_META[key];
+              return (
+                <Link
+                  key={key}
+                  href={`/vendor/dashboard/products?status=${key}`}
+                  className={`block rounded-xl border p-3.5 transition-colors ${count > 0 ? meta.ring : 'border-gray-100'} ${count > 0 ? meta.bg : 'bg-gray-50'}`}
+                >
+                  <div className="mb-2 flex items-center gap-1.5">
+                    <span className={meta.text}>{meta.icon}</span>
+                    <span className={`text-[0.65rem] font-bold uppercase tracking-wider ${meta.text}`}>
+                      {isSuspended && key === 'ARCHIVED' ? 'Inactive' : meta.label}
+                    </span>
+                  </div>
+                  <div className={`font-mono text-2xl font-bold leading-none ${count > 0 ? meta.text : 'text-gray-300'}`}>
+                    {count}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
 
-          {/* Product status breakdown */}
-          <div style={P.card}>
-            <div style={P.cardHeader}>
-              <div style={P.cardTitle}>Product Overview</div>
-              <Link href="/vendor/dashboard/products" style={P.cardLink}>
-                See all <ArrowRight size={12} />
+        {/* Recent products */}
+        {products.length > 0 && (
+          <div className={cardCls}>
+            <div className="mb-3 flex items-center justify-between">
+              <div className={cardTitleCls}>Recent Products</div>
+              <Link href="/vendor/dashboard/products" className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600">
+                Manage all <ArrowRight size={12} />
               </Link>
             </div>
-            <div className="vd-status-grid" style={P.statusGrid}>
-              {[
-                { key: isSuspended ? 'ARCHIVED' : 'ACTIVE', count: isSuspended ? products.filter(p => p.status === 'ARCHIVED').length : activeCount },
-                { key: 'PENDING_REVIEW', count: pendingCount  },
-                { key: 'DRAFT',          count: draftCount    },
-                { key: 'REJECTED',       count: rejectedCount },
-              ].map(({ key, count }) => {
-                const meta = STATUS_META[key];
+            <div className="flex flex-col">
+              {products.slice(0, 5).map((product, i) => {
+                const meta = STATUS_META[product.status] ?? STATUS_META.ARCHIVED;
                 return (
                   <Link
-                    key={key}
-                    href={`/vendor/dashboard/products?status=${key}`}
-                    style={{ ...P.statusTile, borderColor: count > 0 ? meta.color + '30' : 'rgba(255,255,255,0.06)' }}
+                    key={product.id}
+                    href={`/vendor/dashboard/products/${product.id}`}
+                    className={`flex items-center gap-3 py-3 transition-colors hover:bg-gray-50 ${
+                      i < Math.min(products.length, 5) - 1 ? 'border-b border-gray-100' : ''
+                    }`}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.5rem' }}>
-                      <span style={{ color: meta.color }}>{meta.icon}</span>
-                      <span style={{ fontSize: '0.65rem', color: meta.color, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.07em' }}>
-                        {isSuspended && key === 'ARCHIVED' ? 'Inactive' : meta.label}
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-50">
+                      <Package size={14} className="text-gray-400" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-semibold text-gray-900">{product.name}</div>
+                      {product.template && (
+                        <div className="truncate text-xs text-gray-400">{product.template.name}</div>
+                      )}
+                    </div>
+                    <div className="flex flex-shrink-0 items-center gap-2">
+                      {product.price && (
+                        <span className="hidden font-mono text-xs text-emerald-600 sm:inline">
+                          KES {product.price.toLocaleString()}
+                        </span>
+                      )}
+                      <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[0.68rem] font-bold ${meta.bg} ${meta.text}`}>
+                        {meta.icon}
+                        {meta.label}
                       </span>
                     </div>
-                    <div style={{ fontSize: '1.6rem', fontFamily: "'DM Mono', monospace", fontWeight: 700, color: count > 0 ? meta.color : '#3a3a56', lineHeight: 1 }}>
-                      {count}
-                    </div>
+                    <ArrowUpRight size={12} className="flex-shrink-0 text-gray-300" />
                   </Link>
                 );
               })}
             </div>
           </div>
+        )}
 
-          {/* Recent products */}
-          {products.length > 0 && (
-            <div style={P.card}>
-              <div style={P.cardHeader}>
-                <div style={P.cardTitle}>Recent Products</div>
-                <Link href="/vendor/dashboard/products" style={P.cardLink}>
-                  Manage all <ArrowRight size={12} />
-                </Link>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                {products.slice(0, 5).map((product, i) => {
-                  const meta = STATUS_META[product.status] ?? STATUS_META.ARCHIVED;
-                  return (
-                    <Link
-                      key={product.id}
-                      href={`/vendor/dashboard/products/${product.id}`}
-                      style={{
-                        ...P.productRow,
-                        borderBottom: i < Math.min(products.length, 5) - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-                      }}
-                    >
-                      <div style={P.productIconBox}>
-                        <Package size={14} style={{ color: '#55556e' }} />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={P.productName}>{product.name}</div>
-                        {product.template && (
-                          <div style={P.productMeta}>{product.template.name}</div>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                        {product.price && (
-                          <span className="vd-hide-mobile" style={P.productPrice}>KES {product.price.toLocaleString()}</span>
-                        )}
-                        <span style={{ ...P.statusBadge, background: meta.bg, color: meta.color }}>
-                          {meta.icon}
-                          {meta.label}
-                        </span>
-                      </div>
-                      <ArrowUpRight size={12} style={{ color: '#3a3a56', flexShrink: 0 }} />
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Quick actions */}
-          <div style={P.card}>
-            <div style={{ marginBottom: '0.85rem' }}>
-              <div style={P.cardTitle}>Quick Actions</div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {!isSuspended ? (
-                <Link href="/vendor/dashboard/products/new" style={P.quickAction}>
-                  <Plus size={14} style={{ color: '#f59e0b' }} />
-                  <span>Add new product</span>
-                  <ArrowRight size={13} style={{ marginLeft: 'auto', color: '#55556e' }} />
-                </Link>
-              ) : (
-                <button style={{ ...P.quickAction, width: '100%', border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' }} onClick={() => setAppealOpen(true)}>
-                  <Plus size={14} style={{ color: '#55556e' }} />
-                  <span>Add new product — account suspended</span>
-                  <ArrowRight size={13} style={{ marginLeft: 'auto', color: '#55556e' }} />
-                </button>
-              )}
-              {profile?.slug && (
-                <Link href={`/vendors/${profile.slug}`} target="_blank" style={P.quickAction}>
-                  <ArrowUpRight size={14} style={{ color: '#34d399' }} />
-                  <span>Preview storefront</span>
-                  <ArrowRight size={13} style={{ marginLeft: 'auto', color: '#55556e' }} />
-                </Link>
-              )}
-              <Link href="/vendor/dashboard/profile" style={P.quickAction}>
-                <Eye size={14} style={{ color: '#818cf8' }} />
-                <span>Edit store profile</span>
-                <ArrowRight size={13} style={{ marginLeft: 'auto', color: '#55556e' }} />
+        {/* Quick actions */}
+        <div className={cardCls}>
+          <div className={`${cardTitleCls} mb-3`}>Quick Actions</div>
+          <div className="flex flex-col gap-2">
+            {!isSuspended ? (
+              <Link href="/vendor/dashboard/products/new" className={quickActionCls}>
+                <Plus size={14} className="text-emerald-600" />
+                <span>Add new product</span>
+                <ArrowRight size={13} className="ml-auto text-gray-300" />
               </Link>
-            </div>
+            ) : (
+              <button type="button" onClick={() => setAppealOpen(true)} className={`${quickActionCls} w-full cursor-pointer`}>
+                <Plus size={14} className="text-gray-400" />
+                <span>Add new product — account suspended</span>
+                <ArrowRight size={13} className="ml-auto text-gray-300" />
+              </button>
+            )}
+            {profile?.slug && (
+              <Link href={`/vendors/${profile.slug}`} target="_blank" className={quickActionCls}>
+                <ArrowUpRight size={14} className="text-emerald-600" />
+                <span>Preview storefront</span>
+                <ArrowRight size={13} className="ml-auto text-gray-300" />
+              </Link>
+            )}
+            <Link href="/vendor/dashboard/profile" className={quickActionCls}>
+              <Eye size={14} className="text-indigo-500" />
+              <span>Edit store profile</span>
+              <ArrowRight size={13} className="ml-auto text-gray-300" />
+            </Link>
           </div>
+        </div>
       </div>
 
       {/* Empty state */}
       {products.length === 0 && !loading && (
-        <div style={P.emptyState}>
-          <Package size={36} style={{ color: '#3a3a56', marginBottom: '0.85rem' }} />
-          <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#9494b0', marginBottom: '0.4rem' }}>No products yet</h3>
-          <p style={{ fontSize: '0.82rem', color: '#55556e', marginBottom: '1.1rem' }}>
+        <div className="mt-4 rounded-2xl border border-dashed border-gray-300 bg-white p-12 text-center">
+          <Package size={36} className="mx-auto mb-3 text-gray-300" />
+          <h3 className="mb-1 text-sm font-semibold text-gray-600">No products yet</h3>
+          <p className="mb-4 text-sm text-gray-400">
             {isSuspended
               ? 'Products will be restored once your account is reinstated.'
               : 'Add your first product to start reaching entrepreneurs on Hustlecare.'}
           </p>
           {!isSuspended && (
-            <Link href="/vendor/dashboard/products/new" style={P.btnPrimary}>
+            <Link
+              href="/vendor/dashboard/products/new"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
+            >
               <Plus size={13} /> Add your first product
             </Link>
           )}
@@ -309,18 +317,18 @@ export default function VendorDashboardPage() {
   );
 }
 
-function StatCard({ title, value, icon: Icon, color, bg }: {
-  title: string; value: number; icon: React.ElementType; color: string; bg: string;
+function StatCard({ title, value, icon: Icon, iconClass, iconBg }: {
+  title: string; value: number; icon: React.ElementType; iconClass: string; iconBg: string;
 }) {
   return (
-    <div style={P.statCard}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={P.statLabel}>{title}</div>
-          <div style={P.statValue}>{value.toLocaleString()}</div>
+    <div className="min-w-0 overflow-hidden rounded-xl border border-gray-200 bg-white p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="mb-1.5 truncate text-[0.68rem] font-bold uppercase tracking-wider text-gray-400">{title}</div>
+          <div className="font-mono text-2xl font-bold leading-none text-gray-900">{value.toLocaleString()}</div>
         </div>
-        <div style={{ ...P.statIcon, background: bg }}>
-          <Icon size={17} color={color} />
+        <div className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
+          <Icon size={17} className={iconClass} />
         </div>
       </div>
     </div>
@@ -329,68 +337,19 @@ function StatCard({ title, value, icon: Icon, color, bg }: {
 
 function PageSkeleton() {
   return (
-    <div style={P.page}>
-      <style>{CSS}</style>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <div style={P.skelBlock} />
-        <div className="vd-stats" style={P.statsGrid}>
-          {[1,2,3,4].map(i => <div key={i} style={{ ...P.skelBlock, height: 88 }} />)}
+    <div className="w-full max-w-[1020px]">
+      <div className="flex flex-col gap-4">
+        <div className="h-12 animate-pulse rounded-xl bg-gray-100" />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-22 animate-pulse rounded-xl bg-gray-100" />)}
         </div>
-        <div style={{ ...P.skelBlock, height: 200 }} />
+        <div className="h-50 animate-pulse rounded-xl bg-gray-100" />
       </div>
     </div>
   );
 }
 
-const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-  a { text-decoration: none; color: inherit; }
-  .vd-refresh { font-family: 'DM Sans', sans-serif; }
-  .vd-spinning svg { animation: vd-rot 0.7s linear infinite; }
-  @keyframes vd-rot { to { transform: rotate(360deg); } }
-  @keyframes vd-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-
-  .vd-status-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 0.6rem; }
-
-  @media (max-width: 640px) {
-    .vd-dash-header { flex-direction: column !important; align-items: stretch !important; gap: 0.85rem !important; }
-    .vd-header-actions { width: 100%; }
-    .vd-refresh { flex: 1; justify-content: center; }
-    .vd-hide-mobile { display: none !important; }
-
-    .vd-stats       { grid-template-columns: repeat(2,1fr) !important; gap: 0.6rem !important; }
-    .vd-status-grid { grid-template-columns: repeat(2,1fr) !important; }
-  }
-`;
-
-const P: Record<string, React.CSSProperties> = {
-  page:        { fontFamily: "'DM Sans', sans-serif", color: '#f0f0f5', maxWidth: 1020, width: '100%', paddingBottom: '1rem' },
-  header:      { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' },
-  h1:          { fontSize: '1.4rem', fontWeight: 700, letterSpacing: '-0.025em', marginBottom: '0.2rem', color: '#f0f0f5' },
-  subtitle:    { fontSize: '0.82rem', color: '#55556e' },
-  alertBanner: { display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.7rem 1rem', borderRadius: 10, background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.18)', color: '#fca5a5', fontSize: '0.82rem', marginBottom: '1.25rem' },
-  statsGrid:   { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem', marginBottom: '1.5rem' },
-  statCard:    { background: '#13131a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 13, padding: '1rem 1.1rem', transition: 'all 0.15s', cursor: 'default', minWidth: 0, overflow: 'hidden' },
-  statLabel:   { fontSize: '0.68rem', fontWeight: 700, color: '#55556e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.45rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  statValue:   { fontSize: '1.5rem', fontWeight: 700, fontFamily: "'DM Mono', monospace", color: '#f0f0f5', lineHeight: 1 },
-  statIcon:    { width: 36, height: 36, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  card:        { background: '#13131a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 13, padding: '1.1rem 1.25rem' },
-  cardHeader:  { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' },
-  cardTitle:   { fontSize: '0.88rem', fontWeight: 700, color: '#e2e2f0' },
-  cardLink:    { display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.76rem', fontWeight: 600, color: '#818cf8' },
-  statusGrid:  {},
-  statusTile:  { display: 'block', background: '#1a1a24', border: '1px solid', borderRadius: 10, padding: '0.75rem 0.85rem', textDecoration: 'none', transition: 'all 0.15s' },
-  productRow:  { display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 0', transition: 'all 0.15s', cursor: 'pointer' },
-  productIconBox: { width: 32, height: 32, borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  productName: { fontSize: '0.84rem', fontWeight: 600, color: '#f0f0f5', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  productMeta: { fontSize: '0.7rem', color: '#55556e', marginTop: '0.1rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  productPrice:{ fontFamily: "'DM Mono', monospace", fontSize: '0.78rem', color: '#34d399' },
-  statusBadge: { display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.18rem 0.55rem', borderRadius: 100, fontSize: '0.68rem', fontWeight: 700, whiteSpace: 'nowrap' as const },
-  quickAction: { display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.65rem 0.75rem', borderRadius: 9, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', fontSize: '0.82rem', color: '#9494b0', transition: 'all 0.15s', fontWeight: 500 },
-  emptyState:  { background: '#13131a', border: '1px dashed rgba(255,255,255,0.09)', borderRadius: 14, padding: '3rem 1.5rem', textAlign: 'center' },
-  skelBlock:   { height: 48, borderRadius: 10, background: 'rgba(255,255,255,0.04)', animation: 'vd-shimmer 1.4s linear infinite', backgroundSize: '200% 100%' },
-  btnPrimary:  { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1.1rem', borderRadius: 9, background: '#f59e0b', color: '#0a0a0f', fontSize: '0.83rem', fontWeight: 700, border: 'none', cursor: 'pointer', textDecoration: 'none' },
-  btnSecondary:{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', borderRadius: 9, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', color: '#9494b0', fontSize: '0.83rem', fontWeight: 600, textDecoration: 'none' },
-  btnDisabled: { background: 'rgba(245,158,11,0.2)', color: 'rgba(10,10,15,0.4)', cursor: 'not-allowed' },
-  refreshBtn:  { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', borderRadius: 9, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', color: '#818cf8', fontSize: '0.83rem', fontWeight: 600, cursor: 'pointer' },
-};
+const cardCls = 'rounded-2xl border border-gray-200 bg-white p-5';
+const cardTitleCls = 'text-sm font-bold text-gray-900';
+const quickActionCls =
+  'flex items-center gap-2.5 rounded-lg border border-gray-100 bg-gray-50 px-3.5 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100';
