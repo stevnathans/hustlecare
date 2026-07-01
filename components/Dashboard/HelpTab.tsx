@@ -2,17 +2,16 @@
 "use client";
 
 import { useState } from "react";
-import { 
-  HelpCircle, 
-  MessageSquare, 
-  FileText, 
-  Mail, 
-  Phone, 
-  ExternalLink,
+import {
+  HelpCircle,
+  Mail,
+  Phone,
   ChevronDown,
   ChevronRight,
-  Search
+  Search,
 } from "lucide-react";
+import React from 'react';
+import { FaWhatsapp } from 'react-icons/fa';
 
 export default function HelpTab() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -22,33 +21,39 @@ export default function HelpTab() {
     {
       id: "1",
       question: "How do I add items to my business lists?",
-      answer: "To add items to your business lists, navigate to a business page and click on the items you want to save. You can also use the search function to find specific businesses and items."
+      answer:
+        "To add items to your business lists, navigate to a business page and click on the items you want to save. You can also use the search function to find specific businesses and items.",
     },
     {
       id: "2",
       question: "Can I edit or remove saved items?",
-      answer: "Yes, you can edit or remove saved items by going to your 'My Lists' section, selecting the business, and then managing individual items. You can update quantities, prices, or remove items entirely."
+      answer:
+        "Yes, you can edit or remove saved items by going to your 'My Lists' section, selecting the business, and then managing individual items. You can update quantities, prices, or remove items entirely.",
     },
     {
       id: "3",
       question: "How do I share my lists with others?",
-      answer: "Currently, lists are private to your account. We're working on sharing features that will be available in future updates."
+      answer:
+        "Currently, lists are private to your account. We're working on sharing features that will be available in future updates.",
     },
     {
       id: "4",
       question: "Is my data secure and private?",
-      answer: "Yes, we take data security seriously. All your information is encrypted and stored securely. We never share your personal data with third parties without your consent."
+      answer:
+        "Yes, we take data security seriously. All your information is encrypted and stored securely. We never share your personal data with third parties without your consent.",
     },
     {
       id: "5",
       question: "How do I delete my account?",
-      answer: "You can delete your account by going to Settings > Advanced > Delete Account. Please note that this action is irreversible and will permanently delete all your data."
+      answer:
+        "You can delete your account by going to Settings > Advanced > Delete Account. Please note that this action is irreversible and will permanently delete all your data.",
     },
     {
       id: "6",
       question: "Can I export my data?",
-      answer: "Yes, you can export your data from the Settings > Advanced section. This will provide you with a complete copy of your saved businesses and items."
-    }
+      answer:
+        "Yes, you can export your data from the Settings > Advanced section. This will provide you with a complete copy of your saved businesses and items.",
+    },
   ];
 
   const supportOptions = [
@@ -57,48 +62,34 @@ export default function HelpTab() {
       description: "Get help via email within 24 hours",
       icon: Mail,
       action: "Send Email",
-      contact: "support@example.com"
+      contact: "info@hustlecare.net",
+      link: "mailto:info@hustlecare.net?subject=Hustlecare%20Support%20Request&body=Hello%20Hustlecare%20support%2C%20I%20need%20help%20with%20my%20account",
+      colorClass: "bg-emerald-600 hover:bg-emerald-700",
     },
     {
-      title: "Live Chat",
-      description: "Chat with our support team instantly",
-      icon: MessageSquare,
-      action: "Start Chat",
-      contact: "Available 9 AM - 6 PM EST"
+      title: "WhatsApp Support",
+      description: "Chat with us on WhatsApp instantly",
+      icon: FaWhatsapp,
+      action: "Open WhatsApp",
+      contact: "WhatsApp: +254 713 140 158",
+      link: "https://wa.me/254713140158?text=Hello%20Hustlecare%20support%2C%20I%20need%20help%20with%20my%20account",
+      colorClass: "bg-green-600 hover:bg-green-700",
     },
     {
       title: "Phone Support",
       description: "Speak directly with our support team",
       icon: Phone,
       action: "Call Now",
-      contact: "+1 (555) 123-4567"
-    }
+      contact: "+254 0713 140 158",
+      link: "tel:+254713140158",
+      colorClass: "bg-emerald-600 hover:bg-emerald-700",
+    },
   ];
 
-  const resources = [
-    {
-      title: "User Guide",
-      description: "Complete guide to using all features",
-      icon: FileText,
-      link: "/docs/user-guide"
-    },
-    {
-      title: "Video Tutorials",
-      description: "Step-by-step video walkthroughs",
-      icon: ExternalLink,
-      link: "/docs/tutorials"
-    },
-    {
-      title: "API Documentation",
-      description: "For developers and integrations",
-      icon: FileText,
-      link: "/docs/api"
-    }
-  ];
-
-  const filteredFaqs = faqs.filter(faq =>
-    faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    faq.answer.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredFaqs = faqs.filter(
+    (faq) =>
+      faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      faq.answer.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const toggleFaq = (id: string) => {
@@ -108,7 +99,9 @@ export default function HelpTab() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Help & Support</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          Help & Support
+        </h1>
         <p className="text-gray-600 dark:text-gray-400 mt-2">
           Find answers to common questions or get in touch with our support team
         </p>
@@ -130,21 +123,40 @@ export default function HelpTab() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {supportOptions.map((option) => {
           const Icon = option.icon;
+          // WhatsApp opens in a new tab; mailto/tel should open in the same tab
+          // so the browser can hand off to the mail client / dialer correctly.
+          const isExternal = option.link.startsWith("http");
+
           return (
-            <div key={option.title} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+            <div
+              key={option.title}
+              className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6"
+            >
               <div className="flex items-center mb-4">
                 <div className="p-3 bg-emerald-100 dark:bg-emerald-900 rounded-full mr-4">
                   <Icon className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{option.title}</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{option.description}</p>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {option.title}
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {option.description}
+                  </p>
                 </div>
               </div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{option.contact}</p>
-              <button className="w-full bg-emerald-600 text-white py-2 px-4 rounded-lg hover:bg-emerald-700 transition-colors">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                {option.contact}
+              </p>
+              <a
+                href={option.link}
+                {...(isExternal
+                  ? { target: "_blank", rel: "noopener noreferrer" }
+                  : {})}
+                className={`block w-full text-white py-2 px-4 rounded-lg transition-colors text-center ${option.colorClass}`}
+              >
                 {option.action}
-              </button>
+              </a>
             </div>
           );
         })}
@@ -161,12 +173,17 @@ export default function HelpTab() {
 
         <div className="space-y-4">
           {filteredFaqs.map((faq) => (
-            <div key={faq.id} className="border border-gray-200 dark:border-gray-700 rounded-lg">
+            <div
+              key={faq.id}
+              className="border border-gray-200 dark:border-gray-700 rounded-lg"
+            >
               <button
                 onClick={() => toggleFaq(faq.id)}
                 className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
-                <span className="font-medium text-gray-900 dark:text-white">{faq.question}</span>
+                <span className="font-medium text-gray-900 dark:text-white">
+                  {faq.question}
+                </span>
                 {expandedFaq === faq.id ? (
                   <ChevronDown className="w-5 h-5 text-gray-500 dark:text-gray-400" />
                 ) : (
@@ -175,7 +192,9 @@ export default function HelpTab() {
               </button>
               {expandedFaq === faq.id && (
                 <div className="px-4 pb-4">
-                  <p className="text-gray-600 dark:text-gray-400">{faq.answer}</p>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    {faq.answer}
+                  </p>
                 </div>
               )}
             </div>
@@ -185,35 +204,11 @@ export default function HelpTab() {
         {filteredFaqs.length === 0 && (
           <div className="text-center py-8">
             <HelpCircle className="w-12 h-12 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-500 dark:text-gray-400">No FAQs found matching your search</p>
+            <p className="text-gray-500 dark:text-gray-400">
+              No FAQs found matching your search
+            </p>
           </div>
         )}
-      </div>
-
-      {/* Resources */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
-          Additional Resources
-        </h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {resources.map((resource) => {
-            const Icon = resource.icon;
-            return (
-              <a
-                key={resource.title}
-                href={resource.link}
-                className="flex items-center p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
-                <Icon className="w-6 h-6 text-emerald-600 dark:text-emerald-400 mr-3" />
-                <div>
-                  <h3 className="font-medium text-gray-900 dark:text-white">{resource.title}</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{resource.description}</p>
-                </div>
-              </a>
-            );
-          })}
-        </div>
       </div>
     </div>
   );
