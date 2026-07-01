@@ -133,13 +133,8 @@ export default function Menu() {
             ))}
           </div>
 
-          {/* Search Bar - Desktop */}
-          <div className="hidden lg:flex flex-1 min-w-0 max-w-xs">
-            <MenuSearchBar />
-          </div>
-
           {/* Desktop Right Section */}
-          <div className="hidden lg:flex items-center gap-3 flex-shrink-0">
+          <div className="hidden lg:flex items-center gap-3 flex-shrink-0 ml-auto">
             {!isVendor && (
               <button
                 onClick={handleBecomeVendorClick}
@@ -149,6 +144,33 @@ export default function Menu() {
                 Become a Vendor
               </button>
             )}
+
+            {/* Search Icon Toggle - Desktop */}
+            <div className="relative">
+              <button
+                onClick={handleSearchToggle}
+                className="inline-flex items-center justify-center p-2 rounded-lg text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500 transition-all duration-200"
+                aria-label="Toggle search"
+              >
+                {isSearchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
+              </button>
+
+              {/* Desktop Search Dropdown Panel */}
+              {isSearchOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsSearchOpen(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-900 rounded-xl shadow-lg border border-gray-200/70 dark:border-gray-700/70 p-3 z-50">
+                    <MenuSearchBar
+                      autoFocus
+                      onNavigate={() => setIsSearchOpen(false)}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
 
             {isAuthenticated ? (
               <div className="flex items-center gap-2">
@@ -275,7 +297,7 @@ export default function Menu() {
           />
           <div className="lg:hidden absolute top-full left-0 right-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-lg border-b border-gray-200/50 dark:border-gray-700/50 shadow-lg z-50">
             <div className="px-4 py-4">
-              <MenuSearchBar />
+              <MenuSearchBar autoFocus onNavigate={() => setIsSearchOpen(false)} />
             </div>
           </div>
         </>
@@ -291,7 +313,7 @@ export default function Menu() {
           <div className="lg:hidden absolute top-full left-0 right-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-lg border-b border-gray-200/50 dark:border-gray-700/50 shadow-lg z-50 max-h-[calc(100vh-4rem)] overflow-y-auto">
             <div className="px-4 py-6 space-y-4">
               <div className="pb-4 border-b border-gray-200/50 dark:border-gray-700/50">
-                <MenuSearchBar />
+                <MenuSearchBar autoFocus onNavigate={() => setIsOpen(false)} />
               </div>
 
               <div className="space-y-1">

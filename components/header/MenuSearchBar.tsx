@@ -11,21 +11,34 @@ type Business = {
   slug: string;
 };
 
-export default function MenuSearchBar() {
+type MenuSearchBarProps = {
+  autoFocus?: boolean;
+  onNavigate?: () => void; // called after a search is triggered (navigation happens), so parent can close any wrapping dropdown/overlay
+};
+
+export default function MenuSearchBar({ autoFocus = false, onNavigate }: MenuSearchBarProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searchSuggestions, setSearchSuggestions] = useState<Business[]>([]);
   const [loading, setLoading] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (autoFocus) {
+      inputRef.current?.focus();
+    }
+  }, [autoFocus]);
 
   const handleSearch = (keyword: string) => {
     if (!keyword.trim()) return;
-    
+
     const query = `/search?keyword=${encodeURIComponent(keyword.trim())}`;
     router.push(query);
     setSearch("");
     setShowSuggestions(false);
+    onNavigate?.();
   };
 
   const fetchSearchSuggestions = useCallback(async (query: string) => {
@@ -36,7 +49,7 @@ export default function MenuSearchBar() {
 
     try {
       setLoading(true);
-      
+
       const response = await fetch(`/api/businesses/search?q=${encodeURIComponent(query)}`);
       const data = await response.json();
 
@@ -53,7 +66,7 @@ export default function MenuSearchBar() {
     }
   }, []);
 
-  // Debounced search suggestions
+  // Debounced search suggestions - results update live as you type
   useEffect(() => {
     const timer = setTimeout(() => {
       if (search.length > 1) {
@@ -91,6 +104,7 @@ export default function MenuSearchBar() {
           <SearchIcon className="w-4 h-4" />
         </div>
         <Input
+          ref={inputRef}
           className="pl-10 pr-10 py-2 w-full bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 rounded-full text-sm placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200"
           placeholder="Search business"
           value={search}
@@ -112,7 +126,7 @@ export default function MenuSearchBar() {
         )}
       </div>
 
-      {/* Search Suggestions Dropdown */}
+      {/* Search Suggestions Dropdown - populates live as the user types */}
       {showSuggestions && (search.length > 1 || searchSuggestions.length > 0) && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 max-h-64 overflow-y-auto">
           {loading ? (
