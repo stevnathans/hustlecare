@@ -361,7 +361,7 @@ export default function SharedBusinessPreviewPage() {
                   Total Cost
                 </div>
                 <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                  ${business.stats.totalCost.toLocaleString()}
+                  KSh {business.stats.totalCost.toLocaleString()}
                 </p>
               </div>
             </div>
@@ -434,7 +434,7 @@ export default function SharedBusinessPreviewPage() {
                           Qty: {item.quantity}
                         </p>
                         <p className="font-bold text-gray-900 dark:text-white">
-                          ${(item.price * item.quantity).toLocaleString()}
+                          KSh {(item.price * item.quantity).toLocaleString()}
                         </p>
                       </div>
                     </div>

@@ -109,6 +109,35 @@ export const useBusinessData = (slug: string) => {
             business:        product.business || businessName,
             createdAt:       product.createdAt || new Date().toISOString(),
             updatedAt:       product.updatedAt || new Date().toISOString(),
+
+            // Condition
+            condition:            product.condition,
+            usedDurationValue:    product.usedDurationValue,
+            usedDurationUnit:     product.usedDurationUnit,
+            hasReceipt:           product.hasReceipt,
+
+            // Specifications
+            brand:                product.brand,
+            modelNumber:          product.modelNumber,
+            voltage:              product.voltage,
+            wattage:              product.wattage,
+            dimensions:           product.dimensions,
+            weight:               product.weight,
+            weightUnit:           product.weightUnit,
+
+            // Warranty
+            warrantyType:            product.warrantyType,
+            warrantyDurationValue:   product.warrantyDurationValue,
+            warrantyDurationUnit:    product.warrantyDurationUnit,
+
+            // Delivery / logistics
+            deliveryAvailable:  product.deliveryAvailable || false,
+            pickupLocation:     product.pickupLocation,
+            leadTime:           product.leadTime,
+
+            // Commercial terms
+            negotiable:   product.negotiable || false,
+            bulkPricing:  Array.isArray(product.bulkPricing) ? product.bulkPricing : [],
           })
         );
       }

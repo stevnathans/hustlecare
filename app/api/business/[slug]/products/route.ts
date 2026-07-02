@@ -42,6 +42,38 @@ export async function GET(
                     vendor: {
                       select: { id: true, name: true, website: true, logo: true },
                     },
+
+                    // Condition
+                    condition: true,
+                    usedDurationValue: true,
+                    usedDurationUnit: true,
+                    hasReceipt: true,
+
+                    // Specifications
+                    brand: true,
+                    modelNumber: true,
+                    voltage: true,
+                    wattage: true,
+                    dimensions: true,
+                    weight: true,
+                    weightUnit: true,
+
+                    // Warranty
+                    warrantyType: true,
+                    warrantyDurationValue: true,
+                    warrantyDurationUnit: true,
+
+                    // Delivery / logistics
+                    deliveryAvailable: true,
+                    pickupLocation: true,
+                    leadTime: true,
+
+                    // Commercial terms
+                    negotiable: true,
+                    bulkPricing: {
+                      select: { id: true, minQty: true, price: true },
+                      orderBy: { minQty: 'asc' },
+                    },
                   },
                   orderBy: { price: 'asc' },
                 },

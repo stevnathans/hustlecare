@@ -1,8 +1,9 @@
-import { Vendor } from "./vendor";
+// types/index.ts
+import { Vendor, ProductCondition, DurationUnit, ReceiptStatus, WeightUnit, WarrantyType, LeadTime, BulkPriceTier } from "./vendor";
 
 export interface Product {
   unit: number;
-  inCart: boolean; 
+  inCart: boolean;
   id: number;
   name: string;
   image?: string;
@@ -16,10 +17,39 @@ export interface Product {
   specifications?: string[];
   category: string;
   requirementName: string;
-  quantity: number; 
+  quantity: number;
   business: string;
   createdAt: string;
   updatedAt: string;
+
+  // Condition
+  condition?: ProductCondition;
+  usedDurationValue?: number | null;
+  usedDurationUnit?: DurationUnit | null;
+  hasReceipt?: ReceiptStatus | null;
+
+  // Specifications (structured — distinct from the free-text `specifications` list above)
+  brand?: string | null;
+  modelNumber?: string | null;
+  voltage?: string | null;
+  wattage?: string | null;
+  dimensions?: string | null;
+  weight?: number | null;
+  weightUnit?: WeightUnit | null;
+
+  // Warranty
+  warrantyType?: WarrantyType;
+  warrantyDurationValue?: number | null;
+  warrantyDurationUnit?: DurationUnit | null;
+
+  // Delivery / logistics
+  deliveryAvailable?: boolean;
+  pickupLocation?: string | null;
+  leadTime?: LeadTime | null;
+
+  // Commercial terms
+  negotiable?: boolean;
+  bulkPricing?: BulkPriceTier[];
 }
 
 export type ProductFormValues = {

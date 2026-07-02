@@ -6,6 +6,7 @@ import Link from 'next/link';
 import {
   ChevronLeft, Save, Send, Loader2, AlertCircle, CheckCircle2,
   Tag, Package, DollarSign, Layers, Info, Search, X, ChevronRight,
+  ShieldCheck, Truck, Cpu, Percent, Plus, Trash2, MapPin, Clock,
 } from 'lucide-react';
 import { AppealModal, VendorAppealData } from '@/components/vendors/SuspensionNotice';
 
@@ -18,6 +19,8 @@ type Template = {
 };
 
 type ProductFormProps = { productId?: number };
+
+type BulkTier = { minQty: string; price: string };
 
 export default function NewProductPage() {
   return <ProductForm />;
@@ -36,11 +39,41 @@ export function ProductForm({ productId }: ProductFormProps) {
   const [saved,           setSaved]           = useState(false);
   const [suspendedVendor, setSuspendedVendor] = useState<VendorAppealData | null>(null);
   const [pickerOpen,      setPickerOpen]      = useState(false);
+  const [bulkTiers,       setBulkTiers]       = useState<BulkTier[]>([]);
 
   const [form, setForm] = useState({
     name: '', description: '', price: '', priceMin: '', priceMax: '',
     currency: 'KES', image: '', url: '', sku: '', stock: '',
     templateId: '', usePriceRange: false,
+
+    // Condition
+    condition: 'NEW' as 'NEW' | 'USED',
+    usedDurationValue: '',
+    usedDurationUnit: 'months' as 'days' | 'months' | 'years',
+    hasReceipt: '' as '' | 'YES' | 'NO' | 'UNKNOWN',
+
+    // Specs
+    brand: '',
+    model: '',
+    voltage: '',
+    wattage: '',
+    dimensions: '',
+    weight: '',
+    weightUnit: 'kg' as 'kg' | 'g' | 'lb',
+
+    // Warranty
+    warrantyType: 'NONE' as 'NONE' | 'MANUFACTURER' | 'VENDOR',
+    warrantyDurationValue: '',
+    warrantyDurationUnit: 'months' as 'days' | 'months' | 'years',
+
+    // Delivery / logistics
+    deliveryAvailable: false,
+    pickupLocation: '',
+    leadTime: 'IN_STOCK' as 'IN_STOCK' | '1_3_DAYS' | '1_WEEK' | '2_WEEKS_PLUS',
+
+    // Commercial terms
+    negotiable: false,
+    bulkPricingEnabled: false,
   });
 
   const fetchTemplates = useCallback(async () => {
@@ -63,7 +96,39 @@ export function ProductForm({ productId }: ProductFormProps) {
         sku: p.sku ?? '', stock: p.stock?.toString() ?? '',
         templateId: p.templateId?.toString() ?? '',
         usePriceRange: !!(p.priceMin || p.priceMax),
+
+        condition: p.condition ?? 'NEW',
+        usedDurationValue: p.usedDurationValue?.toString() ?? '',
+        usedDurationUnit: p.usedDurationUnit ?? 'months',
+        hasReceipt: p.hasReceipt ?? '',
+
+        brand: p.brand ?? '',
+        model: p.model ?? '',
+        voltage: p.voltage ?? '',
+        wattage: p.wattage ?? '',
+        dimensions: p.dimensions ?? '',
+        weight: p.weight?.toString() ?? '',
+        weightUnit: p.weightUnit ?? 'kg',
+
+        warrantyType: p.warrantyType ?? 'NONE',
+        warrantyDurationValue: p.warrantyDurationValue?.toString() ?? '',
+        warrantyDurationUnit: p.warrantyDurationUnit ?? 'months',
+
+        deliveryAvailable: !!p.deliveryAvailable,
+        pickupLocation: p.pickupLocation ?? '',
+        leadTime: p.leadTime ?? 'IN_STOCK',
+
+        negotiable: !!p.negotiable,
+        bulkPricingEnabled: Array.isArray(p.bulkPricing) && p.bulkPricing.length > 0,
       });
+      setBulkTiers(
+        Array.isArray(p.bulkPricing)
+          ? p.bulkPricing.map((b: { minQty?: number; price?: number }) => ({
+              minQty: b.minQty?.toString() ?? '',
+              price: b.price?.toString() ?? '',
+            }))
+          : []
+      );
     } catch { router.push('/vendor/dashboard/products'); }
     finally { setLoadingProduct(false); }
   }, [productId, router]);
@@ -84,6 +149,11 @@ export function ProductForm({ productId }: ProductFormProps) {
     if (isEditing) fetchProduct();
   }, [fetchTemplates, fetchProduct, isEditing, router]);
 
+  const addBulkTier    = () => setBulkTiers(t => [...t, { minQty: '', price: '' }]);
+  const updateBulkTier = (i: number, key: keyof BulkTier, value: string) =>
+    setBulkTiers(t => t.map((row, idx) => (idx === i ? { ...row, [key]: value } : row)));
+  const removeBulkTier = (i: number) => setBulkTiers(t => t.filter((_, idx) => idx !== i));
+
   async function handleSave(submitForReview: boolean) {
     setError('');
     setLoading(true);
@@ -101,6 +171,41 @@ export function ProductForm({ productId }: ProductFormProps) {
         stock:    form.stock ? parseInt(form.stock) : null,
         templateId: form.templateId ? parseInt(form.templateId) : null,
         submitForReview,
+
+        // Condition
+        condition: form.condition,
+        usedDurationValue: form.condition === 'USED' && form.usedDurationValue
+          ? parseFloat(form.usedDurationValue) : null,
+        usedDurationUnit: form.condition === 'USED' ? form.usedDurationUnit : null,
+        hasReceipt: form.condition === 'USED' ? (form.hasReceipt || null) : null,
+
+        // Specs
+        brand: form.brand || null,
+        model: form.model || null,
+        voltage: form.voltage || null,
+        wattage: form.wattage || null,
+        dimensions: form.dimensions || null,
+        weight: form.weight ? parseFloat(form.weight) : null,
+        weightUnit: form.weight ? form.weightUnit : null,
+
+        // Warranty
+        warrantyType: form.warrantyType,
+        warrantyDurationValue: form.warrantyType !== 'NONE' && form.warrantyDurationValue
+          ? parseFloat(form.warrantyDurationValue) : null,
+        warrantyDurationUnit: form.warrantyType !== 'NONE' ? form.warrantyDurationUnit : null,
+
+        // Delivery / logistics
+        deliveryAvailable: form.deliveryAvailable,
+        pickupLocation: form.pickupLocation || null,
+        leadTime: form.leadTime,
+
+        // Commercial terms
+        negotiable: form.negotiable,
+        bulkPricing: form.bulkPricingEnabled
+          ? bulkTiers
+              .filter(t => t.minQty && t.price)
+              .map(t => ({ minQty: parseInt(t.minQty), price: parseFloat(t.price) }))
+          : [],
       };
       const url    = isEditing ? `/api/vendors/products/${productId}` : '/api/vendors/products';
       const method = isEditing ? 'PATCH' : 'POST';
@@ -311,6 +416,153 @@ export function ProductForm({ productId }: ProductFormProps) {
             </div>
           </div>
 
+          {/* Condition */}
+          <div className={cardCls}>
+            <div className="mb-4 flex items-center gap-2">
+              <ShieldCheck size={14} className="text-emerald-600" />
+              <h2 className={cardTitleCls}>Condition</h2>
+            </div>
+
+            <label className={labelCls}>Condition</label>
+            <div className="mb-4 grid grid-cols-2 gap-2">
+              {(['NEW', 'USED'] as const).map(c => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, condition: c }))}
+                  className={`rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors ${
+                    form.condition === c
+                      ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                      : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                  }`}
+                >
+                  {c === 'NEW' ? 'Brand New' : 'Used'}
+                </button>
+              ))}
+            </div>
+
+            {form.condition === 'USED' && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className={labelCls}>How long has it been used?</label>
+                  <div className="flex gap-2">
+                    <input
+                      className={inputCls}
+                      type="number"
+                      min="0"
+                      placeholder="e.g. 8"
+                      value={form.usedDurationValue}
+                      onChange={e => setForm(f => ({ ...f, usedDurationValue: e.target.value }))}
+                    />
+                    <select
+                      className={`${inputCls} max-w-[110px]`}
+                      value={form.usedDurationUnit}
+                      onChange={e => setForm(f => ({ ...f, usedDurationUnit: e.target.value as typeof f.usedDurationUnit }))}
+                    >
+                      <option value="days">Days</option>
+                      <option value="months">Months</option>
+                      <option value="years">Years</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className={labelCls}>Receipt available?</label>
+                  <select
+                    className={inputCls}
+                    value={form.hasReceipt}
+                    onChange={e => setForm(f => ({ ...f, hasReceipt: e.target.value as typeof f.hasReceipt }))}
+                  >
+                    <option value="">Select…</option>
+                    <option value="YES">Yes, original receipt available</option>
+                    <option value="NO">No receipt</option>
+                    <option value="UNKNOWN">Not sure</option>
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Specs */}
+          <div className={cardCls}>
+            <div className="mb-4 flex items-center gap-2">
+              <Cpu size={14} className="text-indigo-500" />
+              <h2 className={cardTitleCls}>Specifications</h2>
+            </div>
+
+            <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className={labelCls}>Brand / Manufacturer</label>
+                <input
+                  className={inputCls}
+                  placeholder="Optional"
+                  value={form.brand}
+                  onChange={e => setForm(f => ({ ...f, brand: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Model</label>
+                <input
+                  className={inputCls}
+                  placeholder="Optional"
+                  value={form.model}
+                  onChange={e => setForm(f => ({ ...f, model: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className={labelCls}>Power requirements</label>
+                <div className="flex gap-2">
+                  <input
+                    className={inputCls}
+                    placeholder="Voltage (e.g. 220V)"
+                    value={form.voltage}
+                    onChange={e => setForm(f => ({ ...f, voltage: e.target.value }))}
+                  />
+                  <input
+                    className={inputCls}
+                    placeholder="Wattage (e.g. 1500W)"
+                    value={form.wattage}
+                    onChange={e => setForm(f => ({ ...f, wattage: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>Dimensions (L x W x H)</label>
+                <input
+                  className={inputCls}
+                  placeholder="e.g. 60 x 45 x 90 cm"
+                  value={form.dimensions}
+                  onChange={e => setForm(f => ({ ...f, dimensions: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className={labelCls}>Weight</label>
+              <div className="flex max-w-xs gap-2">
+                <input
+                  className={inputCls}
+                  type="number"
+                  min="0"
+                  placeholder="Optional"
+                  value={form.weight}
+                  onChange={e => setForm(f => ({ ...f, weight: e.target.value }))}
+                />
+                <select
+                  className={`${inputCls} max-w-[90px]`}
+                  value={form.weightUnit}
+                  onChange={e => setForm(f => ({ ...f, weightUnit: e.target.value as typeof f.weightUnit }))}
+                >
+                  <option value="kg">kg</option>
+                  <option value="g">g</option>
+                  <option value="lb">lb</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           {/* Pricing */}
           <div className={cardCls}>
             <div className="mb-4 flex items-center gap-2">
@@ -379,6 +631,171 @@ export function ProductForm({ productId }: ProductFormProps) {
                     </div>
                   )}
                 </div>
+              </div>
+            </div>
+
+            {/* Commercial terms */}
+            <div className="mt-4 border-t border-gray-100 pt-4">
+              <div className="mb-3 flex items-center gap-2">
+                <Percent size={13} className="text-gray-400" />
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Commercial Terms</span>
+              </div>
+
+              <label className="mb-3 flex cursor-pointer items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={form.negotiable}
+                  onChange={e => setForm(f => ({ ...f, negotiable: e.target.checked }))}
+                  className="h-3.5 w-3.5 cursor-pointer accent-emerald-600"
+                />
+                Price is negotiable
+              </label>
+
+              <label className="mb-3 flex cursor-pointer items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={form.bulkPricingEnabled}
+                  onChange={e => setForm(f => ({ ...f, bulkPricingEnabled: e.target.checked }))}
+                  className="h-3.5 w-3.5 cursor-pointer accent-emerald-600"
+                />
+                Offer bulk / wholesale pricing
+              </label>
+
+              {form.bulkPricingEnabled && (
+                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                  {bulkTiers.length === 0 && (
+                    <p className="mb-2 text-xs text-gray-400">
+                      Add pricing tiers based on quantity ordered.
+                    </p>
+                  )}
+                  <div className="flex flex-col gap-2">
+                    {bulkTiers.map((tier, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <input
+                          className={inputCls}
+                          type="number"
+                          min="1"
+                          placeholder="Min qty"
+                          value={tier.minQty}
+                          onChange={e => updateBulkTier(i, 'minQty', e.target.value)}
+                        />
+                        <input
+                          className={inputCls}
+                          type="number"
+                          min="0"
+                          placeholder={`Price per unit (${form.currency})`}
+                          value={tier.price}
+                          onChange={e => updateBulkTier(i, 'price', e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeBulkTier(i)}
+                          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addBulkTier}
+                    className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-emerald-600 hover:text-emerald-700"
+                  >
+                    <Plus size={13} /> Add tier
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Warranty */}
+          <div className={cardCls}>
+            <div className="mb-4 flex items-center gap-2">
+              <ShieldCheck size={14} className="text-indigo-500" />
+              <h2 className={cardTitleCls}>Warranty</h2>
+            </div>
+
+            <label className={labelCls}>Warranty type</label>
+            <select
+              className={`${inputCls} mb-3`}
+              value={form.warrantyType}
+              onChange={e => setForm(f => ({ ...f, warrantyType: e.target.value as typeof f.warrantyType }))}
+            >
+              <option value="NONE">No warranty</option>
+              <option value="MANUFACTURER">Manufacturer warranty</option>
+              <option value="VENDOR">Vendor-provided warranty</option>
+            </select>
+
+            {form.warrantyType !== 'NONE' && (
+              <div>
+                <label className={labelCls}>Warranty duration</label>
+                <div className="flex max-w-xs gap-2">
+                  <input
+                    className={inputCls}
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 12"
+                    value={form.warrantyDurationValue}
+                    onChange={e => setForm(f => ({ ...f, warrantyDurationValue: e.target.value }))}
+                  />
+                  <select
+                    className={`${inputCls} max-w-[110px]`}
+                    value={form.warrantyDurationUnit}
+                    onChange={e => setForm(f => ({ ...f, warrantyDurationUnit: e.target.value as typeof f.warrantyDurationUnit }))}
+                  >
+                    <option value="days">Days</option>
+                    <option value="months">Months</option>
+                    <option value="years">Years</option>
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Delivery / Logistics */}
+          <div className={cardCls}>
+            <div className="mb-4 flex items-center gap-2">
+              <Truck size={14} className="text-emerald-600" />
+              <h2 className={cardTitleCls}>Delivery & Logistics</h2>
+            </div>
+
+            <label className="mb-3 flex cursor-pointer items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={form.deliveryAvailable}
+                onChange={e => setForm(f => ({ ...f, deliveryAvailable: e.target.checked }))}
+                className="h-3.5 w-3.5 cursor-pointer accent-emerald-600"
+              />
+              Delivery available
+            </label>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className={labelCls}>
+                  <span className="inline-flex items-center gap-1"><MapPin size={11} /> Pickup location</span>
+                </label>
+                <input
+                  className={inputCls}
+                  placeholder="e.g. Industrial Area, Nairobi"
+                  value={form.pickupLocation}
+                  onChange={e => setForm(f => ({ ...f, pickupLocation: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>
+                  <span className="inline-flex items-center gap-1"><Clock size={11} /> Lead time</span>
+                </label>
+                <select
+                  className={inputCls}
+                  value={form.leadTime}
+                  onChange={e => setForm(f => ({ ...f, leadTime: e.target.value as typeof f.leadTime }))}
+                >
+                  <option value="IN_STOCK">In stock — ships immediately</option>
+                  <option value="1_3_DAYS">1–3 days</option>
+                  <option value="1_WEEK">About 1 week</option>
+                  <option value="2_WEEKS_PLUS">2+ weeks</option>
+                </select>
               </div>
             </div>
           </div>

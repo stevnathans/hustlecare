@@ -262,7 +262,7 @@ function BusinessCard({
               Total Cost
             </div>
             <p className="text-lg font-bold text-gray-900 dark:text-white">
-              ${(business.totalCost / 1000).toFixed(1)}K
+              KSh {(business.totalCost / 1000).toFixed(1)}K
             </p>
           </div>
         </div>

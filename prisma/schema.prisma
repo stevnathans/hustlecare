@@ -25,7 +25,7 @@ model User {
   pushNotifications      Boolean                 @default(false)
   isActive               Boolean                 @default(true)
   lastLoginAt            DateTime?
-  isVerified             Boolean                 @default(false)
+  isVerified              Boolean                 @default(false)
   verifiedAt             DateTime?
   accounts               Account[]
   auditLogs              AuditLog[]
@@ -256,6 +256,36 @@ model Product {
   featuredAt   DateTime?
   businessTags Int[]
   status       ProductStatus        @default(PENDING_REVIEW)
+
+  // Condition
+  condition          ProductCondition @default(NEW)
+  usedDurationValue  Float?
+  usedDurationUnit   DurationUnit?
+  hasReceipt         ReceiptStatus?
+
+  // Specifications
+  brand        String?
+  modelNumber  String?
+  voltage      String?
+  wattage      String?
+  dimensions   String?
+  weight       Float?
+  weightUnit   WeightUnit?
+
+  // Warranty
+  warrantyType           WarrantyType @default(NONE)
+  warrantyDurationValue  Float?
+  warrantyDurationUnit   DurationUnit?
+
+  // Delivery / logistics
+  deliveryAvailable Boolean  @default(false)
+  pickupLocation    String?
+  leadTime          String?  @default("IN_STOCK") // IN_STOCK | 1_3_DAYS | 1_WEEK | 2_WEEKS_PLUS
+
+  // Commercial terms
+  negotiable   Boolean         @default(false)
+  bulkPricing  BulkPriceTier[]
+
   cartItems    CartItem[]
   template     RequirementTemplate? @relation(fields: [templateId], references: [id])
   vendor       Vendor?              @relation(fields: [vendorId], references: [id])
@@ -266,6 +296,19 @@ model Product {
   @@index([status])
   @@index([name])
   @@index([isFeatured])
+  @@index([condition])
+}
+
+model BulkPriceTier {
+  id        Int      @id @default(autoincrement())
+  productId Int
+  minQty    Int
+  price     Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
 }
 
 model Review {
@@ -568,6 +611,35 @@ enum ProductStatus {
   ACTIVE
   REJECTED
   ARCHIVED
+}
+
+enum ProductCondition {
+  NEW
+  USED
+}
+
+enum DurationUnit {
+  days
+  months
+  years
+}
+
+enum ReceiptStatus {
+  YES
+  NO
+  UNKNOWN
+}
+
+enum WeightUnit {
+  kg
+  g
+  lb
+}
+
+enum WarrantyType {
+  NONE
+  MANUFACTURER
+  VENDOR
 }
 
 enum AppealStatus {

@@ -10,6 +10,13 @@ type VendorSessionUser = {
   vendorId?: string | null;
 };
 
+const VALID_LEAD_TIMES = ['IN_STOCK', '1_3_DAYS', '1_WEEK', '2_WEEKS_PLUS'];
+const VALID_DURATION_UNITS = ['days', 'months', 'years'];
+const VALID_WEIGHT_UNITS = ['kg', 'g', 'lb'];
+const VALID_RECEIPT_STATUSES = ['YES', 'NO', 'UNKNOWN'];
+const VALID_WARRANTY_TYPES = ['NONE', 'MANUFACTURER', 'VENDOR'];
+const VALID_CONDITIONS = ['NEW', 'USED'];
+
 export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -31,6 +38,7 @@ export async function GET(request: Request) {
       },
       include: {
         template: { select: { id: true, name: true, category: true } },
+        bulkPricing: true,
         _count: { select: { reviews: true, cartItems: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -80,10 +88,85 @@ export async function POST(request: Request) {
       name, description, price, priceMin, priceMax, currency,
       image, url, sku, stock, templateId, businessTags,
       submitForReview,
+
+      // Condition
+      condition,
+      usedDurationValue,
+      usedDurationUnit,
+      hasReceipt,
+
+      // Specifications
+      brand,
+      model, // maps to modelNumber
+      voltage,
+      wattage,
+      dimensions,
+      weight,
+      weightUnit,
+
+      // Warranty
+      warrantyType,
+      warrantyDurationValue,
+      warrantyDurationUnit,
+
+      // Delivery / logistics
+      deliveryAvailable,
+      pickupLocation,
+      leadTime,
+
+      // Commercial terms
+      negotiable,
+      bulkPricing,
     } = body;
 
     if (!name?.trim()) return NextResponse.json({ error: 'Product name is required.' }, { status: 400 });
     if (!templateId) return NextResponse.json({ error: 'Please select a requirement this product fulfils.' }, { status: 400 });
+
+    // ── Validate enum-like fields ────────────────────────────────────────────
+    if (condition !== undefined && condition !== null && !VALID_CONDITIONS.includes(condition)) {
+      return NextResponse.json({ error: 'Invalid condition.' }, { status: 400 });
+    }
+    if (usedDurationUnit !== undefined && usedDurationUnit !== null && !VALID_DURATION_UNITS.includes(usedDurationUnit)) {
+      return NextResponse.json({ error: 'Invalid used-duration unit.' }, { status: 400 });
+    }
+    if (hasReceipt !== undefined && hasReceipt !== null && hasReceipt !== '' && !VALID_RECEIPT_STATUSES.includes(hasReceipt)) {
+      return NextResponse.json({ error: 'Invalid receipt status.' }, { status: 400 });
+    }
+    if (weightUnit !== undefined && weightUnit !== null && !VALID_WEIGHT_UNITS.includes(weightUnit)) {
+      return NextResponse.json({ error: 'Invalid weight unit.' }, { status: 400 });
+    }
+    if (warrantyType !== undefined && warrantyType !== null && !VALID_WARRANTY_TYPES.includes(warrantyType)) {
+      return NextResponse.json({ error: 'Invalid warranty type.' }, { status: 400 });
+    }
+    if (warrantyDurationUnit !== undefined && warrantyDurationUnit !== null && !VALID_DURATION_UNITS.includes(warrantyDurationUnit)) {
+      return NextResponse.json({ error: 'Invalid warranty-duration unit.' }, { status: 400 });
+    }
+    if (leadTime !== undefined && leadTime !== null && !VALID_LEAD_TIMES.includes(leadTime)) {
+      return NextResponse.json({ error: 'Invalid lead time.' }, { status: 400 });
+    }
+    let validBulkTiers: { minQty: number; price: number }[] = [];
+    if (bulkPricing !== undefined && bulkPricing !== null) {
+      if (!Array.isArray(bulkPricing)) {
+        return NextResponse.json({ error: 'bulkPricing must be an array.' }, { status: 400 });
+      }
+      for (const tier of bulkPricing) {
+        if (
+          tier == null ||
+          typeof tier.minQty === 'undefined' ||
+          typeof tier.price === 'undefined' ||
+          Number.isNaN(Number(tier.minQty)) ||
+          Number.isNaN(Number(tier.price)) ||
+          Number(tier.minQty) <= 0 ||
+          Number(tier.price) < 0
+        ) {
+          return NextResponse.json({ error: 'Each bulk pricing tier needs a positive minQty and a non-negative price.' }, { status: 400 });
+        }
+      }
+      validBulkTiers = bulkPricing.map((tier: { minQty: number | string; price: number | string }) => ({
+        minQty: Number(tier.minQty),
+        price: Number(tier.price),
+      }));
+    }
 
     const template = await prisma.requirementTemplate.findUnique({
       where: { id: Number(templateId) },
@@ -101,6 +184,8 @@ export async function POST(request: Request) {
     const finalTags = [...new Set([...autoTags, ...manualTags])];
 
     const status = submitForReview === true ? 'PENDING_REVIEW' : 'DRAFT';
+    const isUsed = condition === 'USED';
+    const hasWarranty = !!warrantyType && warrantyType !== 'NONE';
 
     const product = await prisma.product.create({
       data: {
@@ -119,10 +204,42 @@ export async function POST(request: Request) {
         businessTags: finalTags,
         status,
         publishedAt: null,
+
+        // Condition
+        condition: condition || 'NEW',
+        usedDurationValue: isUsed && usedDurationValue !== undefined && usedDurationValue !== null ? Number(usedDurationValue) : null,
+        usedDurationUnit: isUsed ? (usedDurationUnit || null) : null,
+        hasReceipt: isUsed ? (hasReceipt || null) : null,
+
+        // Specifications
+        brand: brand?.trim() || null,
+        modelNumber: model?.trim() || null,
+        voltage: voltage?.trim() || null,
+        wattage: wattage?.trim() || null,
+        dimensions: dimensions?.trim() || null,
+        weight: weight !== undefined && weight !== null && weight !== '' ? Number(weight) : null,
+        weightUnit: weight !== undefined && weight !== null && weight !== '' ? (weightUnit || null) : null,
+
+        // Warranty
+        warrantyType: warrantyType || 'NONE',
+        warrantyDurationValue: hasWarranty && warrantyDurationValue !== undefined && warrantyDurationValue !== null ? Number(warrantyDurationValue) : null,
+        warrantyDurationUnit: hasWarranty ? (warrantyDurationUnit || null) : null,
+
+        // Delivery / logistics
+        deliveryAvailable: !!deliveryAvailable,
+        pickupLocation: pickupLocation?.trim() || null,
+        leadTime: leadTime || 'IN_STOCK',
+
+        // Commercial terms
+        negotiable: !!negotiable,
+        ...(validBulkTiers.length > 0
+          ? { bulkPricing: { create: validBulkTiers } }
+          : {}),
       },
       include: {
         template: { select: { id: true, name: true, category: true } },
         vendor: { select: { id: true, name: true, slug: true, logo: true } },
+        bulkPricing: true,
       },
     });
 

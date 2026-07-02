@@ -219,7 +219,7 @@ export default function MyListsTab() {
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Value</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                ${totalStats.totalCost.toLocaleString()}
+                KSh {totalStats.totalCost.toLocaleString()}
               </p>
             </div>
             <div className="p-3 bg-purple-100 dark:bg-purple-900 rounded-full">
@@ -276,14 +276,14 @@ export default function MyListsTab() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600 dark:text-gray-400">Total Cost</span>
                   <span className="font-medium text-gray-900 dark:text-white">
-                    ${business.totalCost.toLocaleString()}
+                    KSh {business.totalCost.toLocaleString()}
                   </span>
                 </div>
               </div>
 
               {/* Action Buttons */}
               <div className="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <Link href={`/business/${business.slug}`}>
+                <Link href={`/businesses/${business.slug}/requirements`}>
                   <button className="w-full flex items-center justify-center px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors text-sm font-medium">
                     <TrendingUp className="w-4 h-4 mr-2" />
                     View Details

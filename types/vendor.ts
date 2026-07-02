@@ -1,3 +1,4 @@
+// types/vendor.ts
 export type Vendor = {
   id: number;
   name: string;
@@ -7,6 +8,19 @@ export type Vendor = {
 };
 
 export type ProductStatus = 'DRAFT' | 'PENDING_REVIEW' | 'ACTIVE' | 'REJECTED' | 'ARCHIVED';
+
+export type ProductCondition = 'NEW' | 'USED';
+export type DurationUnit = 'days' | 'months' | 'years';
+export type ReceiptStatus = 'YES' | 'NO' | 'UNKNOWN';
+export type WeightUnit = 'kg' | 'g' | 'lb';
+export type WarrantyType = 'NONE' | 'MANUFACTURER' | 'VENDOR';
+export type LeadTime = 'IN_STOCK' | '1_3_DAYS' | '1_WEEK' | '2_WEEKS_PLUS';
+
+export type BulkPriceTier = {
+  id?: number;
+  minQty: number;
+  price: number;
+};
 
 export type Product = {
   id: number;
@@ -28,6 +42,35 @@ export type Product = {
   vendor: Vendor | null;
   templateId: number | null;
   template: { id: number; name: string; category?: string } | null;
+
+  // Condition
+  condition: ProductCondition;
+  usedDurationValue: number | null;
+  usedDurationUnit: DurationUnit | null;
+  hasReceipt: ReceiptStatus | null;
+
+  // Specifications
+  brand: string | null;
+  modelNumber: string | null;
+  voltage: string | null;
+  wattage: string | null;
+  dimensions: string | null;
+  weight: number | null;
+  weightUnit: WeightUnit | null;
+
+  // Warranty
+  warrantyType: WarrantyType;
+  warrantyDurationValue: number | null;
+  warrantyDurationUnit: DurationUnit | null;
+
+  // Delivery / logistics
+  deliveryAvailable: boolean;
+  pickupLocation: string | null;
+  leadTime: LeadTime | null;
+
+  // Commercial terms
+  negotiable: boolean;
+  bulkPricing: BulkPriceTier[];
 };
 
 export type SortField = 'name' | 'price' | 'vendor' | 'id' | 'status';

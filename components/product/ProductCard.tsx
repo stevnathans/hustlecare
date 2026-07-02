@@ -11,12 +11,25 @@ import {
   FiChevronUp,
   FiShoppingBag,
   FiPackage,
+  FiShield,
+  FiTruck,
+  FiClock,
+  FiMapPin,
+  FiFileText,
+  FiTag,
 } from "react-icons/fi";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import Image from "next/image";
 import { useCart } from "@/contexts/CartContext";
 import { useSession } from "next-auth/react";
 import LoginModal from "../LoginModal";
+
+type DurationUnit = "days" | "months" | "years";
+
+interface BulkPriceTier {
+  minQty: number;
+  price: number;
+}
 
 interface ProductCardProps {
   product: {
@@ -32,9 +45,100 @@ interface ProductCardProps {
       website?: string;
       logo?: string;
     };
+
+    // Condition
+    condition?: "NEW" | "USED";
+    usedDurationValue?: number | null;
+    usedDurationUnit?: DurationUnit | null;
+    hasReceipt?: "YES" | "NO" | "UNKNOWN" | null;
+
+    // Specifications
+    brand?: string | null;
+    modelNumber?: string | null;
+    voltage?: string | null;
+    wattage?: string | null;
+    dimensions?: string | null;
+    weight?: number | null;
+    weightUnit?: "kg" | "g" | "lb" | null;
+
+    // Warranty
+    warrantyType?: "NONE" | "MANUFACTURER" | "VENDOR";
+    warrantyDurationValue?: number | null;
+    warrantyDurationUnit?: DurationUnit | null;
+
+    // Delivery / logistics
+    deliveryAvailable?: boolean;
+    pickupLocation?: string | null;
+    leadTime?: string | null;
+
+    // Commercial terms
+    negotiable?: boolean;
+    bulkPricing?: BulkPriceTier[];
   };
   requirementName: string;
   category: string;
+}
+
+// ── Formatting helpers ────────────────────────────────────────────────────────
+function formatDuration(value?: number | null, unit?: DurationUnit | null): string | null {
+  if (value === undefined || value === null || !unit) return null;
+  const label = value === 1 ? unit.slice(0, -1) : unit;
+  return `${value} ${label}`;
+}
+
+function formatLeadTime(leadTime?: string | null): string | null {
+  switch (leadTime) {
+    case "IN_STOCK": return "In stock — ships immediately";
+    case "1_3_DAYS": return "Ships in 1–3 days";
+    case "1_WEEK": return "Ships in about 1 week";
+    case "2_WEEKS_PLUS": return "Ships in 2+ weeks";
+    default: return null;
+  }
+}
+
+function formatWeight(value?: number | null, unit?: string | null): string | null {
+  if (value === undefined || value === null || !unit) return null;
+  return `${value}${unit}`;
+}
+
+function formatReceipt(hasReceipt?: "YES" | "NO" | "UNKNOWN" | null): string | null {
+  switch (hasReceipt) {
+    case "YES": return "Original receipt available";
+    case "NO": return "No receipt available";
+    case "UNKNOWN": return "Receipt availability not specified";
+    default: return null;
+  }
+}
+
+// ── Small badge used in the always-visible summary row ─────────────────────────
+function Badge({
+  children,
+  tone = "gray",
+}: {
+  children: React.ReactNode;
+  tone?: "emerald" | "amber" | "indigo" | "gray";
+}) {
+  const toneCls = {
+    emerald: "bg-emerald-50 text-emerald-700",
+    amber: "bg-amber-50 text-amber-700",
+    indigo: "bg-indigo-50 text-indigo-600",
+    gray: "bg-gray-100 text-gray-600",
+  }[tone];
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.68rem] font-semibold ${toneCls}`}>
+      {children}
+    </span>
+  );
+}
+
+// ── Detail panel row: label above, value below (matches existing style) ────────
+function DetailBlock({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">{label}</h4>
+      <div className="text-gray-700 text-xs sm:text-sm">{children}</div>
+    </div>
+  );
 }
 
 // ── Portal wrapper ────────────────────────────────────────────────────────────
@@ -239,6 +343,15 @@ const ProductCard: React.FC<ProductCardProps> = ({
     setShowDetails(!showDetails);
   };
 
+  const isUsed = product.condition === "USED";
+  const hasWarranty = !!product.warrantyType && product.warrantyType !== "NONE";
+  const usedDuration = formatDuration(product.usedDurationValue, product.usedDurationUnit);
+  const warrantyDuration = formatDuration(product.warrantyDurationValue, product.warrantyDurationUnit);
+  const leadTimeLabel = formatLeadTime(product.leadTime);
+  const weightLabel = formatWeight(product.weight, product.weightUnit);
+  const hasSpecs = !!(product.brand || product.modelNumber || product.voltage || product.wattage || product.dimensions || weightLabel);
+  const hasBulkPricing = Array.isArray(product.bulkPricing) && product.bulkPricing.length > 0;
+
   return (
     <>
       {/* Lightbox — portaled to body, always above everything */}
@@ -328,9 +441,12 @@ const ProductCard: React.FC<ProductCardProps> = ({
                   by {product.vendor.name}
                 </p>
               )}
-              <span className="text-base sm:text-lg font-bold text-gray-900">
-                KSh {product.price.toLocaleString()}
-              </span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-base sm:text-lg font-bold text-gray-900">
+                  KSh {product.price.toLocaleString()}
+                </span>
+                {product.negotiable && <Badge tone="indigo">Negotiable</Badge>}
+              </div>
             </div>
 
             {/* Add / Remove Button */}
@@ -356,6 +472,27 @@ const ProductCard: React.FC<ProductCardProps> = ({
               )}
             </button>
           </div>
+
+          {/* Trust / condition badges — always visible so buyers see this before expanding */}
+          {(product.condition || hasWarranty || product.deliveryAvailable) && (
+            <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
+              {product.condition && (
+                <Badge tone={isUsed ? "amber" : "emerald"}>
+                  {isUsed ? `Used${usedDuration ? ` · ${usedDuration}` : ""}` : "Brand New"}
+                </Badge>
+              )}
+              {hasWarranty && (
+                <Badge tone="gray">
+                  <FiShield size={10} /> Warranty
+                </Badge>
+              )}
+              {product.deliveryAvailable && (
+                <Badge tone="gray">
+                  <FiTruck size={10} /> Delivery
+                </Badge>
+              )}
+            </div>
+          )}
 
           {/* Cart Status */}
           {isInCart && (
@@ -404,40 +541,103 @@ const ProductCard: React.FC<ProductCardProps> = ({
           <div className="px-3 pb-3 pt-2 border-t bg-gray-50">
             <div className="space-y-3 text-sm">
               {product.description && (
-                <div>
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">
-                    Description
-                  </h4>
-                  <p className="text-gray-700 leading-relaxed text-xs sm:text-sm">
-                    {product.description}
-                  </p>
-                </div>
+                <DetailBlock label="Description">
+                  <p className="leading-relaxed">{product.description}</p>
+                </DetailBlock>
               )}
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">
-                    Category
-                  </h4>
-                  <p className="text-gray-700 text-xs sm:text-sm">{category}</p>
-                </div>
-                <div>
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">
-                    Requirement
-                  </h4>
-                  <p className="text-gray-700 text-xs sm:text-sm">{requirementName}</p>
-                </div>
+                <DetailBlock label="Category">{category}</DetailBlock>
+                <DetailBlock label="Requirement">{requirementName}</DetailBlock>
               </div>
 
-              {product.vendor?.name && (
-                <div>
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">
-                    Vendor
-                  </h4>
-                  <div className="flex items-center gap-2">
-                    <p className="text-gray-700 text-xs sm:text-sm">
-                      {product.vendor.name}
+              {/* Condition */}
+              {product.condition && (
+                <DetailBlock label="Condition">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Badge tone={isUsed ? "amber" : "emerald"}>
+                      {isUsed ? "Used" : "Brand New"}
+                    </Badge>
+                    {isUsed && usedDuration && <span className="text-gray-600">Used for {usedDuration}</span>}
+                  </div>
+                  {isUsed && product.hasReceipt && (
+                    <p className="mt-1 flex items-center gap-1 text-gray-600">
+                      <FiFileText size={11} /> {formatReceipt(product.hasReceipt)}
                     </p>
+                  )}
+                </DetailBlock>
+              )}
+
+              {/* Specifications */}
+              {hasSpecs && (
+                <DetailBlock label="Specifications">
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                    {product.brand && <span>Brand: {product.brand}</span>}
+                    {product.modelNumber && <span>Model: {product.modelNumber}</span>}
+                    {(product.voltage || product.wattage) && (
+                      <span>Power: {[product.voltage, product.wattage].filter(Boolean).join(", ")}</span>
+                    )}
+                    {product.dimensions && <span>Dimensions: {product.dimensions}</span>}
+                    {weightLabel && <span>Weight: {weightLabel}</span>}
+                  </div>
+                </DetailBlock>
+              )}
+
+              {/* Warranty */}
+              {hasWarranty && (
+                <DetailBlock label="Warranty">
+                  <p className="flex items-center gap-1">
+                    <FiShield size={11} className="text-gray-400" />
+                    {product.warrantyType === "MANUFACTURER" ? "Manufacturer warranty" : "Vendor-provided warranty"}
+                    {warrantyDuration && ` · ${warrantyDuration}`}
+                  </p>
+                </DetailBlock>
+              )}
+
+              {/* Delivery & Logistics */}
+              {(product.deliveryAvailable || product.pickupLocation || leadTimeLabel) && (
+                <DetailBlock label="Delivery & Logistics">
+                  <div className="space-y-1">
+                    {product.deliveryAvailable && (
+                      <p className="flex items-center gap-1"><FiTruck size={11} className="text-gray-400" /> Delivery available</p>
+                    )}
+                    {product.pickupLocation && (
+                      <p className="flex items-center gap-1"><FiMapPin size={11} className="text-gray-400" /> Pickup: {product.pickupLocation}</p>
+                    )}
+                    {leadTimeLabel && (
+                      <p className="flex items-center gap-1"><FiClock size={11} className="text-gray-400" /> {leadTimeLabel}</p>
+                    )}
+                  </div>
+                </DetailBlock>
+              )}
+
+              {/* Bulk pricing */}
+              {hasBulkPricing && (
+                <DetailBlock label="Bulk Pricing">
+                  <div className="flex items-center gap-1 mb-1 text-gray-500">
+                    <FiTag size={11} /> <span>Buy more, pay less</span>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 overflow-hidden">
+                    {product.bulkPricing!
+                      .slice()
+                      .sort((a, b) => a.minQty - b.minQty)
+                      .map((tier, i) => (
+                        <div
+                          key={i}
+                          className={`flex items-center justify-between px-2.5 py-1.5 text-xs sm:text-sm ${i % 2 ? "bg-white" : "bg-gray-50"}`}
+                        >
+                          <span className="text-gray-600">{tier.minQty}+ units</span>
+                          <span className="font-semibold text-gray-900">KSh {tier.price.toLocaleString()} / unit</span>
+                        </div>
+                      ))}
+                  </div>
+                </DetailBlock>
+              )}
+
+              {product.vendor?.name && (
+                <DetailBlock label="Vendor">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs sm:text-sm">{product.vendor.name}</p>
                     {product.vendor.website && (
                       <a
                         href={product.vendor.website}
@@ -449,7 +649,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
                       </a>
                     )}
                   </div>
-                </div>
+                </DetailBlock>
               )}
             </div>
           </div>
