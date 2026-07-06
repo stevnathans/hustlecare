@@ -3,9 +3,15 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import BusinessPageContent from './BusinessPageContent';
 import { prisma } from '@/lib/prisma';
+import type { Business as BusinessData, Requirement as RequirementData } from 'hooks/useBusinessData';
 
 interface BusinessPageProps {
   params: Promise<{ slug: string }>;
+}
+
+interface RequirementFaq {
+  question: string;
+  answer: string;
 }
 
 // ── Data Fetching ─────────────────────────────────────────────────────────────
@@ -15,6 +21,12 @@ async function fetchBusinessWithRequirements(slug: string) {
     where: { slug },
     include: {
       requirements: {
+        // Match the hub page's filtering so both pages agree on the
+        // canonical set of requirements. Previously this query had no
+        // isActive/isDeprecated filter and no explicit ordering, so this
+        // page could show stale/deprecated items the hub page excluded.
+        where: { isActive: true, template: { isDeprecated: false } },
+        orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
         select: {
           id: true,
           templateId: true,
@@ -26,6 +38,7 @@ async function fetchBusinessWithRequirements(slug: string) {
               description: true,
               category: true,
               necessity: true,
+              image: true,
             },
           },
         },
@@ -36,13 +49,55 @@ async function fetchBusinessWithRequirements(slug: string) {
 }
 
 // ── Title Builder ─────────────────────────────────────────────────────────────
+// "Kenya" is now explicit in the title. Previously this page's own title
+// omitted it while the hub and how-to-start pages both included it, which
+// made those pages a stronger literal match for searches like
+// "requirements to start a barbershop business in Kenya."
 
 function buildTitle(businessName: string, requirementCount: number): string {
   const year = new Date().getFullYear();
   if (requirementCount > 0) {
-    return `${requirementCount} Requirements To Start a ${businessName} Business in ${year} (Plus Total Cost Calculations)`;
+    return `${requirementCount} Requirements To Start a ${businessName} Business in Kenya (${year} Costs & Checklist)`;
   }
-  return `${businessName} Business - Complete Requirements & Total Costs`;
+  return `${businessName} Business Requirements in Kenya - Complete Checklist & Costs`;
+}
+
+// ── FAQ Builder ────────────────────────────────────────────────────────────────
+// Small, requirements-specific FAQ set generated from data already fetched
+// above. Deliberately different in focus from the hub page's FAQs (which
+// cover cost/time/profitability/location) so the two pages don't compete
+// with near-duplicate FAQ content.
+
+function buildRequirementsFaqs(
+  businessName: string,
+  totalRequirements: number,
+  requiredCount: number,
+  optionalCount: number,
+  categories: string[],
+): RequirementFaq[] {
+  const faqs: RequirementFaq[] = [];
+
+  if (totalRequirements > 0) {
+    faqs.push({
+      question: `What do I need to start a ${businessName} business in Kenya?`,
+      answer: `To start a ${businessName} business in Kenya, you need ${totalRequirements} requirements in total${
+        categories.length > 0 ? `, covering categories such as ${categories.join(', ')}` : ''
+      }. Use the checklist on this page to see every item and add them to the cost calculator to estimate your total investment.`,
+    });
+  }
+
+  if (requiredCount > 0) {
+    faqs.push({
+      question: `How many of the ${businessName} business requirements are mandatory?`,
+      answer: `Out of the ${totalRequirements} requirements listed for a ${businessName} business, ${requiredCount} ${
+        requiredCount === 1 ? 'is essential' : 'are essential'
+      } and ${optionalCount} ${
+        optionalCount === 1 ? 'is optional' : 'are optional'
+      }, depending on the scale at which you plan to operate.`,
+    });
+  }
+
+  return faqs;
 }
 
 // ── SEO Metadata ──────────────────────────────────────────────────────────────
@@ -168,11 +223,18 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   const requirementCount = requirements.length;
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
   const pageUrl = `${siteUrl}/businesses/${slug}/requirements`;
+  const hubUrl = `${siteUrl}/businesses/${slug}`;
   const ogImage = business.image || `${siteUrl}/images/default-business.jpg`;
   const title = buildTitle(business.name, requirementCount);
   const description =
     business.description ||
     `Complete guide to starting a ${business.name} business in Kenya with ${requirementCount} requirements and cost calculator.`;
+
+  // ── Requirement counts (for FAQs and general use) ───────────────────────
+  const requiredCount = requirements.filter(
+    (req) => (req.necessityOverride ?? req.template.necessity) === 'Required'
+  ).length;
+  const optionalCount = requirementCount - requiredCount;
 
   // ── Structured Data ─────────────────────────────────────────────────────────
   //
@@ -222,17 +284,31 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   },
 }));
 
+  // Auto-generated FAQ content, distinct in focus from the hub page's FAQs.
+  const requirementFaqs = buildRequirementsFaqs(
+    business.name,
+    requirementCount,
+    requiredCount,
+    optionalCount,
+    Array.from(categoryMap.keys()),
+  );
+
   const structuredData = {
     '@context': 'https://schema.org',
     '@graph': [
       // 1. BreadcrumbList — enables breadcrumb rich results
+      //    Fixed: the business-name node now points at the hub page URL
+      //    (previously it incorrectly pointed at this page's own URL, which
+      //    conflicted with the hub page's breadcrumb claiming that same node).
+      //    Added a 4th "Requirements" node for this page itself.
       {
         '@type': 'BreadcrumbList',
         '@id': `${pageUrl}#breadcrumb`,
         itemListElement: [
           { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
           { '@type': 'ListItem', position: 2, name: 'Businesses', item: `${siteUrl}/businesses` },
-          { '@type': 'ListItem', position: 3, name: business.name, item: pageUrl },
+          { '@type': 'ListItem', position: 3, name: business.name, item: hubUrl },
+          { '@type': 'ListItem', position: 4, name: 'Requirements', item: pageUrl },
         ],
       },
 
@@ -263,13 +339,11 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
             url: `${siteUrl}/images/logo.png`,
           },
         },
-        // datePublished is required for Article rich results; fall back to
-        // createdAt if your Prisma model exposes it, otherwise use a fixed
-        // date that reflects when the content was first published.
-        datePublished:
-          (business as { createdAt?: Date }).createdAt?.toISOString() ??
-          new Date().toISOString(),
-        dateModified: new Date().toISOString(),
+        // Real createdAt/updatedAt from the Business model — previously this
+        // used a type-cast fallback because createdAt wasn't reliably present
+        // on the fetched object, and dateModified was always "now."
+        datePublished: business.createdAt.toISOString(),
+        dateModified: business.updatedAt.toISOString(),
         mainEntityOfPage: {
           '@type': 'WebPage',
           '@id': pageUrl,
@@ -307,14 +381,6 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
       },
 
       // 4. ItemList — the flat list of all requirements as "Thing" nodes.
-      //
-      //    Previously this was generated client-side in RequirementsSection.tsx
-      //    with "@type": "Product", which caused two problems:
-      //      a) Google flagged missing Product-required fields (offers, price, etc.)
-      //      b) Client components inject <script> after hydration, so crawlers
-      //         may not see the schema in the initial HTML response.
-      //
-      //    Moving it here (server component) and typing items as "Thing" fixes both.
       ...(requirementListItems.length > 0
         ? [
             {
@@ -327,8 +393,61 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
             },
           ]
         : []),
+
+      // 5. FAQPage — new. Gives this page its own FAQ rich-result eligibility
+      //    instead of ceding all FAQ presence to the hub page.
+      ...(requirementFaqs.length > 0
+        ? [
+            {
+              '@type': 'FAQPage',
+              '@id': `${pageUrl}#faq`,
+              mainEntity: requirementFaqs.map((faq) => ({
+                '@type': 'Question',
+                name: faq.question,
+                acceptedAnswer: {
+                  '@type': 'Answer',
+                  text: faq.answer,
+                },
+              })),
+            },
+          ]
+        : []),
     ],
   };
+
+  // ── Data shaped for the client hook's initial state ──────────────────────
+  // Passed into BusinessPageContent so the requirements list is present in
+  // the server-rendered HTML instead of only appearing after a client-side
+  // fetch resolves post-hydration.
+  const initialBusiness: BusinessData = {
+    id: business.id,
+    name: business.name,
+    slug: business.slug,
+    description: business.description,
+    image: business.image,
+    published: business.published,
+    categoryId: business.categoryId,
+    userId: business.userId,
+    createdAt: business.createdAt,
+    updatedAt: business.updatedAt,
+    costMin: business.costMin,
+    costMax: business.costMax,
+    timeToLaunchMin: business.timeToLaunchMin,
+    timeToLaunchMax: business.timeToLaunchMax,
+    profitPotential: business.profitPotential,
+    skillLevel: business.skillLevel,
+    bestLocations: business.bestLocations,
+  };
+
+  const initialRequirements: RequirementData[] = requirements.map((req) => ({
+    id: req.id,
+    templateId: req.templateId,
+    name: req.template.name,
+    description: req.descriptionOverride ?? req.template.description ?? null,
+    category: req.template.category ?? null,
+    necessity: req.necessityOverride ?? req.template.necessity,
+    image: req.template.image ?? null,
+  }));
 
   return (
     <>
@@ -337,8 +456,14 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
 
-      {/* Pass resolved slug string — NOT the params Promise */}
-      <BusinessPageContent slug={slug} />
+      {/* Pass resolved slug string — NOT the params Promise — plus the
+          server-fetched business/requirements/FAQs for SSR content. */}
+      <BusinessPageContent
+        slug={slug}
+        initialBusiness={initialBusiness}
+        initialRequirements={initialRequirements}
+        faqs={requirementFaqs}
+      />
     </>
   );
 }

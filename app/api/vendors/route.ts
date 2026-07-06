@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Vendor } from '@prisma/client';
+import { requirePermission } from '@/lib/admin-utils';
 
 // GET all vendors
 export async function GET() {
@@ -27,6 +28,8 @@ export async function GET() {
 // POST create new vendor
 export async function POST(request: Request) {
   try {
+    await requirePermission('vendors.create');
+
     const data: Omit<Vendor, 'id' | 'createdAt' | 'updatedAt'> = await request.json();
 
     if (!data.name) {
@@ -42,6 +45,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json(vendor, { status: 201 });
   } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'Unauthorized') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      if (error.message === 'Forbidden')    return NextResponse.json({ error: 'Forbidden' },    { status: 403 });
+    }
     console.error('Error creating vendor:', error);
     return NextResponse.json(
       { error: 'Failed to create vendor' },

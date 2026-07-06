@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requirePermission, createAuditLog } from "@/lib/admin-utils";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -14,6 +15,8 @@ interface Params {
 // Sets product.templateId to link it directly to a requirement template.
 export async function POST(req: NextRequest, { params }: Params) {
   try {
+    const user = await requirePermission('products.update');
+
     const { id } = await params;
     const body = await req.json();
     const { templateId } = body;
@@ -62,6 +65,14 @@ export async function POST(req: NextRequest, { params }: Params) {
       },
     });
 
+    await createAuditLog({
+      action: 'UPDATE',
+      entity: 'Product',
+      entityId: updated.id.toString(),
+      changes: { templateId: updated.templateId, assignedBy: user.id },
+      req,
+    });
+
     return NextResponse.json({
       id: updated.id,
       name: updated.name,
@@ -70,6 +81,10 @@ export async function POST(req: NextRequest, { params }: Params) {
       message: `Product "${updated.name}" assigned to requirement "${template.name}"`,
     });
   } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'Unauthorized') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      if (error.message === 'Forbidden')    return NextResponse.json({ error: 'Forbidden' },    { status: 403 });
+    }
     console.error("Failed to assign product to requirement:", error);
     return NextResponse.json(
       { error: "Failed to assign product to requirement" },
@@ -80,8 +95,10 @@ export async function POST(req: NextRequest, { params }: Params) {
 
 // DELETE /api/products/:id/assign-requirement
 // Removes the templateId link (sets it to null).
-export async function DELETE(_req: NextRequest, { params }: Params) {
+export async function DELETE(req: NextRequest, { params }: Params) {
   try {
+    const user = await requirePermission('products.update');
+
     const { id } = await params;
 
     const product = await prisma.product.findUnique({
@@ -98,6 +115,14 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
       data: { templateId: null },
     });
 
+    await createAuditLog({
+      action: 'UPDATE',
+      entity: 'Product',
+      entityId: updated.id.toString(),
+      changes: { templateId: null, unassignedFrom: product.template?.name ?? null, unassignedBy: user.id },
+      req,
+    });
+
     return NextResponse.json({
       id: updated.id,
       name: updated.name,
@@ -105,6 +130,10 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
       message: `Product "${updated.name}" unassigned from requirement "${product.template?.name ?? "unknown"}"`,
     });
   } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'Unauthorized') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      if (error.message === 'Forbidden')    return NextResponse.json({ error: 'Forbidden' },    { status: 403 });
+    }
     console.error("Failed to unassign product from requirement:", error);
     return NextResponse.json(
       { error: "Failed to unassign product from requirement" },

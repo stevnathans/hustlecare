@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useCart } from '@/contexts/CartContext';
 import { Product as ProductType } from '@/types';
 
-interface Requirement {
+export interface Requirement {
   id: number;
   templateId?: number;
   name: string;
@@ -13,7 +13,7 @@ interface Requirement {
   image?: string | null;
 }
 
-interface Business {
+export interface Business {
   id: number;
   name: string;
   slug: string;
@@ -41,6 +41,11 @@ interface Business {
   rating?: any;
 }
 
+export interface UseBusinessDataInitial {
+  business: Business;
+  requirements: Requirement[];
+}
+
 const CATEGORY_ORDER = [
   'Legal',
   'Equipment',
@@ -51,15 +56,46 @@ const CATEGORY_ORDER = [
   'Uncategorized',
 ];
 
-export const useBusinessData = (slug: string) => {
+// ── Grouping helpers ──────────────────────────────────────────────────────
+// Extracted so the same logic can run synchronously (for SSR-provided
+// initial data) and inside the client-fetch effect (for the no-SSR-data path).
+function groupByCategory(reqs: Requirement[]): Record<string, Requirement[]> {
+  return reqs.reduce((groups: Record<string, Requirement[]>, req) => {
+    const category = req.category || 'Uncategorized';
+    if (!groups[category]) groups[category] = [];
+    groups[category].push(req);
+    return groups;
+  }, {});
+}
+
+function sortCategoryKeys(grouped: Record<string, Requirement[]>): string[] {
+  return CATEGORY_ORDER.filter((cat) => grouped[cat]);
+}
+
+export const useBusinessData = (
+  slug: string,
+  initialData?: UseBusinessDataInitial,
+) => {
   const { switchBusiness } = useCart();
-  const [business, setBusiness]                       = useState<Business | null>(null);
-  const [requirements, setRequirements]               = useState<Requirement[]>([]);
-  const [products, setProducts]                       = useState<Record<string, ProductType[]>>({});
-  const [error, setError]                             = useState<string | null>(null);
-  const [isLoading, setIsLoading]                     = useState<boolean>(true);
-  const [groupedRequirements, setGroupedRequirements] = useState<Record<string, Requirement[]>>({});
-  const [sortedCategories, setSortedCategories]       = useState<string[]>([]);
+
+  // Captured once at mount — used only to decide whether the initial
+  // business/requirements fetch can be skipped. Deliberately NOT reactive:
+  // the parent may pass a new object literal on every render, and treating
+  // that as a dependency would re-trigger the effect on every render.
+  const hasInitialData = useRef(!!initialData).current;
+  const initialDataRef = useRef(initialData);
+
+  const [business, setBusiness]           = useState<Business | null>(initialData?.business ?? null);
+  const [requirements, setRequirements]   = useState<Requirement[]>(initialData?.requirements ?? []);
+  const [products, setProducts]           = useState<Record<string, ProductType[]>>({});
+  const [error, setError]                 = useState<string | null>(null);
+  const [isLoading, setIsLoading]         = useState<boolean>(!hasInitialData);
+  const [groupedRequirements, setGroupedRequirements] = useState<Record<string, Requirement[]>>(
+    () => groupByCategory(initialData?.requirements ?? [])
+  );
+  const [sortedCategories, setSortedCategories] = useState<string[]>(
+    () => sortCategoryKeys(groupByCategory(initialData?.requirements ?? []))
+  );
 
   // ── Single batch fetch — one request for all products ────────────────────
   // Previously this was a sequential per-requirement loop (N requests).
@@ -157,79 +193,83 @@ export const useBusinessData = (slug: string) => {
   useEffect(() => {
     const loadBusinessData = async () => {
       try {
-        setIsLoading(true);
         setError(null);
 
-        // ── Business and requirements fetched in parallel ─────────────────
-        // Previously these were sequential. Parallelising saves one full
-        // round-trip on every page load.
-        const [businessResponse, requirementsResponse] = await Promise.all([
-          fetch(`/api/business/${slug}`),
-          fetch(`/api/business/${slug}/requirements`),
-        ]);
+        let transformedBusiness: Business;
+        let requirementsData: Requirement[];
 
-        if (businessResponse.status === 404) {
-          setError('Business not found');
-          setIsLoading(false);
-          return;
+        if (hasInitialData && initialDataRef.current) {
+          // ── SSR fast path ────────────────────────────────────────────────
+          // Business + requirements were already rendered server-side (see
+          // page.tsx), so no fetch is needed here — this avoids the page
+          // shipping an empty shell that only fills in after hydration.
+          transformedBusiness = initialDataRef.current.business;
+          requirementsData = initialDataRef.current.requirements;
+        } else {
+          // ── Client-fetch path (unchanged) ────────────────────────────────
+          setIsLoading(true);
+
+          // Business and requirements fetched in parallel.
+          const [businessResponse, requirementsResponse] = await Promise.all([
+            fetch(`/api/business/${slug}`),
+            fetch(`/api/business/${slug}/requirements`),
+          ]);
+
+          if (businessResponse.status === 404) {
+            setError('Business not found');
+            setIsLoading(false);
+            return;
+          }
+          if (!businessResponse.ok) throw new Error('Failed to load business data');
+          if (!requirementsResponse.ok) throw new Error('Failed to load requirements');
+
+          const [businessData, requirementsResult]: [any, Requirement[]] = await Promise.all([
+            businessResponse.json(),
+            requirementsResponse.json(),
+          ]);
+
+          transformedBusiness = {
+            id:              businessData.id,
+            name:            businessData.name,
+            slug:            businessData.slug,
+            description:     businessData.description     ?? null,
+            image:           businessData.image           ?? null,
+            published:       businessData.published       ?? true,
+            createdAt:       businessData.createdAt ? new Date(businessData.createdAt) : new Date(),
+            updatedAt:       businessData.updatedAt ? new Date(businessData.updatedAt) : new Date(),
+            userId:          businessData.userId          ?? null,
+            categoryId:      businessData.categoryId      ?? null,
+            costMin:         businessData.costMin         ?? null,
+            costMax:         businessData.costMax         ?? null,
+            timeToLaunchMin: businessData.timeToLaunchMin ?? null,
+            timeToLaunchMax: businessData.timeToLaunchMax ?? null,
+            profitPotential: businessData.profitPotential ?? null,
+            skillLevel:      businessData.skillLevel      ?? null,
+            bestLocations:   businessData.bestLocations   ?? [],
+            location:        businessData.location,
+            address:         businessData.address,
+            phone:           businessData.phone,
+            email:           businessData.email,
+            hours:           businessData.hours,
+            socialLinks:     businessData.socialLinks     || [],
+            reviewCount:     businessData.reviewCount     || 0,
+            rating:          businessData.rating,
+          };
+          requirementsData = requirementsResult;
+
+          setBusiness(transformedBusiness);
+          setRequirements(requirementsData);
+
+          const grouped = groupByCategory(requirementsData);
+          setGroupedRequirements(grouped);
+          setSortedCategories(sortCategoryKeys(grouped));
         }
-        if (!businessResponse.ok) throw new Error('Failed to load business data');
-        if (!requirementsResponse.ok) throw new Error('Failed to load requirements');
-
-        const [businessData, requirementsData]: [any, Requirement[]] = await Promise.all([
-          businessResponse.json(),
-          requirementsResponse.json(),
-        ]);
-
-        const transformedBusiness: Business = {
-          id:              businessData.id,
-          name:            businessData.name,
-          slug:            businessData.slug,
-          description:     businessData.description     ?? null,
-          image:           businessData.image           ?? null,
-          published:       businessData.published       ?? true,
-          createdAt:       businessData.createdAt ? new Date(businessData.createdAt) : new Date(),
-          updatedAt:       businessData.updatedAt ? new Date(businessData.updatedAt) : new Date(),
-          userId:          businessData.userId          ?? null,
-          categoryId:      businessData.categoryId      ?? null,
-          costMin:         businessData.costMin         ?? null,
-          costMax:         businessData.costMax         ?? null,
-          timeToLaunchMin: businessData.timeToLaunchMin ?? null,
-          timeToLaunchMax: businessData.timeToLaunchMax ?? null,
-          profitPotential: businessData.profitPotential ?? null,
-          skillLevel:      businessData.skillLevel      ?? null,
-          bestLocations:   businessData.bestLocations   ?? [],
-          location:        businessData.location,
-          address:         businessData.address,
-          phone:           businessData.phone,
-          email:           businessData.email,
-          hours:           businessData.hours,
-          socialLinks:     businessData.socialLinks     || [],
-          reviewCount:     businessData.reviewCount     || 0,
-          rating:          businessData.rating,
-        };
-
-        setBusiness(transformedBusiness);
-        setRequirements(requirementsData);
 
         if (transformedBusiness.id) {
           switchBusiness(transformedBusiness.id);
         }
 
-        const grouped = requirementsData.reduce(
-          (groups: Record<string, Requirement[]>, req: Requirement) => {
-            const category = req.category || 'Uncategorized';
-            if (!groups[category]) groups[category] = [];
-            groups[category].push(req);
-            return groups;
-          },
-          {}
-        );
-
-        setGroupedRequirements(grouped);
-        setSortedCategories(CATEGORY_ORDER.filter((cat) => grouped[cat]));
-
-        // ── One batch fetch for all products ──────────────────────────────
+        // One batch fetch for all products — runs on both paths.
         await fetchProducts(requirementsData, transformedBusiness.name, transformedBusiness.slug);
 
         setIsLoading(false);
@@ -241,6 +281,8 @@ export const useBusinessData = (slug: string) => {
     };
 
     loadBusinessData();
+    // hasInitialData / initialDataRef intentionally excluded — see comment above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, switchBusiness, fetchProducts]);
 
   return {

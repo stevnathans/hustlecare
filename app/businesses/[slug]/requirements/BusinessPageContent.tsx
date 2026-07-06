@@ -1,21 +1,43 @@
-// app/business/[slug]/BusinessPageContent.tsx
+// businesses/[slug]/requirements/BusinessPageContent.tsx
 'use client';
 import React from 'react';
 import CostCalculator from '@/components/CostCalculator';
 import BusinessHeader from '@/components/DetailsPage/BusinessHeader';
 import RequirementsSection from '@/components/DetailsPage/RequirementsSection';
-import { useBusinessData } from 'hooks/useBusinessData';
+import {
+  useBusinessData,
+  type Business as BusinessData,
+  type Requirement as RequirementData,
+} from 'hooks/useBusinessData';
 import { useFilterState } from 'hooks/useFilterState';
 import Link from 'next/link';
+
+interface Faq {
+  question: string;
+  answer: string;
+}
 
 interface BusinessPageContentProps {
   // Receives the plain resolved slug string from the server component.
   // Do NOT pass the raw params Promise — it causes double-unwrapping
   // and intermittent "business not found" errors.
   slug: string;
+  // Server-fetched data (see page.tsx). When present, useBusinessData uses
+  // it for the initial render instead of waiting on a client-side fetch,
+  // so the requirements list is in the raw HTML response.
+  initialBusiness?: BusinessData;
+  initialRequirements?: RequirementData[];
+  // Auto-generated FAQ content from page.tsx, rendered here to back the
+  // FAQPage schema with actual visible content.
+  faqs?: Faq[];
 }
 
-export default function BusinessPageContent({ slug }: BusinessPageContentProps) {
+export default function BusinessPageContent({
+  slug,
+  initialBusiness,
+  initialRequirements,
+  faqs,
+}: BusinessPageContentProps) {
   const {
     business,
     requirements,
@@ -24,7 +46,12 @@ export default function BusinessPageContent({ slug }: BusinessPageContentProps) 
     groupedRequirements,
     sortedCategories,
     refreshProducts,
-  } = useBusinessData(slug);
+  } = useBusinessData(
+    slug,
+    initialBusiness && initialRequirements
+      ? { business: initialBusiness, requirements: initialRequirements }
+      : undefined
+  );
 
   const {
     categoryStates,
@@ -82,6 +109,9 @@ export default function BusinessPageContent({ slug }: BusinessPageContentProps) 
   }
 
   // ── Loading skeleton ──────────────────────────────────────────────────────
+  // With SSR initial data this branch is skipped entirely on first render,
+  // since `business` is already populated. It's still needed for the
+  // no-initial-data fallback path.
 
   if (!business) {
     return (
@@ -99,18 +129,14 @@ export default function BusinessPageContent({ slug }: BusinessPageContentProps) 
   }
 
   // ── Main render ───────────────────────────────────────────────────────────
+  // Note: the page's single, real H1 lives inside BusinessHeader below.
+  // A separate sr-only H1 used to be rendered here too — that was a
+  // duplicate-H1 issue (one hidden, one visible, both on the same page)
+  // and has been removed in favor of making BusinessHeader's H1 carry the
+  // full keyword-relevant text itself.
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* sr-only h1 for screen readers and crawlers. The visible heading lives
-          inside BusinessHeader. A lone h1 does not need a <header> landmark —
-          that was adding a redundant ARIA region with no other content. */}
-      <h1 className="sr-only">
-        {totalRequirements > 0
-          ? `${totalRequirements} Requirements To Start a ${business.name} Business in ${new Date().getFullYear()} (Plus Total Cost Calculations)`
-          : `${business.name} Business - Complete Requirements & Total Costs`}
-      </h1>
-
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <main className="md:col-span-2">
           <BusinessHeader
@@ -143,6 +169,40 @@ export default function BusinessPageContent({ slug }: BusinessPageContentProps) 
               onProductAssigned={refreshProducts}
             />
           </section>
+
+          {/* ── FAQ section ──────────────────────────────────────────────
+              Backs the FAQPage schema emitted in page.tsx with real,
+              visible content. Plain <details>/<summary> — no extra client
+              state needed, styled to match the cards used elsewhere on
+              this page. */}
+          {faqs && faqs.length > 0 && (
+            <section aria-labelledby="requirements-faq-heading" className="mt-10">
+              <h2
+                id="requirements-faq-heading"
+                className="text-xl sm:text-2xl font-bold text-slate-900 mb-4 text-center"
+              >
+                Frequently Asked Questions
+              </h2>
+              <div className="space-y-3">
+                {faqs.map((faq, i) => (
+                  <details
+                    key={i}
+                    className="group bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-5"
+                  >
+                    <summary className="cursor-pointer list-none font-semibold text-slate-800 text-sm sm:text-base flex items-center justify-between gap-3">
+                      {faq.question}
+                      <span className="text-slate-400 group-open:rotate-180 transition-transform flex-shrink-0">
+                        ⌄
+                      </span>
+                    </summary>
+                    <p className="mt-3 text-sm sm:text-base text-slate-600 leading-relaxed">
+                      {faq.answer}
+                    </p>
+                  </details>
+                ))}
+              </div>
+            </section>
+          )}
         </main>
 
         <aside className="sticky top-8 self-start" aria-label="Cost calculator">

@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
           template: { select: { id: true, name: true, category: true } },
         },
         orderBy: { createdAt: 'desc' },
+        take: 200,
       });
       return NextResponse.json(products);
     }
@@ -37,6 +38,7 @@ export async function GET(request: NextRequest) {
         },
         include: { vendor: true },
         orderBy: { price: 'asc' },
+        take: 200,
       });
       return NextResponse.json(products);
     }
@@ -47,6 +49,7 @@ export async function GET(request: NextRequest) {
       where:   { status: 'ACTIVE' },
       include: { vendor: true, template: { select: { id: true, name: true } } },
       orderBy: { price: 'asc' },
+      take: 200,
     });
     return NextResponse.json(products);
   } catch (error) {
@@ -55,37 +58,11 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(req: Request) {
-  try {
-    const body = await req.json();
-    const { name, description, price, image, url, vendorId, templateId } = body;
-
-    // Products created directly via this admin endpoint are set to ACTIVE
-    // immediately (admin-managed catalog, not vendor submissions).
-    const product = await prisma.product.create({
-      data: {
-        name,
-        description,
-        price,
-        image,
-        url,
-        status:     'ACTIVE',
-        publishedAt: new Date(),
-        vendorId:   vendorId   ? parseInt(vendorId)   : null,
-        templateId: templateId ? parseInt(templateId) : null,
-      },
-      include: {
-        vendor:   true,
-        template: { select: { id: true, name: true } },
-      },
-    });
-
-    return NextResponse.json(product);
-  } catch (error) {
-    console.error('Failed to create product:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to create product' },
-      { status: 500 }
-    );
-  }
-}
+// POST removed — creation now happens exclusively via:
+//   - /api/vendors/products      (vendor self-service, PENDING_REVIEW)
+//   - /api/admin/products        (admin-authored, requires vendor + requirement)
+// This route bypassed review entirely, skipped every enum/schema validation
+// added since the original 5-field Product model, and had no auth check
+// (anyone could create ACTIVE products with no login). Do not reintroduce
+// a POST handler here — add new product-creation needs to one of the two
+// routes above instead.
