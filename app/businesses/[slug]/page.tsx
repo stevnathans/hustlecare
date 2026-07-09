@@ -159,7 +159,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const year = new Date().getFullYear();
   const name = business.name;
-  const title = `${name} Business in Kenya [${year}] - How to Start, Requirements, and Costs | HustleCare`;
+  const title = `${name} Business in Kenya [${year}] - Everything You Need to Know | HustleCare`;
   const description =
     business.description ||
     `Complete guide to starting a ${name} business in Kenya. Explore requirements, startup costs, licences, and everything you need to launch.`;
@@ -228,7 +228,7 @@ export default async function BusinessHubPage({ params }: Props) {
   const name = business.name;
   const pageUrl = `${SITE_URL}/businesses/${slug}`;
   const requirementCount = business.requirements.length;
-  const title = `${name} Business in Kenya [${year}] - How to Start, Requirements, and Costs | HustleCare`;
+  const title = `${name} Business in Kenya [${year}] - Everything You Need to Know | HustleCare`;
   const description =
     business.description ||
     `Complete guide to starting a ${name} business in Kenya with ${requirementCount} requirements and cost estimates.`;
