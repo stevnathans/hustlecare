@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format } from "date-fns";
 import { 
   ShoppingBag, 
   DollarSign, 
@@ -14,7 +14,10 @@ import {
   Lock,
   Eye,
   Copy,
-  Check
+  Check,
+  X,
+  AlertTriangle,
+  History
 } from "lucide-react";
 import Link from "next/link";
 
@@ -28,6 +31,10 @@ interface SavedBusiness {
   isShared: boolean;
   viewCount?: number;
   copyCount?: number;
+  copiedFrom?: {
+    authorName: string;
+    copiedAt: string;
+  } | null;
 }
 
 // Add interface for the API response structure
@@ -41,6 +48,10 @@ interface ApiBusinessList {
   isShared: boolean;
   viewCount?: number;
   copyCount?: number;
+  copiedFrom?: {
+    authorName: string;
+    copiedAt: string;
+  } | null;
 }
 
 interface ApiResponse {
@@ -53,6 +64,8 @@ export default function MyListsTab() {
   const [businesses, setBusinesses] = useState<SavedBusiness[]>([]);
   const [sharingStates, setSharingStates] = useState<Record<string, boolean>>({});
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [businessToRemove, setBusinessToRemove] = useState<SavedBusiness | null>(null);
   const [totalStats, setTotalStats] = useState({
     totalBusinesses: 0,
     totalItems: 0,
@@ -81,16 +94,35 @@ export default function MyListsTab() {
           isShared: list.isShared || false,
           viewCount: list.viewCount || 0,
           copyCount: list.copyCount || 0,
+          copiedFrom: list.copiedFrom || null,
         }));
 
-        setBusinesses(mappedBusinesses);
+        // Any list with zero items is stale (e.g. all items were removed
+        // from the requirements page) and should be auto-removed from the
+        // profile rather than shown as an empty card.
+        const emptyBusinesses = mappedBusinesses.filter((b) => b.itemsCount === 0);
+        const nonEmptyBusinesses = mappedBusinesses.filter((b) => b.itemsCount > 0);
+
+        if (emptyBusinesses.length > 0) {
+          // Fire-and-forget cleanup; don't block rendering on this, and
+          // don't show a confirmation prompt since this isn't a user-initiated action.
+          Promise.all(
+            emptyBusinesses.map((b) =>
+              fetch(`/api/profile/lists/${b.id}`, {
+                method: "DELETE",
+              }).catch((err) => console.error("Error auto-removing empty list:", err))
+            )
+          );
+        }
+
+        setBusinesses(nonEmptyBusinesses);
 
         // Calculate total stats
-        const totalCost = mappedBusinesses.reduce((sum, business) => sum + business.totalCost, 0);
-        const totalItems = mappedBusinesses.reduce((sum, business) => sum + business.itemsCount, 0);
+        const totalCost = nonEmptyBusinesses.reduce((sum, business) => sum + business.totalCost, 0);
+        const totalItems = nonEmptyBusinesses.reduce((sum, business) => sum + business.itemsCount, 0);
         
         setTotalStats({
-          totalBusinesses: mappedBusinesses.length,
+          totalBusinesses: nonEmptyBusinesses.length,
           totalItems,
           totalCost,
         });
@@ -142,6 +174,41 @@ export default function MyListsTab() {
       setTimeout(() => setCopiedUrl(null), 2000);
     } catch (error) {
       console.error('Failed to copy link:', error);
+    }
+  };
+
+  const removeBusiness = async (business: SavedBusiness) => {
+    setRemovingId(business.id);
+
+    try {
+      const response = await fetch(`/api/profile/lists/${business.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to remove business');
+      }
+
+      setBusinesses(prev => {
+        const updated = prev.filter(b => b.id !== business.id);
+
+        const totalCost = updated.reduce((sum, b) => sum + b.totalCost, 0);
+        const totalItems = updated.reduce((sum, b) => sum + b.itemsCount, 0);
+        setTotalStats({
+          totalBusinesses: updated.length,
+          totalItems,
+          totalCost,
+        });
+
+        return updated;
+      });
+
+      setBusinessToRemove(null);
+    } catch (error) {
+      console.error('Error removing business:', error);
+      alert('Failed to remove business. Please try again.');
+    } finally {
+      setRemovingId(null);
     }
   };
 
@@ -258,9 +325,18 @@ export default function MyListsTab() {
                 <div className="p-3 bg-emerald-100 dark:bg-emerald-900 rounded-full">
                   <ShoppingBag className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
                 </div>
-                <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                  <Calendar className="w-4 h-4 mr-1" />
-                  {formatDistanceToNow(new Date(business.lastUpdated), { addSuffix: true })}
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                    <Calendar className="w-4 h-4 mr-1" />
+                    {formatDistanceToNow(new Date(business.lastUpdated), { addSuffix: true })}
+                  </div>
+                  <button
+                    onClick={() => setBusinessToRemove(business)}
+                    aria-label={`Remove ${business.name}`}
+                    className="p-1.5 text-gray-400 dark:text-gray-500 rounded-full hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors flex-shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
               
@@ -338,6 +414,26 @@ export default function MyListsTab() {
                   </button>
                 )}
               </div>
+
+              {/* Copied-From Indicator */}
+              {business.copiedFrom && (
+                <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700/60 flex items-start text-xs text-gray-500 dark:text-gray-400">
+                  <History className="w-3.5 h-3.5 mr-1.5 mt-0.5 flex-shrink-0" />
+                  <span>
+                    Copied from{" "}
+                    <span className="font-medium text-gray-700 dark:text-gray-300">
+                      {business.copiedFrom.authorName}
+                    </span>{" "}
+                    <span
+                      title={formatDistanceToNow(new Date(business.copiedFrom.copiedAt), {
+                        addSuffix: true,
+                      })}
+                    >
+                      on {format(new Date(business.copiedFrom.copiedAt), "MMM d, yyyy")}
+                    </span>
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -359,6 +455,72 @@ export default function MyListsTab() {
           </div>
         </Link>
       </div>
+
+      {/* Remove Confirmation Modal */}
+      {businessToRemove && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+          onClick={() => (removingId ? null : setBusinessToRemove(null))}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-4 mb-4">
+              <div className="p-2.5 bg-red-100 dark:bg-red-900/30 rounded-full flex-shrink-0">
+                <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Remove &quot;{businessToRemove.name}&quot;?
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  This list contains{" "}
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    {businessToRemove.itemsCount} {businessToRemove.itemsCount === 1 ? "item" : "items"}
+                  </span>
+                  . Are you sure you want to remove it from your profile? This action cannot be undone.
+                </p>
+
+                {businessToRemove.isShared && (
+                  <div className="mt-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-start gap-2">
+                    <Globe className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-amber-800 dark:text-amber-300">
+                      This list is currently shared publicly. Removing it will also take it down from the
+                      community templates. Anyone who has already copied it to their own profile will keep
+                      their copy unaffected.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setBusinessToRemove(null)}
+                disabled={removingId === businessToRemove.id}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => removeBusiness(businessToRemove)}
+                disabled={removingId === businessToRemove.id}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-60 flex items-center"
+              >
+                {removingId === businessToRemove.id ? (
+                  <>
+                    <div className="animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                    Removing...
+                  </>
+                ) : (
+                  "Remove"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

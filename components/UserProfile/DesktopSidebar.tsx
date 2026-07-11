@@ -1,6 +1,6 @@
 // components/UserProfile/DesktopSidebar.tsx
 import { HomeIcon, FolderIcon, CogIcon, QuestionMarkCircleIcon, UserIcon } from "@heroicons/react/24/outline"
-import { UsersIcon } from "lucide-react"
+
 
 interface DesktopSidebarProps {
   activeTab: string
@@ -12,7 +12,6 @@ export default function DesktopSidebar({ activeTab, setActiveTab }: DesktopSideb
     { id: "dashboard", name: "Dashboard",   icon: HomeIcon },
     { id: "profile",   name: "Profile",     icon: UserIcon },
     { id: "my-lists",  name: "My Lists",    icon: FolderIcon },
-    { id: "community", name: "Community",   icon: UsersIcon },
     { id: "settings",  name: "Settings",    icon: CogIcon },
     { id: "help",      name: "Help",        icon: QuestionMarkCircleIcon },
   ]

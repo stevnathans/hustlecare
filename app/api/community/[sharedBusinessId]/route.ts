@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 export async function GET(
@@ -45,6 +47,34 @@ export async function GET(
       where: { id: sharedBusiness.id },
       data: { viewCount: { increment: 1 } },
     });
+
+    // If the visitor is logged in, work out whether this is their own
+    // shared list, or one they've already copied, so the client can render
+    // the right button/notice state immediately instead of finding out via
+    // a failed copy attempt.
+    const session = await getServerSession(authOptions);
+    let isOwnList = false;
+    let alreadyCopied = false;
+    if (session?.user?.email) {
+      const currentUser = await prisma.user.findUnique({
+        where: { email: session.user.email },
+        select: { id: true },
+      });
+
+      if (currentUser) {
+        isOwnList = currentUser.id === sharedBusiness.userId;
+
+        if (!isOwnList) {
+          const copyActivity = await prisma.businessCopyActivity.findFirst({
+            where: {
+              sharedBusinessId: sharedBusiness.id,
+              copiedByUserId: currentUser.id,
+            },
+          });
+          alreadyCopied = !!copyActivity;
+        }
+      }
+    }
 
     const cartItems = await prisma.cartItem.findMany({
       where: {
@@ -118,6 +148,10 @@ export async function GET(
       sharedAt: sharedBusiness.createdAt.toISOString(),
       categories,
       itemsByCategory,
+      viewerStatus: {
+        isOwnList,
+        alreadyCopied,
+      },
     });
   } catch (error) {
     console.error('Error fetching shared business details:', error);

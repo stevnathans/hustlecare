@@ -53,6 +53,30 @@ export async function GET() {
         },
       });
 
+      // If this list originated from copying someone else's shared list,
+      // surface who it was copied from and when. A user may have copied,
+      // removed, and re-copied (possibly from a different author) over
+      // time, so we take the most recent copy event for this business.
+      const latestCopy = await prisma.businessCopyActivity.findFirst({
+        where: {
+          copiedByUserId: user.id,
+          sharedBusiness: {
+            businessId: cart.business.id,
+          },
+        },
+        orderBy: { copiedAt: "desc" },
+        select: {
+          copiedAt: true,
+          sharedBusiness: {
+            select: {
+              user: {
+                select: { name: true },
+              },
+            },
+          },
+        },
+      });
+
       return {
         businessId: cart.business.id.toString(),
         businessName: cart.business.name,
@@ -66,6 +90,12 @@ export async function GET() {
         isShared: sharedBusiness?.isActive || false,
         viewCount: sharedBusiness?.viewCount || 0,
         copyCount: sharedBusiness?.copyCount || 0,
+        copiedFrom: latestCopy
+          ? {
+              authorName: latestCopy.sharedBusiness.user.name || "Anonymous",
+              copiedAt: latestCopy.copiedAt.toISOString(),
+            }
+          : null,
       };
     })
   );

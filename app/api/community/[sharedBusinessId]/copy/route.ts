@@ -52,20 +52,20 @@ export async function POST(
       );
     }
 
-    // Check if the user has already copied this list
-    // We detect this by checking if the user already has a cart for this business
-    // that was populated from this shared list. We track this via a CopiedBusiness
-    // record if your schema has one, or fall back to checking if a cart already exists.
-    // Using a simple approach: check if cart already exists for this business+user combo.
-    const existingCart = await prisma.cart.findFirst({
+    // Check if the user has already copied *this specific shared list*.
+    // We key this off BusinessCopyActivity (not just "does a cart with items
+    // exist for this businessId"), because a business type can be shared by
+    // multiple different authors — copying one person's list shouldn't
+    // permanently block copying a different person's list for the same
+    // business type.
+    const alreadyCopied = await prisma.businessCopyActivity.findFirst({
       where: {
-        userId: currentUser.id,
-        businessId: sharedBusiness.businessId,
+        sharedBusinessId: sharedBusiness.id,
+        copiedByUserId: currentUser.id,
       },
-      include: { items: true },
     });
 
-    if (existingCart && existingCart.items.length > 0) {
+    if (alreadyCopied) {
       return NextResponse.json(
         {
           error: 'You have already copied this list',
@@ -75,6 +75,14 @@ export async function POST(
         { status: 400 }
       );
     }
+
+    const existingCart = await prisma.cart.findFirst({
+      where: {
+        userId: currentUser.id,
+        businessId: sharedBusiness.businessId,
+      },
+      include: { items: true },
+    });
 
     // Create or reuse the cart
     const userCart =
@@ -115,10 +123,21 @@ export async function POST(
       )
     );
 
-    await prisma.sharedBusiness.update({
-      where: { id: sharedBusiness.id },
-      data: { copyCount: { increment: 1 } },
-    });
+    // Record the copy: bumps the public copy count, and logs who copied it
+    // and when so it can later be shown as "Copied from [author]" on the
+    // copier's own saved-lists view.
+    await Promise.all([
+      prisma.sharedBusiness.update({
+        where: { id: sharedBusiness.id },
+        data: { copyCount: { increment: 1 } },
+      }),
+      prisma.businessCopyActivity.create({
+        data: {
+          sharedBusinessId: sharedBusiness.id,
+          copiedByUserId: currentUser.id,
+        },
+      }),
+    ]);
 
     return NextResponse.json({
       success: true,

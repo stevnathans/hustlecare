@@ -2,6 +2,8 @@
 // components/ProductFormModal.tsx (admin) 
 'use client';
 
+import React from 'react';
+
 import { useEffect, useRef, useState } from 'react';
 import { Product, VendorTuple } from 'types/vendor';
 import ProductFormFields from './shared/ProductFormFields';

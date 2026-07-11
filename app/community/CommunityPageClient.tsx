@@ -39,6 +39,8 @@ interface SharedBusiness {
     verified?: boolean;
   };
   categories?: string[];
+  isOwnList?: boolean;
+  alreadyCopied?: boolean;
 }
 
 type SortOption = "trending" | "recent" | "popular" | "mostCopied";
@@ -58,13 +60,22 @@ function BusinessCard({
   onCopy: (id: string) => void;
 }) {
   const [copying, setCopying] = useState(false);
+  // Seed state from what the server already knows about this viewer, so
+  // "own list" and "already copied" render correctly on first paint instead
+  // of only being discovered after a failed copy attempt.
   const [copyState, setCopyState] = useState<
     "idle" | "copied" | "already_copied" | "own_list" | "error"
-  >("idle");
+  >(() => {
+    if (business.isOwnList) return "own_list";
+    if (business.alreadyCopied) return "already_copied";
+    return "idle";
+  });
+
+  const isOwnList = business.isOwnList || copyState === "own_list";
 
   const handleCopy = async (e: React.MouseEvent) => {
     e.preventDefault();
-    if (copying || copyState === "copied") return;
+    if (copying || copyState === "copied" || copyState === "already_copied" || copyState === "own_list") return;
 
     setCopying(true);
     try {
@@ -114,14 +125,7 @@ function BusinessCard({
         return (
           <>
             <CheckCircle className="w-4 h-4 mr-2" />
-            Already copied
-          </>
-        );
-      case "own_list":
-        return (
-          <>
-            <User className="w-4 h-4 mr-2" />
-            Your list
+            Already Copied
           </>
         );
       case "error":
@@ -153,7 +157,7 @@ function BusinessCard({
     const base =
       "flex-1 flex items-center justify-center px-4 py-2.5 rounded-lg transition-all text-sm font-medium";
     if (copyState === "copied") return `${base} bg-green-500 text-white`;
-    if (copyState === "already_copied" || copyState === "own_list")
+    if (copyState === "already_copied")
       return `${base} bg-gray-300 dark:bg-gray-600 text-gray-600 dark:text-gray-300 cursor-default`;
     if (copyState === "error")
       return `${base} bg-red-500 text-white hover:bg-red-600`;
@@ -301,19 +305,23 @@ function BusinessCard({
             Preview
           </Link>
 
-          <button
-            onClick={handleCopy}
-            disabled={
-              copying ||
-              copyState === "copied" ||
-              copyState === "already_copied" ||
-              copyState === "own_list"
-            }
-            className={copyBtnClass()}
-            aria-label={`Copy ${business.name} to my list`}
-          >
-            {copyLabel()}
-          </button>
+          {/* Lists belonging to the current user can't be copied by them,
+              so we skip the copy button entirely for those and rely on the
+              notice below instead. */}
+          {!isOwnList && (
+            <button
+              onClick={handleCopy}
+              disabled={
+                copying ||
+                copyState === "copied" ||
+                copyState === "already_copied"
+              }
+              className={copyBtnClass()}
+              aria-label={`Copy ${business.name} to my list`}
+            >
+              {copyLabel()}
+            </button>
+          )}
         </div>
 
         {/* Post-copy feedback */}
@@ -340,16 +348,11 @@ function BusinessCard({
             </p>
           </div>
         )}
-        {copyState === "own_list" && (
+        {isOwnList && (
           <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg">
-            <p className="text-xs text-gray-600 dark:text-gray-400 text-center">
-              You cannot copy your own list.{" "}
-              <Link
-                href={`/businesses/${business.slug}/requirements`}
-                className="text-emerald-600 dark:text-emerald-400 font-medium hover:underline"
-              >
-                View requirements →
-              </Link>
+            <p className="text-xs text-gray-600 dark:text-gray-400 text-center flex items-center justify-center gap-1.5">
+              <User className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+              This is your list — you can&apos;t copy your own template.
             </p>
           </div>
         )}
