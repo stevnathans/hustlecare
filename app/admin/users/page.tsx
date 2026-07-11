@@ -4,7 +4,8 @@
 import { useEffect, useState, useMemo } from 'react';
 import {
   Search, Plus, Edit2, Trash2, Ban, CheckCircle,
-  Download, Calendar, Activity, Shield, Mail, Phone, Clock, X, Users
+  Download, Calendar, Activity, Shield, Mail, Phone, Clock, X, Users,
+  ShoppingCart, MessageSquare, Star, Store
 } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
 import Image from 'next/image';
@@ -21,6 +22,10 @@ type UserStats = {
   authors:number; reviewers:number; users:number;
   newToday:number; newThisWeek:number; newThisMonth:number;
 };
+/* Derived client-side from /api/admin/vendors — just the approved-vendor
+   count for the main stats row. Detailed vendor breakdowns (active,
+   suspended, appeals, etc.) live on the /admin/vendors page itself. */
+type VendorApplication = { status: 'PENDING' | 'APPROVED' | 'REJECTED' };
 
 /* ─── Styles ──────────────────────────────────────────────────── */
 const S = `
@@ -34,7 +39,12 @@ const S = `
     border-radius:12px; padding:1rem 1.25rem;
     display:flex; align-items:center; justify-content:space-between;
   }
-  .u-sc-icon { width:38px; height:38px; border-radius:9px; display:flex; align-items:center; justify-content:center; }
+  .u-sc-icon { width:38px; height:38px; border-radius:9px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+
+  .u-section-label {
+    font-size:0.72rem; font-weight:700; color:#55556e; text-transform:uppercase;
+    letter-spacing:0.08em; margin:0 0 0.6rem 0.1rem;
+  }
 
   /* table */
   .u-table { width:100%; border-collapse:collapse; }
@@ -120,6 +130,13 @@ const S = `
   /* status pill */
   .sp { display:inline-flex; align-items:center; gap:0.3rem; padding:0.25rem 0.65rem; border-radius:100px; font-size:0.72rem; font-weight:600; cursor:pointer; transition:all 0.15s; border:none; font-family:'Sora',sans-serif; }
 
+  /* compact activity chip */
+  .ac { display:inline-flex; align-items:center; gap:0.2rem; font-size:0.74rem; color:#9494b0; }
+
+  /* date stack */
+  .d-row { display:flex; align-items:center; gap:0.35rem; font-size:0.74rem; color:#9494b0; }
+  .d-row + .d-row { margin-top:0.3rem; }
+
   /* scrollbar */
   .u-scroll::-webkit-scrollbar { width:4px; height:4px; }
   .u-scroll::-webkit-scrollbar-track { background:transparent; }
@@ -138,18 +155,19 @@ const ROLE_BADGE: Record<string, { bg:string; color:string }> = {
   reviewer: { bg:'rgba(16,185,129,0.12)',  color:'#34d399' },
   admin:    { bg:'rgba(239,68,68,0.12)',   color:'#f87171' },
 };
-const AVATAR_GRAD: Record<string, string> = {
-  user:'from-slate-500 to-slate-600', author:'from-blue-500 to-indigo-600',
-  editor:'from-violet-500 to-purple-600', reviewer:'from-emerald-500 to-teal-600',
-  admin:'from-rose-500 to-red-600',
-};
-const ICON_COLORS = { blue:'rgba(99,102,241,0.15)', green:'rgba(16,185,129,0.15)', red:'rgba(239,68,68,0.15)', purple:'rgba(139,92,246,0.15)', orange:'rgba(245,158,11,0.15)' };
-const ICON_FG    = { blue:'#818cf8', green:'#34d399', red:'#f87171', purple:'#a78bfa', orange:'#fbbf24' };
+const ICON_COLORS = { blue:'rgba(99,102,241,0.15)', green:'rgba(16,185,129,0.15)', red:'rgba(239,68,68,0.15)', purple:'rgba(139,92,246,0.15)', orange:'rgba(245,158,11,0.15)', teal:'rgba(20,184,166,0.15)' };
+const ICON_FG    = { blue:'#818cf8', green:'#34d399', red:'#f87171', purple:'#a78bfa', orange:'#fbbf24', teal:'#2dd4bf' };
+
+function fmtDate(d: Date | string | null) {
+  if (!d) return 'Never';
+  return new Date(d).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
+}
 
 /* ─── Main ────────────────────────────────────────────────────── */
 export default function UsersManagementPage() {
   const [users,       setUsers]       = useState<User[]>([]);
   const [stats,       setStats]       = useState<UserStats|null>(null);
+  const [approvedVendors, setApprovedVendors] = useState<number|null>(null);
   const [search,      setSearch]      = useState('');
   const [roleFilter,  setRoleFilter]  = useState('all');
   const [statusFilter,setStatusFilter]= useState('all');
@@ -159,7 +177,7 @@ export default function UsersManagementPage() {
   const [loading,     setLoading]     = useState(false);
   const [formData,    setFormData]    = useState({ name:'', email:'', phone:'', role:'user', isActive:true });
 
-  useEffect(() => { fetchUsers(); fetchStats(); }, []);
+  useEffect(() => { fetchUsers(); fetchStats(); fetchVendorStats(); }, []);
 
   const filteredUsers = useMemo(() => {
     let f = users;
@@ -176,6 +194,16 @@ export default function UsersManagementPage() {
   }
   async function fetchStats() {
     try { const r = await fetch('/api/admin/users/stats'); if(r.ok) setStats(await r.json()); } catch {}
+  }
+  async function fetchVendorStats() {
+    // No dedicated stats endpoint — /api/admin/vendors already returns every
+    // application, so just count the approved ones for the stat card.
+    try {
+      const r = await fetch('/api/admin/vendors');
+      if (!r.ok) return;
+      const applications: VendorApplication[] = await r.json();
+      setApprovedVendors(applications.filter(a => a.status === 'APPROVED').length);
+    } catch { /* silently omit the card if unavailable */ }
   }
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setLoading(true);
@@ -207,7 +235,7 @@ export default function UsersManagementPage() {
   }
   function handleExport() {
     const csv = [
-      ['ID','Name','Email','Phone','Role','Status','Created','Last Login'],
+      ['ID','Name','Email','Phone','Role','Status','Joined','Last Login'],
       ...filteredUsers.map(u=>[u.id,u.name,u.email,u.phone||'',u.role,u.isActive?'Active':'Inactive',new Date(u.createdAt).toLocaleDateString(),u.lastLoginAt?new Date(u.lastLoginAt).toLocaleDateString():'Never']),
     ].map(r=>r.join(',')).join('\n');
     const a = Object.assign(document.createElement('a'), { href:URL.createObjectURL(new Blob([csv],{type:'text/csv'})), download:`users-${new Date().toISOString()}.csv` });
@@ -248,6 +276,9 @@ export default function UsersManagementPage() {
               { label:'Editors',        val:stats.editors,     sub:'',                       ic:Edit2,    col:'purple' },
               { label:'New This Week',  val:stats.newThisWeek, sub:'',                       ic:Calendar, col:'green' },
               { label:'New Today',      val:stats.newToday,    sub:'',                       ic:Activity, col:'orange' },
+              ...(approvedVendors !== null
+                ? [{ label:'Vendors', val:approvedVendors, sub:'', ic:Store, col:'teal' }]
+                : []),
             ].map(s=>(
               <div key={s.label} className="u-sc">
                 <div>
@@ -296,7 +327,7 @@ export default function UsersManagementPage() {
                   <th style={{ paddingLeft:'1.25rem', width:40 }}>
                     <input type="checkbox" checked={selectedIds.length===filteredUsers.length&&filteredUsers.length>0} onChange={toggleSelectAll} style={{ accentColor:'#6366f1', cursor:'pointer' }} />
                   </th>
-                  <th>User</th><th>Contact</th><th>Role</th><th>Status</th><th>Activity</th><th>Last Login</th>
+                  <th>User</th><th>Contact</th><th>Role</th><th>Status</th><th>Activity</th><th>Dates</th>
                   <th style={{ textAlign:'right', paddingRight:'1.25rem' }}>Actions</th>
                 </tr>
               </thead>
@@ -314,22 +345,19 @@ export default function UsersManagementPage() {
                     <td>
                       <div style={{ display:'flex', alignItems:'center', gap:'0.75rem' }}>
                         {user.image ? (
-                          <Image src={user.image} alt={user.name} width={38} height={38} style={{ borderRadius:'50%', border:'1px solid rgba(255,255,255,0.08)' }} />
+                          <Image src={user.image} alt={user.name} width={38} height={38} style={{ borderRadius:'50%', border:'1px solid rgba(255,255,255,0.08)', flexShrink:0 }} />
                         ) : (
                           <div className="avatar" style={{ background:`linear-gradient(135deg, ${user.role==='admin'?'#f43f5e,#dc2626':user.role==='editor'?'#8b5cf6,#7c3aed':user.role==='reviewer'?'#10b981,#059669':'#6366f1,#4f46e5'})` }}>
                             {user.name[0]?.toUpperCase()}
                           </div>
                         )}
-                        <div>
-                          <div style={{ fontWeight:600, fontSize:'0.88rem', color:'#f0f0f5' }}>{user.name}</div>
-                          <div style={{ fontSize:'0.72rem', color:'#55556e', fontFamily:'DM Mono,monospace' }}>{user.id.slice(0,10)}…</div>
-                        </div>
+                        <div style={{ fontWeight:600, fontSize:'0.88rem', color:'#f0f0f5' }}>{user.name}</div>
                       </div>
                     </td>
                     <td>
                       <div style={{ display:'flex', flexDirection:'column', gap:'0.25rem' }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:'0.4rem', fontSize:'0.8rem', color:'#9494b0' }}><Mail size={12} />{user.email}</div>
-                        {user.phone && <div style={{ display:'flex', alignItems:'center', gap:'0.4rem', fontSize:'0.8rem', color:'#9494b0' }}><Phone size={12} />{user.phone}</div>}
+                        <div style={{ display:'flex', alignItems:'center', gap:'0.35rem', fontSize:'0.78rem', color:'#9494b0' }}><Mail size={11} style={{ flexShrink:0 }} /><span style={{ overflowWrap:'anywhere' }}>{user.email}</span></div>
+                        {user.phone && <div style={{ display:'flex', alignItems:'center', gap:'0.35rem', fontSize:'0.78rem', color:'#9494b0' }}><Phone size={11} style={{ flexShrink:0 }} />{user.phone}</div>}
                       </div>
                     </td>
                     <td>
@@ -344,18 +372,20 @@ export default function UsersManagementPage() {
                       </button>
                     </td>
                     <td>
-                      <div style={{ fontSize:'0.75rem', color:'#9494b0', display:'flex', gap:'0.4rem', flexWrap:'wrap' }}>
-                        <span>{user._count?.carts||0} carts</span>
-                        <span style={{ color:'#3a3a56' }}>·</span>
-                        <span>{user._count?.comments||0} comments</span>
-                        <span style={{ color:'#3a3a56' }}>·</span>
-                        <span>{user._count?.reviews||0} reviews</span>
+                      <div style={{ display:'flex', flexWrap:'wrap', gap:'0.55rem' }}>
+                        <span className="ac" title={`${user._count?.carts||0} carts`}><ShoppingCart size={12} />{user._count?.carts||0}</span>
+                        <span className="ac" title={`${user._count?.comments||0} comments`}><MessageSquare size={12} />{user._count?.comments||0}</span>
+                        <span className="ac" title={`${user._count?.reviews||0} reviews`}><Star size={12} />{user._count?.reviews||0}</span>
                       </div>
                     </td>
                     <td>
-                      <div style={{ display:'flex', alignItems:'center', gap:'0.4rem', fontSize:'0.78rem', color:'#9494b0' }}>
-                        <Clock size={12} />
-                        {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString() : 'Never'}
+                      <div className="d-row" title="Registration date">
+                        <Calendar size={11} style={{ flexShrink:0 }} />
+                        <span>Joined {fmtDate(user.createdAt)}</span>
+                      </div>
+                      <div className="d-row" title="Last login">
+                        <Clock size={11} style={{ flexShrink:0 }} />
+                        <span>{user.lastLoginAt ? `Active ${fmtDate(user.lastLoginAt)}` : 'Never logged in'}</span>
                       </div>
                     </td>
                     <td style={{ paddingRight:'1.25rem', textAlign:'right' }}>

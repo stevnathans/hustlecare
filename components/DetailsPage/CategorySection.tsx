@@ -82,21 +82,22 @@ const CategorySection: React.FC<CategorySectionProps> = ({
   // Render a single requirement card inline — no wrapper component so React
   // never unmounts RequirementCard when the products prop changes, preserving
   // the isExpanded state across refreshes.
-  const renderRequirementCard = (requirement: Requirement) => (
-    <div key={requirement.id}>
-      <RequirementCard
-        requirement={{
-          ...requirement,
-          category: requirement.category || category,
-          image: requirement.image ?? undefined,
-          description: requirement.description ?? undefined,
-          templateId: requirement.templateId,
-        }}
-        products={products[requirement.name] || []}
-        onProductAssigned={onProductAssigned}
-      />
-    </div>
-  );
+ const renderRequirementCard = (requirement: Requirement) => (
+  <div key={requirement.id}>
+    <RequirementCard
+      requirement={{
+        ...requirement,
+        category: requirement.category || category,
+        image: requirement.image ?? undefined,
+        description: requirement.description ?? undefined,
+        templateId: requirement.templateId,
+      }}
+      products={products[requirement.name] || []}
+      onProductAssigned={onProductAssigned}
+      businessName={businessName}
+    />
+  </div>
+);
 
   return (
     <section

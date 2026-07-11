@@ -33,6 +33,14 @@ interface RequirementCardProps {
   };
   products?: Product[];
   onProductAssigned?: () => void;
+  /** Business name used to fill in [businessName] placeholders in the description. */
+  businessName?: string;
+}
+
+/** Replaces every [businessName] placeholder with the actual business name. */
+function personalizeDescription(text: string, businessName?: string): string {
+  if (!businessName) return text;
+  return text.replace(/\[businessName\]/g, businessName);
 }
 
 // ─── Add-Product-to-Requirement Modal ────────────────────────────────────────
@@ -320,6 +328,7 @@ export default function RequirementCard({
   requirement,
   products = [],
   onProductAssigned,
+  businessName,
 }: RequirementCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isImageOpen, setIsImageOpen] = useState(false);
@@ -496,7 +505,7 @@ export default function RequirementCard({
             <div className="w-full sm:flex-1 sm:min-w-0">
               {requirement.description && (
                 <p className="text-gray-600 text-sm leading-relaxed mb-4">
-                  {requirement.description}
+                   {personalizeDescription(requirement.description, businessName)}
                 </p>
               )}
 
