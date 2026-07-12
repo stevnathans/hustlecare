@@ -10,11 +10,11 @@ export async function POST(
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
-      return NextResponse.json(
-        { error: 'You must be logged in to copy a business' },
-        { status: 401 }
-      );
-    }
+  return NextResponse.json(
+    { error: 'You must be logged in to copy a business', code: 'UNAUTHENTICATED' },
+    { status: 401 }
+  );
+}
 
     const { sharedBusinessId } = await params;
 
