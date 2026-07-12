@@ -2,9 +2,21 @@
 
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 
 interface Params {
   params: Promise<{ id: string }>;
+}
+
+// Revalidate the two statically-generated pages that show this business's
+// requirements (the hub page's hero/requirement-count and the full
+// requirements checklist page). Without this, admin changes to
+// BusinessRequirement links never show up on those pages until a full
+// rebuild, since they're rendered via generateStaticParams with no
+// `revalidate` export.
+function revalidateBusinessPages(slug: string) {
+  revalidatePath(`/businesses/${slug}`);
+  revalidatePath(`/businesses/${slug}/requirements`);
 }
 
 // GET /api/requirements/:id/businesses
@@ -97,9 +109,11 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const results = await Promise.all(
       businessIds.map(async (businessId: number) => {
+        // FIX: select slug too — needed to revalidate this business's
+        // statically-generated pages after linking.
         const business = await prisma.business.findUnique({
           where: { id: Number(businessId) },
-          select: { id: true, name: true },
+          select: { id: true, name: true, slug: true },
         });
 
         if (!business) {
@@ -133,6 +147,10 @@ export async function POST(req: NextRequest, { params }: Params) {
             necessityOverride: necessityOverride ?? null,
           },
         });
+
+        // FIX: revalidate this business's hub + requirements pages now
+        // that a new requirement link exists for it.
+        revalidateBusinessPages(business.slug);
 
         return {
           businessId,
@@ -196,7 +214,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         },
       },
       include: {
-        business: { select: { name: true } },
+        // FIX: select slug too — needed to revalidate this business's
+        // statically-generated pages after updating the override.
+        business: { select: { name: true, slug: true } },
         template: { select: { name: true, necessity: true, description: true } },
       },
     });
@@ -231,6 +251,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       },
       data: updateData,
     });
+
+    // FIX: revalidate this business's hub + requirements pages now that
+    // the necessity/description override has changed. Previously a change
+    // here (e.g. toggling Required/Optional, or saving a custom
+    // description) never showed up on the storefront pages until a
+    // full rebuild.
+    revalidateBusinessPages(existing.business.slug);
 
     const effectiveNecessity =
       updated.necessityOverride ?? existing.template.necessity;
@@ -272,7 +299,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         },
       },
       include: {
-        business: { select: { name: true } },
+        // FIX: select slug too — needed to revalidate this business's
+        // statically-generated pages after unlinking.
+        business: { select: { name: true, slug: true } },
         template: { select: { name: true } },
       },
     });
@@ -292,6 +321,10 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         },
       },
     });
+
+    // FIX: revalidate this business's hub + requirements pages now that
+    // the link has been removed.
+    revalidateBusinessPages(link.business.slug);
 
     return NextResponse.json({
       message: `"${link.template.name}" unlinked from "${link.business.name}"`,

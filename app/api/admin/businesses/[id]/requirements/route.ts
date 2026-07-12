@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { requirePermission, createAuditLog } from "@/lib/admin-utils";
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -22,6 +23,17 @@ function handleAuthError(error: unknown): NextResponse | null {
 function parseId(value: string): number | null {
   const n = parseInt(value, 10);
   return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+// Revalidate the two statically-generated pages that show this business's
+// requirements (the hub page's hero/requirement-count and the full
+// requirements checklist page). Without this, admin changes to
+// BusinessRequirement links never show up on those pages until a full
+// rebuild, since they're rendered via generateStaticParams with no
+// `revalidate` export.
+function revalidateBusinessPages(slug: string) {
+  revalidatePath(`/businesses/${slug}`);
+  revalidatePath(`/businesses/${slug}/requirements`);
 }
 
 // GET /api/admin/businesses/:id/requirements
@@ -106,9 +118,11 @@ export async function POST(req: NextRequest, { params }: Params) {
     const body = await req.json();
     const { templateId, name, description, image, category, necessity } = body;
 
+    // FIX: select slug too — needed to revalidate this business's
+    // statically-generated pages after linking.
     const business = await prisma.business.findUnique({
       where: { id: businessId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, slug: true },
     });
 
     if (!business) {
@@ -195,6 +209,12 @@ export async function POST(req: NextRequest, { params }: Params) {
       req,
     });
 
+    // FIX: revalidate this business's hub + requirements pages now that a
+    // new requirement link exists for it. Previously nothing here ever
+    // invalidated the statically-generated pages, so the requirement count
+    // and list stayed stale until the next full rebuild/deploy.
+    revalidateBusinessPages(business.slug);
+
     return NextResponse.json(
       {
         linkId: link.id,
@@ -231,6 +251,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Invalid business ID' }, { status: 400 });
     }
 
+    // FIX: fetch the business's slug so we can revalidate its pages below.
+    // The old code never looked up the Business row at all in this handler.
+    const business = await prisma.business.findUnique({
+      where: { id: businessId },
+      select: { slug: true },
+    });
+    if (!business) {
+      return NextResponse.json({ error: "Business not found" }, { status: 404 });
+    }
+
     const body = await req.json();
     const { linkId, descriptionOverride, isActive, displayOrder } = body;
 
@@ -261,6 +291,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       },
       include: { template: true },
     });
+
+    // FIX: revalidate this business's hub + requirements pages now that
+    // the link (description override, active state, or display order)
+    // has changed.
+    revalidateBusinessPages(business.slug);
 
     return NextResponse.json({
       linkId: updated.id,
@@ -300,7 +335,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       where: { id: Number(linkId), businessId },
       include: {
         template: { select: { name: true } },
-        business: { select: { name: true } },
+        // FIX: select slug too — needed to revalidate this business's
+        // statically-generated pages after unlinking.
+        business: { select: { name: true, slug: true } },
       },
     });
 
@@ -317,6 +354,10 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       changes: { unlinkedFrom: link.business.name, requirementName: link.template.name },
       req,
     });
+
+    // FIX: revalidate this business's hub + requirements pages now that
+    // the link has been removed.
+    revalidateBusinessPages(link.business.slug);
 
     return NextResponse.json({
       message: `"${link.template.name}" removed from "${link.business.name}"`,
