@@ -201,7 +201,8 @@ export default function SharedBusinessPreviewClient({ sharedBusinessId }: Props)
               Business Not Found
             </h1>
             <p className="text-red-700 dark:text-red-500 mb-6">
-              {error || "This shared business could not be found or is no longer available."}
+              {error ||
+                "This shared business could not be found or is no longer available."}
             </p>
             <button
               onClick={() => router.push("/community")}
@@ -220,13 +221,21 @@ export default function SharedBusinessPreviewClient({ sharedBusinessId }: Props)
     "@type": "Article",
     headline: business.name,
     description: business.description,
-    author: { "@type": "Person", name: business.author.name },
+    author: {
+      "@type": "Person",
+      name: business.author.name,
+    },
     datePublished: business.sharedAt,
-    publisher: { "@type": "Organization", name: "Hustlecare", url: "https://hustlecare.net" },
+    publisher: {
+      "@type": "Organization",
+      name: "Hustlecare",
+      url: "https://hustlecare.net",
+    },
   };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
+      {/* JSON-LD structured data */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -240,6 +249,7 @@ export default function SharedBusinessPreviewClient({ sharedBusinessId }: Props)
       />
 
       <div className="max-w-6xl mx-auto px-4">
+        {/* Back Button */}
         <button
           onClick={() => router.push("/community")}
           className="flex items-center text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6 transition-colors"
@@ -249,22 +259,24 @@ export default function SharedBusinessPreviewClient({ sharedBusinessId }: Props)
           Back to Community
         </button>
 
-        {/* Header */}
+        {/* Header Section */}
         <article className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden mb-8">
-          <div className="p-8 border-b border-gray-100 dark:border-gray-700">
-            <p className="text-emerald-600 dark:text-emerald-400 text-sm font-semibold uppercase tracking-wide mb-1">
-              {business.business.name}
-            </p>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              {business.name}
-            </h1>
-            {business.description && (
-              <p className="text-gray-500 dark:text-gray-400 text-lg">{business.description}</p>
-            )}
+          <div className="bg-emerald-600 p-8">
+            <div className="flex-1">
+              <p className="text-emerald-100 text-sm font-medium uppercase tracking-wide mb-1">
+                {business.business.name}
+              </p>
+              <h1 className="text-3xl font-bold text-white mb-2">{business.name}</h1>
+              {business.description && (
+                <p className="text-emerald-50 text-lg">{business.description}</p>
+              )}
+            </div>
           </div>
 
+          {/* Author and Stats */}
           <div className="p-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-6">
+              {/* Author Info */}
               <div className="flex items-center">
                 <div className="relative">
                   {business.author.avatar ? (
@@ -276,14 +288,14 @@ export default function SharedBusinessPreviewClient({ sharedBusinessId }: Props)
                       className="rounded-full"
                     />
                   ) : (
-                    <div className="w-14 h-14 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-                      <User className="w-7 h-7 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+                    <div className="w-14 h-14 rounded-full bg-emerald-100 dark:bg-gray-700 flex items-center justify-center">
+                      <User className="w-7 h-7 text-emerald-700 dark:text-gray-400" aria-hidden="true" />
                     </div>
                   )}
                   {business.author.verified && (
                     <div className="absolute -bottom-1 -right-1 bg-white dark:bg-gray-800 rounded-full p-0.5">
                       <CheckCircle
-                        className="w-5 h-5 text-emerald-600 fill-current"
+                        className="w-5 h-5 text-blue-500 fill-current"
                         aria-label="Verified author"
                       />
                     </div>
@@ -303,6 +315,7 @@ export default function SharedBusinessPreviewClient({ sharedBusinessId }: Props)
                 </div>
               </div>
 
+              {/* Copy / Status Button */}
               <div className="flex flex-col items-end gap-2">
                 <button
                   onClick={handleCopy}
@@ -329,10 +342,10 @@ export default function SharedBusinessPreviewClient({ sharedBusinessId }: Props)
               </div>
             </div>
 
-            {/* Stats */}
+            {/* Stats Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                <div className="flex items-center text-gray-400 dark:text-gray-500 text-sm mb-2">
+              <div className="bg-purple-50 dark:bg-gray-700/50 rounded-lg p-4">
+                <div className="flex items-center text-purple-600 dark:text-gray-400 text-sm mb-2">
                   <Eye className="w-4 h-4 mr-2" aria-hidden="true" />
                   Views
                 </div>
@@ -340,8 +353,9 @@ export default function SharedBusinessPreviewClient({ sharedBusinessId }: Props)
                   {business.stats.viewCount.toLocaleString()}
                 </p>
               </div>
-              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                <div className="flex items-center text-gray-400 dark:text-gray-500 text-sm mb-2">
+
+              <div className="bg-emerald-50 dark:bg-gray-700/50 rounded-lg p-4">
+                <div className="flex items-center text-emerald-700 dark:text-gray-400 text-sm mb-2">
                   <Copy className="w-4 h-4 mr-2" aria-hidden="true" />
                   Copies
                 </div>
@@ -349,8 +363,9 @@ export default function SharedBusinessPreviewClient({ sharedBusinessId }: Props)
                   {business.stats.copyCount.toLocaleString()}
                 </p>
               </div>
-              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                <div className="flex items-center text-gray-400 dark:text-gray-500 text-sm mb-2">
+
+              <div className="bg-blue-50 dark:bg-gray-700/50 rounded-lg p-4">
+                <div className="flex items-center text-blue-600 dark:text-gray-400 text-sm mb-2">
                   <Package className="w-4 h-4 mr-2" aria-hidden="true" />
                   Items
                 </div>
@@ -358,8 +373,9 @@ export default function SharedBusinessPreviewClient({ sharedBusinessId }: Props)
                   {business.stats.totalItems}
                 </p>
               </div>
+
               <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                <div className="flex items-center text-gray-400 dark:text-gray-500 text-sm mb-2">
+                <div className="flex items-center text-gray-500 dark:text-gray-400 text-sm mb-2">
                   <DollarSign className="w-4 h-4 mr-2" aria-hidden="true" />
                   Total Cost
                 </div>
@@ -369,6 +385,7 @@ export default function SharedBusinessPreviewClient({ sharedBusinessId }: Props)
               </div>
             </div>
 
+            {/* Categories */}
             {business.categories.length > 0 && (
               <div className="mt-6">
                 <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
@@ -378,7 +395,7 @@ export default function SharedBusinessPreviewClient({ sharedBusinessId }: Props)
                   {business.categories.map((category) => (
                     <span
                       key={category}
-                      className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full text-sm font-medium"
+                      className="px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-full text-sm font-medium"
                     >
                       {category}
                     </span>
@@ -389,7 +406,7 @@ export default function SharedBusinessPreviewClient({ sharedBusinessId }: Props)
           </div>
         </article>
 
-        {/* Items by category */}
+        {/* Items by Category */}
         <div className="space-y-6">
           {business.categories.map((category) => (
             <section
@@ -398,7 +415,10 @@ export default function SharedBusinessPreviewClient({ sharedBusinessId }: Props)
               className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
             >
               <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 border-b border-gray-200 dark:border-gray-600">
-                <h2 id={`category-${category}`} className="text-xl font-bold text-gray-900 dark:text-white">
+                <h2
+                  id={`category-${category}`}
+                  className="text-xl font-bold text-gray-900 dark:text-white"
+                >
                   {category}
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -424,11 +444,17 @@ export default function SharedBusinessPreviewClient({ sharedBusinessId }: Props)
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-gray-900 dark:text-white">{item.name}</h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">{item.requirementName}</p>
+                      <h3 className="font-semibold text-gray-900 dark:text-white">
+                        {item.name}
+                      </h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {item.requirementName}
+                      </p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Qty: {item.quantity}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Qty: {item.quantity}
+                      </p>
                       <p className="font-bold text-gray-900 dark:text-white">
                         KSh {(item.price * item.quantity).toLocaleString()}
                       </p>
@@ -443,12 +469,10 @@ export default function SharedBusinessPreviewClient({ sharedBusinessId }: Props)
         {/* Bottom CTA */}
         <section
           aria-label="Copy this template"
-          className="mt-8 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-8 text-center"
+          className="mt-8 bg-emerald-600 rounded-xl p-8 text-center"
         >
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            Ready to use this template?
-          </h2>
-          <p className="text-gray-500 dark:text-gray-400 mb-6">
+          <h2 className="text-2xl font-bold text-white mb-2">Ready to use this template?</h2>
+          <p className="text-emerald-50 mb-6">
             Copy this requirement list to your account and customise it for your business
           </p>
           <button
@@ -458,7 +482,7 @@ export default function SharedBusinessPreviewClient({ sharedBusinessId }: Props)
               copyState === "already_copied" ||
               copyState === "own_list"
             }
-            className="px-8 py-4 bg-emerald-600 text-white rounded-xl font-semibold text-lg hover:bg-emerald-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            className="px-8 py-4 bg-white text-emerald-700 rounded-xl font-semibold text-lg hover:bg-emerald-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             aria-label={`Copy ${business.name} to my list`}
           >
             {copyState === "already_copied"
@@ -471,11 +495,11 @@ export default function SharedBusinessPreviewClient({ sharedBusinessId }: Props)
           </button>
 
           {copyState === "already_copied" && (
-            <p className="mt-3 text-gray-500 dark:text-gray-400 text-sm">
+            <p className="mt-3 text-emerald-50 text-sm">
               You already have this list.{" "}
               <Link
                 href={`/businesses/${business.business.slug}/requirements`}
-                className="text-emerald-600 dark:text-emerald-400 font-medium hover:underline"
+                className="underline text-white font-medium"
               >
                 View your requirements →
               </Link>
