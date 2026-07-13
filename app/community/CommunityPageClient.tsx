@@ -488,40 +488,66 @@ export default function CommunityPageClient() {
 
       <main className="max-w-6xl mx-auto px-4 py-10">
         {/* Stats row */}
-        <section aria-label="Community statistics" className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <div className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Shared Templates</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalShared}</p>
+        <section aria-label="Community statistics" className="mb-8">
+          {/* Mobile: compact single-line text stats */}
+          <div className="flex sm:hidden items-center justify-between bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3">
+            <div className="flex-1 text-center">
+              <p className="text-lg font-bold text-gray-900 dark:text-white leading-none">
+                {stats.totalShared}
+              </p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">Templates</p>
             </div>
-            <div className="p-2.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-              <Package className="w-5 h-5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
-            </div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Total Views</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+            <div className="w-px h-8 bg-gray-200 dark:bg-gray-700" />
+            <div className="flex-1 text-center">
+              <p className="text-lg font-bold text-gray-900 dark:text-white leading-none">
                 {stats.totalViews.toLocaleString()}
               </p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">Views</p>
             </div>
-            <div className="p-2.5 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-              <Eye className="w-5 h-5 text-purple-600 dark:text-purple-400" aria-hidden="true" />
-            </div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-emerald-200 dark:border-emerald-800 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-emerald-700 dark:text-emerald-400">Times Copied</p>
-              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
+            <div className="w-px h-8 bg-gray-200 dark:bg-gray-700" />
+            <div className="flex-1 text-center">
+              <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-none">
                 {stats.totalCopies.toLocaleString()}
               </p>
+              <p className="text-[11px] text-emerald-600/80 dark:text-emerald-400/80 mt-1">Copied</p>
             </div>
-            <div className="p-2.5 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
-              <TrendingUp className="w-5 h-5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+          </div>
+
+          {/* Desktop / tablet: full stat cards */}
+          <div className="hidden sm:grid grid-cols-3 gap-4">
+            <div className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Shared Templates</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalShared}</p>
+              </div>
+              <div className="p-2.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                <Package className="w-5 h-5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+              </div>
+            </div>
+            <div className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Total Views</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {stats.totalViews.toLocaleString()}
+                </p>
+              </div>
+              <div className="p-2.5 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                <Eye className="w-5 h-5 text-purple-600 dark:text-purple-400" aria-hidden="true" />
+              </div>
+            </div>
+            <div className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-emerald-200 dark:border-emerald-800 flex items-center justify-between">
+              <div>
+                <p className="text-sm text-emerald-700 dark:text-emerald-400">Times Copied</p>
+                <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
+                  {stats.totalCopies.toLocaleString()}
+                </p>
+              </div>
+              <div className="p-2.5 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
+                <TrendingUp className="w-5 h-5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+              </div>
             </div>
           </div>
         </section>
-
         {/* How it works */}
         <section className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 mb-8">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
