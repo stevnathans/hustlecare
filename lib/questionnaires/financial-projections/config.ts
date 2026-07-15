@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // lib/questionnaires/financial-projections/config.ts
 import type { QuestionnaireConfig } from "../types";
 import { contactStepSchema, businessBasicsStepSchema } from "./schema";

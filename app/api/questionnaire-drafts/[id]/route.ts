@@ -7,8 +7,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const draft = await prisma.questionnaireDraft.findUnique({ where: { id: params.id } });
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const draft = await prisma.questionnaireDraft.findUnique({ where: { id } });
 
   if (!draft) {
     return NextResponse.json({ error: "Draft not found" }, { status: 404 });
@@ -17,13 +21,17 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json({ draft });
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
   const body = await req.json().catch(() => null);
   if (!body) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
 
-  const existing = await prisma.questionnaireDraft.findUnique({ where: { id: params.id } });
+  const existing = await prisma.questionnaireDraft.findUnique({ where: { id } });
   if (!existing) {
     return NextResponse.json({ error: "Draft not found" }, { status: 404 });
   }
@@ -32,7 +40,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const draft = await prisma.questionnaireDraft.update({
-    where: { id: params.id },
+    where: { id },
     data: {
       ...(body.packageTier !== undefined && { packageTier: body.packageTier }),
       ...(body.currentStep !== undefined && { currentStep: body.currentStep }),

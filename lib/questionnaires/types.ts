@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // lib/questionnaires/types.ts
 //
 // Shared type contracts for the questionnaire engine. Every service

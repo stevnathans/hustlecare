@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // lib/questionnaires/google-business-profile/config.ts
 import type { QuestionnaireConfig } from "../types";
 import { contactStepSchema } from "./schema";

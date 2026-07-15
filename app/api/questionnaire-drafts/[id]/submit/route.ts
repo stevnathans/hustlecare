@@ -27,8 +27,13 @@ function generateOrderNumber(serviceSlug: string): string {
   return `HC-${code}-${date}-${rand}`;
 }
 
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
-  const existing = await prisma.questionnaireDraft.findUnique({ where: { id: params.id } });
+export async function POST(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  const existing = await prisma.questionnaireDraft.findUnique({ where: { id } });
   if (!existing) {
     return NextResponse.json({ error: "Draft not found" }, { status: 404 });
   }
@@ -40,7 +45,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   const orderNumber = generateOrderNumber(existing.serviceSlug);
 
   const draft = await prisma.questionnaireDraft.update({
-    where: { id: params.id },
+    where: { id },
     data: { status: "submitted", orderNumber },
   });
 
