@@ -1,6 +1,8 @@
+// app/services/business-registration/BusinessRegistrationClient.tsx
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -22,6 +24,7 @@ interface Step {
 }
 
 interface Plan {
+  id: string;
   name: string;
   tag: string;
   price: string;
@@ -213,8 +216,12 @@ const steps: Step[] = [
   { n: "04", title: "Submit Registration", desc: "Your registration is submitted and your business becomes officially registered." },
 ];
 
+// `id` matches the packageTier id in
+// lib/questionnaires/business-registration/config.ts, so each button
+// routes straight into the wizard with the right tier pre-selected.
 const plans: Plan[] = [
   {
+    id: "basic",
     name: "Basic Registration",
     tag: "Best for simple businesses",
     price: "$80",
@@ -228,6 +235,7 @@ const plans: Plan[] = [
     popular: false,
   },
   {
+    id: "standard",
     name: "Standard Registration",
     tag: "Most popular",
     price: "$150",
@@ -242,6 +250,7 @@ const plans: Plan[] = [
     popular: true,
   },
   {
+    id: "complete",
     name: "Complete Startup Registration",
     tag: "Best for new entrepreneurs",
     price: "$250",
@@ -336,10 +345,6 @@ function HeroSection() {
         <div className="grid lg:grid-cols-2 gap-14 items-center">
           {/* LEFT */}
           <div>
-            <span className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold tracking-widest uppercase px-4 py-1.5 rounded-full mb-6">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              Business Registration Service
-            </span>
 
             <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 leading-tight tracking-tight mb-6">
               Register Your Business and{" "}
@@ -409,9 +414,7 @@ function ProblemSection() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           <div>
-            <span className="inline-block text-emerald-400 text-xs font-bold tracking-widest uppercase mb-4">
-              The Problem
-            </span>
+            
             <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight mb-6">
               Starting a Business Requires Legal Registration
             </h2>
@@ -461,9 +464,6 @@ function FeaturesGrid() {
     <section className="bg-white py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="inline-block text-emerald-600 text-xs font-bold tracking-widest uppercase mb-3">
-            Deliverables
-          </span>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
             What&apos;s Included in Our Business Registration Service
           </h2>
@@ -493,9 +493,7 @@ function AudienceSection() {
     <section className="bg-emerald-50 py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="inline-block text-emerald-600 text-xs font-bold tracking-widest uppercase mb-3">
-            Who It&apos;s For
-          </span>
+          
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
             Perfect for New Entrepreneurs
           </h2>
@@ -523,9 +521,7 @@ function ProcessSteps() {
     <section className="bg-white py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="inline-block text-emerald-600 text-xs font-bold tracking-widest uppercase mb-3">
-            How It Works
-          </span>
+          
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">Simple 4-Step Process</h2>
         </div>
         <div className="relative">
@@ -552,19 +548,23 @@ function ProcessSteps() {
 
 // ── 6. PRICING ────────────────────────────────────────────────────────────────
 function PricingCards() {
+  const router = useRouter();
+
+  function handleSelectPlan(planId: string) {
+    router.push(`/services/business-registration/questionnaire?package=${planId}`);
+  }
+
   return (
     <section id="pricing" className="bg-slate-50 py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="inline-block text-emerald-600 text-xs font-bold tracking-widest uppercase mb-3">
-            Pricing
-          </span>
+          
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
             Choose Your Registration Package
           </h2>
         </div>
         <div className="grid md:grid-cols-3 gap-6 items-stretch">
-          {plans.map(({ name, tag, price, items, delivery, cta, popular }) => (
+          {plans.map(({ id, name, tag, price, items, delivery, cta, popular }) => (
             <div
               key={name}
               className={`relative flex flex-col rounded-2xl p-8 border transition-all duration-200 ${
@@ -612,6 +612,7 @@ function PricingCards() {
                 📅 Delivery: <strong>{delivery}</strong>
               </p>
               <button
+                onClick={() => handleSelectPlan(id)}
                 className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all active:scale-95 ${
                   popular
                     ? "bg-white text-emerald-700 hover:bg-emerald-50"
@@ -710,9 +711,7 @@ function RelatedServicesSection() {
     <section className="bg-slate-50 py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="inline-block text-emerald-600 text-xs font-bold tracking-widest uppercase mb-3">
-            What Comes Next
-          </span>
+          
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
             Continue Building Your Business
           </h2>
@@ -754,9 +753,7 @@ function FAQAccordion() {
     <section className="bg-white py-20">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="inline-block text-emerald-600 text-xs font-bold tracking-widest uppercase mb-3">
-            FAQ
-          </span>
+          
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
             Frequently Asked Questions
           </h2>

@@ -1,5 +1,7 @@
+// app/api/requirements/route.ts
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { revalidateBusinessPages } from "@/lib/revalidate";
 
 export async function GET() {
   try {
@@ -65,8 +67,10 @@ export async function POST(req: Request) {
 
     // If global, auto-link to ALL existing businesses
     if (isGlobal) {
+      // FIX: select slug too — needed to revalidate each business's
+      // statically-generated pages after linking (see note below).
       const allBusinesses = await prisma.business.findMany({
-        select: { id: true },
+        select: { id: true, slug: true },
       });
       if (allBusinesses.length > 0) {
         await prisma.businessRequirement.createMany({
@@ -77,6 +81,15 @@ export async function POST(req: Request) {
           })),
           skipDuplicates: true,
         });
+
+        // FIX: revalidate every business's hub + requirements pages now
+        // that a new global requirement links to all of them. This route
+        // previously never called revalidatePath, so requirements created
+        // here (including via CSV import, which posts to this endpoint)
+        // never showed up on statically generated business pages in
+        // production until a full rebuild — even though local dev never
+        // surfaced the problem, since dev has no persistent ISR cache.
+        allBusinesses.forEach((b) => revalidateBusinessPages(b.slug));
       }
     }
 
@@ -101,6 +114,13 @@ export async function POST(req: Request) {
           source: "admin",
         },
       });
+
+      // FIX: revalidate this business's hub + requirements pages now that
+      // a new requirement is linked to it. This is the specific gap that
+      // caused CSV-imported requirements (Stock or otherwise) with
+      // "link to business" enabled to not appear in production — see the
+      // longer note in the isGlobal branch above.
+      revalidateBusinessPages(business.slug);
     }
 
     // Re-fetch updated business count after linking

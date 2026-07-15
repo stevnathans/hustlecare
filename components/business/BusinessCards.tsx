@@ -4,6 +4,7 @@ import { FiArrowRight, FiFileText, FiDollarSign, FiInfo } from 'react-icons/fi';
 import { useMemo, useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { isExcludedFromTotals } from '@/lib/necessity';
 
 type Requirement = {
   id: number;
@@ -57,10 +58,15 @@ export default function BusinessCard({
       .catch(() => setCostLoading(false));
   }, [slug]);
 
+  // Excludes Stock (and any future excluded-from-totals categories) — Stock
+  // items are products a business can sell, not fixed startup requirements,
+  // so counting them here would inflate the requirement count shown on the
+  // card. See lib/necessity.ts: EXCLUDED_FROM_TOTALS_CATEGORIES.
   const totalRequirements = useMemo(() => {
     if (!groupedRequirements || Object.keys(groupedRequirements).length === 0) return 0;
-    return Object.values(groupedRequirements).reduce(
-      (total, reqs) => total + (reqs?.length || 0),
+    return Object.entries(groupedRequirements).reduce(
+      (total, [cat, reqs]) =>
+        isExcludedFromTotals(cat) ? total : total + (reqs?.length || 0),
       0
     );
   }, [groupedRequirements]);

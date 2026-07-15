@@ -1,3 +1,4 @@
+// components/business/EnhancedBusinessCard.tsx
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -11,6 +12,7 @@ import {
   Wrench,
   ExternalLink,
 } from "lucide-react";
+import { isExcludedFromTotals } from "@/lib/necessity";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -64,10 +66,7 @@ function formatDays(days: number) {
   return `${Math.round(days / 30)} month${Math.round(days / 30) !== 1 ? "s" : ""}`;
 }
 
-const PROFIT_CONFIG: Record<
-  string,
-  { label: string; filled: number; color: string }
-> = {
+const PROFIT_CONFIG: Record<string, { label: string; filled: number; color: string }> = {
   low: { label: "Low", filled: 1, color: "bg-red-400" },
   low_to_medium: { label: "Low – Medium", filled: 2, color: "bg-orange-400" },
   medium: { label: "Medium", filled: 3, color: "bg-yellow-400" },
@@ -75,10 +74,7 @@ const PROFIT_CONFIG: Record<
   high: { label: "High", filled: 5, color: "bg-emerald-500" },
 };
 
-const SKILL_CONFIG: Record<
-  string,
-  { label: string; filled: number; color: string }
-> = {
+const SKILL_CONFIG: Record<string, { label: string; filled: number; color: string }> = {
   low: { label: "Beginner-friendly", filled: 1, color: "bg-emerald-500" },
   moderate: { label: "Moderate", filled: 2, color: "bg-yellow-400" },
   high: { label: "Expert required", filled: 3, color: "bg-red-400" },
@@ -161,10 +157,14 @@ export default function EnhancedBusinessCard({
       .catch(() => setCostLoading(false));
   }, [slug]);
 
+  // Excludes Stock (and any future excluded-from-totals categories) — see
+  // lib/necessity.ts: EXCLUDED_FROM_TOTALS_CATEGORIES. Matches the same
+  // exclusion applied in BusinessCards.tsx and the requirements detail page.
   const totalRequirements = useMemo(
     () =>
-      Object.values(groupedRequirements).reduce(
-        (sum, reqs) => sum + (reqs?.length ?? 0),
+      Object.entries(groupedRequirements).reduce(
+        (sum, [category, reqs]) =>
+          isExcludedFromTotals(category) ? sum : sum + (reqs?.length ?? 0),
         0,
       ),
     [groupedRequirements],

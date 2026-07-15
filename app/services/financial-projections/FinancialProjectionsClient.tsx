@@ -1,6 +1,8 @@
+// app/services/financial-projections/FinancialProjectionsClient.tsx
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -22,6 +24,7 @@ interface Step {
 }
 
 interface Plan {
+  id: string;
   name: string;
   tag: string;
   price: string;
@@ -223,8 +226,11 @@ const steps: Step[] = [
   { n: "04", title: "Receive Your Report", desc: "You receive a professionally formatted financial projections document ready for use." },
 ];
 
+// `id` matches the packageTier id in
+// lib/questionnaires/financial-projections/config.ts.
 const plans: Plan[] = [
   {
+    id: "essential",
     name: "Essential Projections",
     tag: "Best for early planning",
     price: "$100",
@@ -239,6 +245,7 @@ const plans: Plan[] = [
     popular: false,
   },
   {
+    id: "full",
     name: "Full Financial Model",
     tag: "Most popular",
     price: "$200",
@@ -255,6 +262,7 @@ const plans: Plan[] = [
     popular: true,
   },
   {
+    id: "investor",
     name: "Investor Package",
     tag: "Best for fundraising",
     price: "$350",
@@ -600,6 +608,12 @@ function ProcessSteps() {
 
 // ── 6. PRICING ────────────────────────────────────────────────────────────────
 function PricingCards() {
+  const router = useRouter();
+
+  function handleSelectPlan(planId: string) {
+    router.push(`/services/financial-projections/questionnaire?package=${planId}`);
+  }
+
   return (
     <section id="pricing" className="bg-slate-50 py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -612,7 +626,7 @@ function PricingCards() {
           </h2>
         </div>
         <div className="grid md:grid-cols-3 gap-6 items-stretch">
-          {plans.map(({ name, tag, price, items, delivery, cta, popular }) => (
+          {plans.map(({ id, name, tag, price, items, delivery, cta, popular }) => (
             <div
               key={name}
               className={`relative flex flex-col rounded-2xl p-8 border transition-all duration-200 ${
@@ -666,6 +680,7 @@ function PricingCards() {
                 📅 Delivery: <strong>{delivery}</strong>
               </p>
               <button
+                onClick={() => handleSelectPlan(id)}
                 className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all active:scale-95 ${
                   popular
                     ? "bg-white text-emerald-700 hover:bg-emerald-50"

@@ -746,3 +746,24 @@ enum NotifType {
   SUCCESS
   WARNING
 }
+
+// One generic table for every service's questionnaire — service-specific
+// shape lives in the `answers` Json column, validated by that service's
+// Zod schema at the application layer, not the database layer.
+
+model QuestionnaireDraft {
+  id           String   @id @default(cuid())
+  serviceSlug  String // "business-plan-writing", "website-creation", etc.
+  packageTier  String? // null for services without tiers
+  currentStep  Int      @default(0)
+  answers      Json     @default("{}")
+  contactEmail String?
+  contactPhone String?
+  status       String   @default("draft") // "draft" | "submitted"
+  orderNumber  String?  @unique // generated on submit, e.g. "HC-BPW-20260714-4821"
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([serviceSlug, status])
+  @@index([contactEmail])
+}

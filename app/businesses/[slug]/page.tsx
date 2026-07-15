@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import HubPageContent from './HubPageContent';
 import RelatedBusinesses from './RelatedBusinesses';
+import { isExcludedFromTotals } from '@/lib/necessity';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -227,15 +228,31 @@ export default async function BusinessHubPage({ params }: Props) {
   const year = new Date().getFullYear();
   const name = business.name;
   const pageUrl = `${SITE_URL}/businesses/${slug}`;
-  const requirementCount = business.requirements.length;
+
+  // ── Core/Stock split ──────────────────────────────────────────────────────
+  // Stock requirements are products a business can sell (e.g. spare parts),
+  // not fixed one-time startup requirements. They're excluded from the
+  // headline requirement count, category breakdown, requirements preview,
+  // and the server-side cost calculation below — same reasoning already
+  // applied on the requirements detail page. See lib/necessity.ts.
+  const coreRequirements = business.requirements.filter(
+    (r) => !isExcludedFromTotals(r.template.category ?? '')
+  );
+
+  const requirementCount = coreRequirements.length;
   const title = `${name} Business in Kenya [${year}] - Everything You Need to Know | HustleCare`;
   const description =
     business.description ||
     `Complete guide to starting a ${name} business in Kenya with ${requirementCount} requirements and cost estimates.`;
 
   // ── Requirement grouping ──────────────────────────────────────────────────
+  // Grouped from coreRequirements only, so the "Requirement Categories"
+  // breakdown (and its required/optional split) doesn't include Stock,
+  // whose necessity values ("High Demand" etc.) don't mean "required" or
+  // "optional" in the same sense and would otherwise show a misleading
+  // "0 required" row for the Stock category.
 
-  const grouped = business.requirements.reduce<Record<string, typeof business.requirements>>(
+  const grouped = coreRequirements.reduce<Record<string, typeof coreRequirements>>(
     (acc, req) => {
       const cat = req.template.category || 'General';
       if (!acc[cat]) acc[cat] = [];
@@ -245,7 +262,7 @@ export default async function BusinessHubPage({ params }: Props) {
     {}
   );
 
-  const previewRequirements = business.requirements.slice(0, 4).map((r) => ({
+  const previewRequirements = coreRequirements.slice(0, 4).map((r) => ({
     id: r.id,
     name: r.template.name,
     category: r.template.category,
@@ -262,13 +279,17 @@ export default async function BusinessHubPage({ params }: Props) {
   // ── Fetch auto-calculated cost server-side for FAQs and JSON-LD ──────────
   // We call our own cost API directly via prisma rather than an HTTP fetch
   // to avoid a network round-trip within the server component.
+  //
+  // Iterates coreRequirements only — Stock product prices are excluded from
+  // "cost to start" for the same reason as the requirement count above:
+  // inventory is a scalable choice, not a fixed startup cost.
 
   let cost: CostData | null = null;
   try {
     let low = 0, medium = 0, high = 0, requirementsWithProducts = 0;
-    const totalRequirements = business.requirements.length;
+    const totalRequirements = coreRequirements.length;
 
-    for (const req of business.requirements) {
+    for (const req of coreRequirements) {
       const prices = req.template.products
         ?.map((p: { price: number | null }) => p.price)
         .filter((p): p is number => p !== null && p > 0)

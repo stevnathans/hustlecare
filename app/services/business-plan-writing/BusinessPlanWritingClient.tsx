@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from 'next/link';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -22,11 +23,11 @@ interface Step {
 }
 
 interface Plan {
+  id: string;
   name: string;
   tag: string;
   price: string;
   items: string[];
-  delivery: string;
   cta: string;
   popular: boolean;
 }
@@ -372,10 +373,10 @@ function AudienceSection() {
 
 // ── 5. PROCESS ───────────────────────────────────────────────────────────────
 const steps: Step[] = [
-  { n: "01", title: "Tell Us About Your Business", desc: "You complete a short questionnaire about your business idea, target market, and goals." },
-  { n: "02", title: "Research and Strategy", desc: "Our team performs market research and builds the business framework." },
-  { n: "03", title: "Plan Development", desc: "We write your complete business plan including financial projections." },
-  { n: "04", title: "Receive Your Plan", desc: "You receive a professionally formatted document ready for use." },
+  { n: "01", title: "Choose Your Package", desc: "Pick the plan that fits your stage and needs — Starter, Professional, or Investor." },
+  { n: "02", title: "Tell Us About Your Business", desc: "You complete a short, guided questionnaire about your business idea, target market, and goals." },
+  { n: "03", title: "We Research and Write", desc: "Our team performs market research and writes your complete business plan, including financials." },
+  { n: "04", title: "Receive Your Plan", desc: "You receive a professionally formatted document ready to use." },
 ];
 
 function ProcessSteps() {
@@ -408,37 +409,83 @@ function ProcessSteps() {
 }
 
 // ── 6. PRICING ───────────────────────────────────────────────────────────────
+// Exact packages, pricing, and inclusions per spec. `id` matches the
+// packageTier id used by lib/questionnaires/business-plan-writing/config.ts,
+// so clicking a card routes straight into the wizard with the right tier
+// pre-selected — no picker screen, per the original journey requirement.
 const plans: Plan[] = [
   {
+    id: "starter",
     name: "Starter",
     tag: "Best for early ideas",
-    price: "$120",
-    items: ["Basic business plan", "Market overview", "Business model outline", "Startup cost estimate"],
-    delivery: "5–7 days",
+    price: "KSh 5,999",
+    items: [
+      "Executive Summary",
+      "Business Description",
+      "Products & Services",
+      "Basic Market Overview",
+      "Basic Customer Analysis",
+      "Basic Competitor Analysis",
+      "SWOT Analysis",
+      "Marketing Plan",
+      "Operations Plan",
+      "Startup Cost Estimate",
+      "Basic Financial Forecast (12 months)",
+      "Implementation Timeline",
+    ],
     cta: "Start Starter Plan",
     popular: false,
   },
   {
+    id: "professional",
     name: "Professional",
-    tag: "Most popular",
-    price: "$250",
-    items: ["Full business plan", "Market research", "Competitor analysis", "Marketing strategy", "Startup cost breakdown", "Financial projections"],
-    delivery: "7–10 days",
+    tag: "Most Popular",
+    price: "KSh 12,999",
+    items: [
+      "Everything in Starter, plus:",
+      "Detailed Market & Industry Analysis",
+      "Customer & Competitor Analysis",
+      "Pricing & Sales Strategy",
+      "Staffing Plan & Org Structure",
+      "Risk Management",
+      "Funding Requirements & Use of Funds",
+      "Break-even Analysis",
+      "3-Year Financial Projections",
+      "P&L, Cash Flow, Balance Sheet",
+    ],
     cta: "Start Professional Plan",
     popular: true,
   },
   {
+    id: "investor",
     name: "Investor",
-    tag: "Best for fundraising",
-    price: "$400",
-    items: ["Full professional business plan", "Detailed financial projections", "Investor pitch deck", "Market opportunity analysis", "Funding strategy"],
-    delivery: "10–14 days",
+    tag: "Best for Fundraising",
+    price: "KSh 24,999",
+    items: [
+      "Everything in Professional, plus:",
+      "Comprehensive Industry Research",
+      "Customer Personas",
+      "Porter's Five Forces & PESTLE",
+      "Marketing Budget & Sales Funnel",
+      "Growth & Expansion Plan",
+      "Funding Strategy & Investment Ask",
+      "Equity Structure",
+      "Ratio & Scenario Analysis",
+      "5-Year Financial Projections",
+      "Investment Readiness Review",
+    ],
     cta: "Start Investor Plan",
     popular: false,
   },
 ];
 
 function PricingCards() {
+  const router = useRouter();
+
+  function handleSelectPlan(planId: string) {
+    router.push(`/services/business-plan-writing/questionnaire?package=${planId}`);
+  }
+
   return (
     <section id="pricing" className="bg-slate-50 py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -451,7 +498,7 @@ function PricingCards() {
           </h2>
         </div>
         <div className="grid md:grid-cols-3 gap-6 items-stretch">
-          {plans.map(({ name, tag, price, items, delivery, cta, popular }) => (
+          {plans.map(({ id, name, tag, price, items, cta, popular }) => (
             <div
               key={name}
               className={`relative flex flex-col rounded-2xl p-8 border transition-all duration-200 ${
@@ -472,7 +519,7 @@ function PricingCards() {
                 <p className={`text-sm ${popular ? "text-emerald-200" : "text-slate-500"}`}>{tag}</p>
               </div>
               <div className="mb-6">
-                <span className={`text-5xl font-extrabold ${popular ? "text-white" : "text-slate-900"}`}>
+                <span className={`text-4xl font-extrabold ${popular ? "text-white" : "text-slate-900"}`}>
                   {price}
                 </span>
               </div>
@@ -486,10 +533,8 @@ function PricingCards() {
                   </li>
                 ))}
               </ul>
-              <p className={`text-xs mb-6 ${popular ? "text-emerald-200" : "text-slate-400"}`}>
-                📅 Delivery: <strong>{delivery}</strong>
-              </p>
               <button
+                onClick={() => handleSelectPlan(id)}
                 className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all active:scale-95 ${
                   popular
                     ? "bg-white text-emerald-700 hover:bg-emerald-50"
