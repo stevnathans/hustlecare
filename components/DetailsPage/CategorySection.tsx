@@ -1,18 +1,4 @@
 // DetailsPage/CategorySection.tsx
-// Fix: RequirementCardWrapper was defined inside the component body, causing React
-// to treat it as a new component type on every render and unmount/remount it —
-// resetting isExpanded to false whenever products refreshed. Replaced with a
-// direct inline render so RequirementCard is never unmounted on prop changes.
-//
-// Bug fix: `Link` was incorrectly imported from `lucide-react` (an icon library).
-// It is now correctly imported from `next/link`.
-//
-// SEO fix: removed all microdata attributes (itemScope, itemType, itemProp) and
-// the client-side generateCategorySchema() function. Requirements were being typed
-// as "https://schema.org/Product" via microdata, causing Google Search Console to
-// flag missing required Product fields (name, offers, price). All structured data
-// is now emitted server-side in page.tsx as JSON-LD with "@type": "Thing", which
-// is the correct type for a business prerequisite that is not a purchasable product.
 
 import React from 'react';
 import Link from 'next/link';
@@ -20,6 +6,7 @@ import RequirementCard from '@/components/Requirements/RequirementCard';
 import CategorySectionHeader from './CategorySectionHeader';
 import CategorySearchFilter from './CategorySearchFilter';
 import { Product } from '@/types';
+import { necessityOptions } from '@/lib/necessity';
 
 interface Requirement {
   id: number;
@@ -33,7 +20,7 @@ interface Requirement {
 
 interface CategoryState {
   showFilter: boolean;
-  filter: 'all' | 'required' | 'optional';
+  filter: string; // 'all' or a lowercase necessity value
   showSearch: boolean;
   searchQuery: string;
 }
@@ -46,12 +33,12 @@ interface CategorySectionProps {
   products: Record<string, Product[]>;
   categoryState: CategoryState;
   globalSearchQuery: string;
-  globalFilter: 'all' | 'required' | 'optional';
+  globalFilter: string;
   onToggleSearch: () => void;
   onToggleFilter: () => void;
   onSearchChange: (query: string) => void;
-  onFilterChange: (filter: 'all' | 'required' | 'optional') => void;
-  /** Called after a product is successfully assigned so the parent can refresh. */
+  onFilterChange: (filter: string) => void;
+  availableNecessities: string[];
   onProductAssigned?: () => void;
 }
 
@@ -71,33 +58,38 @@ const CategorySection: React.FC<CategorySectionProps> = ({
   onProductAssigned,
 }) => {
   const categoryId = category.toLowerCase().replace(/\s+/g, '-');
-  const requiredItems = filteredRequirements.filter(req => req.necessity.toLowerCase() === 'required');
-  const optionalItems = filteredRequirements.filter(req => req.necessity.toLowerCase() === 'optional');
 
   const hasGlobalFilters = globalSearchQuery || globalFilter !== 'all';
   if (filteredRequirements.length === 0 && hasGlobalFilters) {
     return null;
   }
 
-  // Render a single requirement card inline — no wrapper component so React
-  // never unmounts RequirementCard when the products prop changes, preserving
-  // the isExpanded state across refreshes.
- const renderRequirementCard = (requirement: Requirement) => (
-  <div key={requirement.id}>
-    <RequirementCard
-      requirement={{
-        ...requirement,
-        category: requirement.category || category,
-        image: requirement.image ?? undefined,
-        description: requirement.description ?? undefined,
-        templateId: requirement.templateId,
-      }}
-      products={products[requirement.name] || []}
-      onProductAssigned={onProductAssigned}
-      businessName={businessName}
-    />
-  </div>
-);
+  // Group filtered requirements by their necessity/demand value, driven by
+  // the option list for this category (Required/Optional, or the 3-way
+  // demand scale for Stock). Replaces the old hardcoded requiredItems/optionalItems split.
+  const necessityGroups = necessityOptions(category).map((opt) => ({
+    ...opt,
+    items: filteredRequirements.filter(
+      (req) => req.necessity.toLowerCase() === opt.value.toLowerCase()
+    ),
+  }));
+
+  const renderRequirementCard = (requirement: Requirement) => (
+    <div key={requirement.id}>
+      <RequirementCard
+        requirement={{
+          ...requirement,
+          category: requirement.category || category,
+          image: requirement.image ?? undefined,
+          description: requirement.description ?? undefined,
+          templateId: requirement.templateId,
+        }}
+        products={products[requirement.name] || []}
+        onProductAssigned={onProductAssigned}
+        businessName={businessName}
+      />
+    </div>
+  );
 
   return (
     <section
@@ -129,7 +121,9 @@ const CategorySection: React.FC<CategorySectionProps> = ({
           <>
             <div className="mb-4 sm:mb-6">
               <h3 className="text-lg font-semibold text-gray-800 mb-2">
-                {category} Requirements for Your {businessName} Business
+                {category === 'Stock'
+                  ? `Products You Can Sell in Your ${businessName} Business`
+                  : `${category} Requirements for Your ${businessName} Business`}
               </h3>
               <p className="text-gray-600 text-sm leading-relaxed">
                 {category === 'Legal' && `Ensure your ${businessName} business complies with all legal requirements in Kenya. These documents and registrations are essential for operating legally.`}
@@ -137,40 +131,29 @@ const CategorySection: React.FC<CategorySectionProps> = ({
                 {category === 'Software' && `Digital tools and software solutions to streamline your ${businessName} business operations, from management to customer service.`}
                 {category === 'Marketing' && `Marketing materials and strategies to promote your ${businessName} business and attract customers in the Kenyan market.`}
                 {category === 'Documents' && `Important business documents and templates needed for your ${businessName} business operations and compliance.`}
-                {!['Legal', 'Equipment', 'Software', 'Marketing', 'Documents'].includes(category) &&
+                {category === 'Stock' && `Popular products stocked by other ${businessName} businesses, grouped by how fast they typically sell. Add the ones you plan to carry to build your starter inventory list.`}
+                {!['Legal', 'Equipment', 'Software', 'Marketing', 'Documents', 'Stock'].includes(category) &&
                   `Important ${category.toLowerCase()} requirements for starting and running your ${businessName} business successfully in Kenya.`}
               </p>
             </div>
 
-            {requiredItems.length > 0 && (
-              <div className="mb-6 sm:mb-8">
-                <h4 className="text-md font-semibold text-green-700 mb-3 sm:mb-4 flex items-center">
-                  <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                  Essential {category} Items ({requiredItems.length})
-                </h4>
-                <div className="space-y-4 sm:space-y-6">
-                  {requiredItems.map((requirement) => renderRequirementCard(requirement))}
+            {necessityGroups.map((group) =>
+              group.items.length === 0 ? null : (
+                <div key={group.value} className="mb-6 sm:mb-8 last:mb-0">
+                  <h4 className={`text-md font-semibold mb-3 sm:mb-4 flex items-center ${group.text}`}>
+                    <span className={`w-2.5 h-2.5 rounded-full mr-2 ${group.dot}`} />
+                    {group.label} {category === 'Stock' ? 'Products' : 'Items'} ({group.items.length})
+                  </h4>
+                  {group.value.toLowerCase() === 'optional' && (
+                    <p className="text-sm text-gray-600 mb-4 sm:mb-6">
+                      These optional items can enhance your {businessName} business but aren&apos;t required to get started.
+                    </p>
+                  )}
+                  <div className="space-y-4 sm:space-y-6">
+                    {group.items.map((requirement) => renderRequirementCard(requirement))}
+                  </div>
                 </div>
-              </div>
-            )}
-
-            {optionalItems.length > 0 && (
-              <div>
-                <h4 className="text-md font-semibold text-yellow-700 mb-3 sm:mb-4 flex items-center">
-                  <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                  </svg>
-                  Optional {category} Items ({optionalItems.length})
-                </h4>
-                <p className="text-sm text-gray-600 mb-4 sm:mb-6">
-                  These optional items can enhance your {businessName} business but aren&apos;t required to get started.
-                </p>
-                <div className="space-y-4 sm:space-y-6">
-                  {optionalItems.map((requirement) => renderRequirementCard(requirement))}
-                </div>
-              </div>
+              )
             )}
           </>
         ) : (

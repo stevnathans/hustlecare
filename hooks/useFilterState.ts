@@ -1,7 +1,7 @@
+// hooks/useFilterState.ts
 import { useState, useMemo } from 'react';
+import { isExcludedFromTotals } from '@/lib/necessity';
 
-// Matches the resolved shape from useBusinessData / /api/business/[slug]/requirements.
-// description, category, and image come from the database and can be null.
 interface Requirement {
   id: number;
   templateId?: number;
@@ -22,29 +22,16 @@ interface Product {
 
 interface CategoryState {
   showFilter: boolean;
-  filter: 'all' | 'required' | 'optional';
+  filter: string; // 'all' or a lowercase necessity value
   showSearch: boolean;
   searchQuery: string;
 }
 
-// Returns the median value from a sorted array of numbers.
-// For an even-length array we take the lower of the two middle values so the
-// result is always an actual product price rather than an interpolated average.
 function getMedianPrice(sortedPrices: number[]): number {
   const mid = Math.floor(sortedPrices.length / 2);
-  // Odd length  → exact middle element
-  // Even length → lower middle element (a real price, not an average)
   return sortedPrices[sortedPrices.length % 2 !== 0 ? mid : mid - 1];
 }
 
-// Calculates low / median / high totals across all requirements that have
-// at least one product. Each scale picks a different real product per
-// requirement rather than applying an arbitrary multiplier to an average:
-//
-//   Low    → cheapest product per requirement  (budget / small-scale)
-//   Median → median-priced product             (typical / medium-scale)
-//   High   → most expensive product            (premium / large-scale)
-//
 function calculatePriceTotals(
   requirements: Requirement[],
   products: Record<string, Product[]>
@@ -68,6 +55,28 @@ function calculatePriceTotals(
   return { low, median, high };
 }
 
+function countWithProducts(requirements: Requirement[], products: Record<string, Product[]>): number {
+  return requirements.filter((req) => (products[req.name] || []).length > 0).length;
+}
+
+// Splits a requirement list into "core" (counts toward the headline
+// requirement total and cost estimate) and "stock" (products a business
+// sells — tracked and priced separately since inventory is a scalable,
+// ongoing decision rather than a fixed one-time startup requirement).
+// See lib/necessity.ts: EXCLUDED_FROM_TOTALS_CATEGORIES.
+function splitCoreAndStock(requirements: Requirement[]): { core: Requirement[]; stock: Requirement[] } {
+  const core: Requirement[] = [];
+  const stock: Requirement[] = [];
+  requirements.forEach((req) => {
+    if (isExcludedFromTotals(req.category || '')) {
+      stock.push(req);
+    } else {
+      core.push(req);
+    }
+  });
+  return { core, stock };
+}
+
 export const useFilterState = (
   requirements: Requirement[],
   products: Record<string, Product[]>,
@@ -76,34 +85,82 @@ export const useFilterState = (
 ) => {
   const [categoryStates, setCategoryStates] = useState<Record<string, CategoryState>>({});
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
-  const [globalFilter, setGlobalFilter] = useState<'all' | 'required' | 'optional'>('all');
+  const [globalFilter, setGlobalFilter] = useState<string>('all');
 
-  // ── Unfiltered counts and price range (all requirements, ignores search/filter)
-  // Used by BusinessHeader to show the top-level cost estimates and breakdown.
-  const { requiredCount, optionalCount, unfilteredLowPrice, unfilteredMediumPrice, unfilteredHighPrice } =
-    useMemo(() => {
-      const required = requirements.filter(
-        (req) => req.necessity.toLowerCase() === 'required'
-      ).length;
-      const optional = requirements.filter(
-        (req) => req.necessity.toLowerCase() === 'optional'
-      ).length;
+  // ── Necessity values actually present, for building filter dropdowns ──────
+  const availableNecessities = useMemo(() => {
+    const set = new Set(requirements.map((req) => req.necessity));
+    return Array.from(set);
+  }, [requirements]);
 
-      const { low, median, high } = calculatePriceTotals(requirements, products);
+  // ── Unfiltered counts and price ranges ─────────────────────────────────
+  // "Core" figures exclude Stock (see splitCoreAndStock) so the headline
+  // "N requirements to start" and cost estimate reflect actual fixed
+  // startup requirements, not open-ended inventory.
+  //
+  // Within core, cost is further split by necessity:
+  //   - unfilteredRequired*  → REQUIRED items only. This is the number
+  //     BusinessHeader shows by default, since "cost to start" should mean
+  //     the mandatory minimum, not mandatory + every optional extra.
+  //   - unfiltered* (no "Required" in the name) → required + optional
+  //     combined, same as before. Shown when the person opts in via the
+  //     "Include optional items" toggle in BusinessHeader.
+  const {
+    necessityCounts,
+    requiredCount,
+    optionalCount,
+    unfilteredLowPrice,
+    unfilteredMediumPrice,
+    unfilteredHighPrice,
+    unfilteredRequiredLowPrice,
+    unfilteredRequiredMediumPrice,
+    unfilteredRequiredHighPrice,
+    unfilteredRequirementsWithProducts,
+    unfilteredRequiredRequirementsWithProducts,
+    unfilteredStockCount,
+    unfilteredStockLowPrice,
+    unfilteredStockMedianPrice,
+    unfilteredStockHighPrice,
+  } = useMemo(() => {
+    const { core, stock } = splitCoreAndStock(requirements);
+    const requiredOnly = core.filter((req) => req.necessity.toLowerCase() === 'required');
 
-      return {
-        requiredCount: required,
-        optionalCount: optional,
-        unfilteredLowPrice: low,
-        unfilteredMediumPrice: median,
-        unfilteredHighPrice: high,
-      };
-    }, [requirements, products]);
+    const counts: Record<string, number> = {};
+    core.forEach((req) => {
+      const key = req.necessity.toLowerCase();
+      counts[key] = (counts[key] || 0) + 1;
+    });
 
-  // ── Filtered counts and price range (respects global search/filter state)
-  // Used by components that react to the user's active search or filter.
-  const { totalRequirements, lowPrice, mediumPrice, highPrice } = useMemo(() => {
-    const filteredReqs = requirements.filter((req) => {
+    const coreTotals = calculatePriceTotals(core, products);
+    const requiredTotals = calculatePriceTotals(requiredOnly, products);
+    const stockTotals = calculatePriceTotals(stock, products);
+
+    return {
+      necessityCounts: counts,
+      requiredCount: counts['required'] || 0,
+      optionalCount: counts['optional'] || 0,
+      unfilteredLowPrice: coreTotals.low,
+      unfilteredMediumPrice: coreTotals.median,
+      unfilteredHighPrice: coreTotals.high,
+      unfilteredRequiredLowPrice: requiredTotals.low,
+      unfilteredRequiredMediumPrice: requiredTotals.median,
+      unfilteredRequiredHighPrice: requiredTotals.high,
+      unfilteredRequirementsWithProducts: countWithProducts(core, products),
+      unfilteredRequiredRequirementsWithProducts: countWithProducts(requiredOnly, products),
+      unfilteredStockCount: stock.length,
+      unfilteredStockLowPrice: stockTotals.low,
+      unfilteredStockMedianPrice: stockTotals.median,
+      unfilteredStockHighPrice: stockTotals.high,
+    };
+  }, [requirements, products]);
+
+  // ── Filtered counts and price range (respects global search/filter state) ─
+  // Same core/stock split applied here so the interactive numbers stay
+  // consistent with the unfiltered headline numbers above. This path is
+  // unaffected by the required-only default — it reflects whatever
+  // necessity/demand filter the person has actively selected.
+  const { totalRequirements, lowPrice, mediumPrice, highPrice, stockCount, stockLowPrice, stockMedianPrice, stockHighPrice } = useMemo(() => {
+    const matchesFilters = (req: Requirement) => {
       const matchesGlobalSearch = globalSearchQuery
         ? req.name.toLowerCase().includes(globalSearchQuery.toLowerCase()) ||
           (req.description &&
@@ -112,15 +169,23 @@ export const useFilterState = (
       const matchesGlobalFilter =
         globalFilter === 'all' || req.necessity.toLowerCase() === globalFilter;
       return matchesGlobalSearch && matchesGlobalFilter;
-    });
+    };
 
-    const { low, median, high } = calculatePriceTotals(filteredReqs, products);
+    const filteredReqs = requirements.filter(matchesFilters);
+    const { core, stock } = splitCoreAndStock(filteredReqs);
+
+    const coreTotals = calculatePriceTotals(core, products);
+    const stockTotals = calculatePriceTotals(stock, products);
 
     return {
-      totalRequirements: filteredReqs.length,
-      lowPrice: low,
-      mediumPrice: median,
-      highPrice: high,
+      totalRequirements: core.length,
+      lowPrice: coreTotals.low,
+      mediumPrice: coreTotals.median,
+      highPrice: coreTotals.high,
+      stockCount: stock.length,
+      stockLowPrice: stockTotals.low,
+      stockMedianPrice: stockTotals.median,
+      stockHighPrice: stockTotals.high,
     };
   }, [requirements, products, globalSearchQuery, globalFilter]);
 
@@ -185,7 +250,7 @@ export const useFilterState = (
     }));
   };
 
-  const setFilter = (category: string, filter: 'all' | 'required' | 'optional') => {
+  const setFilter = (category: string, filter: string) => {
     setCategoryStates((prev) => ({
       ...prev,
       [category]: {
@@ -211,15 +276,34 @@ export const useFilterState = (
     setGlobalSearchQuery,
     globalFilter,
     setGlobalFilter,
+    availableNecessities,
+    necessityCounts,
     requiredCount,
     optionalCount,
+    // Required-only (default cost display) and full required+optional
+    // (shown when "Include optional items" is toggled on) — both exclude Stock.
+    unfilteredRequiredLowPrice,
+    unfilteredRequiredMediumPrice,
+    unfilteredRequiredHighPrice,
     unfilteredLowPrice,
     unfilteredMediumPrice,
     unfilteredHighPrice,
+    unfilteredRequirementsWithProducts,
+    unfilteredRequiredRequirementsWithProducts,
+    // Stock is tracked separately from the core requirement count/cost —
+    // see splitCoreAndStock() above.
+    unfilteredStockCount,
+    unfilteredStockLowPrice,
+    unfilteredStockMedianPrice,
+    unfilteredStockHighPrice,
     totalRequirements,
     lowPrice,
     mediumPrice,
     highPrice,
+    stockCount,
+    stockLowPrice,
+    stockMedianPrice,
+    stockHighPrice,
     filteredCategories,
     getFilteredRequirements,
     toggleCategorySearch,

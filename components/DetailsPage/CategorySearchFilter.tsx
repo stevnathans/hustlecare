@@ -1,13 +1,15 @@
+// components/DetailsPage/CategorySearchFilter.tsx
 import React from 'react';
+import { necessityOptions } from '@/lib/necessity';
 
 interface CategorySearchFilterProps {
   category: string;
   showSearch: boolean;
   showFilter: boolean;
   searchQuery: string;
-  filter: 'all' | 'required' | 'optional';
+  filter: string; // 'all' or a lowercase necessity value
   onSearchChange: (query: string) => void;
-  onFilterChange: (filter: 'all' | 'required' | 'optional') => void;
+  onFilterChange: (filter: string) => void;
 }
 
 const CategorySearchFilter: React.FC<CategorySearchFilterProps> = ({
@@ -19,6 +21,10 @@ const CategorySearchFilter: React.FC<CategorySearchFilterProps> = ({
   onSearchChange,
   onFilterChange
 }) => {
+  // Necessity/demand options for this specific category — e.g. Required/Optional
+  // for most categories, or High/Medium/Low Demand for Stock. See lib/necessity.ts.
+  const options = necessityOptions(category);
+
   return (
     <>
       {showSearch && (
@@ -41,7 +47,7 @@ const CategorySearchFilter: React.FC<CategorySearchFilterProps> = ({
       )}
 
       {showFilter && (
-        <div className="px-6 py-3 bg-gray-100 border-b border-gray-200 flex gap-2">
+        <div className="px-6 py-3 bg-gray-100 border-b border-gray-200 flex gap-2 flex-wrap">
           <button
             onClick={() => onFilterChange('all')}
             className={`px-3 py-1 text-xs rounded-md ${
@@ -50,22 +56,24 @@ const CategorySearchFilter: React.FC<CategorySearchFilterProps> = ({
           >
             All
           </button>
-          <button
-            onClick={() => onFilterChange('required')}
-            className={`px-3 py-1 text-xs rounded-md ${
-              filter === 'required' ? 'bg-emerald-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
-            }`}
-          >
-            Required
-          </button>
-          <button
-            onClick={() => onFilterChange('optional')}
-            className={`px-3 py-1 text-xs rounded-md ${
-              filter === 'optional' ? 'bg-yellow-500 text-white' : 'bg-gray-100 hover:bg-gray-200'
-            }`}
-          >
-            Optional
-          </button>
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => onFilterChange(opt.value.toLowerCase())}
+              className={`px-3 py-1 text-xs rounded-md ${
+                filter === opt.value.toLowerCase()
+                  ? `${opt.bg.replace('bg-', 'bg-').replace('-50', '-500')} text-white`
+                  : 'bg-gray-100 hover:bg-gray-200'
+              }`}
+              style={
+                filter === opt.value.toLowerCase()
+                  ? { backgroundColor: opt.hexColor, color: '#fff' }
+                  : undefined
+              }
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
       )}
     </>

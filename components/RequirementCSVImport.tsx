@@ -1,23 +1,25 @@
+// components/RequirementCSVImport.tsx
 /* eslint-disable react/no-unescaped-entities */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 import { useState, useRef, useEffect } from "react";
 import { Upload, X, Download } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { necessityOptions, necessityStyle } from "@/lib/necessity";
 
 type CSVRequirement = {
   name: string;
   description?: string;
   image?: string;
   category: string;
-  necessity: 'Required' | 'Optional';
+  necessity: string; // e.g. "Required"/"Optional", or "High Demand"/"Medium Demand"/"Low Demand" for Stock
 };
 
 type Business = { id: number; name: string; published: boolean; };
 
 type RequirementCSVImportProps = { onImportComplete: () => void; };
 
-const CATEGORIES = ['Equipment', 'Software', 'Documents', 'Legal', 'Branding', 'Operating Expenses'];
+const CATEGORIES = ['Equipment', 'Software', 'Documents', 'Legal', 'Branding', 'Operating Expenses', 'Stock'];
 
 const S = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap');
@@ -48,8 +50,7 @@ const S = `
   .rci-table tbody tr:hover { background:rgba(255,255,255,0.025); }
   .rci-table tbody tr:last-child td { border-bottom:none; }
   .cat-badge { display:inline-flex; padding:0.18rem 0.55rem; border-radius:100px; font-size:0.7rem; font-weight:700; background:rgba(99,102,241,0.12); color:#818cf8; }
-  .nec-req { display:inline-flex; padding:0.18rem 0.55rem; border-radius:100px; font-size:0.7rem; font-weight:700; background:rgba(16,185,129,0.12); color:#34d399; }
-  .nec-opt { display:inline-flex; padding:0.18rem 0.55rem; border-radius:100px; font-size:0.7rem; font-weight:700; background:rgba(245,158,11,0.1); color:#fbbf24; }
+  .nec-badge { display:inline-flex; padding:0.18rem 0.55rem; border-radius:100px; font-size:0.7rem; font-weight:700; }
   .rci-btn { display:inline-flex; align-items:center; gap:0.4rem; padding:0.55rem 1.1rem; border-radius:9px; font-family:'Sora',sans-serif; font-size:0.83rem; font-weight:600; cursor:pointer; border:none; transition:all 0.15s; white-space:nowrap; }
   .rci-btn-primary { background:linear-gradient(135deg,#7c3aed,#6d28d9); color:#fff; box-shadow:0 4px 14px rgba(124,58,237,0.3); }
   .rci-btn-primary:hover { transform:translateY(-1px); box-shadow:0 6px 18px rgba(124,58,237,0.4); }
@@ -102,25 +103,37 @@ export default function RequirementCSVImport({ onImportComplete }: RequirementCS
     const result: CSVRequirement[] = [];
     for (let i = 1; i < lines.length; i++) {
       const values = lines[i].split(',').map(v => v.trim());
-      const req: any = {};
-      headers.forEach((h, idx) => {
-        const v = values[idx] || '';
-        if (h === 'name') req.name = v;
-        else if (h === 'description' || h === 'image') req[h] = v || undefined;
-        else if (h === 'category') {
-          if (!CATEGORIES.includes(v)) throw new Error(`Row ${i + 1}: Invalid category "${v}". Must be one of: ${CATEGORIES.join(', ')}`);
-          req.category = v;
-        } else if (h === 'necessity') {
-          const lv = v.toLowerCase();
-          if (lv === 'required' || lv === 'req') req.necessity = 'Required';
-          else if (lv === 'optional' || lv === 'opt') req.necessity = 'Optional';
-          else throw new Error(`Row ${i + 1}: Invalid necessity "${v}". Must be "Required" or "Optional"`);
-        }
+
+      // Gather raw field values first — necessity validation depends on
+      // knowing the row's category, and headers can appear in any order.
+      const raw: Record<string, string> = {};
+      headers.forEach((h, idx) => { raw[h] = values[idx] || ''; });
+
+      if (!raw.name) throw new Error(`Row ${i + 1}: Missing required field: name`);
+
+      if (!raw.category) throw new Error(`Row ${i + 1}: Missing required field: category`);
+      if (!CATEGORIES.includes(raw.category)) {
+        throw new Error(`Row ${i + 1}: Invalid category "${raw.category}". Must be one of: ${CATEGORIES.join(', ')}`);
+      }
+
+      if (!raw.necessity) throw new Error(`Row ${i + 1}: Missing required field: necessity`);
+      // Necessity/demand scale depends on category — Required/Optional for
+      // most categories, High/Medium/Low Demand for Stock. See lib/necessity.ts.
+      const validOptions = necessityOptions(raw.category);
+      const matched = validOptions.find(o => o.value.toLowerCase() === raw.necessity.toLowerCase());
+      if (!matched) {
+        throw new Error(
+          `Row ${i + 1}: Invalid necessity "${raw.necessity}" for category "${raw.category}". Must be one of: ${validOptions.map(o => o.value).join(', ')}`
+        );
+      }
+
+      result.push({
+        name: raw.name,
+        description: raw.description || undefined,
+        image: raw.image || undefined,
+        category: raw.category,
+        necessity: matched.value, // normalized to canonical casing
       });
-      if (!req.name)      throw new Error(`Row ${i + 1}: Missing required field: name`);
-      if (!req.category)  throw new Error(`Row ${i + 1}: Missing required field: category`);
-      if (!req.necessity) throw new Error(`Row ${i + 1}: Missing required field: necessity`);
-      result.push(req);
     }
     return result;
   }
@@ -186,7 +199,7 @@ export default function RequirementCSVImport({ onImportComplete }: RequirementCS
   }
 
   function downloadTemplate() {
-    const tpl = `name,category,necessity,description,image\nPoint of Sale System,Equipment,Required,You need a POS system to process sales at [businessName].,\nAccounting Software,Software,Required,Track all income and expenses for [businessName].,\nBusiness License,Legal,Required,A business license is required to legally operate [businessName].,\nLogo Design,Branding,Optional,A professional logo helps establish [businessName]'s brand identity.,`;
+    const tpl = `name,category,necessity,description,image\nPoint of Sale System,Equipment,Required,You need a POS system to process sales at [businessName].,\nAccounting Software,Software,Required,Track all income and expenses for [businessName].,\nBusiness License,Legal,Required,A business license is required to legally operate [businessName].,\nLogo Design,Branding,Optional,A professional logo helps establish [businessName]'s brand identity.,\nSpark Plugs,Stock,High Demand,Popular fast-moving item for [businessName].,`;
     Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([tpl], { type: 'text/csv' })), download: 'requirement-template.csv' }).click();
     toast.success('Template downloaded!');
   }
@@ -214,7 +227,7 @@ export default function RequirementCSVImport({ onImportComplete }: RequirementCS
               <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
                 <li><strong>name</strong> — Requirement name</li>
                 <li><strong>category</strong> — One of: {CATEGORIES.join(', ')}</li>
-                <li><strong>necessity</strong> — "Required" or "Optional"</li>
+                <li><strong>necessity</strong> — "Required" or "Optional" for most categories; "High Demand", "Medium Demand", or "Low Demand" for Stock</li>
                 <li><strong>description</strong> (optional) — Use <strong>[businessName]</strong> as a token for personalisation</li>
                 <li><strong>image</strong> (optional) — Image URL</li>
               </ul>
@@ -267,16 +280,23 @@ export default function RequirementCSVImport({ onImportComplete }: RequirementCS
                       </tr>
                     </thead>
                     <tbody>
-                      {requirements.map((req, i) => (
-                        <tr key={i}>
-                          <td style={{ fontWeight: 600, color: '#f0f0f5' }}>{req.name}</td>
-                          <td><span className="cat-badge">{req.category}</span></td>
-                          <td><span className={req.necessity === 'Required' ? 'nec-req' : 'nec-opt'}>{req.necessity}</span></td>
-                          <td style={{ textAlign: 'right' }}>
-                            <button onClick={() => removeRequirement(i)} className="rci-btn-icon" title="Remove"><X size={14} /></button>
-                          </td>
-                        </tr>
-                      ))}
+                      {requirements.map((req, i) => {
+                        const style = necessityStyle(req.category, req.necessity);
+                        return (
+                          <tr key={i}>
+                            <td style={{ fontWeight: 600, color: '#f0f0f5' }}>{req.name}</td>
+                            <td><span className="cat-badge">{req.category}</span></td>
+                            <td>
+                              <span className="nec-badge" style={{ background: style.hexBg, color: style.hexColor }}>
+                                {req.necessity}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <button onClick={() => removeRequirement(i)} className="rci-btn-icon" title="Remove"><X size={14} /></button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

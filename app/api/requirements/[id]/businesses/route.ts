@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
+import { necessityOptions, isValidNecessity } from "@/lib/necessity";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -64,9 +65,12 @@ export async function GET(_: NextRequest, { params }: Params) {
 
 // POST /api/requirements/:id/businesses
 // Links a template to one or more businesses.
-// Body: { businessIds: number[], necessityOverride?: 'Required' | 'Optional' | null }
+// Body: { businessIds: number[], necessityOverride?: string | null }
 // necessityOverride applies the same value to every business in this batch.
-// Pass null (or omit) to inherit from the template.
+// Pass null (or omit) to inherit from the template. Must be one of the valid
+// necessity/demand values for the template's category (see lib/necessity.ts) —
+// e.g. "Required"/"Optional" for most categories, or "High Demand"/
+// "Medium Demand"/"Low Demand" for Stock.
 export async function POST(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
@@ -76,18 +80,6 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!businessIds || !Array.isArray(businessIds) || businessIds.length === 0) {
       return NextResponse.json(
         { error: "businessIds must be a non-empty array" },
-        { status: 400 }
-      );
-    }
-
-    if (
-      necessityOverride !== null &&
-      necessityOverride !== undefined &&
-      necessityOverride !== "Required" &&
-      necessityOverride !== "Optional"
-    ) {
-      return NextResponse.json(
-        { error: "necessityOverride must be 'Required', 'Optional', or null" },
         { status: 400 }
       );
     }
@@ -103,6 +95,20 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (template.isDeprecated) {
       return NextResponse.json(
         { error: "Cannot link a deprecated requirement to new businesses." },
+        { status: 400 }
+      );
+    }
+
+    // Validate necessityOverride against the valid scale for this template's
+    // category (e.g. Required/Optional, or High/Medium/Low Demand for Stock).
+    if (
+      necessityOverride !== null &&
+      necessityOverride !== undefined &&
+      !isValidNecessity(template.category, necessityOverride)
+    ) {
+      const valid = necessityOptions(template.category).map((o) => o.value).join(", ");
+      return NextResponse.json(
+        { error: `necessityOverride must be one of: ${valid}, or null` },
         { status: 400 }
       );
     }
@@ -182,8 +188,10 @@ export async function POST(req: NextRequest, { params }: Params) {
 
 // PATCH /api/requirements/:id/businesses
 // Updates necessityOverride and/or descriptionOverride on an existing link.
-// Body: { businessId: number, necessityOverride?: 'Required' | 'Optional' | null, descriptionOverride?: string | null }
+// Body: { businessId: number, necessityOverride?: string | null, descriptionOverride?: string | null }
 // Pass null to clear either override and revert to the template value.
+// necessityOverride must be one of the valid necessity/demand values for the
+// template's category (see lib/necessity.ts).
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
@@ -192,18 +200,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     if (!businessId) {
       return NextResponse.json({ error: "businessId is required" }, { status: 400 });
-    }
-
-    if (
-      necessityOverride !== undefined &&
-      necessityOverride !== null &&
-      necessityOverride !== "Required" &&
-      necessityOverride !== "Optional"
-    ) {
-      return NextResponse.json(
-        { error: "necessityOverride must be 'Required', 'Optional', or null" },
-        { status: 400 }
-      );
     }
 
     const existing = await prisma.businessRequirement.findUnique({
@@ -217,7 +213,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         // FIX: select slug too — needed to revalidate this business's
         // statically-generated pages after updating the override.
         business: { select: { name: true, slug: true } },
-        template: { select: { name: true, necessity: true, description: true } },
+        // category is needed to validate necessityOverride against the
+        // correct scale (Required/Optional vs. the Stock demand scale).
+        template: { select: { name: true, category: true, necessity: true, description: true } },
       },
     });
 
@@ -225,6 +223,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json(
         { error: "This requirement is not linked to that business" },
         { status: 404 }
+      );
+    }
+
+    if (
+      necessityOverride !== undefined &&
+      necessityOverride !== null &&
+      !isValidNecessity(existing.template.category, necessityOverride)
+    ) {
+      const valid = necessityOptions(existing.template.category).map((o) => o.value).join(", ");
+      return NextResponse.json(
+        { error: `necessityOverride must be one of: ${valid}, or null` },
+        { status: 400 }
       );
     }
 

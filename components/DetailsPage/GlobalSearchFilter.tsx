@@ -1,17 +1,24 @@
+// components/DetailsPage/GlobalSearchFilter.tsx
 import React from 'react';
 
 interface GlobalSearchFilterProps {
   globalSearchQuery: string;
   setGlobalSearchQuery: (query: string) => void;
-  globalFilter: 'all' | 'required' | 'optional';
-  setGlobalFilter: (filter: 'all' | 'required' | 'optional') => void;
+  globalFilter: string;
+  setGlobalFilter: (filter: string) => void;
+  availableNecessities?: string[];
 }
 
 const GlobalSearchFilter: React.FC<GlobalSearchFilterProps> = ({
   globalSearchQuery,
   setGlobalSearchQuery,
   globalFilter,
-  setGlobalFilter
+  setGlobalFilter,
+  // Defaults to [] — guards against a broken/missing prop chain upstream
+  // (e.g. a parent that hasn't been updated to pass this through from
+  // useFilterState yet) crashing the page with "Cannot read properties of
+  // undefined (reading 'map')".
+  availableNecessities = [],
 }) => {
   const clearGlobalSearch = () => {
     setGlobalSearchQuery('');
@@ -20,7 +27,6 @@ const GlobalSearchFilter: React.FC<GlobalSearchFilterProps> = ({
   return (
     <div className="bg-white p-6 rounded-lg shadow mb-6">
       <div className="flex flex-col sm:flex-row gap-4 w-full">
-        {/* Search input - now taking available space */}
         <div className="relative flex-grow">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
@@ -46,17 +52,17 @@ const GlobalSearchFilter: React.FC<GlobalSearchFilterProps> = ({
           )}
         </div>
 
-        {/* Filter dropdown - adjusted to align properly */}
         <div className="flex items-center gap-2 sm:w-auto w-full">
           <span className="text-sm text-gray-500 whitespace-nowrap">Filter:</span>
           <select
             value={globalFilter}
-            onChange={(e) => setGlobalFilter(e.target.value as 'all' | 'required' | 'optional')}
+            onChange={(e) => setGlobalFilter(e.target.value)}
             className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-auto"
           >
             <option value="all">All</option>
-            <option value="required">Required</option>
-            <option value="optional">Optional</option>
+            {availableNecessities.map((n) => (
+              <option key={n} value={n.toLowerCase()}>{n}</option>
+            ))}
           </select>
         </div>
       </div>

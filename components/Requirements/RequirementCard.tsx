@@ -7,8 +7,6 @@ import {
   ChevronUpIcon,
   ShoppingBagIcon,
   CurrencyDollarIcon,
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
   PhotoIcon,
   XMarkIcon,
   PlusIcon,
@@ -18,6 +16,7 @@ import Image from "next/image";
 import { useCart } from "@/contexts/CartContext";
 import { useSession } from "next-auth/react";
 import LoginModal from "@/components/LoginModal";
+import { necessityStyle } from "@/lib/necessity";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -371,30 +370,10 @@ export default function RequirementCard({
     }
   };
 
-  const getStatus = () =>
-    requirement.necessity.toLowerCase().includes("required") ? "required" : "optional";
-
-  const status = getStatus();
-
-  const statusConfig = {
-    required: {
-      color: "text-emerald-700",
-      bgColor: "bg-emerald-50",
-      borderColor: "border-emerald-200",
-      icon: CheckCircleIcon,
-      dotColor: "bg-green-500",
-    },
-    optional: {
-      color: "text-amber-700",
-      bgColor: "bg-amber-50",
-      borderColor: "border-amber-200",
-      icon: ExclamationTriangleIcon,
-      dotColor: "bg-amber-500",
-    },
-  };
-
-  const config = statusConfig[status as keyof typeof statusConfig];
-  const StatusIcon = config.icon;
+  // Necessity/demand display config — driven by category, so "Stock" gets the
+  // High/Medium/Low Demand palette while every other category keeps
+  // Required/Optional styling. See lib/necessity.ts for the source of truth.
+  const style = necessityStyle(requirement.category, requirement.necessity);
 
   return (
     <>
@@ -480,11 +459,11 @@ export default function RequirementCard({
                     </div>
                   )}
                 </div>
-                {/* Status dot */}
+                {/* Status dot — color/fill now driven by necessityStyle() instead of a fixed required/optional icon */}
                 <div
-                  className={`absolute -top-1 -right-1 w-6 h-6 rounded-full ${config.bgColor} ${config.borderColor} border-2 flex items-center justify-center`}
+                  className={`absolute -top-1 -right-1 w-6 h-6 rounded-full ${style.bg} ${style.border} border-2 flex items-center justify-center`}
                 >
-                  <StatusIcon className={`h-3 w-3 ${config.color}`} />
+                  <div className={`w-2.5 h-2.5 rounded-full ${style.dot}`} />
                 </div>
               </div>
 
@@ -493,10 +472,10 @@ export default function RequirementCard({
                   {requirement.name}
                 </h3>
                 <div
-                  className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold ${config.bgColor} ${config.color} ${config.borderColor} border`}
+                  className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold ${style.bg} ${style.text} ${style.border} border`}
                 >
-                  <div className={`w-2 h-2 rounded-full ${config.dotColor}`} />
-                  <span className="capitalize">{status}</span>
+                  <div className={`w-2 h-2 rounded-full ${style.dot}`} />
+                  <span>{style.label}</span>
                 </div>
               </div>
             </div>

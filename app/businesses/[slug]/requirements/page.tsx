@@ -3,6 +3,7 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import BusinessPageContent from './BusinessPageContent';
 import { prisma } from '@/lib/prisma';
+import { isExcludedFromTotals } from '@/lib/necessity';
 import type { Business as BusinessData, Requirement as RequirementData } from 'hooks/useBusinessData';
 
 interface BusinessPageProps {
@@ -48,11 +49,42 @@ async function fetchBusinessWithRequirements(slug: string) {
   return business;
 }
 
+// ── Core/Stock split ──────────────────────────────────────────────────────────
+// "Stock" requirements are products a business can sell (e.g. spare parts),
+// not fixed one-time startup requirements. They're excluded from every
+// requirement count, cost figure, and the main "Requirements" SEO surfaces
+// below (title, meta description, requirements ItemList, FAQ copy) for the
+// same reason they're excluded from the client-side totals in
+// useFilterState.ts — folding them in would misrepresent "N requirements to
+// start" and inflate implied cost with open-ended inventory.
+//
+// Stock items ARE still rendered on the page (see initialRequirements below,
+// which is NOT filtered) and get their own separate JSON-LD ItemList
+// ("Products You Can Sell") further down, so they remain indexable — just
+// not conflated with startup requirements.
+function splitCoreAndStock<T extends { template: { category: string | null } }>(
+  requirements: T[]
+): { core: T[]; stock: T[] } {
+  const core: T[] = [];
+  const stock: T[] = [];
+  requirements.forEach((req) => {
+    if (isExcludedFromTotals(req.template.category ?? '')) {
+      stock.push(req);
+    } else {
+      core.push(req);
+    }
+  });
+  return { core, stock };
+}
+
 // ── Title Builder ─────────────────────────────────────────────────────────────
 // "Kenya" is now explicit in the title. Previously this page's own title
 // omitted it while the hub and how-to-start pages both included it, which
 // made those pages a stronger literal match for searches like
 // "requirements to start a barbershop business in Kenya."
+//
+// requirementCount here must be the CORE (non-Stock) count — see
+// splitCoreAndStock above.
 
 function buildTitle(businessName: string, requirementCount: number): string {
   const year = new Date().getFullYear();
@@ -67,6 +99,8 @@ function buildTitle(businessName: string, requirementCount: number): string {
 // above. Deliberately different in focus from the hub page's FAQs (which
 // cover cost/time/profitability/location) so the two pages don't compete
 // with near-duplicate FAQ content.
+//
+// All counts passed in here must be CORE (non-Stock) counts.
 
 function buildRequirementsFaqs(
   businessName: string,
@@ -114,7 +148,9 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
     };
   }
 
-  const requirementCount = business.requirements?.length ?? 0;
+  // requirementCount must exclude Stock — see splitCoreAndStock above.
+  const { core } = splitCoreAndStock(business.requirements ?? []);
+  const requirementCount = core.length;
   const title = buildTitle(business.name, requirementCount);
   const description =
     business.description ||
@@ -220,7 +256,16 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   }
 
   const requirements = business.requirements ?? [];
-  const requirementCount = requirements.length;
+
+  // Core (non-Stock) vs. Stock split — see splitCoreAndStock above. All
+  // "Requirements" SEO surfaces (title, meta description, requirements
+  // ItemList, FAQ copy) use the CORE count only. Stock gets its own,
+  // separately-labeled ItemList further below. `requirements` (unfiltered,
+  // includes Stock) is still passed to BusinessPageContent so Stock items
+  // render on the page as normal.
+  const { core: coreRequirements, stock: stockRequirements } = splitCoreAndStock(requirements);
+  const requirementCount = coreRequirements.length;
+
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
   const pageUrl = `${siteUrl}/businesses/${slug}/requirements`;
   const hubUrl = `${siteUrl}/businesses/${slug}`;
@@ -231,7 +276,11 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
     `Complete guide to starting a ${business.name} business in Kenya with ${requirementCount} requirements and cost calculator.`;
 
   // ── Requirement counts (for FAQs and general use) ───────────────────────
-  const requiredCount = requirements.filter(
+  // Computed over coreRequirements only — Stock items don't have a
+  // meaningful "required"/"optional" status in this sense (they use their
+  // own demand scale — see lib/necessity.ts), and including them here would
+  // both double-count against the core total and mix two different scales.
+  const requiredCount = coreRequirements.filter(
     (req) => (req.necessityOverride ?? req.template.necessity) === 'Required'
   ).length;
   const optionalCount = requirementCount - requiredCount;
@@ -248,41 +297,75 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   // Requirements are typed as "Thing" (not "Product") — they are prerequisites
   // for starting a business, not purchasable items. Using "Product" here caused
   // Google Search Console to flag missing required Product fields (offers, price).
+  // Stock items below use the same "Thing" typing for the same reason — the
+  // template itself carries no price/offer data (that lives on the linked
+  // Product records), so "Product" schema would risk the same flag.
 
-  // Group requirements by category for the ItemList, preserving insertion order.
+  // Group requirements by category for reference, preserving insertion order.
   const categoryMap = new Map<string, typeof requirements>();
-  for (const req of requirements) {
+  for (const req of coreRequirements) {
     const cat = req.template.category ?? 'General';
     if (!categoryMap.has(cat)) categoryMap.set(cat, []);
     categoryMap.get(cat)!.push(req);
   }
 
-  // Build a flat, sequentially-numbered list of all requirements across categories.
+  // Build a flat, sequentially-numbered list of CORE requirements only
+  // (excludes Stock — see note above).
   let position = 1;
-  const requirementListItems = requirements.map((req) => ({
-  '@type': 'ListItem',
-  position: position++,
-  item: {
-    '@type': 'Thing',
-    name: req.template.name,
-    description:
-      req.descriptionOverride ||
-      req.template.description ||
-      `${req.template.name} required to start a ${business.name} business`,
-    additionalProperty: [
-      {
-        '@type': 'PropertyValue',
-        name: 'category',
-        value: req.template.category ?? 'General',
-      },
-      {
-        '@type': 'PropertyValue',
-        name: 'necessity',
-        value: req.necessityOverride ?? req.template.necessity,
-      },
-    ],
-  },
-}));
+  const requirementListItems = coreRequirements.map((req) => ({
+    '@type': 'ListItem',
+    position: position++,
+    item: {
+      '@type': 'Thing',
+      name: req.template.name,
+      description:
+        req.descriptionOverride ||
+        req.template.description ||
+        `${req.template.name} required to start a ${business.name} business`,
+      additionalProperty: [
+        {
+          '@type': 'PropertyValue',
+          name: 'category',
+          value: req.template.category ?? 'General',
+        },
+        {
+          '@type': 'PropertyValue',
+          name: 'necessity',
+          value: req.necessityOverride ?? req.template.necessity,
+        },
+      ],
+    },
+  }));
+
+  // Build a separate, sequentially-numbered list of Stock items — products
+  // this business can sell. Kept as its own ItemList (not merged into
+  // requirementListItems above) so it's clearly distinguished from startup
+  // requirements, both to crawlers and to anyone inspecting the schema.
+  let stockPosition = 1;
+  const stockListItems = stockRequirements.map((req) => ({
+    '@type': 'ListItem',
+    position: stockPosition++,
+    item: {
+      '@type': 'Thing',
+      name: req.template.name,
+      description:
+        req.descriptionOverride ||
+        req.template.description ||
+        `${req.template.name} — a product ${business.name} businesses commonly stock and sell`,
+      additionalProperty: [
+        {
+          '@type': 'PropertyValue',
+          name: 'category',
+          value: req.template.category ?? 'Stock',
+        },
+        {
+          '@type': 'PropertyValue',
+          name: 'demand',
+          value: req.necessityOverride ?? req.template.necessity,
+        },
+      ],
+    },
+  }));
 
   // Auto-generated FAQ content, distinct in focus from the hub page's FAQs.
   const requirementFaqs = buildRequirementsFaqs(
@@ -380,7 +463,8 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
         url: pageUrl,
       },
 
-      // 4. ItemList — the flat list of all requirements as "Thing" nodes.
+      // 4. ItemList — the flat list of CORE requirements only, as "Thing"
+      //    nodes. Stock items are excluded here — see node 6 below.
       ...(requirementListItems.length > 0
         ? [
             {
@@ -412,6 +496,26 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
             },
           ]
         : []),
+
+      // 6. ItemList — Stock items ("Products You Can Sell"), kept as a
+      //    separate node from the Requirements ItemList above so crawlers
+      //    (and anyone reading the schema) don't conflate sellable
+      //    inventory with fixed startup requirements. Only emitted when
+      //    the business actually has Stock items.
+      ...(stockListItems.length > 0
+        ? [
+            {
+              '@type': 'ItemList',
+              '@id': `${pageUrl}#stock`,
+              name: `Popular Products You Can Sell in a ${business.name} Business`,
+              description: `${stockRequirements.length} product${
+                stockRequirements.length === 1 ? '' : 's'
+              } commonly stocked by ${business.name} businesses in Kenya. These are inventory suggestions, not startup requirements.`,
+              numberOfItems: stockRequirements.length,
+              itemListElement: stockListItems,
+            },
+          ]
+        : []),
     ],
   };
 
@@ -419,6 +523,12 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   // Passed into BusinessPageContent so the requirements list is present in
   // the server-rendered HTML instead of only appearing after a client-side
   // fetch resolves post-hydration.
+  //
+  // NOTE: uses the full, unfiltered `requirements` list (including Stock) —
+  // Stock items still need to render on the page itself (in their own
+  // section via CategorySection). Only the SEO-facing counts/schema above
+  // are Stock-excluded from the main Requirements surfaces, not the actual
+  // page content.
   const initialBusiness: BusinessData = {
     id: business.id,
     name: business.name,

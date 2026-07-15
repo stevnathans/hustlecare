@@ -276,7 +276,7 @@ export interface RequirementTemplateFormData {
   description?: string;
   image?: string;
   category: string;
-  necessity: 'Required' | 'Optional';
+  necessity: string;
 }
 
 // Form data for linking a template to a business (or creating + linking)
@@ -286,7 +286,7 @@ export interface BusinessRequirementFormData {
   description?: string;
   image?: string;
   category?: string;
-  necessity?: 'Required' | 'Optional';
+  necessity?: string;
   descriptionOverride?: string;
 }
 
@@ -316,7 +316,7 @@ export interface FilterOptions {
   role?: UserRole;
   published?: boolean;
   category?: string;
-  necessity?: 'Required' | 'Optional';
+  necessity?: string;
   isApproved?: boolean;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';

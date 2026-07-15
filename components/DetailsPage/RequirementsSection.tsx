@@ -33,7 +33,7 @@ interface RequirementLocal {
 
 interface CategoryState {
   showFilter: boolean;
-  filter: "all" | "required" | "optional";
+  filter: string;       // was 'all' | 'required' | 'optional'
   showSearch: boolean;
   searchQuery: string;
 }
@@ -45,16 +45,14 @@ interface RequirementsSectionProps {
   products: Record<string, Product[]>;
   categoryStates: Record<string, CategoryState>;
   globalSearchQuery: string;
-  globalFilter: "all" | "required" | "optional";
+  globalFilter: string;                          // was union type
+  availableNecessities: string[];                 // new
   setGlobalSearchQuery: (query: string) => void;
-  setGlobalFilter: (filter: "all" | "required" | "optional") => void;
+  setGlobalFilter: (filter: string) => void;      // was union type
   onToggleCategorySearch: (category: string) => void;
   onToggleFilter: (category: string) => void;
   onCategorySearchChange: (category: string, query: string) => void;
-  onSetFilter: (
-    category: string,
-    filter: "all" | "required" | "optional"
-  ) => void;
+  onSetFilter: (category: string, filter: string) => void; // was union type
   getFilteredRequirements: (category: string) => RequirementLocal[];
   isLoading?: boolean;
   /** Called after an admin assigns a product to a requirement so the page can re-fetch. */
@@ -88,6 +86,7 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
   getFilteredRequirements,
   isLoading = false,
   onProductAssigned,
+  availableNecessities,
 }) => {
   const [similarBusinesses, setSimilarBusinesses] = useState<Business[]>([]);
   const [loadingBusinesses, setLoadingBusinesses] = useState(true);
@@ -352,21 +351,23 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
           </div>
         
         <StickyQuickNavigation
-          categories={categoryInfo}
-          businessName={businessName}
-          globalSearchQuery={globalSearchQuery}
-          setGlobalSearchQuery={setGlobalSearchQuery}
-          globalFilter={globalFilter}
-          setGlobalFilter={setGlobalFilter}
-        />
+  categories={categoryInfo}
+  businessName={businessName}
+  globalSearchQuery={globalSearchQuery}
+  setGlobalSearchQuery={setGlobalSearchQuery}
+  globalFilter={globalFilter}
+  setGlobalFilter={setGlobalFilter}
+  availableNecessities={availableNecessities}
+/>
 
         <section aria-label="Business search and filters">
           <GlobalSearchFilter
-            globalSearchQuery={globalSearchQuery}
-            setGlobalSearchQuery={setGlobalSearchQuery}
-            globalFilter={globalFilter}
-            setGlobalFilter={setGlobalFilter}
-          />
+  globalSearchQuery={globalSearchQuery}
+  setGlobalSearchQuery={setGlobalSearchQuery}
+  globalFilter={globalFilter}
+  setGlobalFilter={setGlobalFilter}
+  availableNecessities={availableNecessities}
+/>
         </section>
 
         {showGlobalNoResults ? (
@@ -398,6 +399,7 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
                   onSearchChange={(query) => onCategorySearchChange(category, query)}
                   onFilterChange={(filter) => onSetFilter(category, filter)}
                   onProductAssigned={onProductAssigned}
+                  availableNecessities={availableNecessities}
                 />
               );
             })}

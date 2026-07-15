@@ -59,11 +59,25 @@ export default function BusinessPageContent({
     setGlobalSearchQuery,
     globalFilter,
     setGlobalFilter,
+    availableNecessities,
     requiredCount,
     optionalCount,
+    // Required-only cost (default) and full required+optional cost
+    // (shown when the "Include optional items" toggle is on) — both
+    // exclude Stock. See useFilterState.ts.
+    unfilteredRequiredLowPrice,
+    unfilteredRequiredMediumPrice,
+    unfilteredRequiredHighPrice,
     unfilteredLowPrice,
     unfilteredMediumPrice,
     unfilteredHighPrice,
+    unfilteredRequirementsWithProducts,
+    unfilteredRequiredRequirementsWithProducts,
+    // Stock is tracked separately — see useFilterState.ts.
+    unfilteredStockCount,
+    unfilteredStockLowPrice,
+    unfilteredStockMedianPrice,
+    unfilteredStockHighPrice,
     totalRequirements,
     getFilteredRequirements,
     filteredCategories,
@@ -72,14 +86,6 @@ export default function BusinessPageContent({
     setFilter,
     handleCategorySearchChange,
   } = useFilterState(requirements, products, groupedRequirements, sortedCategories);
-
-  // Count requirements that have at least one product (used for the cost estimate coverage note).
-  const requirementsWithProducts = requirements
-    ? requirements.filter((req) => {
-        const reqProducts = products[req.name];
-        return Array.isArray(reqProducts) && reqProducts.length > 0;
-      }).length
-    : 0;
 
   // ── Error states ──────────────────────────────────────────────────────────
 
@@ -142,12 +148,20 @@ export default function BusinessPageContent({
           <BusinessHeader
             totalRequirements={totalRequirements}
             businessName={business.name}
+            requiredCount={requiredCount}
+            optionalCount={optionalCount}
+            unfilteredRequiredLowPrice={unfilteredRequiredLowPrice}
+            unfilteredRequiredMediumPrice={unfilteredRequiredMediumPrice}
+            unfilteredRequiredHighPrice={unfilteredRequiredHighPrice}
             unfilteredLowPrice={unfilteredLowPrice}
             unfilteredMediumPrice={unfilteredMediumPrice}
             unfilteredHighPrice={unfilteredHighPrice}
-            requiredCount={requiredCount}
-            optionalCount={optionalCount}
-            requirementsWithProducts={requirementsWithProducts}
+            requiredRequirementsWithProducts={unfilteredRequiredRequirementsWithProducts}
+            requirementsWithProducts={unfilteredRequirementsWithProducts}
+            unfilteredStockCount={unfilteredStockCount}
+            unfilteredStockLowPrice={unfilteredStockLowPrice}
+            unfilteredStockMedianPrice={unfilteredStockMedianPrice}
+            unfilteredStockHighPrice={unfilteredStockHighPrice}
           />
 
           <section aria-label="Business requirements">
@@ -165,6 +179,7 @@ export default function BusinessPageContent({
               onToggleFilter={toggleFilter}
               onCategorySearchChange={handleCategorySearchChange}
               onSetFilter={setFilter}
+              availableNecessities={availableNecessities}
               getFilteredRequirements={getFilteredRequirements}
               onProductAssigned={refreshProducts}
             />

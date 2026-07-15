@@ -53,6 +53,7 @@ const CATEGORY_ORDER = [
   'Documents',
   'Branding',
   'Operating Expenses',
+  'Stock',
   'Uncategorized',
 ];
 

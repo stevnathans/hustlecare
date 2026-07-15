@@ -1,7 +1,11 @@
+// app/admin/requirements/page.tsx
 'use client';
 import { useEffect, useState, useMemo, useRef } from 'react';
 import Image from 'next/image';
+import { Toaster } from 'react-hot-toast';
 import RequirementCSVImport from '@/components/RequirementCSVImport';
+import NecessityToggle from '@/components/admin/NecessityToggle';
+import { necessityOptions, necessityStyle, defaultNecessity, allNecessityOptions } from '@/lib/necessity';
 
 type Template = {
   id: number;
@@ -9,7 +13,7 @@ type Template = {
   description?: string;
   image?: string;
   category: string;
-  necessity: 'Required' | 'Optional';
+  necessity: string; // e.g. "Required"/"Optional", or a demand value for Stock — see lib/necessity.ts
   isDeprecated: boolean;
   isGlobal: boolean;
   productCount: number;
@@ -27,8 +31,8 @@ type LinkedBusiness = {
   businessSlug: string;
   published: boolean;
   descriptionOverride: string | null;
-  necessityOverride: 'Required' | 'Optional' | null;
-  effectiveNecessity: 'Required' | 'Optional';
+  necessityOverride: string | null;
+  effectiveNecessity: string;
   isActive: boolean;
   linkedAt: string;
 };
@@ -37,7 +41,7 @@ type SortField = 'name' | 'category' | 'necessity' | 'productCount' | 'businessC
 type SortDir = 'asc' | 'desc';
 type ViewMode = 'table' | 'cards';
 
-const CATEGORIES = ['Equipment', 'Software', 'Documents', 'Legal', 'Branding', 'Operating Expenses'];
+const CATEGORIES = ['Equipment', 'Software', 'Documents', 'Legal', 'Branding', 'Operating Expenses', 'Stock'];
 const PAGE_SIZE = 10;
 
 const CAT_COLORS: Record<string, [string, string]> = {
@@ -47,11 +51,19 @@ const CAT_COLORS: Record<string, [string, string]> = {
   Legal:                ['rgba(239,68,68,0.12)',   '#f87171'],
   Branding:             ['rgba(236,72,153,0.12)',  '#f472b6'],
   'Operating Expenses': ['rgba(20,184,166,0.12)',  '#2dd4bf'],
+  Stock:                ['rgba(6,182,212,0.12)',   '#22d3ee'],
 };
 
-const defaultForm = {
+const defaultForm: {
+  name: string;
+  description: string;
+  image: string;
+  category: string;
+  necessity: string;
+  isGlobal: boolean;
+} = {
   name: '', description: '', image: '', category: '',
-  necessity: 'Required' as 'Required' | 'Optional',
+  necessity: 'Required',
   isGlobal: false,
 };
 
@@ -136,13 +148,6 @@ const S = `
   .scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:2px; }
   .link-biz-toggle { display:flex; align-items:center; gap:0.6rem; padding:0.75rem 1rem; border-radius:9px; background:rgba(99,102,241,0.06); border:1px solid rgba(99,102,241,0.15); cursor:pointer; font-size:0.82rem; color:#9494b0; transition:all 0.15s; user-select:none; }
   .link-biz-toggle:hover { background:rgba(99,102,241,0.1); }
-  .nec-toggle { display:inline-flex; border-radius:7px; overflow:hidden; border:1px solid rgba(255,255,255,0.08); flex-shrink:0; }
-  .nec-toggle-btn { padding:0.22rem 0.6rem; font-size:0.68rem; font-weight:700; font-family:'Sora',sans-serif; cursor:pointer; border:none; background:transparent; transition:all 0.15s; white-space:nowrap; }
-  .nec-toggle-btn.req.active { background:rgba(16,185,129,0.18); color:#34d399; }
-  .nec-toggle-btn.opt.active { background:rgba(245,158,11,0.15); color:#fbbf24; }
-  .nec-toggle-btn:not(.active) { color:#55556e; }
-  .nec-toggle-btn:not(.active):hover { color:#9494b0; background:rgba(255,255,255,0.04); }
-  .nec-inherited { display:inline-flex; align-items:center; gap:0.25rem; font-size:0.65rem; color:#55556e; margin-top:0.15rem; white-space:nowrap; }
   .desc-editor { padding:0.65rem 0.85rem; border-top:1px solid rgba(255,255,255,0.05); background:rgba(0,0,0,0.15); }
   .desc-editor-textarea { width:100%; background:rgba(255,255,255,0.04); border:1px solid rgba(99,102,241,0.25); border-radius:7px; padding:0.55rem 0.75rem; color:#f0f0f5; font-family:'Sora',sans-serif; font-size:0.78rem; outline:none; resize:none; box-sizing:border-box; line-height:1.5; transition:border-color 0.15s; }
   .desc-editor-textarea::placeholder { color:#3a3a56; }
@@ -159,77 +164,11 @@ const S = `
 function catColor(cat: string): [string, string] {
   return CAT_COLORS[cat] ?? ['rgba(148,148,176,0.1)', '#9494b0'];
 }
-function necStyle(nec: string) {
-  return nec === 'Required'
-    ? { bg: 'rgba(16,185,129,0.1)', color: '#34d399' }
-    : { bg: 'rgba(245,158,11,0.1)', color: '#fbbf24' };
-}
 function SortArrow({ field, sortField, sortDir }: { field: string; sortField: string; sortDir: SortDir }) {
   if (sortField !== field) return <svg width="10" height="12" viewBox="0 0 10 12" fill="none" style={{ marginLeft: 4, opacity: 0.25 }}><path d="M5 1v10M2 4l3-3 3 3M2 8l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>;
   return sortDir === 'asc'
     ? <svg width="10" height="7" viewBox="0 0 10 7" fill="none" style={{ marginLeft: 4, color: '#818cf8' }}><path d="M5 1L9 6H1L5 1Z" fill="currentColor" /></svg>
     : <svg width="10" height="7" viewBox="0 0 10 7" fill="none" style={{ marginLeft: 4, color: '#818cf8' }}><path d="M5 6L1 1H9L5 6Z" fill="currentColor" /></svg>;
-}
-
-// ── Necessity toggle ───────────────────────────────────────────────────────
-function NecessityToggle({
-  templateId, businessId, linkId, necessityOverride, effectiveNecessity,
-  templateNecessity, onUpdated, showToast,
-}: {
-  templateId: number; businessId: number; linkId: number;
-  necessityOverride: 'Required' | 'Optional' | null;
-  effectiveNecessity: 'Required' | 'Optional';
-  templateNecessity: 'Required' | 'Optional';
-  onUpdated: (linkId: number, override: 'Required' | 'Optional' | null) => void;
-  showToast: (msg: string, type?: 'success' | 'error') => void;
-}) {
-  const [saving, setSaving] = useState(false);
-
-  async function setOverride(value: 'Required' | 'Optional' | null) {
-    setSaving(true);
-    try {
-      const r = await fetch(`/api/requirements/${templateId}/businesses`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessId, necessityOverride: value }),
-      });
-      if (!r.ok) { const d = await r.json(); throw new Error(d.error); }
-      onUpdated(linkId, value);
-      showToast(value === null ? `Reverted to template default (${templateNecessity})` : `Set to ${value} for this business`, 'success');
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Failed to update', 'error');
-    } finally { setSaving(false); }
-  }
-
-  function handleClick(value: 'Required' | 'Optional') {
-    if (saving) return;
-    if (effectiveNecessity === value) { if (necessityOverride !== null) setOverride(null); }
-    else setOverride(value);
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.15rem', flexShrink: 0 }}>
-      <div className="nec-toggle" style={{ opacity: saving ? 0.5 : 1, pointerEvents: saving ? 'none' : 'auto' }}>
-        <button className={`nec-toggle-btn req${effectiveNecessity === 'Required' ? ' active' : ''}`} onClick={() => handleClick('Required')}>Required</button>
-        <button className={`nec-toggle-btn opt${effectiveNecessity === 'Optional' ? ' active' : ''}`} onClick={() => handleClick('Optional')}>Optional</button>
-      </div>
-      <span className="nec-inherited">
-        {necessityOverride !== null ? (
-          <>
-            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2.5"><path d="M12 5v14M5 12l7 7 7-7" /></svg>
-            <span style={{ color: '#a78bfa' }}>overridden</span>
-            <span style={{ marginLeft: '0.2rem', cursor: 'pointer', color: '#55556e', textDecoration: 'underline' }}
-              onClick={() => !saving && setOverride(null)}>reset</span>
-          </>
-        ) : (
-          <>
-            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14" /></svg>
-            inherited
-          </>
-        )}
-      </span>
-    </div>
-  );
 }
 
 // ── Description editor ─────────────────────────────────────────────────────
@@ -419,7 +358,7 @@ export default function RequirementsPage() {
     finally { setLinkedLoading(false); }
   }
 
-  function handleNecessityUpdated(linkId: number, override: 'Required' | 'Optional' | null) {
+  function handleNecessityUpdated(linkId: number, override: string | null) {
     setLinkedBusinesses(prev => prev.map(lb => {
       if (lb.linkId !== linkId) return lb;
       const templateNecessity = addBizTemplate?.necessity ?? 'Required';
@@ -642,6 +581,9 @@ export default function RequirementsPage() {
   const stats = useMemo(() => ({
     total: templates.filter(t => !t.isDeprecated).length,
     deprecated: templates.filter(t => t.isDeprecated).length,
+    // NOTE: required/optional counts only reflect templates on the standard
+    // Required/Optional scale. Stock templates use demand values instead
+    // (High/Medium/Low Demand), so they aren't counted in either bucket here.
     required: templates.filter(t => !t.isDeprecated && t.necessity === 'Required').length,
     optional: templates.filter(t => !t.isDeprecated && t.necessity === 'Optional').length,
     global: templates.filter(t => !t.isDeprecated && t.isGlobal).length,
@@ -651,6 +593,11 @@ export default function RequirementsPage() {
   return (
     <>
       <style>{S}</style>
+      {/* Mounts react-hot-toast's toast display — required for the shared
+          NecessityToggle component's success/error toasts to render. This
+          page's own action toasts (create/update/delete etc.) use a separate
+          local toast div below and are unaffected. */}
+      <Toaster position="top-right" />
 
       {toast && (
         <div style={{ position: 'fixed', top: '1rem', right: '1rem', zIndex: 99999, padding: '0.75rem 1.25rem', borderRadius: 11, fontSize: '0.84rem', fontFamily: 'Sora,sans-serif', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.6rem', boxShadow: '0 8px 32px rgba(0,0,0,0.4)', background: toast.type === 'success' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', border: `1px solid ${toast.type === 'success' ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`, color: toast.type === 'success' ? '#6ee7b7' : '#fca5a5', maxWidth: 420 }}>
@@ -724,10 +671,12 @@ export default function RequirementsPage() {
                 <option value="">All categories</option>
                 {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
+              {/* Necessity filter spans both scales — Required/Optional plus the
+                  Stock demand values — since this filter isn't scoped to a
+                  single category. See lib/necessity.ts: allNecessityOptions(). */}
               <select value={filterNec} onChange={e => setFilterNec(e.target.value)} className="u-select">
                 <option value="">Any necessity</option>
-                <option value="Required">Required</option>
-                <option value="Optional">Optional</option>
+                {allNecessityOptions().map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.82rem', color: filterGlobal ? '#818cf8' : '#9494b0', fontFamily: 'Sora,sans-serif' }}>
                 <input type="checkbox" checked={filterGlobal} onChange={e => setFilterGlobal(e.target.checked)} style={{ accentColor: '#6366f1', cursor: 'pointer' }} />
@@ -785,44 +734,47 @@ export default function RequirementsPage() {
                     <tr><td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: '#3a3a56' }}>
                       No requirements found
                     </td></tr>
-                  ) : paginated.map(t => (
-                    <tr key={t.id} className={selectedIds.has(t.id) ? 'sel' : ''} style={{ opacity: t.isDeprecated ? 0.6 : 1 }}>
-                      <td style={{ paddingLeft: '1.25rem' }}><input type="checkbox" checked={selectedIds.has(t.id)} onChange={() => toggleSel(t.id)} style={{ accentColor: '#6366f1', cursor: 'pointer' }} /></td>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                          {t.image && <div style={{ position: 'relative', width: 36, height: 36, flexShrink: 0 }}><Image src={t.image} alt={t.name} fill style={{ objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(255,255,255,0.07)' }} sizes="36px" /></div>}
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                              <span style={{ fontWeight: 600, fontSize: '0.87rem', color: '#f0f0f5' }}>{t.name}</span>
-                              {t.isDeprecated && <span className="dep-badge">deprecated</span>}
-                              {t.isGlobal && <span className="global-badge">global</span>}
+                  ) : paginated.map(t => {
+                    const necStyle = necessityStyle(t.category, t.necessity);
+                    return (
+                      <tr key={t.id} className={selectedIds.has(t.id) ? 'sel' : ''} style={{ opacity: t.isDeprecated ? 0.6 : 1 }}>
+                        <td style={{ paddingLeft: '1.25rem' }}><input type="checkbox" checked={selectedIds.has(t.id)} onChange={() => toggleSel(t.id)} style={{ accentColor: '#6366f1', cursor: 'pointer' }} /></td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                            {t.image && <div style={{ position: 'relative', width: 36, height: 36, flexShrink: 0 }}><Image src={t.image} alt={t.name} fill style={{ objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(255,255,255,0.07)' }} sizes="36px" /></div>}
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 600, fontSize: '0.87rem', color: '#f0f0f5' }}>{t.name}</span>
+                                {t.isDeprecated && <span className="dep-badge">deprecated</span>}
+                                {t.isGlobal && <span className="global-badge">global</span>}
+                              </div>
+                              {t.description && <div style={{ fontSize: '0.74rem', color: '#55556e', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '0.1rem' }}>{t.description}</div>}
                             </div>
-                            {t.description && <div style={{ fontSize: '0.74rem', color: '#55556e', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '0.1rem' }}>{t.description}</div>}
                           </div>
-                        </div>
-                      </td>
-                      <td><span style={{ display: 'inline-flex', padding: '0.2rem 0.6rem', borderRadius: '100px', fontSize: '0.72rem', fontWeight: 700, background: catColor(t.category)[0], color: catColor(t.category)[1] }}>{t.category}</span></td>
-                      <td><span style={{ display: 'inline-flex', padding: '0.2rem 0.6rem', borderRadius: '100px', fontSize: '0.72rem', fontWeight: 700, background: necStyle(t.necessity).bg, color: necStyle(t.necessity).color }}>{t.necessity}</span></td>
-                      <td><span className="adm-mono" style={{ fontSize: '0.85rem', color: '#9494b0' }}>{t.productCount}</span></td>
-                      <td><span className="adm-mono" style={{ fontSize: '0.85rem', color: t.businessCount > 0 ? '#a78bfa' : '#55556e' }}>{t.businessCount}</span></td>
-                      <td style={{ paddingRight: '1.25rem', textAlign: 'right' }}>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.25rem' }}>
-                          {!t.isDeprecated && (
-                            <button className="btn btn-accent btn-icon" onClick={() => openAddBiz(t)} style={{ padding: '0.4rem 0.65rem', fontSize: '0.72rem', fontWeight: 700, borderRadius: 7, gap: '0.3rem' }}>
-                              <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path d="M12 4v16m8-8H4" /></svg>
-                              Add to Biz
+                        </td>
+                        <td><span style={{ display: 'inline-flex', padding: '0.2rem 0.6rem', borderRadius: '100px', fontSize: '0.72rem', fontWeight: 700, background: catColor(t.category)[0], color: catColor(t.category)[1] }}>{t.category}</span></td>
+                        <td><span style={{ display: 'inline-flex', padding: '0.2rem 0.6rem', borderRadius: '100px', fontSize: '0.72rem', fontWeight: 700, background: necStyle.hexBg, color: necStyle.hexColor }}>{t.necessity}</span></td>
+                        <td><span className="adm-mono" style={{ fontSize: '0.85rem', color: '#9494b0' }}>{t.productCount}</span></td>
+                        <td><span className="adm-mono" style={{ fontSize: '0.85rem', color: t.businessCount > 0 ? '#a78bfa' : '#55556e' }}>{t.businessCount}</span></td>
+                        <td style={{ paddingRight: '1.25rem', textAlign: 'right' }}>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.25rem' }}>
+                            {!t.isDeprecated && (
+                              <button className="btn btn-accent btn-icon" onClick={() => openAddBiz(t)} style={{ padding: '0.4rem 0.65rem', fontSize: '0.72rem', fontWeight: 700, borderRadius: 7, gap: '0.3rem' }}>
+                                <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path d="M12 4v16m8-8H4" /></svg>
+                                Add to Biz
+                              </button>
+                            )}
+                            <button className="btn btn-ghost btn-icon" onClick={() => openEdit(t)}>
+                              <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                             </button>
-                          )}
-                          <button className="btn btn-ghost btn-icon" onClick={() => openEdit(t)}>
-                            <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                          </button>
-                          <button className="btn btn-danger btn-icon" onClick={() => setDeleteId(t.id)}>
-                            <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /></svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            <button className="btn btn-danger btn-icon" onClick={() => setDeleteId(t.id)}>
+                              <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /></svg>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -832,34 +784,37 @@ export default function RequirementsPage() {
         {/* CARDS VIEW */}
         {viewMode === 'cards' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: '0.85rem' }}>
-            {paginated.map(t => (
-              <div key={t.id} className="r-card" style={{ opacity: t.isDeprecated ? 0.65 : 1 }}>
-                <div style={{ padding: '0.9rem 1rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.6rem' }}>
-                    <input type="checkbox" checked={selectedIds.has(t.id)} onChange={() => toggleSel(t.id)} style={{ accentColor: '#6366f1', cursor: 'pointer' }} />
-                    <div style={{ display: 'flex', gap: '0.2rem' }}>
-                      {!t.isDeprecated && <button className="btn btn-accent btn-icon" style={{ fontSize: '0.7rem', padding: '0.3rem 0.5rem' }} onClick={() => openAddBiz(t)}>+Biz</button>}
-                      <button className="btn btn-ghost btn-icon" onClick={() => openEdit(t)}><svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>
-                      <button className="btn btn-danger btn-icon" onClick={() => setDeleteId(t.id)}><svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /></svg></button>
+            {paginated.map(t => {
+              const necStyle = necessityStyle(t.category, t.necessity);
+              return (
+                <div key={t.id} className="r-card" style={{ opacity: t.isDeprecated ? 0.65 : 1 }}>
+                  <div style={{ padding: '0.9rem 1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.6rem' }}>
+                      <input type="checkbox" checked={selectedIds.has(t.id)} onChange={() => toggleSel(t.id)} style={{ accentColor: '#6366f1', cursor: 'pointer' }} />
+                      <div style={{ display: 'flex', gap: '0.2rem' }}>
+                        {!t.isDeprecated && <button className="btn btn-accent btn-icon" style={{ fontSize: '0.7rem', padding: '0.3rem 0.5rem' }} onClick={() => openAddBiz(t)}>+Biz</button>}
+                        <button className="btn btn-ghost btn-icon" onClick={() => openEdit(t)}><svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>
+                        <button className="btn btn-danger btn-icon" onClick={() => setDeleteId(t.id)}><svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /></svg></button>
+                      </div>
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#f0f0f5', marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      {t.name}
+                      {t.isDeprecated && <span className="dep-badge">deprecated</span>}
+                      {t.isGlobal && <span className="global-badge">global</span>}
+                    </div>
+                    {t.description && <div style={{ fontSize: '0.74rem', color: '#55556e', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, marginBottom: '0.6rem' }}>{t.description}</div>}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                      <span style={{ display: 'inline-flex', padding: '0.18rem 0.55rem', borderRadius: '100px', fontSize: '0.7rem', fontWeight: 700, background: catColor(t.category)[0], color: catColor(t.category)[1] }}>{t.category}</span>
+                      <span style={{ display: 'inline-flex', padding: '0.18rem 0.55rem', borderRadius: '100px', fontSize: '0.7rem', fontWeight: 700, background: necStyle.hexBg, color: necStyle.hexColor }}>{t.necessity}</span>
                     </div>
                   </div>
-                  <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#f0f0f5', marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                    {t.name}
-                    {t.isDeprecated && <span className="dep-badge">deprecated</span>}
-                    {t.isGlobal && <span className="global-badge">global</span>}
-                  </div>
-                  {t.description && <div style={{ fontSize: '0.74rem', color: '#55556e', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, marginBottom: '0.6rem' }}>{t.description}</div>}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                    <span style={{ display: 'inline-flex', padding: '0.18rem 0.55rem', borderRadius: '100px', fontSize: '0.7rem', fontWeight: 700, background: catColor(t.category)[0], color: catColor(t.category)[1] }}>{t.category}</span>
-                    <span style={{ display: 'inline-flex', padding: '0.18rem 0.55rem', borderRadius: '100px', fontSize: '0.7rem', fontWeight: 700, background: necStyle(t.necessity).bg, color: necStyle(t.necessity).color }}>{t.necessity}</span>
+                  <div style={{ padding: '0.55rem 1rem', borderTop: '1px solid rgba(255,255,255,0.04)', display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#55556e' }}>
+                    <span className="adm-mono">{t.productCount} products</span>
+                    <span style={{ color: t.businessCount > 0 ? '#a78bfa' : '#55556e' }} className="adm-mono">{t.businessCount} businesses</span>
                   </div>
                 </div>
-                <div style={{ padding: '0.55rem 1rem', borderTop: '1px solid rgba(255,255,255,0.04)', display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#55556e' }}>
-                  <span className="adm-mono">{t.productCount} products</span>
-                  <span style={{ color: t.businessCount > 0 ? '#a78bfa' : '#55556e' }} className="adm-mono">{t.businessCount} businesses</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -903,7 +858,24 @@ export default function RequirementsPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div>
                     <label className="f-label">Category *</label>
-                    <select className="f-select" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>
+                    <select
+                      className="f-select"
+                      value={formData.category}
+                      onChange={e => {
+                        const newCategory = e.target.value;
+                        // Switching category can change the valid necessity scale
+                        // (e.g. moving into/out of Stock). If the current necessity
+                        // value isn't valid for the new category, reset it to that
+                        // category's default rather than leaving a stale value.
+                        setFormData(f => ({
+                          ...f,
+                          category: newCategory,
+                          necessity: necessityOptions(newCategory).some(o => o.value === f.necessity)
+                            ? f.necessity
+                            : defaultNecessity(newCategory),
+                        }));
+                      }}
+                    >
                       <option value="">Select…</option>
                       {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
@@ -915,11 +887,19 @@ export default function RequirementsPage() {
                 </div>
                 <div>
                   <label className="f-label">Default Necessity *</label>
-                  <div style={{ display: 'flex', gap: '0.65rem' }}>
-                    {(['Required', 'Optional'] as const).map(v => (
-                      <label key={v} className="nec-opt" style={{ borderColor: formData.necessity === v ? (v === 'Required' ? 'rgba(16,185,129,0.5)' : 'rgba(245,158,11,0.5)') : 'rgba(255,255,255,0.07)', background: formData.necessity === v ? (v === 'Required' ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)') : 'transparent', color: formData.necessity === v ? (v === 'Required' ? '#34d399' : '#fbbf24') : '#9494b0' }}>
-                        <input type="radio" name="nec" value={v} checked={formData.necessity === v} onChange={() => setFormData({ ...formData, necessity: v })} style={{ display: 'none' }} />
-                        {v}
+                  <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap' }}>
+                    {necessityOptions(formData.category || 'Equipment').map(o => (
+                      <label
+                        key={o.value}
+                        className="nec-opt"
+                        style={{
+                          borderColor: formData.necessity === o.value ? `${o.hexColor}80` : 'rgba(255,255,255,0.07)',
+                          background: formData.necessity === o.value ? o.hexBg : 'transparent',
+                          color: formData.necessity === o.value ? o.hexColor : '#9494b0',
+                        }}
+                      >
+                        <input type="radio" name="nec" value={o.value} checked={formData.necessity === o.value} onChange={() => setFormData({ ...formData, necessity: o.value })} style={{ display: 'none' }} />
+                        {o.label}
                       </label>
                     ))}
                   </div>
@@ -1000,6 +980,7 @@ export default function RequirementsPage() {
           const linkedIds = new Set(linkedBusinesses.map(l => l.businessId));
           const available = businesses.filter(b => !linkedIds.has(b.id));
           const filteredAvailable = bizSearch ? available.filter(b => b.name.toLowerCase().includes(bizSearch.toLowerCase())) : available;
+          const templateNecStyle = necessityStyle(addBizTemplate.category, addBizTemplate.necessity);
 
           return (
             <div className="modal-overlay" onClick={closeAddBiz}>
@@ -1014,7 +995,7 @@ export default function RequirementsPage() {
                       <h2 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '0.2rem' }}>Manage Business Links</h2>
                       <p style={{ fontSize: '0.8rem', color: '#55556e' }}>
                         <span style={{ color: '#a5b4fc', fontWeight: 600 }}>{addBizTemplate.name}</span>
-                        <span style={{ marginLeft: '0.5rem', padding: '0.15rem 0.5rem', borderRadius: 100, fontSize: '0.7rem', fontWeight: 700, background: necStyle(addBizTemplate.necessity).bg, color: necStyle(addBizTemplate.necessity).color }}>
+                        <span style={{ marginLeft: '0.5rem', padding: '0.15rem 0.5rem', borderRadius: 100, fontSize: '0.7rem', fontWeight: 700, background: templateNecStyle.hexBg, color: templateNecStyle.hexColor }}>
                           default: {addBizTemplate.necessity}
                         </span>
                         {addBizTemplate.isGlobal && (
@@ -1064,11 +1045,11 @@ export default function RequirementsPage() {
                                   templateId={addBizTemplate.id}
                                   businessId={lb.businessId}
                                   linkId={lb.linkId}
-                                  necessityOverride={lb.necessityOverride}
-                                  effectiveNecessity={lb.effectiveNecessity}
+                                  category={addBizTemplate.category}
+                                  necessity={lb.necessityOverride ?? addBizTemplate.necessity}
+                                  necOverride={lb.necessityOverride}
                                   templateNecessity={addBizTemplate.necessity}
                                   onUpdated={handleNecessityUpdated}
-                                  showToast={showToast}
                                 />
                               </div>
                               <button

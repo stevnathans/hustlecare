@@ -1,3 +1,4 @@
+// app/admin/businesses/page.tsx
 /* eslint-disable @typescript-eslint/no-unused-vars */
 'use client';
 import { useEffect, useState, useMemo } from "react";
@@ -9,6 +10,7 @@ import {
   Copy, ExternalLink, Building, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { toast, Toaster } from "react-hot-toast";
+import NecessityToggle from '@/components/admin/NecessityToggle';
 
 type Category   = { id: number; name: string; };
 type Business   = {
@@ -30,7 +32,7 @@ type LinkedReq  = {
   templateDescription: string;
   image?: string;
   category: string;
-  necessity: 'Required' | 'Optional';
+  necessity: string; // e.g. "Required"/"Optional", or a demand value for Stock — see lib/necessity.ts
   isActive: boolean;
   displayOrder: number;
   productCount: number;
@@ -64,6 +66,7 @@ const REQ_CAT_COLORS: Record<string, [string, string]> = {
   Legal:                ['rgba(239,68,68,0.12)',   '#f87171'],
   Branding:             ['rgba(236,72,153,0.12)',  '#f472b6'],
   'Operating Expenses': ['rgba(20,184,166,0.12)',  '#2dd4bf'],
+  Stock:                ['rgba(6,182,212,0.12)',   '#22d3ee'],
 };
 
 /* ── Styles ── */
@@ -148,16 +151,6 @@ const S = `
   .req-row-inner { display:flex; align-items:center; gap:0.65rem; padding:0.65rem 0.85rem; }
   .req-row-desc { padding:0 0.85rem 0.6rem 3.85rem; font-size:0.74rem; color:#55556e; line-height:1.5; font-family:'Sora',sans-serif; }
 
-  .nec-chip { display:inline-flex; border-radius:7px; overflow:hidden; border:1px solid rgba(255,255,255,0.08); flex-shrink:0; }
-  .nec-chip-btn { padding:0.22rem 0.65rem; font-size:0.68rem; font-weight:700; font-family:'Sora',sans-serif; cursor:pointer; border:none; transition:all 0.15s; white-space:nowrap; }
-  .nec-chip-btn:not(.nec-active) { background:transparent; color:#55556e; }
-  .nec-chip-btn:not(.nec-active):hover { color:#9494b0; background:rgba(255,255,255,0.04); }
-  .nec-chip-btn.nec-req.nec-active { background:rgba(16,185,129,0.18); color:#34d399; }
-  .nec-chip-btn.nec-opt.nec-active { background:rgba(245,158,11,0.15); color:#fbbf24; }
-  .nec-inherited-label { font-size:0.63rem; color:#55556e; font-family:'Sora',sans-serif; display:flex; align-items:center; gap:0.2rem; justify-content:flex-end; }
-  .nec-reset-btn { color:#55556e; text-decoration:underline; cursor:pointer; background:none; border:none; font-size:0.63rem; font-family:'Sora',sans-serif; padding:0; }
-  .nec-reset-btn:hover { color:#a5b4fc; }
-
   .req-modal-search { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.09); border-radius:8px; padding:0.5rem 2rem 0.5rem 2.1rem; color:#f0f0f5; font-family:'Sora',sans-serif; font-size:0.82rem; outline:none; width:100%; box-sizing:border-box; transition:border-color 0.2s; }
   .req-modal-search::placeholder { color:#3a3a56; }
   .req-modal-search:focus { border-color:rgba(99,102,241,0.5); box-shadow:0 0 0 3px rgba(99,102,241,0.1); }
@@ -169,75 +162,6 @@ function FormField({ label, hint, children }: { label: string; hint?: string; ch
       <label className="f-label">{label}</label>
       {children}
       {hint && <p className="hint">{hint}</p>}
-    </div>
-  );
-}
-
-/* ── Necessity toggle component (3-state: Required / Optional / inherited) ── */
-function NecessityToggle({
-  templateId, businessId, linkId, necessity,
-  necOverride, templateNecessity, onUpdated,
-}: {
-  templateId: number; businessId: number; linkId: number;
-  necessity: 'Required' | 'Optional';
-  necOverride: 'Required' | 'Optional' | null;
-  templateNecessity: 'Required' | 'Optional';
-  onUpdated: (linkId: number, override: 'Required' | 'Optional' | null) => void;
-}) {
-  const [saving, setSaving] = useState(false);
-
-  const effective = necOverride ?? necessity;
-
-  async function setOverride(value: 'Required' | 'Optional' | null) {
-    setSaving(true);
-    try {
-      const r = await fetch(`/api/requirements/${templateId}/businesses`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessId, necessityOverride: value }),
-      });
-      if (!r.ok) { const d = await r.json(); throw new Error(d.error); }
-      onUpdated(linkId, value);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to update');
-    } finally { setSaving(false); }
-  }
-
-  function handleClick(value: 'Required' | 'Optional') {
-    if (saving) return;
-    if (effective === value) {
-      if (necOverride !== null) setOverride(null); // reset to inherited
-    } else {
-      setOverride(value);
-    }
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.15rem', flexShrink: 0 }}>
-      <div className="nec-chip" style={{ opacity: saving ? 0.5 : 1, pointerEvents: saving ? 'none' : 'auto' }}>
-        <button
-          className={`nec-chip-btn nec-req${effective === 'Required' ? ' nec-active' : ''}`}
-          onClick={() => handleClick('Required')}
-        >
-          Required
-        </button>
-        <button
-          className={`nec-chip-btn nec-opt${effective === 'Optional' ? ' nec-active' : ''}`}
-          onClick={() => handleClick('Optional')}
-        >
-          Optional
-        </button>
-      </div>
-      <div className="nec-inherited-label">
-        {necOverride !== null ? (
-          <>
-            <span style={{ color: '#a78bfa' }}>overridden</span>
-            <button className="nec-reset-btn" onClick={() => !saving && setOverride(null)}>reset</button>
-          </>
-        ) : (
-          <span>inherited · {templateNecessity}</span>
-        )}
-      </div>
     </div>
   );
 }
@@ -269,7 +193,7 @@ export default function BusinessesAdminPage() {
   const [unlinkReqIds,      setUnlinkReqIds]       = useState<Set<number>>(new Set());
   const [unlinkReqLoading,  setUnlinkReqLoading]   = useState(false);
   // per-link necessity overrides (linkId → override | null)
-  const [necOverrides,      setNecOverrides]       = useState<Record<number, 'Required' | 'Optional' | null>>({});
+  const [necOverrides,      setNecOverrides]       = useState<Record<number, string | null>>({});
 
   const emptyForm = {
     name: '', description: '', image: '', slug: '', published: true,
@@ -457,7 +381,7 @@ export default function BusinessesAdminPage() {
         const data: LinkedReq[] = await r.json();
         setLinkedReqs(data);
         // seed necOverrides from API data — null means inherited
-        const overrides: Record<number, 'Required' | 'Optional' | null> = {};
+        const overrides: Record<number, string | null> = {};
         data.forEach(req => { overrides[req.linkId] = null; });
         setNecOverrides(overrides);
       }
@@ -524,7 +448,7 @@ export default function BusinessesAdminPage() {
     fetchBusinesses();
   }
 
-  function handleNecOverrideUpdated(linkId: number, override: 'Required' | 'Optional' | null) {
+  function handleNecOverrideUpdated(linkId: number, override: string | null) {
     setNecOverrides(prev => ({ ...prev, [linkId]: override }));
   }
 
@@ -1018,8 +942,6 @@ export default function BusinessesAdminPage() {
                     {/* Requirement rows */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                       {filteredReqs.map(req => {
-                        const overrideVal = necOverrides[req.linkId];
-                        const effectiveNec = overrideVal !== undefined && overrideVal !== null ? overrideVal : req.necessity;
                         const isSelected = unlinkReqIds.has(req.linkId);
                         const [catBg, catClr] = REQ_CAT_COLORS[req.category] ?? ['rgba(148,148,176,0.1)', '#9494b0'];
 
@@ -1083,6 +1005,7 @@ export default function BusinessesAdminPage() {
                                 templateId={req.templateId}
                                 businessId={reqModalBiz.id}
                                 linkId={req.linkId}
+                                category={req.category}
                                 necessity={req.necessity}
                                 necOverride={necOverrides[req.linkId] ?? null}
                                 templateNecessity={req.necessity}

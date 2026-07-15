@@ -72,3 +72,5 @@ export interface CartItem {
 }
 
 export type CartItems = CartItem[];
+
+export type NecessityFilter = string; // 'all' or a lowercase necessity value, e.g. 'required', 'high demand'
