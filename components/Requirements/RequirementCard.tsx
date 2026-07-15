@@ -459,12 +459,7 @@ export default function RequirementCard({
                     </div>
                   )}
                 </div>
-                {/* Status dot — color/fill now driven by necessityStyle() instead of a fixed required/optional icon */}
-                <div
-                  className={`absolute -top-1 -right-1 w-6 h-6 rounded-full ${style.bg} ${style.border} border-2 flex items-center justify-center`}
-                >
-                  <div className={`w-2.5 h-2.5 rounded-full ${style.dot}`} />
-                </div>
+                
               </div>
 
               <div className="flex-1 min-w-0">
