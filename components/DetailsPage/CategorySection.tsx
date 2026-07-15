@@ -125,16 +125,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
                   ? `Products You Can Sell in Your ${businessName} Business`
                   : `${category} Requirements for Your ${businessName} Business`}
               </h3>
-              <p className="text-gray-600 text-sm leading-relaxed">
-                {category === 'Legal' && `Ensure your ${businessName} business complies with all legal requirements in Kenya. These documents and registrations are essential for operating legally.`}
-                {category === 'Equipment' && `Essential equipment and tools needed to operate your ${businessName} business efficiently. Choose quality items that fit your budget and requirements.`}
-                {category === 'Software' && `Digital tools and software solutions to streamline your ${businessName} business operations, from management to customer service.`}
-                {category === 'Marketing' && `Marketing materials and strategies to promote your ${businessName} business and attract customers in the Kenyan market.`}
-                {category === 'Documents' && `Important business documents and templates needed for your ${businessName} business operations and compliance.`}
-                {category === 'Stock' && `Popular products stocked by other ${businessName} businesses, grouped by how fast they typically sell. Add the ones you plan to carry to build your starter inventory list.`}
-                {!['Legal', 'Equipment', 'Software', 'Marketing', 'Documents', 'Stock'].includes(category) &&
-                  `Important ${category.toLowerCase()} requirements for starting and running your ${businessName} business successfully in Kenya.`}
-              </p>
+            
             </div>
 
             {necessityGroups.map((group) =>
@@ -144,11 +135,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
                     <span className={`w-2.5 h-2.5 rounded-full mr-2 ${group.dot}`} />
                     {group.label} {category === 'Stock' ? 'Products' : 'Items'} ({group.items.length})
                   </h4>
-                  {group.value.toLowerCase() === 'optional' && (
-                    <p className="text-sm text-gray-600 mb-4 sm:mb-6">
-                      These optional items can enhance your {businessName} business but aren&apos;t required to get started.
-                    </p>
-                  )}
+                  
                   <div className="space-y-4 sm:space-y-6">
                     {group.items.map((requirement) => renderRequirementCard(requirement))}
                   </div>

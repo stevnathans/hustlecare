@@ -65,8 +65,7 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
   requiredRequirementsWithProducts,
   requirementsWithProducts,
   unfilteredStockCount = 0,
-  unfilteredStockLowPrice = 0,
-  unfilteredStockHighPrice = 0,
+  
 }) => {
   const [budgetScale, setBudgetScale] = useState<"small" | "medium" | "large">(
     "medium",
@@ -97,7 +96,7 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
   const missingProductsCount = activeRequirementCount - activeRequirementsWithProducts;
   const showCoverageNote = hasPricing && missingProductsCount > 0;
   const hasStock = unfilteredStockCount > 0;
-  const hasStockPricing = hasStock && unfilteredStockHighPrice > 0;
+  
   const hasOptionalItems = optionalCount > 0;
 
   const budgetScales = {
@@ -304,42 +303,7 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
           </div>
         </section>
 
-        {/* ── Stock/inventory stat — shown separately from the core
-            requirements above, since stock is scalable inventory a business
-            owner chooses to carry, not a fixed one-time startup requirement.
-            Folding it into the numbers above would misrepresent both the
-            "N requirements to start" headline and the cost estimate. ── */}
-        {hasStock && (
-          <section className="mb-5 sm:mb-6" aria-labelledby="stock-breakdown">
-            <div className="bg-cyan-50 rounded-xl p-4 sm:p-6 shadow-sm border border-cyan-100">
-              <div className="text-center">
-                <h2
-                  id="stock-breakdown"
-                  className="text-sm font-semibold text-cyan-700 uppercase tracking-wider mb-2"
-                >
-                  Products You Can Sell
-                </h2>
-                <p className="text-xs sm:text-sm text-slate-600 mb-3">
-                  {unfilteredStockCount} popular product
-                  {unfilteredStockCount === 1 ? "" : "s"} stocked by other{" "}
-                  {businessName.toLowerCase()} businesses — not counted in the
-                  requirements or cost estimate above, since inventory is a
-                  scalable choice rather than a fixed startup cost.
-                </p>
-                {hasStockPricing && (
-                  <p className="text-sm text-cyan-800">
-                    Sample inventory range:{" "}
-                    <span className="font-semibold">
-                      {formatPrice(unfilteredStockLowPrice)} –{" "}
-                      {formatPrice(unfilteredStockHighPrice)}
-                    </span>{" "}
-                    if stocking one of each
-                  </p>
-                )}
-              </div>
-            </div>
-          </section>
-        )}
+       
 
         {hasPricing && (
           <section
