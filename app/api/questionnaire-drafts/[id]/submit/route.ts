@@ -4,6 +4,9 @@
 // The order number is shown on the confirmation screen and doubles as
 // the reference the user quotes when sending files via WhatsApp/email,
 // since we don't do direct file upload yet (see Step 14 design note).
+//
+// Next.js 15+: the `params` argument on dynamic route handlers is a
+// Promise, so it must be awaited before use.
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";

@@ -3,6 +3,9 @@
 // GET   — resume: fetch a draft by id (used when loading ?resume=<id>)
 // PATCH — autosave: called on every step advance with the accumulated
 //         answers object, current step index, and package tier.
+//
+// Next.js 15+: the `params` argument on dynamic route handlers is a
+// Promise, so it must be awaited before use.
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";

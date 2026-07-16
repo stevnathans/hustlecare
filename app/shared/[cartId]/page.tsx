@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, use } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Share2, ShoppingCart, Building, ArrowLeft, Plus, Minus, Download, FileText, Calendar, Package } from 'lucide-react';
@@ -32,7 +32,8 @@ const formatItemCount = (count: number) => {
   return count === 1 ? `${count} item` : `${count} items`;
 };
 
-export default function SharedCartPage({ params }: SharedCartProps) {
+export default function SharedCartPage(props: SharedCartProps) {
+  const params = use(props.params);
   const [cartId, setCartId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

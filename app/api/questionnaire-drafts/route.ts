@@ -1,90 +1,29 @@
-// app/api/questionnaire-drafts/[id]/route.ts
+// app/api/questionnaire-drafts/route.ts
+//
+// POST — create a new draft for a given serviceSlug. Called once when a
+// visitor lands on a questionnaire route with no existing draftId in
+// localStorage.
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { isValidServiceSlug } from "@/lib/questionnaires/registry";
 
-// Define the Route Context required by Next.js 15
-interface RouteContext {
-  params: Promise<{
-    id: string;
-  }>;
-}
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => null);
 
-/**
- * GET — Retrieve a questionnaire draft by ID
- */
-export async function GET(
-  req: NextRequest,
-  { params }: RouteContext
-) {
-  try {
-    // Correctly await the params promise before using 'id'
-    const { id } = await params;
-
-    const draft = await prisma.questionnaireDraft.findUnique({
-      where: { id },
-    });
-
-    if (!draft) {
-      return NextResponse.json({ error: "Draft not found" }, { status: 404 });
-    }
-
-    return NextResponse.json({ draft }, { status: 200 });
-  } catch (error) {
-    console.error("Error fetching questionnaire draft:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  if (!body?.serviceSlug || !isValidServiceSlug(body.serviceSlug)) {
+    return NextResponse.json({ error: "Invalid or missing serviceSlug" }, { status: 400 });
   }
-}
 
-/**
- * PUT or PATCH — Update an existing draft (if your app uses it)
- */
-export async function PATCH(
-  req: NextRequest,
-  { params }: RouteContext
-) {
-  try {
-    const { id } = await params;
-    const body = await req.json().catch(() => null);
+  const draft = await prisma.questionnaireDraft.create({
+    data: {
+      serviceSlug: body.serviceSlug,
+      packageTier: body.packageTier ?? null,
+      currentStep: 0,
+      answers: {},
+      status: "draft",
+    },
+  });
 
-    if (!body) {
-      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
-    }
-
-    const updatedDraft = await prisma.questionnaireDraft.update({
-      where: { id },
-      data: {
-        packageTier: body.packageTier,
-        currentStep: body.currentStep,
-        answers: body.answers,
-        status: body.status,
-      },
-    });
-
-    return NextResponse.json({ draft: updatedDraft }, { status: 200 });
-  } catch (error) {
-    console.error("Error updating questionnaire draft:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
-  }
-}
-
-/**
- * DELETE — Remove a draft (if your app uses it)
- */
-export async function DELETE(
-  req: NextRequest,
-  { params }: RouteContext
-) {
-  try {
-    const { id } = await params;
-
-    await prisma.questionnaireDraft.delete({
-      where: { id },
-    });
-
-    return NextResponse.json({ success: true }, { status: 200 });
-  } catch (error) {
-    console.error("Error deleting questionnaire draft:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
-  }
+  return NextResponse.json({ draft }, { status: 201 });
 }
