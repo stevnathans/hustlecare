@@ -761,9 +761,16 @@ model QuestionnaireDraft {
   contactPhone String?
   status       String   @default("draft") // "draft" | "submitted"
   orderNumber  String?  @unique // generated on submit, e.g. "HC-BPW-20260714-4821"
+
+  // Admin/fulfillment fields — independent of `status` above.
+  adminStatus  String   @default("new") // "new" | "in_progress" | "delivered" | "cancelled"
+  adminNotes   String?  // internal notes, e.g. "waiting on logo file via WhatsApp"
+  archived     Boolean  @default(false) // soft-delete: hidden from the admin list by default
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   @@index([serviceSlug, status])
   @@index([contactEmail])
+  @@index([adminStatus, archived])
 }

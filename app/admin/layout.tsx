@@ -40,6 +40,7 @@ const navItems: NavItem[] = [
   { name: "Requirements", href: "/admin/requirements",   icon: ClipboardList, requiredRoles: ["author","editor","admin"] },
   { name: "Products",     href: "/admin/products",       icon: ShoppingCart,  requiredRoles: ["author","editor","admin"] },
   { name: "Vendors",      href: "/admin/vendors",        icon: Store,         requiredRoles: ["editor","admin"] },
+  { name: "Orders",       href: "/admin/orders",         icon: ShoppingCart,  requiredRoles: ["editor","admin"] },
   { name: "Comments",     href: "/admin/comments",       icon: MessageSquare, requiredRoles: ["reviewer","editor","admin"] },
   { name: "Reviews",      href: "/admin/reviews",        icon: Star,          requiredRoles: ["reviewer","editor","admin"] },
   { name: "Redirects",    href: "/admin/redirects",      icon: GitMerge,      requiredRoles: ["editor", "admin"] },

@@ -4,8 +4,8 @@
 import Link from "next/link";
 import { useQuestionnaire } from "./engine/context";
 
-const WHATSAPP_NUMBER = "254700000000"; // TODO: replace with real Hustlecare WhatsApp number
-const SUPPORT_EMAIL = "plan@hustlecare.net"; // TODO: confirm per-service or shared inbox
+const WHATSAPP_NUMBER = "254713140158"; 
+const SUPPORT_EMAIL = "services@hustlecare.net"; 
 
 export function ConfirmationScreen({ orderNumber }: { orderNumber: string }) {
   const { config } = useQuestionnaire();

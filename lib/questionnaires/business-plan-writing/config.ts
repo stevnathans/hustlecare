@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // lib/questionnaires/business-plan-writing/config.ts
 import type { QuestionnaireConfig, PackageTierConfig } from "../types";
 import {
