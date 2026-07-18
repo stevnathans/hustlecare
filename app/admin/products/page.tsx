@@ -454,7 +454,7 @@ export default function ProductsPage() {
               )}
               <div className="stat-pill">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
-                Avg price <strong className="mono">${products.filter(p => p.price != null).length ? Math.round(products.filter(p => p.price != null).reduce((s, p) => s + (p.price || 0), 0) / products.filter(p => p.price != null).length).toLocaleString() : 0}</strong>
+                Avg price <strong className="mono">KSh {products.filter(p => p.price != null).length ? Math.round(products.filter(p => p.price != null).reduce((s, p) => s + (p.price || 0), 0) / products.filter(p => p.price != null).length).toLocaleString() : 0}</strong>
               </div>
               {hasActiveFilters && <div className="stat-pill">Filtered to <strong>{filteredAndSorted.length}</strong></div>}
             </div>
@@ -626,7 +626,7 @@ export default function ProductsPage() {
                               </span>
                             ) : <span style={{ color: '#3a3a56' }}>—</span>}
                           </td>
-                          <td><span className="price-tag">{product.price != null ? `$${product.price.toLocaleString()}` : '—'}</span></td>
+                          <td><span className="price-tag">{product.price != null ? `KSh ${product.price.toLocaleString()}` : '—'}</span></td>
                           <td>
                             <span style={{ fontSize: '0.78rem', color: '#4a4a66', fontFamily: "'DM Mono', monospace" }}>
                               {new Date(product.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}

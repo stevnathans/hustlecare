@@ -43,6 +43,7 @@ model User {
   emailLogs              EmailLog[]
   passwordResetTokens    PasswordResetToken[]
   notifications          InternalNotification[]
+  vendorClaimRequests    Vendor[] @relation("VendorClaimRequests")
 
   @@index([email])
   @@index([role])
@@ -328,6 +329,12 @@ model Review {
   @@index([isApproved])
 }
 
+enum VendorClaimStatus {
+  NONE
+  PENDING
+  REJECTED
+}
+
 model Vendor {
   id                Int                @id @default(autoincrement())
   name              String
@@ -361,7 +368,16 @@ model Vendor {
   user              User?              @relation(fields: [userId], references: [id])
   analytics         VendorAnalytics[]
   application       VendorApplication?
+  claimStatus          VendorClaimStatus @default(NONE)
+  claimRequestedById   String?
+  claimMessage         String?
+  claimedAt            DateTime?
+  claimReviewedAt      DateTime?
+  claimReviewedBy      String?
+  claimRejectionReason String?
+  claimRequestedBy     User?             @relation("VendorClaimRequests", fields: [claimRequestedById], references: [id])
 
+  @@index([claimStatus])
   @@unique([name, website])
   @@index([slug])
   @@index([status])

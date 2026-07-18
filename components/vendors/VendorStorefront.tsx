@@ -1,6 +1,7 @@
 'use client';
 // components/vendors/VendorStorefront.tsx
 import { useState } from 'react';
+import { useSession } from 'next-auth/react';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -28,8 +29,8 @@ type Product = {
 
 type Vendor = {
   id: number;
-  name: string;
   slug: string;
+  name: string;
   tagline: string | null;
   description: string | null;
   website: string | null;
@@ -44,6 +45,12 @@ type Vendor = {
   createdAt: string;
   user: { createdAt: string } | null;
   products: Product[];
+
+  // Claim-related fields
+  userId: string | null;
+  claimStatus: 'NONE' | 'PENDING' | 'REJECTED';
+  claimRequestedById: string | null;
+  claimRejectionReason: string | null;
 };
 
 export default function VendorStorefront({ vendor }: { vendor: Vendor }) {
@@ -178,6 +185,10 @@ export default function VendorStorefront({ vendor }: { vendor: Vendor }) {
                 </div>
               </>
             )}
+
+            {/* Claim CTA — sidebar, right after socials */}
+            <div className="my-4 h-px bg-gray-100" />
+            <ClaimVendorCard vendor={vendor} />
           </div>
         </aside>
 
@@ -241,6 +252,11 @@ export default function VendorStorefront({ vendor }: { vendor: Vendor }) {
                 )}
               </div>
             )}
+
+            {/* Claim CTA — mobile, below the header card */}
+            <div className="mt-3">
+              <ClaimVendorCard vendor={vendor} />
+            </div>
           </div>
 
           {/* Products header + view toggle */}
@@ -308,6 +324,117 @@ export default function VendorStorefront({ vendor }: { vendor: Vendor }) {
           )}
         </main>
       </div>
+    </div>
+  );
+}
+
+/* ── Claim CTA ─────────────────────────────────────────────────── */
+function ClaimVendorCard({ vendor }: { vendor: Vendor }) {
+  const { data: session, status } = useSession();
+  const [open, setOpen] = useState(false);
+  const [message, setMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState('');
+
+  if (vendor.userId) return null; // already owned/claimed — nothing to show
+
+  const userId = (session?.user as { id?: string } | undefined)?.id;
+  const isMyPendingClaim = vendor.claimStatus === 'PENDING' && vendor.claimRequestedById === userId;
+  const isMyRejectedClaim = vendor.claimStatus === 'REJECTED' && vendor.claimRequestedById === userId;
+  const claimedByOtherPending = vendor.claimStatus === 'PENDING' && vendor.claimRequestedById !== userId;
+
+  async function submitClaim() {
+    setSubmitting(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/vendors/${vendor.id}/claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setSubmitted(true);
+      setOpen(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to submit claim.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (submitted || isMyPendingClaim) {
+    return (
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3">
+        <p className="text-sm font-semibold text-emerald-700">Claim submitted</p>
+        <p className="mt-0.5 text-xs leading-relaxed text-emerald-600">
+          Our team is reviewing your request. We&rsquo;ll notify you once it&rsquo;s decided.
+        </p>
+      </div>
+    );
+  }
+
+  if (claimedByOtherPending) {
+    return (
+      <div className="rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3">
+        <p className="text-xs leading-relaxed text-gray-500">A claim request for this business is currently under review.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="mb-2 text-[0.62rem] font-bold uppercase tracking-widest text-gray-400">Is this you?</div>
+      <p className="mb-3 text-xs leading-relaxed text-gray-500">
+        This profile was set up by Hustlecare on this vendor&rsquo;s behalf. Claim it to manage your own products and storefront.
+      </p>
+
+      {isMyRejectedClaim && vendor.claimRejectionReason && (
+        <p className="mb-3 text-xs text-red-500">Your last request wasn&rsquo;t approved: {vendor.claimRejectionReason}</p>
+      )}
+      {error && <p className="mb-3 text-xs text-red-500">{error}</p>}
+
+      {status === 'unauthenticated' ? (
+        <Link
+          href={`/signin?callbackUrl=/vendors/${vendor.slug}`}
+          className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700"
+        >
+          Sign in to claim
+        </Link>
+      ) : open ? (
+        <div>
+          <textarea
+            className="mb-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+            rows={3}
+            placeholder="Tell us how you're connected to this business (optional, speeds up review)…"
+            value={message}
+            onChange={e => setMessage(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={submitClaim}
+              disabled={submitting}
+              className="flex-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
+            >
+              {submitting ? 'Submitting…' : 'Submit claim'}
+            </button>
+            <button
+              onClick={() => setOpen(false)}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setOpen(true)}
+          className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700"
+        >
+          Claim this business
+        </button>
+      )}
     </div>
   );
 }

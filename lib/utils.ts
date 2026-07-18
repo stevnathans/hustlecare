@@ -13,3 +13,17 @@ export function createSlug(name: string): string {
     .replace(/-+/g, '-') // Replace multiple - with single -
     .trim();
 }
+
+export function toTitleCase(str: string): string {
+  const lowerWords = new Set(['a','an','and','as','at','but','by','for','in','nor','of','on','or','so','the','to','up','yet']);
+  return str
+    .trim()
+    .replace(/\s+/g, ' ')
+    .split(' ')
+    .map((word, i) => {
+      const lower = word.toLowerCase();
+      if (i !== 0 && lowerWords.has(lower)) return lower;
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    })
+    .join(' ');
+}

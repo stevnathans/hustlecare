@@ -6,12 +6,47 @@ import {
   CheckCircle2, XCircle, Clock, Eye, Search,
   Store, Globe, ChevronDown, ChevronUp, Loader2,
   ShieldOff, Trash2, ShieldCheck, Package, MessageSquare, CheckSquare,
+  Pencil, MapPin, Phone, Twitter, Instagram, Facebook, Linkedin,
+  AlertTriangle, Check,
 } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
 
+type VendorDetail = {
+  id: number;
+  name: string;
+  slug: string;
+  tagline: string | null;
+  description: string | null;
+  website: string | null;
+  logo: string | null;
+  coverImage: string | null;
+  location: string | null;
+  phone: string | null;
+  twitterUrl: string | null;
+  instagramUrl: string | null;
+  facebookUrl: string | null;
+  linkedinUrl: string | null;
+  userId: string | null;
+  status: string;
+  _count: { products: number };
+  activeProducts?: number;
+  suspendReason?: string | null;
+  appealStatus?: 'NONE' | 'PENDING' | 'REJECTED';
+  appealMessage?: string | null;
+  issueResolved?: boolean;
+  appealedAt?: string | null;
+  appealResponse?: string | null;
+  claimStatus?: 'NONE' | 'PENDING' | 'REJECTED';
+  claimRequestedById?: string | null;
+  claimRequestedBy?: { id: string; name: string; email: string; phone: string | null } | null;
+  claimMessage?: string | null;
+  claimedAt?: string | null;
+  claimRejectionReason?: string | null;
+};
+
 type Application = {
   id: number;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'UNCLAIMED' | 'CLAIMED';
   businessName: string;
   slug: string;
   tagline: string | null;
@@ -24,24 +59,16 @@ type Application = {
   pitchNote: string | null;
   reviewNote: string | null;
   createdAt: string;
-  user: { id: string; name: string; email: string; image: string | null; createdAt: string };
-  vendor: {
-    id: number; slug: string; status: string;
-    _count: { products: number };
-    activeProducts?: number;
-    suspendReason?: string | null;
-    appealStatus?: 'NONE' | 'PENDING' | 'REJECTED';
-    appealMessage?: string | null;
-    issueResolved?: boolean;
-    appealedAt?: string | null;
-    appealResponse?: string | null;
-  } | null;
+  user: { id: string; name: string; email: string; image: string | null; createdAt: string } | null;
+  vendor: VendorDetail | null;
 };
 
 const STATUS_META = {
-  PENDING:  { color: '#fbbf24', bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.2)',  icon: <Clock size={12} />,        label: 'Pending'  },
-  APPROVED: { color: '#34d399', bg: 'rgba(16,185,129,0.1)',  border: 'rgba(16,185,129,0.2)',  icon: <CheckCircle2 size={12} />, label: 'Approved' },
-  REJECTED: { color: '#f87171', bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.2)',   icon: <XCircle size={12} />,     label: 'Rejected' },
+  PENDING:   { color: '#fbbf24', bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.2)',  icon: <Clock size={12} />,        label: 'Pending'   },
+  APPROVED:  { color: '#34d399', bg: 'rgba(16,185,129,0.1)',  border: 'rgba(16,185,129,0.2)',  icon: <CheckCircle2 size={12} />, label: 'Approved'  },
+  REJECTED:  { color: '#f87171', bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.2)',   icon: <XCircle size={12} />,      label: 'Rejected'  },
+  UNCLAIMED: { color: '#818cf8', bg: 'rgba(99,102,241,0.1)',  border: 'rgba(99,102,241,0.2)',  icon: <Store size={12} />,        label: 'Unclaimed' },
+  CLAIMED:   { color: '#34d399', bg: 'rgba(16,185,129,0.1)',  border: 'rgba(16,185,129,0.2)',  icon: <ShieldCheck size={12} />,  label: 'Claimed'   },
 };
 
 const VENDOR_STATUS_META: Record<string, { color: string; bg: string; label: string }> = {
@@ -55,10 +82,38 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+// Normalises phone numbers loosely (strips spaces, dashes, leading +) so
+// "+254 700 000 000" and "254700000000" are recognised as the same value.
+function normalizePhone(phone: string | null | undefined): string {
+  if (!phone) return '';
+  return phone.replace(/[^\d]/g, '').replace(/^0+/, '');
+}
+
+function emailDomain(email: string | null | undefined): string {
+  if (!email) return '';
+  const parts = email.toLowerCase().split('@');
+  return parts.length === 2 ? parts[1] : '';
+}
+
+function websiteDomain(website: string | null | undefined): string {
+  if (!website) return '';
+  try {
+    const url = website.startsWith('http') ? website : `https://${website}`;
+    return new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+const EMPTY_VENDOR_FORM = {
+  name: '', slug: '', tagline: '', logo: '', description: '', website: '',
+  location: '', phone: '', twitterUrl: '', instagramUrl: '', facebookUrl: '', linkedinUrl: '',
+};
+
 export default function AdminVendorApplicationsPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('PENDING');
+  const [filter, setFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'UNCLAIMED' | 'CLAIMED'>('PENDING');
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<number | null>(null);
   const [reviewModal, setReviewModal] = useState<{ id: number; action: 'approve' | 'reject' } | null>(null);
@@ -78,6 +133,19 @@ export default function AdminVendorApplicationsPage() {
   const [appealAction, setAppealAction] = useState<'accept' | 'dismiss' | null>(null);
   const [appealResponse, setAppealResponse] = useState('');
   const [appealSubmitting, setAppealSubmitting] = useState(false);
+
+  // Claim review modal
+  const [claimModal, setClaimModal] = useState<{
+    vendorId: number; vendorName: string; vendorPhone: string | null; vendorWebsite: string | null;
+    claimantName: string; claimantEmail: string; claimantPhone: string | null; claimMessage: string | null;
+  } | null>(null);
+  const [claimAction, setClaimAction] = useState<'approve' | 'reject' | null>(null);
+  const [claimRejectionReason, setClaimRejectionReason] = useState('');
+  const [claimSubmitting, setClaimSubmitting] = useState(false);
+
+  // Create / edit vendor modal
+  const [vendorFormOpen, setVendorFormOpen] = useState(false);
+  const [editingVendor, setEditingVendor] = useState<VendorDetail | null>(null);
 
   useEffect(() => { fetchApplications(); }, []);
 
@@ -155,26 +223,79 @@ export default function AdminVendorApplicationsPage() {
     } finally { setAppealSubmitting(false); }
   }
 
+  async function handleClaimResolve() {
+    if (!claimModal || !claimAction) return;
+    setClaimSubmitting(true);
+    try {
+      const res = await fetch(`/api/admin/vendors/${claimModal.vendorId}/claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: claimAction, rejectionReason: claimRejectionReason }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      toast.success(claimAction === 'approve' ? 'Claim approved — vendor transferred' : 'Claim rejected');
+      setClaimModal(null);
+      setClaimAction(null);
+      setClaimRejectionReason('');
+      fetchApplications();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setClaimSubmitting(false);
+    }
+  }
+
   const filtered = useMemo(() => {
     return applications
       .filter(a => filter === 'ALL' || a.status === filter)
       .filter(a => !search ||
         a.businessName.toLowerCase().includes(search.toLowerCase()) ||
-        a.user.email.toLowerCase().includes(search.toLowerCase()) ||
-        a.user.name.toLowerCase().includes(search.toLowerCase())
+        (a.user?.email.toLowerCase().includes(search.toLowerCase()) ?? false) ||
+        (a.user?.name.toLowerCase().includes(search.toLowerCase()) ?? false)
       );
   }, [applications, filter, search]);
 
   const counts = useMemo(() => ({
-    PENDING:  applications.filter(a => a.status === 'PENDING').length,
-    APPROVED: applications.filter(a => a.status === 'APPROVED').length,
-    REJECTED: applications.filter(a => a.status === 'REJECTED').length,
+    PENDING:   applications.filter(a => a.status === 'PENDING').length,
+    APPROVED:  applications.filter(a => a.status === 'APPROVED').length,
+    REJECTED:  applications.filter(a => a.status === 'REJECTED').length,
+    UNCLAIMED: applications.filter(a => a.status === 'UNCLAIMED').length,
+    CLAIMED:   applications.filter(a => a.status === 'CLAIMED').length,
   }), [applications]);
 
   const pendingAppeals = useMemo(
     () => applications.filter(a => a.vendor?.appealStatus === 'PENDING'),
     [applications]
   );
+
+  const pendingClaims = useMemo(
+    () => applications.filter(a => a.vendor?.claimStatus === 'PENDING'),
+    [applications]
+  );
+
+  function openCreateVendor() {
+    setEditingVendor(null);
+    setVendorFormOpen(true);
+  }
+
+  function openEditVendor(vendor: VendorDetail) {
+    setEditingVendor(vendor);
+    setVendorFormOpen(true);
+  }
+
+  function openClaimModal(app: Application) {
+    setClaimModal({
+      vendorId: app.vendor!.id,
+      vendorName: app.businessName,
+      vendorPhone: app.vendor?.phone ?? null,
+      vendorWebsite: app.vendor?.website ?? null,
+      claimantName: app.vendor?.claimRequestedBy?.name ?? 'Unknown',
+      claimantEmail: app.vendor?.claimRequestedBy?.email ?? '—',
+      claimantPhone: app.vendor?.claimRequestedBy?.phone ?? null,
+      claimMessage: app.vendor?.claimMessage ?? null,
+    });
+  }
 
   return (
     <div style={S.page}>
@@ -189,6 +310,9 @@ export default function AdminVendorApplicationsPage() {
           <h1 style={S.h1}>Vendor Applications</h1>
           <p style={S.subtitle}>Review, approve, and manage vendors on the Hustlecare marketplace</p>
         </div>
+        <button style={S.createVendorBtn} onClick={openCreateVendor}>
+          <Store size={14} /> Create Vendor
+        </button>
       </div>
 
       {/* Pending appeals strip */}
@@ -238,12 +362,47 @@ export default function AdminVendorApplicationsPage() {
         </div>
       )}
 
+      {/* Pending claims strip */}
+      {pendingClaims.length > 0 && (
+        <div style={{ ...S.appealsStrip, background: 'rgba(16,185,129,0.05)', borderColor: 'rgba(16,185,129,0.18)' }}>
+          <div style={{ ...S.appealsStripHead, color: '#34d399' }}>
+            <Store size={14} color="#34d399" />
+            <span>{pendingClaims.length} vendor claim{pendingClaims.length > 1 ? 's' : ''} awaiting review</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {pendingClaims.map(a => (
+              <div key={a.id} style={S.appealRow}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.84rem', color: '#e2e2f0' }}>{a.businessName}</div>
+                  <div style={{ fontSize: '0.76rem', color: '#55556e', marginTop: '0.1rem' }}>
+                    Claimed by: {a.vendor?.claimRequestedBy?.name ?? '—'} ({a.vendor?.claimRequestedBy?.email ?? '—'})
+                  </div>
+                  {a.vendor?.claimMessage && (
+                    <div style={S.appealQuote}>&ldquo;{a.vendor.claimMessage}&rdquo;</div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
+                  <button style={S.appealAcceptBtn} onClick={() => { openClaimModal(a); setClaimAction('approve'); setClaimRejectionReason(''); }}>
+                    <ShieldCheck size={12} /> Review Claim
+                  </button>
+                  <button style={S.appealDismissBtn} onClick={() => { openClaimModal(a); setClaimAction('reject'); setClaimRejectionReason(''); }}>
+                    <XCircle size={12} /> Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Stats strip */}
       <div style={S.statsStrip}>
         {[
           { label: 'Total', value: applications.length, color: '#9494b0' },
           { label: 'Pending Review', value: counts.PENDING, color: '#fbbf24' },
           { label: 'Approved', value: counts.APPROVED, color: '#34d399' },
+          { label: 'Unclaimed', value: counts.UNCLAIMED, color: '#818cf8' },
+          { label: 'Claimed', value: counts.CLAIMED, color: '#34d399' },
           { label: 'Rejected', value: counts.REJECTED, color: '#f87171' },
         ].map(s => (
           <div key={s.label} style={S.statPill}>
@@ -256,7 +415,7 @@ export default function AdminVendorApplicationsPage() {
       {/* Toolbar */}
       <div style={S.toolbar}>
         <div style={S.tabGroup}>
-          {(['ALL', 'PENDING', 'APPROVED', 'REJECTED'] as const).map(f => (
+          {(['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'UNCLAIMED', 'CLAIMED'] as const).map(f => (
             <button key={f} style={{ ...S.tab, ...(filter === f ? S.tabActive : {}) }}
               onClick={() => setFilter(f)}>
               {f === 'ALL' ? 'All' : STATUS_META[f].label}
@@ -313,23 +472,36 @@ export default function AdminVendorApplicationsPage() {
                 const vendorStatus = app.vendor?.status;
                 const productCount = app.vendor?._count?.products ?? 0;
                 const appealStatus = app.vendor?.appealStatus;
+                const claimStatus = app.vendor?.claimStatus;
+                const canManageVendor = !!app.vendor && (app.status === 'APPROVED' || app.status === 'UNCLAIMED' || app.status === 'CLAIMED');
 
                 return (
                   <>
                     <tr key={app.id} style={S.tr} className="app-row" onClick={() => setExpanded(isOpen ? null : app.id)}>
                       {/* Applicant */}
                       <td style={S.td}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                          {app.user.image ? (
-                            <Image src={app.user.image} alt={app.user.name} width={34} height={34} style={S.avatar} />
-                          ) : (
-                            <div style={S.avatarFallback}>{app.user.name[0]?.toUpperCase()}</div>
-                          )}
-                          <div style={{ minWidth: 0 }}>
-                            <div style={S.userName}>{app.user.name}</div>
-                            <div style={S.userEmail}>{app.user.email}</div>
+                        {app.user ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                            {app.user.image ? (
+                              <Image src={app.user.image} alt={app.user.name} width={34} height={34} style={S.avatar} />
+                            ) : (
+                              <div style={S.avatarFallback}>{app.user.name[0]?.toUpperCase()}</div>
+                            )}
+                            <div style={{ minWidth: 0 }}>
+                              <div style={S.userName}>{app.user.name}</div>
+                              <div style={S.userEmail}>{app.user.email}</div>
+                            </div>
                           </div>
-                        </div>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <div style={{ ...S.avatarFallback, background: 'rgba(99,102,241,0.1)', color: '#818cf8' }}>
+                              <Store size={14} />
+                            </div>
+                            <span style={{ fontSize: '0.78rem', color: '#55556e', fontStyle: 'italic' as const }}>
+                              Admin created
+                            </span>
+                          </div>
+                        )}
                       </td>
 
                       {/* Store */}
@@ -348,6 +520,9 @@ export default function AdminVendorApplicationsPage() {
                             <span style={{ ...S.catTag, color: '#55556e', background: 'rgba(255,255,255,0.04)' }}>
                               +{app.productCategories.length - 2}
                             </span>
+                          )}
+                          {app.productCategories.length === 0 && (
+                            <span style={{ color: '#3a3a56', fontSize: '0.78rem' }}>—</span>
                           )}
                         </div>
                       </td>
@@ -377,6 +552,14 @@ export default function AdminVendorApplicationsPage() {
                             {appealStatus === 'PENDING' && (
                               <span style={S.appealBadge} title="Appeal pending review">
                                 <MessageSquare size={10} /> Appeal
+                              </span>
+                            )}
+                            {claimStatus === 'PENDING' && (
+                              <span
+                                style={{ ...S.appealBadge, background: 'rgba(16,185,129,0.1)', color: '#34d399', borderColor: 'rgba(16,185,129,0.2)' }}
+                                title="Claim pending review"
+                              >
+                                <Store size={10} /> Claim
                               </span>
                             )}
                           </div>
@@ -415,12 +598,15 @@ export default function AdminVendorApplicationsPage() {
                             </>
                           )}
 
-                          {/* Vendor management actions — only for approved vendors */}
-                          {app.vendor && app.status === 'APPROVED' && (
+                          {/* Vendor management actions — for approved/unclaimed/claimed vendors */}
+                          {canManageVendor && (
                             <>
-                              <a href={`/vendors/${app.vendor.slug}`} target="_blank" style={S.iconBtn} title="View storefront">
+                              <a href={`/vendors/${app.vendor!.slug}`} target="_blank" style={S.iconBtn} title="View storefront">
                                 <Eye size={13} />
                               </a>
+                              <button style={S.iconBtn} title="Edit vendor" onClick={() => openEditVendor(app.vendor!)}>
+                                <Pencil size={13} />
+                              </button>
                               {vendorStatus === 'SUSPENDED' ? (
                                 <button style={{ ...S.iconBtn, color: '#34d399', borderColor: 'rgba(16,185,129,0.2)' }}
                                   title="Reinstate vendor"
@@ -478,6 +664,9 @@ export default function AdminVendorApplicationsPage() {
                                   )}
                                   {app.location && <span style={{ fontSize: '0.82rem', color: '#9494b0' }}>{app.location}</span>}
                                   {app.phone && <span style={{ fontSize: '0.82rem', color: '#9494b0' }}>{app.phone}</span>}
+                                  {!app.website && !app.location && !app.phone && (
+                                    <span style={{ fontSize: '0.82rem', color: '#3a3a56' }}>—</span>
+                                  )}
                                 </div>
                               </div>
                               {app.reviewNote && (
@@ -530,6 +719,31 @@ export default function AdminVendorApplicationsPage() {
                                           </button>
                                         </div>
                                       )}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Claim details */}
+                              {claimStatus && claimStatus !== 'NONE' && (
+                                <div>
+                                  <div style={S.detailLabel}>Claim Request</div>
+                                  <p style={{ ...S.detailText }}>
+                                    {app.vendor?.claimRequestedBy?.name ?? 'Unknown'} ({app.vendor?.claimRequestedBy?.email ?? '—'})
+                                  </p>
+                                  {app.vendor?.claimMessage && (
+                                    <p style={{ ...S.detailText, marginTop: '0.3rem', fontStyle: 'italic' }}>
+                                      &ldquo;{app.vendor.claimMessage}&rdquo;
+                                    </p>
+                                  )}
+                                  {claimStatus === 'PENDING' && (
+                                    <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.5rem' }}>
+                                      <button style={S.appealAcceptBtn} onClick={() => { openClaimModal(app); setClaimAction('approve'); setClaimRejectionReason(''); }}>
+                                        <ShieldCheck size={12} /> Review Claim
+                                      </button>
+                                      <button style={S.appealDismissBtn} onClick={() => { openClaimModal(app); setClaimAction('reject'); setClaimRejectionReason(''); }}>
+                                        <XCircle size={12} /> Reject
+                                      </button>
                                     </div>
                                   )}
                                 </div>
@@ -737,6 +951,343 @@ export default function AdminVendorApplicationsPage() {
           </div>
         </div>
       )}
+
+      {/* Claim resolution modal — with cross-check panel */}
+      {claimModal && claimAction && (
+        <div style={S.overlay} onClick={() => { setClaimModal(null); setClaimAction(null); }}>
+          <div style={S.modal} onClick={e => e.stopPropagation()}>
+            <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+              <div style={{
+                width: 52, height: 52, borderRadius: '50%', margin: '0 auto 0.85rem',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: claimAction === 'approve' ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
+              }}>
+                {claimAction === 'approve'
+                  ? <ShieldCheck size={24} color="#34d399" />
+                  : <XCircle size={24} color="#f87171" />}
+              </div>
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#f0f0f5', marginBottom: '0.35rem' }}>
+                {claimAction === 'approve'
+                  ? `Transfer "${claimModal.vendorName}" to ${claimModal.claimantName}?`
+                  : `Reject claim from ${claimModal.claimantName}?`}
+              </h3>
+              <p style={{ fontSize: '0.8rem', color: '#9494b0', lineHeight: 1.6 }}>
+                {claimAction === 'approve'
+                  ? 'This gives full ownership and dashboard access to this account.'
+                  : 'The vendor profile stays unclaimed and available for future claim requests.'}
+              </p>
+            </div>
+
+            {/* Cross-check panel */}
+            <ClaimCrossCheck
+              vendorPhone={claimModal.vendorPhone}
+              vendorWebsite={claimModal.vendorWebsite}
+              claimantEmail={claimModal.claimantEmail}
+              claimantPhone={claimModal.claimantPhone}
+            />
+
+            <div style={{ ...S.appealContext, marginTop: '0.85rem' }}>
+              <div style={S.detailLabel}>Requested by</div>
+              <p style={{ ...S.detailText, marginBottom: '0.6rem' }}>
+                {claimModal.claimantName} &middot; {claimModal.claimantEmail}
+                {claimModal.claimantPhone ? ` · ${claimModal.claimantPhone}` : ''}
+              </p>
+              <div style={S.detailLabel}>Message</div>
+              <p style={{ ...S.detailText, fontStyle: 'italic' }}>&ldquo;{claimModal.claimMessage ?? '—'}&rdquo;</p>
+            </div>
+
+            {claimAction === 'reject' && (
+              <div style={{ margin: '1.25rem 0' }}>
+                <label style={S.modalLabel}>
+                  Reason for rejection <span style={{ color: '#f87171' }}>*</span>
+                </label>
+                <textarea style={S.modalTextarea} rows={3}
+                  placeholder="Explain why this claim wasn't approved…"
+                  value={claimRejectionReason} onChange={e => setClaimRejectionReason(e.target.value)} />
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '0.65rem', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
+              <button style={S.cancelBtn} onClick={() => { setClaimModal(null); setClaimAction(null); }}>Cancel</button>
+              <button style={{
+                ...S.confirmBtn,
+                background: claimAction === 'approve'
+                  ? 'linear-gradient(135deg, #10b981, #059669)'
+                  : 'rgba(239,68,68,0.15)',
+                color: claimAction === 'approve' ? '#fff' : '#f87171',
+                boxShadow: claimAction === 'approve' ? '0 4px 14px rgba(16,185,129,0.25)' : 'none',
+              }}
+                onClick={handleClaimResolve}
+                disabled={claimSubmitting || (claimAction === 'reject' && !claimRejectionReason.trim())}>
+                {claimSubmitting && <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />}
+                {claimAction === 'approve' ? 'Approve & Transfer' : 'Reject Claim'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create / Edit vendor modal */}
+      {vendorFormOpen && (
+        <VendorFormModal
+          vendor={editingVendor}
+          onClose={() => setVendorFormOpen(false)}
+          onSaved={() => {
+            setVendorFormOpen(false);
+            fetchApplications();
+            toast.success(editingVendor ? 'Vendor updated' : 'Vendor created and live');
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ── Claim cross-check panel ────────────────────────────────────── */
+function ClaimCrossCheck({
+  vendorPhone,
+  vendorWebsite,
+  claimantEmail,
+  claimantPhone,
+}: {
+  vendorPhone: string | null;
+  vendorWebsite: string | null;
+  claimantEmail: string;
+  claimantPhone: string | null;
+}) {
+  const vendorDomain = websiteDomain(vendorWebsite);
+  const claimantDomain = emailDomain(claimantEmail);
+  const domainMatch = !!vendorDomain && !!claimantDomain && vendorDomain === claimantDomain;
+  const domainKnown = !!vendorDomain;
+
+  const phoneMatch = !!vendorPhone && !!claimantPhone && normalizePhone(vendorPhone) === normalizePhone(claimantPhone);
+  const phoneKnown = !!vendorPhone && !!claimantPhone;
+
+  const rows = [
+    {
+      label: 'Email domain vs. vendor website',
+      known: domainKnown,
+      match: domainMatch,
+      detail: domainKnown
+        ? `${claimantDomain || '—'} vs. ${vendorDomain}`
+        : 'No website on file to compare against.',
+    },
+    {
+      label: 'Phone number vs. vendor phone',
+      known: phoneKnown,
+      match: phoneMatch,
+      detail: phoneKnown
+        ? `${claimantPhone} vs. ${vendorPhone}`
+        : !vendorPhone
+          ? 'No phone on file for this vendor.'
+          : 'Claimant has no phone number on their account.',
+    },
+  ];
+
+  return (
+    <div style={S.crossCheckBox}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.65rem' }}>
+        <AlertTriangle size={13} color="#fbbf24" />
+        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#e2e2f0', textTransform: 'uppercase' as const, letterSpacing: '0.04em' }}>
+          Identity cross-check
+        </span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        {rows.map(row => (
+          <div key={row.label} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+            {!row.known ? (
+              <span style={{ ...S.crossCheckIcon, background: 'rgba(148,148,176,0.12)', color: '#9494b0' }}>?</span>
+            ) : row.match ? (
+              <span style={{ ...S.crossCheckIcon, background: 'rgba(16,185,129,0.15)', color: '#34d399' }}><Check size={11} /></span>
+            ) : (
+              <span style={{ ...S.crossCheckIcon, background: 'rgba(239,68,68,0.15)', color: '#f87171' }}><XCircle size={11} /></span>
+            )}
+            <div>
+              <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#e2e2f0' }}>{row.label}</div>
+              <div style={{ fontSize: '0.74rem', color: '#6a6a86', marginTop: '0.1rem' }}>{row.detail}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p style={{ fontSize: '0.7rem', color: '#55556e', marginTop: '0.7rem', marginBottom: 0, lineHeight: 1.5 }}>
+        This is a heuristic, not proof — a mismatch doesn&rsquo;t mean the claim is false, and a match doesn&rsquo;t guarantee it&rsquo;s genuine. Use it alongside the claimant&rsquo;s message and, ideally, a direct check via the vendor&rsquo;s phone number on file.
+      </p>
+    </div>
+  );
+}
+
+/* ── Create / Edit Vendor Modal ─────────────────────────────────── */
+
+function VendorFormModal({
+  vendor,
+  onClose,
+  onSaved,
+}: {
+  vendor: VendorDetail | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isEdit = !!vendor;
+  const [form, setForm] = useState(() => vendor ? {
+    name: vendor.name ?? '',
+    slug: vendor.slug ?? '',
+    tagline: vendor.tagline ?? '',
+    logo: vendor.logo ?? '',
+    description: vendor.description ?? '',
+    website: vendor.website ?? '',
+    location: vendor.location ?? '',
+    phone: vendor.phone ?? '',
+    twitterUrl: vendor.twitterUrl ?? '',
+    instagramUrl: vendor.instagramUrl ?? '',
+    facebookUrl: vendor.facebookUrl ?? '',
+    linkedinUrl: vendor.linkedinUrl ?? '',
+  } : EMPTY_VENDOR_FORM);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [onClose]);
+
+  async function handleSubmit() {
+    if (!form.name.trim()) { setError('Business name is required.'); return; }
+    setSubmitting(true);
+    setError('');
+    try {
+      const url = isEdit ? `/api/admin/vendors/${vendor!.id}` : '/api/vendors';
+      const method = isEdit ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : `Failed to ${isEdit ? 'update' : 'create'} vendor.`);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div style={S.overlay} onClick={onClose}>
+      <div style={{ ...S.modal, maxWidth: 580 }} onClick={e => e.stopPropagation()}>
+        <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+          <div style={{ width: 52, height: 52, borderRadius: '50%', margin: '0 auto 0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(99,102,241,0.12)' }}>
+            {isEdit ? <Pencil size={20} color="#818cf8" /> : <Store size={22} color="#818cf8" />}
+          </div>
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#f0f0f5', marginBottom: '0.35rem' }}>
+            {isEdit ? `Edit "${vendor!.name}"` : 'Create Vendor Profile'}
+          </h3>
+          <p style={{ fontSize: '0.8rem', color: '#9494b0', lineHeight: 1.6 }}>
+            {isEdit
+              ? 'Changes apply immediately to the live storefront.'
+              : 'Live immediately, no email needed. You can hand this over to a real vendor to claim later.'}
+          </p>
+        </div>
+
+        {error && (
+          <div style={{ marginBottom: '1rem', padding: '0.6rem 0.85rem', borderRadius: 8, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', fontSize: '0.8rem' }}>
+            {error}
+          </div>
+        )}
+
+        <div style={{ maxHeight: '58vh', overflowY: 'auto' as const, paddingRight: '0.25rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.9rem' }}>
+            <div>
+              <label style={S.modalLabel}>Business name <span style={{ color: '#f87171' }}>*</span></label>
+              <input style={S.modalInput} placeholder="e.g. Nairobi Hardware Supplies" value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))} autoFocus />
+            </div>
+            <div>
+              <label style={S.modalLabel}>Store URL slug</label>
+              <input style={S.modalInput} placeholder="auto-generated if left blank" value={form.slug}
+                onChange={e => setForm(f => ({ ...f, slug: e.target.value }))} />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '0.9rem' }}>
+            <label style={S.modalLabel}>Tagline</label>
+            <input style={S.modalInput} placeholder="e.g. Quality tools at fair prices" maxLength={120}
+              value={form.tagline} onChange={e => setForm(f => ({ ...f, tagline: e.target.value }))} />
+          </div>
+
+          <div style={{ marginBottom: '0.9rem' }}>
+            <label style={S.modalLabel}>Description</label>
+            <textarea style={S.modalTextarea} rows={3}
+              placeholder="What this vendor sells, their story, why entrepreneurs should buy from them…"
+              value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.9rem' }}>
+            <div>
+              <label style={S.modalLabel}><Globe size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Website</label>
+              <input style={S.modalInput} placeholder="https://…" value={form.website}
+                onChange={e => setForm(f => ({ ...f, website: e.target.value }))} />
+            </div>
+            <div>
+              <label style={S.modalLabel}>Logo URL</label>
+              <input style={S.modalInput} placeholder="https://…" value={form.logo}
+                onChange={e => setForm(f => ({ ...f, logo: e.target.value }))} />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.9rem' }}>
+            <div>
+              <label style={S.modalLabel}><MapPin size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Location</label>
+              <input style={S.modalInput} placeholder="e.g. Industrial Area, Nairobi" value={form.location}
+                onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
+            </div>
+            <div>
+              <label style={S.modalLabel}><Phone size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Phone</label>
+              <input style={S.modalInput} placeholder="+254 700 000 000" value={form.phone}
+                onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '0.5rem', fontSize: '0.68rem', fontWeight: 700, color: '#55556e', textTransform: 'uppercase' as const, letterSpacing: '0.06em' }}>
+            Social Links <span style={{ fontWeight: 400, fontStyle: 'italic' as const, color: '#3a3a56' }}>optional</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+            <div>
+              <label style={S.modalLabel}><Twitter size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Twitter / X</label>
+              <input style={S.modalInput} placeholder="https://x.com/…" value={form.twitterUrl}
+                onChange={e => setForm(f => ({ ...f, twitterUrl: e.target.value }))} />
+            </div>
+            <div>
+              <label style={S.modalLabel}><Instagram size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Instagram</label>
+              <input style={S.modalInput} placeholder="https://instagram.com/…" value={form.instagramUrl}
+                onChange={e => setForm(f => ({ ...f, instagramUrl: e.target.value }))} />
+            </div>
+            <div>
+              <label style={S.modalLabel}><Facebook size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Facebook</label>
+              <input style={S.modalInput} placeholder="https://facebook.com/…" value={form.facebookUrl}
+                onChange={e => setForm(f => ({ ...f, facebookUrl: e.target.value }))} />
+            </div>
+            <div>
+              <label style={S.modalLabel}><Linkedin size={11} style={{ verticalAlign: -1, marginRight: 4 }} />LinkedIn</label>
+              <input style={S.modalInput} placeholder="https://linkedin.com/…" value={form.linkedinUrl}
+                onChange={e => setForm(f => ({ ...f, linkedinUrl: e.target.value }))} />
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '0.65rem', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
+          <button style={S.cancelBtn} onClick={onClose} disabled={submitting}>Cancel</button>
+          <button
+            style={{ ...S.confirmBtn, background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff' }}
+            onClick={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting && <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />}
+            {isEdit ? 'Save Changes' : 'Create Vendor'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -751,9 +1302,10 @@ const CSS = `
 
 const S: Record<string, React.CSSProperties> = {
   page: { fontFamily: "'DM Sans', sans-serif", color: '#f0f0f5', minHeight: '100vh' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', gap: '1rem', flexWrap: 'wrap' as const },
   h1: { fontSize: '1.75rem', fontWeight: 700, letterSpacing: '-0.03em', marginBottom: '0.2rem' },
   subtitle: { fontSize: '0.83rem', color: '#55556e' },
+  createVendorBtn: { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', borderRadius: 9, background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#fff', fontSize: '0.82rem', fontFamily: "'DM Sans', sans-serif", cursor: 'pointer', fontWeight: 700, flexShrink: 0 },
 
   appealsStrip: { background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.18)', borderRadius: 12, padding: '1rem 1.1rem', marginBottom: '1.25rem' },
   appealsStripHead: { display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.84rem', fontWeight: 700, color: '#fbbf24', marginBottom: '0.75rem' },
@@ -765,12 +1317,15 @@ const S: Record<string, React.CSSProperties> = {
   appealDismissBtn: { display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.7rem', borderRadius: 7, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)', color: '#f87171', fontSize: '0.74rem', fontFamily: "'DM Sans', sans-serif", cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' as const },
   appealContext: { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '0.85rem 1rem' },
 
+  crossCheckBox: { background: 'rgba(245,158,11,0.04)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: 10, padding: '0.85rem 1rem' },
+  crossCheckIcon: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, borderRadius: '50%', fontSize: '0.66rem', fontWeight: 700, flexShrink: 0, marginTop: '0.1rem' },
+
   statsStrip: { display: 'flex', gap: '0.65rem', marginBottom: '1.25rem', flexWrap: 'wrap' },
   statPill: { display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.45rem 1rem', borderRadius: 100, background: '#13131a', border: '1px solid rgba(255,255,255,0.07)' },
   statValue: { fontFamily: "'DM Mono', monospace", fontSize: '1.1rem', fontWeight: 700 },
   statLabel: { fontSize: '0.75rem', color: '#55556e' },
   toolbar: { display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.75rem', flexWrap: 'wrap' },
-  tabGroup: { display: 'flex', gap: '0.2rem', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '0.2rem' },
+  tabGroup: { display: 'flex', gap: '0.2rem', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '0.2rem', flexWrap: 'wrap' as const },
   tab: { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.85rem', borderRadius: 7, border: 'none', background: 'transparent', color: '#55556e', fontSize: '0.8rem', fontFamily: "'DM Sans', sans-serif", cursor: 'pointer', fontWeight: 500, transition: 'all 0.15s', whiteSpace: 'nowrap' },
   tabActive: { background: 'rgba(245,158,11,0.1)', color: '#fbbf24', borderColor: 'rgba(245,158,11,0.2)' },
   tabCount: { padding: '0.08rem 0.4rem', borderRadius: 100, fontSize: '0.68rem', fontWeight: 700 },
@@ -803,6 +1358,7 @@ const S: Record<string, React.CSSProperties> = {
   modal: { background: '#1a1a24', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 16, padding: '1.75rem', width: '100%', maxWidth: 460, maxHeight: '90vh', overflowY: 'auto' as const, boxShadow: '0 24px 80px rgba(0,0,0,0.6)' },
   modalLabel: { display: 'block', fontSize: '0.74rem', fontWeight: 700, color: '#9494b0', marginBottom: '0.35rem', textTransform: 'uppercase' as const, letterSpacing: '0.06em' },
   modalTextarea: { width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 8, padding: '0.65rem 0.85rem', color: '#f0f0f5', fontFamily: "'DM Sans', sans-serif", fontSize: '0.84rem', outline: 'none', resize: 'none' as const, lineHeight: 1.6 },
+  modalInput: { width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 8, padding: '0.6rem 0.85rem', color: '#f0f0f5', fontFamily: "'DM Sans', sans-serif", fontSize: '0.84rem', outline: 'none', height: 38, boxSizing: 'border-box' as const },
   cancelBtn: { padding: '0.55rem 1.1rem', borderRadius: 9, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.09)', color: '#9494b0', fontSize: '0.84rem', fontFamily: "'DM Sans', sans-serif", cursor: 'pointer' },
   confirmBtn: { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1.25rem', borderRadius: 9, fontSize: '0.84rem', fontFamily: "'DM Sans', sans-serif", fontWeight: 700, border: 'none', cursor: 'pointer' },
 };
