@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
+import { Pencil, Trash2 } from 'lucide-react';
 import AssignRequirementModal from '@/components/admin/AssignRequirementModal';
 import { Product, Vendor, SortField, SortDir, ViewMode, VendorTuple, ProductStatus } from 'types/vendor';
 import { PRICE_RANGES } from 'lib/constants';
@@ -108,7 +109,7 @@ function ReviewModal({ product, onClose, onDone, showToast }: ReviewModalProps) 
               )}
             </div>
             <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.9rem', color: '#a4f4b0', fontWeight: 500, flexShrink: 0 }}>
-              {product.price != null ? `$${product.price.toLocaleString()}` : '—'}
+              {product.price != null ? `KSh ${product.price.toLocaleString()}` : '—'}
             </div>
           </div>
 
@@ -222,6 +223,15 @@ export default function ProductsPage() {
   const [assignModalProduct, setAssignModalProduct] = useState<Product | null>(null);
   const [activeTab,          setActiveTab]          = useState<PageTab>('catalog');
 
+  // Always-visible horizontal scrollbar for the catalog table — a proxy bar
+  // pinned near the top of the panel (instead of the browser's native
+  // scrollbar, which sits below the last row and can be far down the page).
+  const tableWrapRef = useRef<HTMLDivElement>(null);
+  const scrollbarRef = useRef<HTMLDivElement>(null);
+  const [tableScrollWidth, setTableScrollWidth] = useState(0);
+  const [tableClientWidth, setTableClientWidth] = useState(0);
+  const syncingRef = useRef(false);
+
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
@@ -316,6 +326,39 @@ export default function ProductsPage() {
 
   const paginated = useMemo(() => filteredAndSorted.slice((page - 1) * pageSize, page * pageSize), [filteredAndSorted, page, pageSize]);
 
+  // Measure the table's real scrollable width whenever the visible rows/columns
+  // could change, so the proxy scrollbar knows how far it should be able to scroll.
+  useEffect(() => {
+    const el = tableWrapRef.current;
+    if (!el || activeTab !== 'catalog' || viewMode !== 'table') return;
+
+    const measure = () => {
+      setTableScrollWidth(el.scrollWidth);
+      setTableClientWidth(el.clientWidth);
+    };
+    measure();
+
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    window.addEventListener('resize', measure);
+    return () => { ro.disconnect(); window.removeEventListener('resize', measure); };
+  }, [paginated, viewMode, activeTab, isLoading]);
+
+  const handleTableScroll = () => {
+    if (syncingRef.current) { syncingRef.current = false; return; }
+    if (scrollbarRef.current && tableWrapRef.current) {
+      syncingRef.current = true;
+      scrollbarRef.current.scrollLeft = tableWrapRef.current.scrollLeft;
+    }
+  };
+  const handleProxyScroll = () => {
+    if (syncingRef.current) { syncingRef.current = false; return; }
+    if (scrollbarRef.current && tableWrapRef.current) {
+      syncingRef.current = true;
+      tableWrapRef.current.scrollLeft = scrollbarRef.current.scrollLeft;
+    }
+  };
+
   const handleSort = (field: SortField) => {
     if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortField(field); setSortDir('asc'); }
@@ -397,6 +440,8 @@ export default function ProductsPage() {
       <td><div className="skel" style={{ width: 80 }} /></td>
     </tr>
   ));
+
+  const showTableScrollbar = activeTab === 'catalog' && viewMode === 'table' && tableScrollWidth > tableClientWidth;
 
   return (
     <>
@@ -524,16 +569,16 @@ export default function ProductsPage() {
                 )}
               </div>
               <div className="divider" />
-              <select value={vendorFilter} onChange={e => setVendorFilter(e.target.value)} className="filter-select">
+              <select value={vendorFilter} onChange={e => setVendorFilter(e.target.value)} className="filter-select" style={{ colorScheme: 'dark' }}>
                 <option value="">All vendors</option>
                 {vendorsInProducts.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
               </select>
-              <select value={requirementFilter} onChange={e => setRequirementFilter(e.target.value)} className="filter-select">
+              <select value={requirementFilter} onChange={e => setRequirementFilter(e.target.value)} className="filter-select" style={{ colorScheme: 'dark' }}>
                 <option value="">All requirements</option>
                 {requirementsInProducts.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
               </select>
               {activeTab === 'catalog' && (
-                <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="filter-select">
+                <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="filter-select" style={{ colorScheme: 'dark' }}>
                   <option value="">All statuses</option>
                   <option value="ACTIVE">Live</option>
                   <option value="PENDING_REVIEW">In Review</option>
@@ -542,7 +587,7 @@ export default function ProductsPage() {
                   <option value="ARCHIVED">Archived</option>
                 </select>
               )}
-              <select value={priceRangeIdx} onChange={e => setPriceRangeIdx(Number(e.target.value))} className="filter-select">
+              <select value={priceRangeIdx} onChange={e => setPriceRangeIdx(Number(e.target.value))} className="filter-select" style={{ colorScheme: 'dark' }}>
                 {PRICE_RANGES.map((r, i) => <option key={i} value={i}>{r.label}</option>)}
               </select>
               {hasActiveFilters && <button className="filter-tag" onClick={clearFilters}>Clear filters ×</button>}
@@ -651,112 +696,155 @@ export default function ProductsPage() {
 
             {/* ── CATALOG TAB — TABLE VIEW ── */}
             {activeTab === 'catalog' && viewMode === 'table' && (
-              <div style={{ overflowX: 'auto' }}>
-                <table className="products-table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: 40, paddingLeft: '1.25rem' }}>
-                        <input type="checkbox" className="cb" checked={allOnPageSelected} onChange={toggleSelectAll} style={{ display: paginated.length ? 'block' : 'none' }} />
-                      </th>
-                      <th style={{ width: 60 }}>Image</th>
-                      <th className="sortable" onClick={() => handleSort('name')}>Name <SortIcon field="name" sortField={sortField} sortDir={sortDir} /></th>
-                      <th>Description</th>
-                      <th className="sortable" onClick={() => handleSort('vendor')}>Vendor <SortIcon field="vendor" sortField={sortField} sortDir={sortDir} /></th>
-                      <th className="sortable" onClick={() => handleSort('price')}>Price <SortIcon field="price" sortField={sortField} sortDir={sortDir} /></th>
-                      <th className="sortable" onClick={() => handleSort('status')}>Status <SortIcon field="status" sortField={sortField} sortDir={sortDir} /></th>
-                      <th>Requirement</th>
-                      <th>Link</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {isLoading ? skeletonRows : paginated.length === 0 ? (
+              <>
+                {/* Proxy scrollbar — pinned near the top of the panel (instead of the
+                    browser's native scrollbar at the bottom of the last row) so wide
+                    tables can be scrolled horizontally without scrolling the whole
+                    page down first. Synced bidirectionally with the real table. */}
+                {showTableScrollbar && (
+                  <div
+                    ref={scrollbarRef}
+                    onScroll={handleProxyScroll}
+                    style={{
+                      position: 'sticky',
+                      top: 0,
+                      zIndex: 5,
+                      overflowX: 'auto',
+                      overflowY: 'hidden',
+                      background: 'rgba(14,14,24,0.95)',
+                      borderBottom: '1px solid rgba(255,255,255,0.08)',
+                    }}
+                  >
+                    <div style={{ width: tableScrollWidth, height: 12 }} />
+                  </div>
+                )}
+                <div ref={tableWrapRef} onScroll={handleTableScroll} style={{ overflowX: 'auto' }}>
+                  <table className="products-table">
+                    <thead>
                       <tr>
-                        <td colSpan={10}>
-                          <div className="empty-state">
-                            <div className="empty-icon">📦</div>
-                            <div style={{ fontSize: '1rem', fontWeight: 600, color: '#6b6b8a' }}>No products found</div>
-                            <p>{hasActiveFilters ? 'Try clearing your filters' : 'Add your first product to get started'}</p>
-                          </div>
-                        </td>
+                        <th style={{ width: 40, paddingLeft: '1.25rem' }}>
+                          <input type="checkbox" className="cb" checked={allOnPageSelected} onChange={toggleSelectAll} style={{ display: paginated.length ? 'block' : 'none' }} />
+                        </th>
+                        <th style={{ width: 60 }}>Image</th>
+                        <th className="sortable" onClick={() => handleSort('name')}>Name <SortIcon field="name" sortField={sortField} sortDir={sortDir} /></th>
+                        <th>Description</th>
+                        <th className="sortable" onClick={() => handleSort('vendor')}>Vendor <SortIcon field="vendor" sortField={sortField} sortDir={sortDir} /></th>
+                        <th className="sortable" onClick={() => handleSort('price')}>Price <SortIcon field="price" sortField={sortField} sortDir={sortDir} /></th>
+                        <th className="sortable" onClick={() => handleSort('status')}>Status <SortIcon field="status" sortField={sortField} sortDir={sortDir} /></th>
+                        <th>Requirement</th>
+                        <th>Link</th>
+                        <th>Actions</th>
                       </tr>
-                    ) : paginated.map(product => (
-                      <tr key={product.id} className={selectedIds.has(product.id) ? 'selected' : ''}>
-                        <td style={{ paddingLeft: '1.25rem' }}>
-                          <input type="checkbox" className="cb" checked={selectedIds.has(product.id)} onChange={() => toggleSelect(product.id)} />
-                        </td>
-                        <td>
-                          {product.image ? (
-                            <div className="prod-img">
-                              <Image src={product.image} alt={product.name} width={48} height={48} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </thead>
+                    <tbody>
+                      {isLoading ? skeletonRows : paginated.length === 0 ? (
+                        <tr>
+                          <td colSpan={10}>
+                            <div className="empty-state">
+                              <div className="empty-icon">📦</div>
+                              <div style={{ fontSize: '1rem', fontWeight: 600, color: '#6b6b8a' }}>No products found</div>
+                              <p>{hasActiveFilters ? 'Try clearing your filters' : 'Add your first product to get started'}</p>
                             </div>
-                          ) : (
-                            <div className="prod-img-placeholder">
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>
-                            </div>
-                          )}
-                        </td>
-                        <td>
-                          <div style={{ fontWeight: 600, color: '#e2e2ef', fontSize: '0.88rem' }}>{product.name}</div>
-                          {product.status === 'REJECTED' && product.rejectReason && (
-                            <div style={{ fontSize: '0.7rem', color: '#f87171', marginTop: '0.2rem' }}>↳ {product.rejectReason}</div>
-                          )}
-                        </td>
-                        <td>
-                          <span style={{ color: '#5a5a7a', fontSize: '0.8rem', display: 'block', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {product.description || '—'}
-                          </span>
-                        </td>
-                        <td>
-                          {product.vendor ? (
-                            product.vendor.website ? (
-                              <a href={product.vendor.website} target="_blank" rel="noopener noreferrer" className="vendor-badge">
-                                {product.vendor.logo && <Image src={product.vendor.logo} alt={product.vendor.name} width={18} height={18} className="vendor-logo" />}
-                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.vendor.name}</span>
-                              </a>
+                          </td>
+                        </tr>
+                      ) : paginated.map(product => (
+                        <tr key={product.id} className={selectedIds.has(product.id) ? 'selected' : ''}>
+                          <td style={{ paddingLeft: '1.25rem' }}>
+                            <input type="checkbox" className="cb" checked={selectedIds.has(product.id)} onChange={() => toggleSelect(product.id)} />
+                          </td>
+                          <td>
+                            {product.image ? (
+                              <div className="prod-img">
+                                <Image src={product.image} alt={product.name} width={48} height={48} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              </div>
                             ) : (
-                              <span className="vendor-badge" style={{ cursor: 'default' }}>
-                                {product.vendor.logo && <Image src={product.vendor.logo} alt={product.vendor.name} width={18} height={18} className="vendor-logo" />}
-                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.vendor.name}</span>
-                              </span>
-                            )
-                          ) : <span style={{ color: '#3a3a56' }}>—</span>}
-                        </td>
-                        <td><span className="price-tag">{product.price != null ? `$${product.price.toLocaleString()}` : '—'}</span></td>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                            <StatusBadge status={product.status} />
-                            {product.status === 'PENDING_REVIEW' && (
-                              <button
-                                className="btn btn-ghost"
-                                style={{ padding: '0.2rem 0.55rem', fontSize: '0.7rem' }}
-                                onClick={() => setReviewProduct(product)}
-                              >
-                                Review
-                              </button>
+                              <div className="prod-img-placeholder">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>
+                              </div>
                             )}
-                          </div>
-                        </td>
-                        <td><RequirementBadge product={product} onAssign={setAssignModalProduct} /></td>
-                        <td>
-                          {product.url ? (
-                            <a href={product.url} target="_blank" rel="noopener noreferrer" className="url-link">
-                              Visit
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
-                            </a>
-                          ) : <span style={{ color: '#3a3a56' }}>—</span>}
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                            <button className="action-btn action-edit" onClick={() => { setEditingProduct(product); setModalOpen(true); }}>Edit</button>
-                            <button className="action-btn action-delete" onClick={() => setDeleteConfirmId(product.id)}>Delete</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 600, color: '#e2e2ef', fontSize: '0.88rem' }}>{product.name}</div>
+                            {product.status === 'REJECTED' && product.rejectReason && (
+                              <div style={{ fontSize: '0.7rem', color: '#f87171', marginTop: '0.2rem' }}>↳ {product.rejectReason}</div>
+                            )}
+                          </td>
+                          <td>
+                            <span style={{ color: '#5a5a7a', fontSize: '0.8rem', display: 'block', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {product.description || '—'}
+                            </span>
+                          </td>
+                          <td>
+                            {product.vendor ? (
+                              product.vendor.website ? (
+                                <a href={product.vendor.website} target="_blank" rel="noopener noreferrer" className="vendor-badge">
+                                  {product.vendor.logo && <Image src={product.vendor.logo} alt={product.vendor.name} width={18} height={18} className="vendor-logo" />}
+                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.vendor.name}</span>
+                                </a>
+                              ) : (
+                                <span className="vendor-badge" style={{ cursor: 'default' }}>
+                                  {product.vendor.logo && <Image src={product.vendor.logo} alt={product.vendor.name} width={18} height={18} className="vendor-logo" />}
+                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.vendor.name}</span>
+                                </span>
+                              )
+                            ) : <span style={{ color: '#3a3a56' }}>—</span>}
+                          </td>
+                          <td><span className="price-tag">{product.price != null ? `KSh ${product.price.toLocaleString()}` : '—'}</span></td>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <StatusBadge status={product.status} />
+                              {product.status === 'PENDING_REVIEW' && (
+                                <button
+                                  className="btn btn-ghost"
+                                  style={{ padding: '0.2rem 0.55rem', fontSize: '0.7rem' }}
+                                  onClick={() => setReviewProduct(product)}
+                                >
+                                  Review
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                          <td><RequirementBadge product={product} onAssign={setAssignModalProduct} /></td>
+                          <td>
+                            {product.url ? (
+                              <a
+                                href={product.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="url-link"
+                                title="Visit product link"
+                                aria-label="Visit product link"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
+                              </a>
+                            ) : <span style={{ color: '#3a3a56' }}>—</span>}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                              <button
+                                className="action-btn action-edit"
+                                title="Edit product"
+                                aria-label="Edit product"
+                                onClick={() => { setEditingProduct(product); setModalOpen(true); }}
+                              >
+                                <Pencil size={14} />
+                              </button>
+                              <button
+                                className="action-btn action-delete"
+                                title="Delete product"
+                                aria-label="Delete product"
+                                onClick={() => setDeleteConfirmId(product.id)}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
 
             {/* ── CATALOG TAB — GRID VIEW ── */}

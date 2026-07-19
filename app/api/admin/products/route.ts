@@ -56,6 +56,22 @@ export async function POST(request: Request) {
     if (!templateId) return NextResponse.json({ error: 'Please select a requirement this product fulfils.' }, { status: 400 });
     if (!vendorId) return NextResponse.json({ error: 'Please select a vendor. Use the house vendor if this is a platform-managed product.' }, { status: 400 });
 
+    // Admin form now offers the same price-or-range toggle as the vendor form —
+    // enforce it server-side too, since the frontend check alone can be bypassed.
+    const usingPriceRange = !!(body.priceMin || body.priceMax);
+    if (usingPriceRange) {
+      const min = body.priceMin != null ? Number(body.priceMin) : null;
+      const max = body.priceMax != null ? Number(body.priceMax) : null;
+      if (min == null || max == null || Number.isNaN(min) || Number.isNaN(max) || min < 0 || max < 0) {
+        return NextResponse.json({ error: 'Enter a valid price range.' }, { status: 400 });
+      }
+      if (min > max) {
+        return NextResponse.json({ error: 'Minimum price cannot be greater than maximum price.' }, { status: 400 });
+      }
+    } else if (body.price == null || body.price === '' || Number.isNaN(Number(body.price)) || Number(body.price) < 0) {
+      return NextResponse.json({ error: 'Enter a valid price, or switch to a price range.' }, { status: 400 });
+    }
+
     const enumErrors = validateProductEnums(body);
     if (enumErrors.length) return NextResponse.json({ error: enumErrors[0] }, { status: 400 });
 
