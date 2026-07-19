@@ -106,7 +106,7 @@ export default function RequirementPicker({
             </span>
           ) : (
             <span className={variant === 'light' ? 'text-gray-400' : ''} style={variant === 'dark' ? { color: '#8a8aa8' } : undefined}>
-              Search and select a requirement…
+              Select a requirement…
             </span>
           )}
           <ChevronRight size={16} className="flex-shrink-0 text-gray-400" />
@@ -231,18 +231,28 @@ function RequirementPickerModal({
           </button>
         </div>
 
-        {/* Search */}
-        <div className="border-b border-gray-50 px-4 py-3">
+      {/* Search Bar Container inside RequirementPickerModal */}
+        <div className="p-4 border-b border-gray-100 bg-gray-50/50">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
+              <Search size={16} />
+            </span>
             <input
               type="text"
-              placeholder="Search requirements…"
+              placeholder="Search requirements..."
               value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 py-2 pl-9 pr-3 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-emerald-400"
-              autoFocus
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-8 py-2 text-sm rounded-xl border border-gray-300 bg-white text-gray-900 placeholder-gray-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-gray-400 hover:text-gray-600"
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
         </div>
 

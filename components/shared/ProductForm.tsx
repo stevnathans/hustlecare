@@ -12,8 +12,9 @@
 // forms can't drift apart again.
 
 import type { ReactNode } from 'react';
+import { useState } from 'react';
 import {
-  Tag, Package, DollarSign, Layers, ShieldCheck, Truck, Cpu, Percent, Plus, Trash2, MapPin, Clock,
+  Tag, Package, DollarSign, Layers, ShieldCheck, Truck, Cpu, Percent, Plus, Trash2, MapPin, Clock, Search
 } from 'lucide-react';
 import RequirementPicker, { RequirementOption } from './RequirementPicker';
 
@@ -94,11 +95,20 @@ export default function ProductForm({
   vendors = [], bulkTiers = [], setBulkTiers,
 }: Props) {
   const t = tokens(theme);
+  
+  // 1. PLACE THE HOOK HERE (At the top level of the component)
+  const [vendorSearch, setVendorSearch] = useState('');
+  const [isVendorDropdownOpen, setIsVendorDropdownOpen] = useState(false);
 
   const addBulkTier    = () => setBulkTiers?.(rows => [...rows, { minQty: '', price: '' }]);
   const updateBulkTier = (i: number, key: keyof BulkTier, value: string) =>
     setBulkTiers?.(rows => rows.map((row, idx) => (idx === i ? { ...row, [key]: value } : row)));
   const removeBulkTier = (i: number) => setBulkTiers?.(rows => rows.filter((_, idx) => idx !== i));
+
+  // 2. Filter the vendors list here safely
+  const filteredVendors = vendors.filter(([, name]) => 
+    name.toLowerCase().includes(vendorSearch.toLowerCase())
+  );
 
   return (
     <div className="flex flex-col gap-4" style={theme === 'dark' ? { colorScheme: 'dark' } : undefined}>
@@ -107,18 +117,102 @@ export default function ProductForm({
       {mode === 'admin' && (
         <Section theme={theme} title="Vendor & Requirement" icon={<Tag size={14} />}>
           <div className={t.twoCol}>
-            <div>
+            <div className="relative">
               <label className={t.label}>Vendor <span className={t.required}>*</span></label>
-              <select
-                className={`${t.input} ${errors.vendorId ? t.inputError : ''}`}
-                value={form.vendorId}
-                onChange={(e) => setForm((f) => ({ ...f, vendorId: e.target.value }))}
+              
+              {/* Custom Dropdown Trigger Button */}
+              <button
+                type="button"
+                onClick={() => setIsVendorDropdownOpen(!isVendorDropdownOpen)}
+                className={`${t.input} flex items-center justify-between text-left`}
+                style={theme === 'dark' ? { backgroundColor: '#1e1e2f', color: '#e2e2ef', border: '1px solid rgba(255,255,255,0.15)' } : undefined}
               >
-                <option value="">Select vendor…</option>
-                {vendors.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-              </select>
+                <span>
+                  {form.vendorId 
+                    ? (vendors.find(([id]) => id === form.vendorId)?.[1] || 'Select vendor…')
+                    : 'Select vendor…'}
+                </span>
+                <span className="text-gray-400 pointer-events-none text-[10px]">▼</span>
+              </button>
+
+              {/* Dropdown Menu Container */}
+              {isVendorDropdownOpen && (
+                <div 
+                  className="absolute z-50 w-full mt-1 border rounded-lg shadow-xl"
+                  style={{
+                    backgroundColor: theme === 'dark' ? '#1e1e2f' : '#ffffff',
+                    borderColor: theme === 'dark' ? 'rgba(255,255,255,0.15)' : '#e5e7eb',
+                  }}
+                >
+                  {/* Inline Search Box positioned inside the drawer header */}
+                  <div className="p-2 border-b" style={{ borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : '#f3f4f6' }}>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none text-gray-400">
+                        <Search size={12} />
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="Type to filter..."
+                        value={vendorSearch}
+                        onChange={(e) => setVendorSearch(e.target.value)}
+                        className="w-full pl-8 pr-3 py-1 text-xs rounded border outline-none focus:border-emerald-500"
+                        style={{
+                          backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : '#f9fafb',
+                          color: theme === 'dark' ? '#e2e2ef' : '#111827',
+                          borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : '#d1d5db'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Scrollable list of vendor items */}
+                  <div className="max-h-60 overflow-y-auto p-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForm((f) => ({ ...f, vendorId: '' }));
+                        setIsVendorDropdownOpen(false);
+                        setVendorSearch('');
+                      }}
+                      className="w-full px-3 py-2 text-left text-xs rounded hover:bg-emerald-500 hover:text-white transition-colors text-gray-400"
+                    >
+                      Clear selection
+                    </button>
+                    
+                    {filteredVendors.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-gray-500 italic">No vendors found</div>
+                    ) : (
+                      filteredVendors.map(([id, name]) => (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => {
+                            setForm((f) => ({ ...f, vendorId: id }));
+                            setIsVendorDropdownOpen(false);
+                            setVendorSearch('');
+                          }}
+                          className="w-full px-3 py-2 text-left text-xs rounded transition-colors"
+                          style={{
+                            backgroundColor: form.vendorId === id ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                            color: theme === 'dark' ? '#e2e2ef' : '#111827'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = form.vendorId === id ? 'rgba(16, 185, 129, 0.15)' : 'transparent';
+                          }}
+                        >
+                          {name}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
               {errors.vendorId && <div className={t.error}>{errors.vendorId}</div>}
             </div>
+
             <div>
               <RequirementPicker
                 requirements={requirements}
