@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requirePermission, createAuditLog } from '@/lib/admin-utils';
 import { validateProductEnums, validateBulkPricing } from '@/lib/product-validation';
+import { ProductStatus } from '@prisma/client';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -83,15 +84,18 @@ export async function PATCH(request: Request, { params }: Params) {
     // The admin form always sends `publishImmediately` (mirroring whether the
     // product is currently ACTIVE when the modal opens) but never sends `status`
     // directly — so status changes were previously silently dropped on edit.
-    let status: string | undefined;
+    // The admin form always sends `publishImmediately` (mirroring whether the
+    // product is currently ACTIVE when the modal opens) but never sends `status`
+    // directly — so status changes were previously silently dropped on edit.
+    let status: ProductStatus | undefined; // <-- Change string to ProductStatus
     if (body.publishImmediately === true) {
       status = 'ACTIVE';
     } else if (body.publishImmediately === false) {
       // Toggled off from a live product → unpublish back to draft.
       // Otherwise fall back to an explicit `status` if some other caller sent one.
-      status = existing.status === 'ACTIVE' ? 'DRAFT' : (body.status || undefined);
+      status = existing.status === 'ACTIVE' ? 'DRAFT' : ((body.status as ProductStatus) || undefined);
     } else {
-      status = body.status || undefined;
+      status = (body.status as ProductStatus) || undefined;
     }
 
     const updated = await prisma.$transaction(async (tx) => {
