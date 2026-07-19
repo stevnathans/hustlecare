@@ -1,6 +1,5 @@
 // app/api/admin/products/[id]/route.ts
 import { NextResponse } from 'next/server';
-import type { ProductStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requirePermission, createAuditLog } from '@/lib/admin-utils';
 import { validateProductEnums, validateBulkPricing } from '@/lib/product-validation';
