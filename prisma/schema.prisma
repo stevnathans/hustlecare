@@ -44,6 +44,7 @@ model User {
   passwordResetTokens    PasswordResetToken[]
   notifications          InternalNotification[]
   vendorClaimRequests    Vendor[] @relation("VendorClaimRequests")
+  orders            Order[]
 
   @@index([email])
   @@index([role])
@@ -143,6 +144,7 @@ model Business {
   howToGuide       HowToGuide?
   searches         SearchLog[]
   sharedBusinesses SharedBusiness[]
+  orders  Order[]
 
   @@index([name])
   @@index([slug])
@@ -291,6 +293,7 @@ model Product {
   template     RequirementTemplate? @relation(fields: [templateId], references: [id])
   vendor       Vendor?              @relation(fields: [vendorId], references: [id])
   reviews      Review[]
+  orderItems  OrderItem[]
 
   @@index([vendorId])
   @@index([templateId])
@@ -376,6 +379,10 @@ model Vendor {
   claimReviewedBy      String?
   claimRejectionReason String?
   claimRequestedBy     User?             @relation("VendorClaimRequests", fields: [claimRequestedById], references: [id])
+  commissionRate       Float              @default(0.05) // 5% for now — change here when rates are finalized
+  mpesaNumber          String?            // for payouts; add bank fields later if needed
+  vendorSubOrders      VendorSubOrder[]
+  payouts              VendorPayout[]
 
   @@index([claimStatus])
   @@unique([name, website])
@@ -790,3 +797,179 @@ model QuestionnaireDraft {
   @@index([contactEmail])
   @@index([adminStatus, archived])
 }
+
+model Order {
+  id                String            @id @default(uuid())
+  orderNumber       String            @unique // e.g. "HC-ORD-20260719-0001"
+  userId            String
+  businessId        Int
+
+  subtotal          Float
+  consolidationFee  Float             @default(0)
+  totalAmount       Float
+
+  status            OrderStatus       @default(PENDING_PAYMENT)
+
+  user              User              @relation(fields: [userId], references: [id])
+  business          Business          @relation(fields: [businessId], references: [id])
+  vendorSubOrders   VendorSubOrder[]
+  payment           Payment?
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([userId])
+  @@index([businessId])
+  @@index([status])
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  PROCESSING
+  PARTIALLY_FULFILLED
+  COMPLETED
+  CANCELLED
+}
+
+model VendorSubOrder {
+  id                String            @id @default(uuid())
+  orderId           String
+  vendorId          Int
+
+  subtotal          Float
+  commissionRate    Float             @default(0) // snapshot at order time — never re-read live Vendor rate
+  commissionAmount  Float             @default(0)
+  payoutAmount      Float             // subtotal - commissionAmount
+
+  status            VendorOrderStatus @default(PENDING_VENDOR_CONFIRMATION)
+  vendorNotes       String?
+
+  order             Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  vendor            Vendor            @relation(fields: [vendorId], references: [id])
+  items             OrderItem[]
+  payout            VendorPayout?
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([orderId])
+  @@index([vendorId])
+  @@index([status])
+}
+
+enum VendorOrderStatus {
+  PENDING_VENDOR_CONFIRMATION
+  CONFIRMED
+  DELIVERED
+  REJECTED
+  CANCELLED
+  REFUNDED
+}
+
+model OrderItem {
+  id                String            @id @default(uuid())
+  vendorSubOrderId  String
+  productId         Int
+
+  quantity          Int               @default(1)
+  unitPrice         Float             // snapshot — never trust live Product.price for a placed order
+  lineTotal         Float
+
+  vendorSubOrder    VendorSubOrder    @relation(fields: [vendorSubOrderId], references: [id], onDelete: Cascade)
+  product           Product           @relation(fields: [productId], references: [id])
+
+  createdAt         DateTime          @default(now())
+
+  @@index([vendorSubOrderId])
+  @@index([productId])
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  orderId       String        @unique
+  amount        Float
+  provider      String?       // "pesapal" — null until first submit attempt
+  providerRef   String?       // Pesapal order_tracking_id
+  status        PaymentStatus @default(PENDING)
+  attempts      Int           @default(0) // incremented on each (re)submit to Pesapal
+
+  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([status])
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESSFUL
+  FAILED
+  REFUNDED
+}
+
+model VendorPayout {
+  id                  String        @id @default(uuid())
+  vendorSubOrderId    String        @unique
+  vendorId            Int
+  amount              Float
+  status              PayoutStatus  @default(NOT_DUE)
+  paidAt              DateTime?
+  payoutMethod        String?
+  payoutRef           String?
+
+  vendorSubOrder      VendorSubOrder @relation(fields: [vendorSubOrderId], references: [id], onDelete: Cascade)
+  vendor              Vendor         @relation(fields: [vendorId], references: [id])
+
+  createdAt           DateTime      @default(now())
+
+  @@index([status])
+  @@index([vendorId])
+}
+
+enum PayoutStatus {
+  NOT_DUE
+  DUE
+  PAID
+  FAILED
+}
+
+// ─────────────────────────────────────────────────────────────
+// NEW MODEL — analytics event log.
+//
+// Deliberately uses plain Int/String fields instead of Prisma relations
+// for vendorId/productId/businessId. This is an event log, not a
+// transactional record — we don't want onDelete cascades wiping out
+// historical analytics if a product or vendor is later removed, and we
+// mostly query this table with groupBy/aggregate rather than joins.
+// ─────────────────────────────────────────────────────────────
+
+model AnalyticsEvent {
+  id              String             @id @default(uuid())
+  type            AnalyticsEventType
+  userId          String?
+  vendorId        Int?
+  productId       Int?
+  businessId      Int?
+  requirementName String?
+  category        String?
+  metadata        Json?
+  createdAt       DateTime           @default(now())
+
+  @@index([type, createdAt])
+  @@index([vendorId, createdAt])
+  @@index([productId, createdAt])
+  @@index([businessId, requirementName])
+}
+
+enum AnalyticsEventType {
+  PRODUCT_VIEW
+  BUY_NOW_CLICK       // user clicked Buy Now on a ProductCard or in the calculator
+  OUTBOUND_REDIRECT   // user actually continued from the interstitial to the vendor/WhatsApp
+  CART_ADD
+  CART_REMOVE
+  DONATION_CLICK
+}
+
+

@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth'
 import { prisma } from '@/lib/prisma'
 import { authOptions } from '@/lib/auth'
 import { notify } from '@/lib/notify'
+import { trackEvent } from '@/lib/analytics'
 
 export async function POST(request: NextRequest) {
   try {
@@ -68,10 +69,11 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Notify the vendor — fire and forget, never block the cart add
+    // Notify the vendor + log the analytics event — both fire-and-forget,
+    // neither should ever block the cart add itself.
     prisma.product.findUnique({
       where:  { id: Number(product.productId) },
-      select: { name: true, vendor: { select: { userId: true } } },
+      select: { name: true, vendorId: true, vendor: { select: { userId: true } } },
     }).then(async (foundProduct) => {
       if (foundProduct?.vendor?.userId) {
         await notify({
@@ -82,8 +84,20 @@ export async function POST(request: NextRequest) {
           link:    '/vendor/dashboard',
         })
       }
+
+      // This is what actually increments VendorAnalytics.cartAdds — that field
+      // existed on the schema already but nothing was writing to it before.
+      await trackEvent({
+        type: 'CART_ADD',
+        userId,
+        vendorId: foundProduct?.vendorId ?? null,
+        productId: Number(product.productId),
+        businessId: parseInt(businessId.toString()),
+        requirementName: product.requirementName || 'Unspecified Requirement',
+        category: product.category || 'Uncategorized',
+      })
     }).catch(() => {
-      // Silently ignore — notification failure must never affect cart
+      // Silently ignore — neither notification nor analytics failure should affect cart
     })
 
     const updatedCart = await prisma.cart.findUnique({

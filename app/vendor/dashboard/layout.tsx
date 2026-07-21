@@ -9,14 +9,15 @@ import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, Package, User, Store,
   LogOut, ChevronRight, Loader2, Clock, Shield,
-  Menu, X, ExternalLink, Plus,
+  Menu, X, ExternalLink, Plus, ShoppingCart
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 
 const NAV_ITEMS = [
   { href: '/vendor/dashboard',          label: 'Overview',   short: 'Home',     icon: LayoutDashboard, exact: true },
-  { href: '/vendor/dashboard/products', label: 'Products',   short: 'Products', icon: Package },
   { href: '/vendor/dashboard/profile',  label: 'My Profile', short: 'Profile',  icon: User },
+  { href: '/vendor/dashboard/products', label: 'Products',   short: 'Products', icon: Package },
+  { href: '/vendor/dashboard/orders',   label: 'Orders',     short: 'Orders',   icon: ShoppingCart },
 ];
 
 const SIDEBAR_W = 248;

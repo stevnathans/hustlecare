@@ -1,3 +1,4 @@
+// lib/constants.ts
 export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Hustlecare'
 export const APP_SLOGAN = process.env.NEXT_PUBLIC_APP_SLOGAN || 'Your business partner'
 export const APP_DESCRIPTION = 
@@ -14,3 +15,7 @@ export const PRICE_RANGES = [
 ];
 
 export const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+
+export const VENDOR_COMMISSION_RATE = 0.05 // 5% — change this one line when real rates are decided
+export const CONSOLIDATION_FEE_FLAT = 200 // KES, only charged when an order spans more than one vendor
+export const PER_LEAD_FEE_KES = 10

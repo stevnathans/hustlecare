@@ -3,9 +3,10 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useCart, CartItem } from '@/contexts/CartContext'; 
 import { Business } from '@prisma/client';
-import { FiShoppingCart, FiPlus, FiMinus, FiTrash2, FiChevronDown, FiChevronRight, FiSave, FiCopy, FiShare2, FiX, FiEdit2, FiCheck, FiDownload, FiInfo } from 'react-icons/fi';
+import { FiShoppingCart, FiPlus, FiMinus, FiTrash2, FiChevronDown, FiChevronRight, FiSave, FiCopy, FiShare2, FiX, FiEdit2, FiCheck, FiDownload, FiInfo, FiShoppingBag } from 'react-icons/fi';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -191,6 +192,18 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
       setEditingQuantity(null);
       setQuantityInputValue('');
     }
+  };
+
+  // Buy just this one line item — takes the user to the redirect interstitial
+  // (same one ProductCard's Buy Now uses), passing along business/requirement
+  // context as query params so the click is logged with full analytics context.
+  const buildBuyHref = (item: CartItem) => {
+    const params = new URLSearchParams();
+    if (businessId) params.set('businessId', String(businessId));
+    if (item.requirementName) params.set('requirementName', item.requirementName);
+    if (item.category) params.set('category', item.category);
+    const query = params.toString();
+    return `/redirect/${item.productId}${query ? `?${query}` : ''}`;
   };
 
   const handleDownloadPDF = async () => {
@@ -633,8 +646,12 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
                             <div className="space-y-2">
                               {products.map((item) => (
                                 <div key={item.productId} className="flex flex-col sm:flex-row sm:items-center py-2.5 px-2 bg-white rounded-md border border-gray-100 hover:border-emerald-200 transition-colors">
-                                  {/* Top row: Image and product details */}
-                                  <div className="flex items-center flex-grow min-w-0 mb-2 sm:mb-0">
+                                  {/* Top row: clickable image + name → internal product page, quantity/price info */}
+                                  <Link
+                                    href={`/marketplace/products/${item.productId}`}
+                                    className="flex items-center flex-grow min-w-0 mb-2 sm:mb-0 group"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
                                     {item.image && (
                                       <div className="relative h-12 w-12 sm:h-14 sm:w-14 mr-2 sm:mr-3 flex-shrink-0 rounded-md overflow-hidden border border-gray-200">
                                         <Image
@@ -648,12 +665,14 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
                                       </div>
                                     )}
                                     <div className="flex-grow min-w-0 mr-2">
-                                      <h5 className="font-medium text-xs sm:text-sm text-gray-800 truncate">{item.name}</h5>
+                                      <h5 className="font-medium text-xs sm:text-sm text-gray-800 truncate group-hover:text-emerald-600 group-hover:underline">
+                                        {item.name}
+                                      </h5>
                                       <p className="text-xs text-gray-500 mt-0.5">KSh {formatCurrency(item.price)}</p>
                                     </div>
-                                  </div>
+                                  </Link>
                                   
-                                  {/* Bottom row (mobile) / Right side (desktop): Quantity controls */}
+                                  {/* Bottom row (mobile) / Right side (desktop): quantity controls + Buy + Remove */}
                                   <div className="flex items-center justify-between sm:justify-end space-x-1.5 sm:ml-3 w-full sm:w-auto border-t sm:border-t-0 border-gray-100 pt-2 sm:pt-0">
                                     <div className="flex items-center space-x-1.5">
                                       <button
@@ -701,6 +720,18 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
                                         <FiPlus size={14} />
                                       </button>
                                     </div>
+
+                                    {/* Buy this item now — goes to the redirect interstitial, independent of the rest of the cart */}
+                                    <Link
+                                      href={buildBuyHref(item)}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="flex items-center gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-md font-medium transition-colors"
+                                      title="Buy just this item"
+                                    >
+                                      <FiShoppingBag size={11} />
+                                      Buy
+                                    </Link>
+
                                     <button
                                       onClick={() => removeFromCart(item.productId)}
                                       className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-100 rounded-md transition-colors"

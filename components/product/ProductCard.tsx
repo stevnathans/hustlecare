@@ -1,8 +1,9 @@
-// This component represents a product card that can be used to display products related to business requirements. It includes functionality to add/remove products from the cart, view product details, and visit the vendor's shop. It also handles user authentication for adding items to the cart.
+// This component represents a product card that can be used to display products related to business requirements. It includes functionality to add/remove products from the cart, view product details, and go to a redirect page before visiting the vendor. It also handles user authentication for adding items to the cart.
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import {
   FiPlus,
   FiCheck,
@@ -77,6 +78,10 @@ interface ProductCardProps {
   };
   requirementName: string;
   category: string;
+  // Passed through as query params on the redirect link so the interstitial
+  // can log a fully-contextualized analytics event (which business/requirement
+  // this click came from, not just which product).
+  businessId?: number;
 }
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
@@ -108,6 +113,20 @@ function formatReceipt(hasReceipt?: "YES" | "NO" | "UNKNOWN" | null): string | n
     case "UNKNOWN": return "Receipt availability not specified";
     default: return null;
   }
+}
+
+function buildRedirectHref(
+  productId: string | number,
+  businessId?: number,
+  requirementName?: string,
+  category?: string
+) {
+  const params = new URLSearchParams();
+  if (businessId) params.set("businessId", String(businessId));
+  if (requirementName) params.set("requirementName", requirementName);
+  if (category) params.set("category", category);
+  const query = params.toString();
+  return `/redirect/${productId}${query ? `?${query}` : ""}`;
 }
 
 // ── Small badge used in the always-visible summary row ─────────────────────────
@@ -142,14 +161,11 @@ function DetailBlock({ label, children }: { label: string; children: React.React
 }
 
 // ── Portal wrapper ────────────────────────────────────────────────────────────
-// Renders children directly into document.body so no parent stacking context,
-// overflow:hidden, or z-index can clip or suppress them.
 function Portal({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const portalRoot = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    // Reuse a single shared portal root so multiple cards don't litter the DOM
     let el = document.getElementById("product-card-portal-root");
     if (!el) {
       el = document.createElement("div");
@@ -164,40 +180,29 @@ function Portal({ children }: { children: React.ReactNode }) {
   return createPortal(children, portalRoot.current);
 }
 
-// ── Image Lightbox (updated) ─────────────────────────────────────────────────
+// ── Image Lightbox — "buy" link now goes to the redirect interstitial ─────────
 function ImageLightbox({
   src,
   alt,
   onClose,
-  productUrl,
-  vendorName,
+  redirectHref,
 }: {
   src: string;
   alt: string;
   onClose: () => void;
-  productUrl?: string;
-  vendorName?: string;
+  redirectHref: string;
 }) {
-  // Lock body scroll while open
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = prev; };
   }, []);
 
-  // Close on Escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
-
-  const handleBuyClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (productUrl) {
-      window.open(productUrl, "_blank");
-    }
-  };
 
   return (
     <Portal>
@@ -211,7 +216,6 @@ function ImageLightbox({
           style={{ animation: "pc-scaleIn 0.25s ease-out" }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Close button */}
           <button
             onClick={onClose}
             className="absolute -top-3 -right-3 z-10 w-8 h-8 rounded-full bg-white shadow-lg flex items-center justify-center hover:bg-gray-100 transition-colors duration-200"
@@ -229,22 +233,19 @@ function ImageLightbox({
             />
           </div>
 
-          {/* Caption */}
           <p className="text-center text-white/80 text-sm mt-3 font-medium drop-shadow">
             {alt}
           </p>
 
-          {/* Buy button – only if a product URL exists */}
-          {productUrl && (
-            <div className="text-center mt-3">
-              <button
-                onClick={handleBuyClick}
-                className="inline-block bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-lg shadow-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
-              >
-                Buy on {vendorName || 'Vendor'}
-              </button>
-            </div>
-          )}
+          <div className="text-center mt-3">
+            <Link
+              href={redirectHref}
+              onClick={(e) => e.stopPropagation()}
+              className="inline-block bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-lg shadow-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+            >
+              Buy Now
+            </Link>
+          </div>
         </div>
 
         <style>{`
@@ -257,7 +258,6 @@ function ImageLightbox({
 }
 
 // ── Login Modal Portal wrapper ────────────────────────────────────────────────
-// Wraps the existing LoginModal in a Portal so it also escapes any stacking context.
 function PortaledLoginModal({
   isOpen,
   onClose,
@@ -267,7 +267,6 @@ function PortaledLoginModal({
   onClose: () => void;
   onLogin: () => void;
 }) {
-  // Lock body scroll while open
   useEffect(() => {
     if (!isOpen) return;
     const prev = document.body.style.overflow;
@@ -279,7 +278,6 @@ function PortaledLoginModal({
 
   return (
     <Portal>
-      {/* Wrapper that ensures the modal sits above everything */}
       <div style={{ position: "fixed", inset: 0, zIndex: 9999, pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto" }}>
           <LoginModal isOpen={isOpen} onClose={onClose} onLogin={onLogin} />
@@ -294,6 +292,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
   product,
   requirementName,
   category,
+  businessId,
 }) => {
   const { addToCart, items, removeFromCart } = useCart();
   const [showDetails, setShowDetails] = useState(false);
@@ -304,6 +303,8 @@ const ProductCard: React.FC<ProductCardProps> = ({
   const cartItem = items.find((item) => item.productId === product.id);
   const isInCart = !!cartItem;
   const cartQuantity = cartItem?.quantity || 0;
+
+  const redirectHref = buildRedirectHref(product.id, businessId, requirementName, category);
 
   const handleAddToCart = async () => {
     if (!session) {
@@ -333,11 +334,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
     }
   };
 
-  const handleGoToShop = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (product.url) window.open(product.url, "_blank");
-  };
-
   const toggleDetails = (e: React.MouseEvent) => {
     e.stopPropagation();
     setShowDetails(!showDetails);
@@ -360,8 +356,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
           src={product.image}
           alt={product.name}
           onClose={() => setIsImageOpen(false)}
-          productUrl={product.url}
-          vendorName={product.vendor?.name}
+          redirectHref={redirectHref}
         />
       )}
 
@@ -394,7 +389,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
                     fill
                     className="object-cover p-2 transition-transform duration-300 group-hover/img:scale-110"
                   />
-                  {/* Hover overlay with expand icon */}
                   <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/20 transition-colors duration-200 flex items-center justify-center">
                     <svg
                       className="w-5 h-5 text-white opacity-0 group-hover/img:opacity-100 drop-shadow-md transition-opacity duration-200"
@@ -417,7 +411,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
                 </div>
               )}
 
-              {/* Vendor logo badge */}
               {product.vendor?.logo && (
                 <div className="absolute bottom-1 right-1 bg-white rounded px-1 py-0.5 shadow-sm z-10">
                   <Image
@@ -436,7 +429,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
               <h3 className="text-sm sm:text-base font-semibold text-gray-900 line-clamp-2 leading-snug mb-1">
                 {product.name}
               </h3>
-              {product.vendor?.name && !product.vendor?.logo && (
+              {product.vendor?.name && (
                 <p className="text-xs text-gray-500 mb-1">
                   by {product.vendor.name}
                 </p>
@@ -473,7 +466,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
             </button>
           </div>
 
-          {/* Trust / condition badges — always visible so buyers see this before expanding */}
+          {/* Trust / condition badges */}
           {(product.condition || hasWarranty || product.deliveryAvailable) && (
             <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
               {product.condition && (
@@ -510,17 +503,14 @@ const ProductCard: React.FC<ProductCardProps> = ({
           )}
 
           {/* Action Buttons Row */}
-          <div className="flex items-center gap-2">
-            {product.url && (
-              <button
-                onClick={handleGoToShop}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 transition font-medium"
-              >
-                <FiShoppingBag size={14} />
-                <span>Visit Shop</span>
-                <FiExternalLink size={12} />
-              </button>
-            )}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link
+              href={redirectHref}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition font-medium"
+            >
+              <FiShoppingBag size={14} />
+              <span>Buy Now</span>
+            </Link>
 
             <button
               onClick={toggleDetails}
@@ -551,7 +541,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
                 <DetailBlock label="Requirement">{requirementName}</DetailBlock>
               </div>
 
-              {/* Condition */}
               {product.condition && (
                 <DetailBlock label="Condition">
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -568,7 +557,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
                 </DetailBlock>
               )}
 
-              {/* Specifications */}
               {hasSpecs && (
                 <DetailBlock label="Specifications">
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1">
@@ -583,7 +571,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
                 </DetailBlock>
               )}
 
-              {/* Warranty */}
               {hasWarranty && (
                 <DetailBlock label="Warranty">
                   <p className="flex items-center gap-1">
@@ -594,7 +581,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
                 </DetailBlock>
               )}
 
-              {/* Delivery & Logistics */}
               {(product.deliveryAvailable || product.pickupLocation || leadTimeLabel) && (
                 <DetailBlock label="Delivery & Logistics">
                   <div className="space-y-1">
@@ -611,7 +597,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
                 </DetailBlock>
               )}
 
-              {/* Bulk pricing */}
               {hasBulkPricing && (
                 <DetailBlock label="Bulk Pricing">
                   <div className="flex items-center gap-1 mb-1 text-gray-500">
