@@ -166,6 +166,7 @@ export default function BusinessPageContent({
 
           <section aria-label="Business requirements">
             <RequirementsSection
+              businessId={business.id.toString()}
               businessName={business.name}
               sortedCategories={filteredCategories}
               groupedRequirements={groupedRequirements}
