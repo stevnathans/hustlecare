@@ -39,6 +39,7 @@ interface CategoryState {
 }
 
 interface RequirementsSectionProps {
+  businessId: string;
   businessName: string;
   sortedCategories: string[];
   groupedRequirements: Record<string, RequirementLocal[]>;
@@ -70,6 +71,7 @@ type Business = {
 };
 
 const RequirementsSection: React.FC<RequirementsSectionProps> = ({
+  businessId,
   businessName,
   sortedCategories,
   groupedRequirements,
@@ -399,6 +401,7 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
                   onSearchChange={(query) => onCategorySearchChange(category, query)}
                   onFilterChange={(filter) => onSetFilter(category, filter)}
                   onProductAssigned={onProductAssigned}
+                  businessId={businessId}
                   availableNecessities={availableNecessities}
                 />
               );

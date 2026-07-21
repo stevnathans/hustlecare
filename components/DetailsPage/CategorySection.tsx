@@ -28,6 +28,7 @@ interface CategoryState {
 interface CategorySectionProps {
   category: string;
   businessName: string;
+  businessId: string | number;
   requirements: Requirement[];
   filteredRequirements: Requirement[];
   products: Record<string, Product[]>;
@@ -45,6 +46,7 @@ interface CategorySectionProps {
 const CategorySection: React.FC<CategorySectionProps> = ({
   category,
   businessName,
+  businessId,
   requirements,
   filteredRequirements,
   products,
@@ -87,6 +89,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
         products={products[requirement.name] || []}
         onProductAssigned={onProductAssigned}
         businessName={businessName}
+        businessId={typeof businessId === 'string' ? parseInt(businessId, 10) : businessId}
       />
     </div>
   );
