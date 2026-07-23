@@ -1,21 +1,10 @@
 // components/Dashboard/NotificationBell.tsx
 'use client'
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Bell, CheckCheck, ExternalLink, Info, CheckCircle, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
-
-type NotifType = 'INFO' | 'SUCCESS' | 'WARNING'
-
-type Notification = {
-  id: string
-  title: string
-  message: string
-  type: NotifType
-  link: string | null
-  isRead: boolean
-  createdAt: string
-}
+import { useNotifications, NotifType } from './NotificationsContext'
 
 const TYPE_CONFIG: Record<NotifType, { icon: React.ElementType; color: string; bg: string }> = {
   INFO:    { icon: Info,          color: '#059669', bg: 'rgba(16,185,129,0.1)' },
@@ -36,33 +25,12 @@ function timeAgo(dateStr: string) {
 
 export default function NotificationBell() {
   const { status } = useSession()
-  const [open,          setOpen]          = useState(false)
-  const [notifications, setNotifications] = useState<Notification[]>([])
-  const [unreadCount,   setUnreadCount]   = useState(0)
-  const [loading,       setLoading]       = useState(false)
+  // All fetching/polling now lives in NotificationsContext, shared by every
+  // <NotificationBell/> instance (desktop + mobile nav) — this component is
+  // purely presentational.
+  const { notifications, unreadCount, loading, markOne, markAll } = useNotifications()
+  const [open, setOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
-
-  const fetchNotifications = useCallback(async () => {
-    if (status !== 'authenticated') return
-    setLoading(true)
-    try {
-      const r = await fetch('/api/user/notifications')
-      if (r.ok) {
-        const data = await r.json()
-        setNotifications(data.notifications)
-        setUnreadCount(data.unreadCount)
-      }
-    } finally {
-      setLoading(false)
-    }
-  }, [status])
-
-  useEffect(() => {
-    if (status !== 'authenticated') return
-    fetchNotifications()
-    const interval = setInterval(fetchNotifications, 60000)
-    return () => clearInterval(interval)
-  }, [fetchNotifications, status])
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -76,26 +44,6 @@ export default function NotificationBell() {
 
   // Don't render at all for signed-out visitors
   if (status !== 'authenticated') return null
-
-  async function markOne(id: string) {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n))
-    setUnreadCount(prev => Math.max(0, prev - 1))
-    await fetch('/api/user/notifications', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    })
-  }
-
-  async function markAll() {
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })))
-    setUnreadCount(0)
-    await fetch('/api/user/notifications', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ markAll: true }),
-    })
-  }
 
   return (
     <div ref={dropdownRef} style={{ position: 'relative' }}>

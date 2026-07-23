@@ -10,6 +10,15 @@ const ALLOWED_UPDATE_FIELDS = new Set([
   'costMin', 'costMax', 'timeToLaunchMin', 'timeToLaunchMax',
 ])
 
+// Safety cap for the admin list — this route intentionally returns the
+// full table (unpaginated) so the admin UI can search/filter/sort
+// client-side over the whole catalog, which is fine at moderate scale.
+// This cap just prevents an unbounded query if the business table grows
+// far beyond what the admin table view can usefully display anyway. If
+// you're hitting this cap, it's time to add real server-side pagination
+// to both this route and app/admin/businesses/page.tsx.
+const ADMIN_LIST_CAP = 500
+
 function isValidSlug(slug: string): boolean {
   return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)
 }
@@ -52,6 +61,7 @@ export async function GET() {
         category: true,
       },
       orderBy: { createdAt: 'desc' },
+      take: ADMIN_LIST_CAP,
     })
 
     return NextResponse.json(businesses)

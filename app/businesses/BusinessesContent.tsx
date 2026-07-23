@@ -1,3 +1,4 @@
+//businesses/BusinessesContent.tsx
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
@@ -18,29 +19,21 @@ const BUSINESSES_PER_PAGE = 12;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface Requirement {
-  id: number;
-  name: string;
-  description: string | null;
-  image: string | null;
-  category: string | null;
-  necessity: string;
-  businessId: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
+// /api/businesses now returns a lightweight requirementsCount instead of the
+// full nested groupedRequirements tree — see app/api/businesses/route.ts.
 interface Business {
-  groupedRequirements: Record<string, Requirement[]>;
-  sortedCategories?: string[];
   id: number;
   name: string;
   image?: string;
   slug: string;
   category?: string;
-  estimatedCost?: string;
-  timeToLaunch?: string;
   description?: string;
+  // /api/businesses returns requirementsCount (lightweight, DB-computed).
+  // /api/businesses/search still returns the full groupedRequirements tree —
+  // BusinessCard falls back to computing the count from that if
+  // requirementsCount isn't present. See BusinessCard's legacyCount.
+  requirementsCount?: number;
+  groupedRequirements?: Record<string, { category?: string | null }[]>;
 }
 
 // ── FAQ Data ──────────────────────────────────────────────────────────────────
@@ -225,11 +218,19 @@ export default function BusinessesContent() {
   const searchParams = useSearchParams();
 
   const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>(
     searchParams?.get("category") || "all",
   );
+  // Categories shown in the pill strip. Since we no longer fetch the whole
+  // catalog client-side, this is seeded from whatever pages have been
+  // loaded so far — if you need the *complete* category list regardless
+  // of page, expose a dedicated lightweight /api/businesses/categories
+  // endpoint instead.
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
   const [sortOption, setSortOption] = useState<string>("default");
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -244,102 +245,78 @@ export default function BusinessesContent() {
     setCurrentPage(1);
   }, [searchTerm, selectedCategory, sortOption]);
 
-  // Extract unique categories from businesses safely
-  const categories = useMemo(() => {
-    if (!Array.isArray(businesses)) return ["all"];
-
-    const allCategories = businesses
-      .map((b) => b.category)
-      .filter(Boolean) as string[];
-    return ["all", ...Array.from(new Set(allCategories))];
-  }, [businesses]);
-
+  // Debounced server-side fetch — replaces the old "fetch everything once,
+  // filter/sort/paginate in the browser" approach, which re-pulled the
+  // entire published catalog (with full nested requirement data) on every
+  // page load. Now we only ever request the page currently being viewed,
+  // using /api/businesses/search when there's a keyword or /api/businesses
+  // for the plain paginated/category-filtered list.
   useEffect(() => {
-    const fetchBusinesses = async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(async () => {
+      setLoading(true);
       try {
-        const res = await fetch("/api/businesses");
+        const params = new URLSearchParams({
+          page: String(currentPage),
+          limit: String(BUSINESSES_PER_PAGE),
+        });
+
+        let url = `/api/businesses?${params.toString()}`;
+        if (searchTerm.trim()) {
+          params.set("keyword", searchTerm.trim());
+          url = `/api/businesses/search?${params.toString()}`;
+        }
+        if (selectedCategory !== "all") {
+          params.set("category", selectedCategory);
+        }
+
+        const res = await fetch(url, { signal: controller.signal });
+        if (!res.ok) throw new Error("Failed to load businesses");
         const data = await res.json();
 
-        if (Array.isArray(data)) {
-          setBusinesses(data);
-        } else if (Array.isArray(data?.businesses)) {
-          setBusinesses(data.businesses);
-        } else if (Array.isArray(data?.data)) {
-          setBusinesses(data.data);
-        } else if (Array.isArray(data?.items)) {
-          setBusinesses(data.items);
-        } else if (Array.isArray(data?.results)) {
-          setBusinesses(data.results);
-        } else {
-          // Fallback: search values inside object for the first array found
-          const firstArray = Object.values(data || {}).find((val) =>
-            Array.isArray(val),
-          );
-          if (firstArray && Array.isArray(firstArray)) {
-            setBusinesses(firstArray as Business[]);
-          } else {
-            console.warn(
-              "API response object does not contain an array of businesses:",
-              data,
-            );
-            setBusinesses([]);
-          }
-        }
+        // Both /api/businesses and /api/businesses/search return
+        // { businesses, total, totalPages, ... }
+        const list: Business[] = data.businesses ?? [];
+        setBusinesses(list);
+        setTotalCount(data.total ?? list.length);
+        setTotalPages(data.totalPages ?? 1);
+        setCategoryOptions(prev => {
+          const fromPage = list.map(b => b.category).filter(Boolean) as string[];
+          return Array.from(new Set([...prev, ...fromPage]));
+        });
       } catch (error) {
-        console.error("Error loading businesses:", error);
-        setBusinesses([]);
+        if ((error as { name?: string })?.name !== "AbortError") {
+          console.error("Error loading businesses:", error);
+        }
       } finally {
         setLoading(false);
       }
+    }, searchTerm ? 350 : 0); // debounce only for keyword typing
+
+    return () => {
+      controller.abort();
+      clearTimeout(timeout);
     };
-    fetchBusinesses();
-  }, []);
+  }, [currentPage, searchTerm, selectedCategory]);
 
-  const filteredBusinesses = useMemo(() => {
-    if (!Array.isArray(businesses)) return [];
+  const categories = useMemo(() => ["all", ...categoryOptions], [categoryOptions]);
 
-    let result = businesses.filter((business) =>
-      business.name.toLowerCase().includes(searchTerm.toLowerCase()),
-    );
-
-    if (selectedCategory !== "all") {
-      result = result.filter(
-        (business) => business.category === selectedCategory,
-      );
-    }
-
+  // Client-side sort of the current page only — full cross-page sorting
+  // would require server-side ORDER BY, which /api/businesses/search
+  // doesn't yet support by cost. This sorts what's currently visible.
+  const sortedBusinesses = useMemo(() => {
     switch (sortOption) {
       case "name-asc":
-        return [...result].sort((a, b) => a.name.localeCompare(b.name));
+        return [...businesses].sort((a, b) => a.name.localeCompare(b.name));
       case "name-desc":
-        return [...result].sort((a, b) => b.name.localeCompare(a.name));
-      case "cost-low":
-        return [...result].sort((a, b) => {
-          const costA = parseInt(a.estimatedCost?.replace(/\D/g, "") || "0");
-          const costB = parseInt(b.estimatedCost?.replace(/\D/g, "") || "0");
-          return costA - costB;
-        });
-      case "cost-high":
-        return [...result].sort((a, b) => {
-          const costA = parseInt(a.estimatedCost?.replace(/\D/g, "") || "0");
-          const costB = parseInt(b.estimatedCost?.replace(/\D/g, "") || "0");
-          return costB - costA;
-        });
+        return [...businesses].sort((a, b) => b.name.localeCompare(a.name));
       default:
-        return result;
+        return businesses;
     }
-  }, [businesses, searchTerm, selectedCategory, sortOption]);
-
-  // Pagination
-  const totalPages = Math.ceil(filteredBusinesses.length / BUSINESSES_PER_PAGE);
-  const paginatedBusinesses = useMemo(() => {
-    const start = (currentPage - 1) * BUSINESSES_PER_PAGE;
-    return filteredBusinesses.slice(start, start + BUSINESSES_PER_PAGE);
-  }, [filteredBusinesses, currentPage]);
+  }, [businesses, sortOption]);
 
   const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page);
-    // Scroll to top of listings smoothly
     document
       .getElementById("businesses-grid")
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -362,8 +339,6 @@ export default function BusinessesContent() {
     }
   };
 
-  // Dynamic hero headline
-  const totalCount = Array.isArray(businesses) ? businesses.length : 0;
   const heroHeadline =
     totalCount > 0
       ? `${totalCount} Small Business Ideas To Start In Kenya Today`
@@ -416,7 +391,7 @@ export default function BusinessesContent() {
           </nav>
 
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-6 leading-tight">
-            {loading
+            {loading && businesses.length === 0
               ? "Small Business Ideas To Start In Kenya Today"
               : heroHeadline}
           </h1>
@@ -538,12 +513,9 @@ export default function BusinessesContent() {
                   <p className="text-sm text-gray-500">
                     Showing{" "}
                     <span className="font-semibold text-gray-800">
-                      {filteredBusinesses.length}
+                      {totalCount}
                     </span>{" "}
-                    {filteredBusinesses.length === 1
-                      ? "business"
-                      : "businesses"}{" "}
-                    in{" "}
+                    {totalCount === 1 ? "business" : "businesses"} in{" "}
                     <span className="font-semibold text-emerald-700">
                       {selectedCategory}
                     </span>
@@ -571,8 +543,7 @@ export default function BusinessesContent() {
                   : selectedCategory}
               </h2>
               <p className="text-gray-600 mt-2">
-                {filteredBusinesses.length}{" "}
-                {filteredBusinesses.length === 1 ? "business" : "businesses"}{" "}
+                {totalCount} {totalCount === 1 ? "business" : "businesses"}{" "}
                 available
                 {totalPages > 1 && (
                   <span className="text-gray-400">
@@ -634,8 +605,6 @@ export default function BusinessesContent() {
                   <option value="default">Sort by</option>
                   <option value="name-asc">Name (A-Z)</option>
                   <option value="name-desc">Name (Z-A)</option>
-                  <option value="cost-low">Cost (Low to High)</option>
-                  <option value="cost-high">Cost (High to Low)</option>
                 </select>
                 <div
                   className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700"
@@ -678,10 +647,10 @@ export default function BusinessesContent() {
                 selectedCategory === "all" ? "All business" : selectedCategory
               } opportunities`}
             >
-              {paginatedBusinesses.length > 0 ? (
+              {sortedBusinesses.length > 0 ? (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {paginatedBusinesses.map((biz) => (
+                    {sortedBusinesses.map((biz) => (
                       <BusinessCard
                         key={biz.id}
                         id={biz.id}
@@ -689,14 +658,13 @@ export default function BusinessesContent() {
                         image={biz.image}
                         slug={biz.slug}
                         category={biz.category}
-                        estimatedCost={biz.estimatedCost}
-                        timeToLaunch={biz.timeToLaunch}
-                        groupedRequirements={biz.groupedRequirements}
-                        sortedCategories={
-                          biz.sortedCategories ??
-                          Object.keys(biz.groupedRequirements ?? {})
+                        requirementsCount={biz.requirementsCount}
+                        groupedRequirements={
+                          biz.groupedRequirements as Record<
+                            string,
+                            { id: number; name: string; necessity: string; category?: string | null }[]
+                          > | undefined
                         }
-                        requirements={[]}
                       />
                     ))}
                   </div>
@@ -750,7 +718,7 @@ export default function BusinessesContent() {
           )}
 
           {/* ── Newsletter CTA ── */}
-          {!loading && filteredBusinesses.length > 0 && (
+          {!loading && sortedBusinesses.length > 0 && (
             <div className="mt-16 text-center">
               <h2 className="text-2xl font-bold text-gray-900 mb-4">
                 Can&apos;t find what you&apos;re looking for?
