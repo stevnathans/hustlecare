@@ -12,6 +12,8 @@ import {
 const externalImageLoader = ({ src }: { src: string }) => src;
 const BOTTOM_NAV_H = 64;
 
+type County = { id: number; name: string; slug: string };
+
 type VendorProfile = {
   id: number;
   name: string;
@@ -30,21 +32,35 @@ type VendorProfile = {
   status: string;
   isVerified: boolean;
   _count: { products: number };
+
+  // County coverage
+  servesAllCounties: boolean;
+  counties: { countyId: number }[];
 };
 
 export default function VendorProfilePage() {
   const [profile, setProfile]   = useState<VendorProfile | null>(null);
+  const [counties, setCounties] = useState<County[]>([]);
   const [loading, setLoading]   = useState(true);
   const [saving,  setSaving]    = useState(false);
   const [toast,   setToast]     = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+  const [countySearch, setCountySearch] = useState('');
 
   const [form, setForm] = useState({
     name: '', tagline: '', description: '', website: '',
     logo: '', coverImage: '', location: '', phone: '',
     twitterUrl: '', instagramUrl: '', facebookUrl: '', linkedinUrl: '',
+    servesAllCounties: true,
+    countyIds: [] as number[],
   });
 
-  useEffect(() => { fetchProfile(); }, []);
+  useEffect(() => {
+    fetchProfile();
+    fetch('/api/counties')
+      .then((r) => r.json())
+      .then((d) => setCounties(Array.isArray(d) ? d : []))
+      .catch(() => setCounties([]));
+  }, []);
 
   async function fetchProfile() {
     try {
@@ -58,6 +74,8 @@ export default function VendorProfilePage() {
           location: d.location ?? '', phone: d.phone ?? '',
           twitterUrl: d.twitterUrl ?? '', instagramUrl: d.instagramUrl ?? '',
           facebookUrl: d.facebookUrl ?? '', linkedinUrl: d.linkedinUrl ?? '',
+          servesAllCounties: d.servesAllCounties ?? true,
+          countyIds: Array.isArray(d.counties) ? d.counties.map((c: { countyId: number }) => c.countyId) : [],
         });
       }
     } finally { setLoading(false); }
@@ -66,6 +84,15 @@ export default function VendorProfilePage() {
   function showToast(msg: string, type: 'success' | 'error' = 'success') {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3200);
+  }
+
+  function toggleCounty(id: number) {
+    setForm((f) => ({
+      ...f,
+      countyIds: f.countyIds.includes(id)
+        ? f.countyIds.filter((c) => c !== id)
+        : [...f.countyIds, id],
+    }));
   }
 
   async function handleSave() {
@@ -91,6 +118,10 @@ export default function VendorProfilePage() {
 
   const F = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [key]: e.target.value }));
+
+  const filteredCounties = counties.filter((c) =>
+    c.name.toLowerCase().includes(countySearch.toLowerCase())
+  );
 
   return (
     <div className="max-w-[1000px] pb-24 text-gray-900 lg:pb-4">
@@ -118,6 +149,7 @@ export default function VendorProfilePage() {
               <a
                 href={`/vendors/${profile.slug}`}
                 target="_blank"
+                rel="noreferrer"
                 className="ml-1.5 inline-flex items-center gap-1 text-sm text-indigo-600 hover:underline"
               >
                 Preview <ExternalLink size={11} />
@@ -148,10 +180,6 @@ export default function VendorProfilePage() {
         </div>
       )}
 
-      {/* Natural stacking order on all breakpoints: form fields, then
-          preview/stats. No CSS `order` reordering + `position: sticky`
-          combo here — that pairing is what caused the sidebar to visually
-          detach/float while scrolling on mobile. Sticky is now desktop-only. */}
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[1fr_260px]">
         {/* Main column */}
         <div className="flex flex-col gap-4">
@@ -250,6 +278,81 @@ export default function VendorProfilePage() {
             </div>
           </section>
 
+          {/* County coverage — NEW */}
+          <section className={sectionCls}>
+            <h2 className={sectionTitleCls}>Where You Operate</h2>
+            <p className="mb-4 text-xs leading-relaxed text-gray-500">
+              This determines how your products appear across the site. For most vendors — software,
+              national bodies, or anyone shipping/serving customers everywhere — leave this on. Only turn
+              it off if your products or services are limited to specific counties (e.g. a local county
+              government office, or a supplier that only delivers within certain areas).
+            </p>
+
+            <label className="mb-4 flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3.5">
+              <input
+                type="checkbox"
+                checked={form.servesAllCounties}
+                onChange={(e) => setForm((f) => ({ ...f, servesAllCounties: e.target.checked }))}
+                className="mt-0.5 accent-emerald-600"
+              />
+              <span>
+                <span className="block text-sm font-semibold text-gray-800">
+                  I serve all counties in Kenya
+                </span>
+                <span className="mt-0.5 block text-xs text-gray-500">
+                  {form.servesAllCounties
+                    ? 'Your products will show as available everywhere, regardless of which county a customer selects.'
+                    : 'Turned off — pick the specific counties you serve below.'}
+                </span>
+              </span>
+            </label>
+
+            {!form.servesAllCounties && (
+              <div>
+                <label className={labelCls}>
+                  Counties You Serve{' '}
+                  {form.countyIds.length > 0 && (
+                    <span className="normal-case font-normal text-gray-400">({form.countyIds.length} selected)</span>
+                  )}
+                </label>
+                <input
+                  className={`${inputCls} mb-2`}
+                  placeholder="Search counties…"
+                  value={countySearch}
+                  onChange={(e) => setCountySearch(e.target.value)}
+                />
+                <div className="grid max-h-56 grid-cols-2 gap-1.5 overflow-y-auto rounded-lg border border-gray-200 p-2 sm:grid-cols-3">
+                  {filteredCounties.length === 0 ? (
+                    <div className="col-span-full py-4 text-center text-xs text-gray-400">No counties match &ldquo;{countySearch}&rdquo;</div>
+                  ) : (
+                    filteredCounties.map((c) => {
+                      const active = form.countyIds.includes(c.id);
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => toggleCounty(c.id)}
+                          className={`rounded-lg border px-2.5 py-1.5 text-left text-xs font-medium transition-colors ${
+                            active
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                              : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                          }`}
+                        >
+                          {c.name}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+                {form.countyIds.length === 0 && (
+                  <p className="mt-2 text-xs text-amber-600">
+                    Select at least one county, or your products won&apos;t appear for any Legal requirement search.
+                  </p>
+                )}
+              </div>
+            )}
+          </section>
+
           {/* Social */}
           <section className={sectionCls}>
             <h2 className={sectionTitleCls}>Social Links</h2>
@@ -260,11 +363,11 @@ export default function VendorProfilePage() {
                   { icon: <Instagram size={11} />, key: 'instagramUrl', label: 'Instagram', ph: 'https://instagram.com/…' },
                   { icon: <Facebook size={11} />, key: 'facebookUrl', label: 'Facebook', ph: 'https://facebook.com/…' },
                   { icon: <Linkedin size={11} />, key: 'linkedinUrl', label: 'LinkedIn', ph: 'https://linkedin.com/…' },
-                ] as { icon: React.ReactNode; key: keyof typeof form; label: string; ph: string }[]
+                ] as { icon: React.ReactNode; key: string; label: string; ph: string }[]
               ).map(({ icon, key, label, ph }) => (
                 <div key={key}>
                   <label className={labelCls}>{icon} {label}</label>
-                  <input className={inputCls} value={(form as any)[key]} onChange={F(key)} placeholder={ph} />
+                  <input className={inputCls} value={(form as any)[key]} onChange={F(key as keyof typeof form)} placeholder={ph} />
                 </div>
               ))}
             </div>
@@ -318,6 +421,7 @@ export default function VendorProfilePage() {
               {[
                 { key: 'Products', val: profile._count.products.toString() },
                 { key: 'Status', val: profile.status },
+                { key: 'Coverage', val: form.servesAllCounties ? 'All counties' : `${form.countyIds.length} ${form.countyIds.length === 1 ? 'county' : 'counties'}` },
                 ...(profile.isVerified ? [{ key: 'Verified', val: '✓ Yes' }] : []),
               ].map(row => (
                 <div key={row.key} className="flex items-center justify-between border-b border-gray-100 py-2 last:border-0">

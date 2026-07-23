@@ -15,10 +15,11 @@ export async function GET() {
       return NextResponse.json({ error: 'Vendor access required.' }, { status: 403 });
     }
 
-    // No `select` here, so all scalar fields are returned automatically —
-    // including appealStatus, appealMessage, issueResolved, appealedAt,
-    // appealResponse, appealRespondedAt once the migration has run.
-    // Nothing else to change in this route.
+    // No top-level `select` here, so all scalar fields are returned
+    // automatically — including servesAllCounties, appealStatus,
+    // appealMessage, issueResolved, appealedAt, appealResponse,
+    // appealRespondedAt. We only need to add the `counties` relation
+    // (and keep `_count`/`analytics`) via `include`.
     const vendor = await prisma.vendor.findUnique({
       where: { userId: session.user.id },
       include: {
@@ -27,6 +28,7 @@ export async function GET() {
           orderBy: { date: 'desc' },
           take: 30,
         },
+        counties: { select: { countyId: true } },
       },
     });
 
@@ -65,29 +67,75 @@ export async function PATCH(request: Request) {
       instagramUrl,
       facebookUrl,
       linkedinUrl,
+      servesAllCounties,
+      countyIds,
     } = body;
+
+    // Look up the vendor id up front — we need it for the VendorCounty
+    // join-table sync below, and it lets us 404 cleanly before touching
+    // anything else.
+    const existing = await prisma.vendor.findUnique({
+      where: { userId: session.user.id },
+      select: { id: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: 'Vendor profile not found.' }, { status: 404 });
+    }
+
+    // Normalise the incoming county list (dedupe, only when actually provided).
+    const nextCountyIds: number[] | undefined = Array.isArray(countyIds)
+      ? Array.from(new Set(countyIds.map((id: number) => Number(id)).filter((id: number) => Number.isFinite(id))))
+      : undefined;
 
     // Slug is NOT editable after approval — admin must change it.
     // Appeal fields (appealStatus, appealMessage, issueResolved, etc.) are
     // intentionally NOT accepted here — those are only writable via
     // PATCH /api/vendors/appeal (vendor) and
     // POST /api/admin/vendors/[id]/appeal (admin).
-    const updatedVendor = await prisma.vendor.update({
-      where: { userId: session.user.id },
-      data: {
-        name: name?.trim() || undefined,
-        tagline: tagline?.trim() || null,
-        description: description?.trim() || null,
-        website: website?.trim() || null,
-        logo: logo?.trim() || null,
-        coverImage: coverImage?.trim() || null,
-        location: location?.trim() || null,
-        phone: phone?.trim() || null,
-        twitterUrl: twitterUrl?.trim() || null,
-        instagramUrl: instagramUrl?.trim() || null,
-        facebookUrl: facebookUrl?.trim() || null,
-        linkedinUrl: linkedinUrl?.trim() || null,
-      },
+    const updatedVendor = await prisma.$transaction(async (tx) => {
+      const vendor = await tx.vendor.update({
+        where: { id: existing.id },
+        data: {
+          name: name?.trim() || undefined,
+          tagline: tagline?.trim() || null,
+          description: description?.trim() || null,
+          website: website?.trim() || null,
+          logo: logo?.trim() || null,
+          coverImage: coverImage?.trim() || null,
+          location: location?.trim() || null,
+          phone: phone?.trim() || null,
+          twitterUrl: twitterUrl?.trim() || null,
+          instagramUrl: instagramUrl?.trim() || null,
+          facebookUrl: facebookUrl?.trim() || null,
+          linkedinUrl: linkedinUrl?.trim() || null,
+          servesAllCounties:
+            typeof servesAllCounties === 'boolean' ? servesAllCounties : undefined,
+        },
+      });
+
+      // Replace-on-update for county coverage, same pattern as bulkPricing
+      // in admin/products/[id]/route.ts: drop rows no longer selected,
+      // add rows that are new, leave the rest untouched.
+      if (nextCountyIds !== undefined) {
+        await tx.vendorCounty.deleteMany({
+          where: {
+            vendorId: vendor.id,
+            countyId: { notIn: nextCountyIds },
+          },
+        });
+
+        if (nextCountyIds.length > 0) {
+          await tx.vendorCounty.createMany({
+            data: nextCountyIds.map((countyId) => ({ vendorId: vendor.id, countyId })),
+            skipDuplicates: true,
+          });
+        }
+      }
+
+      return tx.vendor.findUniqueOrThrow({
+        where: { id: vendor.id },
+        include: { counties: { select: { countyId: true } } },
+      });
     });
 
     return NextResponse.json(updatedVendor);

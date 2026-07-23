@@ -10,11 +10,18 @@
 // sidebar + sticky mobile bar, admin = compact modal) — that chrome stays in
 // each caller. Every field, section, and its layout lives here so the two
 // forms can't drift apart again.
+//
+// Legal Details section: admin-only, and only shown when the selected
+// requirement's category is "Legal". Deliberately has NO county field —
+// county availability for a Legal product comes from its Vendor
+// (Vendor.servesAllCounties / Vendor.counties), not from the product
+// itself, so admins just pick the right vendor and validity/processing
+// time here.
 
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import {
-  Tag, Package, DollarSign, Layers, ShieldCheck, Truck, Cpu, Percent, Plus, Trash2, MapPin, Clock, Search
+  Tag, Package, DollarSign, Layers, ShieldCheck, Truck, Cpu, Percent, Plus, Trash2, MapPin, Clock, Search, FileText
 } from 'lucide-react';
 import RequirementPicker, { RequirementOption } from './RequirementPicker';
 
@@ -62,6 +69,12 @@ export type ProductFormValues = {
   negotiable: boolean;
   bulkPricingEnabled: boolean;
   publishImmediately: boolean;
+
+  // Legal (admin only, Legal-category requirements only)
+  validityValue: string;
+  validityUnit: 'days' | 'months' | 'years';
+  processingTimeMinDays: string;
+  processingTimeMaxDays: string;
 };
 
 /** Spread this into your initial state on both sides so every field always has a value. */
@@ -73,6 +86,7 @@ export const EMPTY_PRODUCT_FORM: ProductFormValues = {
   warrantyType: 'NONE', warrantyDurationValue: '', warrantyDurationUnit: 'months',
   deliveryAvailable: false, pickupLocation: '', leadTime: 'IN_STOCK',
   negotiable: false, bulkPricingEnabled: false, publishImmediately: false,
+  validityValue: '', validityUnit: 'years', processingTimeMinDays: '', processingTimeMaxDays: '',
 };
 
 type Props = {
@@ -95,18 +109,21 @@ export default function ProductForm({
   vendors = [], bulkTiers = [], setBulkTiers,
 }: Props) {
   const t = tokens(theme);
-  
-  // 1. PLACE THE HOOK HERE (At the top level of the component)
+
   const [vendorSearch, setVendorSearch] = useState('');
   const [isVendorDropdownOpen, setIsVendorDropdownOpen] = useState(false);
+
+  // Which requirement is selected, and is it Legal? Drives the Legal
+  // Details section below — admin-only, so vendors never see it.
+  const selectedRequirement = requirements.find((r) => r.id.toString() === form.templateId);
+  const isLegalRequirement = mode === 'admin' && selectedRequirement?.category === 'Legal';
 
   const addBulkTier    = () => setBulkTiers?.(rows => [...rows, { minQty: '', price: '' }]);
   const updateBulkTier = (i: number, key: keyof BulkTier, value: string) =>
     setBulkTiers?.(rows => rows.map((row, idx) => (idx === i ? { ...row, [key]: value } : row)));
   const removeBulkTier = (i: number) => setBulkTiers?.(rows => rows.filter((_, idx) => idx !== i));
 
-  // 2. Filter the vendors list here safely
-  const filteredVendors = vendors.filter(([, name]) => 
+  const filteredVendors = vendors.filter(([, name]) =>
     name.toLowerCase().includes(vendorSearch.toLowerCase())
   );
 
@@ -119,8 +136,7 @@ export default function ProductForm({
           <div className={t.twoCol}>
             <div className="relative">
               <label className={t.label}>Vendor <span className={t.required}>*</span></label>
-              
-              {/* Custom Dropdown Trigger Button */}
+
               <button
                 type="button"
                 onClick={() => setIsVendorDropdownOpen(!isVendorDropdownOpen)}
@@ -128,23 +144,21 @@ export default function ProductForm({
                 style={theme === 'dark' ? { backgroundColor: '#1e1e2f', color: '#e2e2ef', border: '1px solid rgba(255,255,255,0.15)' } : undefined}
               >
                 <span>
-                  {form.vendorId 
+                  {form.vendorId
                     ? (vendors.find(([id]) => id === form.vendorId)?.[1] || 'Select vendor…')
                     : 'Select vendor…'}
                 </span>
                 <span className="text-gray-400 pointer-events-none text-[10px]">▼</span>
               </button>
 
-              {/* Dropdown Menu Container */}
               {isVendorDropdownOpen && (
-                <div 
+                <div
                   className="absolute z-50 w-full mt-1 border rounded-lg shadow-xl"
                   style={{
                     backgroundColor: theme === 'dark' ? '#1e1e2f' : '#ffffff',
                     borderColor: theme === 'dark' ? 'rgba(255,255,255,0.15)' : '#e5e7eb',
                   }}
                 >
-                  {/* Inline Search Box positioned inside the drawer header */}
                   <div className="p-2 border-b" style={{ borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : '#f3f4f6' }}>
                     <div className="relative">
                       <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none text-gray-400">
@@ -165,7 +179,6 @@ export default function ProductForm({
                     </div>
                   </div>
 
-                  {/* Scrollable list of vendor items */}
                   <div className="max-h-60 overflow-y-auto p-1">
                     <button
                       type="button"
@@ -178,7 +191,7 @@ export default function ProductForm({
                     >
                       Clear selection
                     </button>
-                    
+
                     {filteredVendors.length === 0 ? (
                       <div className="px-3 py-2 text-xs text-gray-500 italic">No vendors found</div>
                     ) : (
@@ -196,12 +209,8 @@ export default function ProductForm({
                             backgroundColor: form.vendorId === id ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
                             color: theme === 'dark' ? '#e2e2ef' : '#111827'
                           }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = form.vendorId === id ? 'rgba(16, 185, 129, 0.15)' : 'transparent';
-                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.2)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = form.vendorId === id ? 'rgba(16, 185, 129, 0.15)' : 'transparent'; }}
                         >
                           {name}
                         </button>
@@ -240,6 +249,52 @@ export default function ProductForm({
             label="Select Requirement"
             variant={theme}
           />
+        </Section>
+      )}
+
+      {/* Legal Details — admin only, only when the selected requirement is Legal.
+          No county field here on purpose — see file header comment. */}
+      {isLegalRequirement && (
+        <Section theme={theme} title="Legal Details" icon={<FileText size={14} />} subtitle="Validity and processing time shown on the product card for this permit/licence/certificate.">
+          <div className={t.twoCol}>
+            <div>
+              <label className={t.label}>Validity period</label>
+              <div className="flex gap-2">
+                <input
+                  type="number" min="0" className={t.input} placeholder="e.g. 1"
+                  value={form.validityValue}
+                  onChange={(e) => setForm((f) => ({ ...f, validityValue: e.target.value }))}
+                />
+                <select
+                  className={`${t.input} max-w-[110px]`}
+                  value={form.validityUnit}
+                  onChange={(e) => setForm((f) => ({ ...f, validityUnit: e.target.value as any }))}
+                >
+                  <option value="days">Days</option>
+                  <option value="months">Months</option>
+                  <option value="years">Years</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className={t.label}>Processing time (days)</label>
+              <div className="flex gap-2">
+                <input
+                  type="number" min="0" className={t.input} placeholder="Min e.g. 3"
+                  value={form.processingTimeMinDays}
+                  onChange={(e) => setForm((f) => ({ ...f, processingTimeMinDays: e.target.value }))}
+                />
+                <input
+                  type="number" min="0" className={t.input} placeholder="Max e.g. 5"
+                  value={form.processingTimeMaxDays}
+                  onChange={(e) => setForm((f) => ({ ...f, processingTimeMaxDays: e.target.value }))}
+                />
+              </div>
+            </div>
+          </div>
+          <div className="mt-2 text-xs text-gray-400">
+            County availability for this product is set on the Vendor above (which counties they serve), not here.
+          </div>
         </Section>
       )}
 
@@ -412,7 +467,6 @@ export default function ProductForm({
           </div>
         </div>
 
-        {/* Commercial terms */}
         <div className={t.subSection}>
           <div className="mb-3 flex items-center gap-2">
             <Percent size={13} className={t.mutedIcon} />
@@ -589,7 +643,6 @@ function tokens(theme: ProductFormTheme) {
       tierBox: 'rounded-xl border border-gray-100 bg-gray-50 p-3',
     };
   }
-  // dark — reuses your existing lib/styles form-* classes so it matches the rest of the admin modal
   return {
     twoCol: 'grid grid-cols-1 gap-3 sm:grid-cols-2',
     label: 'form-label',

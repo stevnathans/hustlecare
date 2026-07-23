@@ -289,6 +289,17 @@ model Product {
   negotiable   Boolean         @default(false)
   bulkPricing  BulkPriceTier[]
 
+  // Legal (Legal-category products only — validity + processing time for a
+  // permit/licence/certificate). County availability is NOT stored here —
+  // it's derived from the product's Vendor (see Vendor.servesAllCounties /
+  // Vendor.counties below), since a vendor's county coverage is the single
+  // source of truth for both hard-filtering Legal products and soft-sorting
+  // every other category.
+  validityValue          Float?
+  validityUnit           DurationUnit?
+  processingTimeMinDays  Int?
+  processingTimeMaxDays  Int?
+
   cartItems    CartItem[]
   template     RequirementTemplate? @relation(fields: [templateId], references: [id])
   vendor       Vendor?              @relation(fields: [vendorId], references: [id])
@@ -338,6 +349,40 @@ enum VendorClaimStatus {
   REJECTED
 }
 
+// ── County (Kenya's 47 counties) ────────────────────────────────────────────
+// Reference data — seeded once, rarely changes. Used two ways:
+//   1. Legal category: a vendor NOT flagged servesAllCounties only shows its
+//      products when its county is selected (e.g. County Government of
+//      Nairobi's Business Permit only appears when Nairobi is selected).
+//   2. Every other category: purely a sort signal — vendors covering the
+//      selected county float to the top, nothing is ever hidden.
+model County {
+  id        Int            @id @default(autoincrement())
+  name      String         @unique
+  slug      String         @unique
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  vendorCounties VendorCounty[]
+
+  @@index([slug])
+}
+
+// Many-to-many: a vendor can serve several counties (e.g. an equipment
+// supplier with branches in Nairobi + Mombasa). County governments will
+// typically have exactly one row here (their own county).
+model VendorCounty {
+  id       Int    @id @default(autoincrement())
+  vendorId Int
+  countyId Int
+  vendor   Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  county   County @relation(fields: [countyId], references: [id], onDelete: Cascade)
+
+  @@unique([vendorId, countyId])
+  @@index([vendorId])
+  @@index([countyId])
+}
+
 model Vendor {
   id                Int                @id @default(autoincrement())
   name              String
@@ -383,6 +428,14 @@ model Vendor {
   mpesaNumber          String?            // for payouts; add bank fields later if needed
   vendorSubOrders      VendorSubOrder[]
   payouts              VendorPayout[]
+
+  // County coverage — defaults to "serves everywhere" so vendors whose
+  // products aren't location-bound (software, KRA, KEBS, most national
+  // bodies) need zero setup. Only vendors who actually restrict themselves
+  // to specific counties (county governments, local suppliers) need to flip
+  // this off and populate `counties`.
+  servesAllCounties Boolean        @default(true)
+  counties          VendorCounty[]
 
   @@index([claimStatus])
   @@unique([name, website])
@@ -770,25 +823,20 @@ enum NotifType {
   WARNING
 }
 
-// One generic table for every service's questionnaire — service-specific
-// shape lives in the `answers` Json column, validated by that service's
-// Zod schema at the application layer, not the database layer.
-
 model QuestionnaireDraft {
   id           String   @id @default(cuid())
-  serviceSlug  String // "business-plan-writing", "website-creation", etc.
-  packageTier  String? // null for services without tiers
+  serviceSlug  String
+  packageTier  String?
   currentStep  Int      @default(0)
   answers      Json     @default("{}")
   contactEmail String?
   contactPhone String?
-  status       String   @default("draft") // "draft" | "submitted"
-  orderNumber  String?  @unique // generated on submit, e.g. "HC-BPW-20260714-4821"
+  status       String   @default("draft")
+  orderNumber  String?  @unique
 
-  // Admin/fulfillment fields — independent of `status` above.
-  adminStatus  String   @default("new") // "new" | "in_progress" | "delivered" | "cancelled"
-  adminNotes   String?  // internal notes, e.g. "waiting on logo file via WhatsApp"
-  archived     Boolean  @default(false) // soft-delete: hidden from the admin list by default
+  adminStatus  String   @default("new")
+  adminNotes   String?
+  archived     Boolean  @default(false)
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -800,7 +848,7 @@ model QuestionnaireDraft {
 
 model Order {
   id                String            @id @default(uuid())
-  orderNumber       String            @unique // e.g. "HC-ORD-20260719-0001"
+  orderNumber       String            @unique
   userId            String
   businessId        Int
 
@@ -838,9 +886,9 @@ model VendorSubOrder {
   vendorId          Int
 
   subtotal          Float
-  commissionRate    Float             @default(0) // snapshot at order time — never re-read live Vendor rate
+  commissionRate    Float             @default(0)
   commissionAmount  Float             @default(0)
-  payoutAmount      Float             // subtotal - commissionAmount
+  payoutAmount      Float
 
   status            VendorOrderStatus @default(PENDING_VENDOR_CONFIRMATION)
   vendorNotes       String?
@@ -873,7 +921,7 @@ model OrderItem {
   productId         Int
 
   quantity          Int               @default(1)
-  unitPrice         Float             // snapshot — never trust live Product.price for a placed order
+  unitPrice         Float
   lineTotal         Float
 
   vendorSubOrder    VendorSubOrder    @relation(fields: [vendorSubOrderId], references: [id], onDelete: Cascade)
@@ -889,10 +937,10 @@ model Payment {
   id            String        @id @default(uuid())
   orderId       String        @unique
   amount        Float
-  provider      String?       // "pesapal" — null until first submit attempt
-  providerRef   String?       // Pesapal order_tracking_id
+  provider      String?
+  providerRef   String?
   status        PaymentStatus @default(PENDING)
-  attempts      Int           @default(0) // incremented on each (re)submit to Pesapal
+  attempts      Int           @default(0)
 
   order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
@@ -935,16 +983,6 @@ enum PayoutStatus {
   FAILED
 }
 
-// ─────────────────────────────────────────────────────────────
-// NEW MODEL — analytics event log.
-//
-// Deliberately uses plain Int/String fields instead of Prisma relations
-// for vendorId/productId/businessId. This is an event log, not a
-// transactional record — we don't want onDelete cascades wiping out
-// historical analytics if a product or vendor is later removed, and we
-// mostly query this table with groupBy/aggregate rather than joins.
-// ─────────────────────────────────────────────────────────────
-
 model AnalyticsEvent {
   id              String             @id @default(uuid())
   type            AnalyticsEventType
@@ -965,11 +1003,9 @@ model AnalyticsEvent {
 
 enum AnalyticsEventType {
   PRODUCT_VIEW
-  BUY_NOW_CLICK       // user clicked Buy Now on a ProductCard or in the calculator
-  OUTBOUND_REDIRECT   // user actually continued from the interstitial to the vendor/WhatsApp
+  BUY_NOW_CLICK
+  OUTBOUND_REDIRECT
   CART_ADD
   CART_REMOVE
   DONATION_CLICK
 }
-
-

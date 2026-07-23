@@ -1,17 +1,8 @@
 // detailsPage/RequirementsSection.tsx
-// Only change: adds optional `onProductAssigned` prop and threads it
-// down to CategorySection so admins can trigger a product list refresh
-// after assigning a product to a requirement.
-//
-// SEO note: the JSON-LD ItemList schema that was previously generated here
-// (generateRequirementsSchema) has been removed. It was:
-//   1. Typing requirements as "@type": "Product", causing Google Search Console
-//      errors for missing Product-required fields (offers, price, etc.).
-//   2. Injected from a 'use client' component, meaning crawlers may not see it
-//      in the initial HTML response.
-//
-// The schema is now emitted server-side in page.tsx with "@type": "Thing",
-// which is the correct type for a business prerequisite that is not a product.
+// New: threads `legalUnavailableInCounty` down to CategorySection so a
+// Legal requirement that's empty ONLY because of the county filter can
+// show the "not yet listed for this county" state instead of the generic
+// "no products" one.
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
@@ -33,7 +24,7 @@ interface RequirementLocal {
 
 interface CategoryState {
   showFilter: boolean;
-  filter: string;       // was 'all' | 'required' | 'optional'
+  filter: string;
   showSearch: boolean;
   searchQuery: string;
 }
@@ -44,19 +35,20 @@ interface RequirementsSectionProps {
   sortedCategories: string[];
   groupedRequirements: Record<string, RequirementLocal[]>;
   products: Record<string, Product[]>;
+  /** requirement name -> true when Legal products exist elsewhere but none match the selected county */
+  legalUnavailableInCounty?: Record<string, boolean>;
   categoryStates: Record<string, CategoryState>;
   globalSearchQuery: string;
-  globalFilter: string;                          // was union type
-  availableNecessities: string[];                 // new
+  globalFilter: string;
+  availableNecessities: string[];
   setGlobalSearchQuery: (query: string) => void;
-  setGlobalFilter: (filter: string) => void;      // was union type
+  setGlobalFilter: (filter: string) => void;
   onToggleCategorySearch: (category: string) => void;
   onToggleFilter: (category: string) => void;
   onCategorySearchChange: (category: string, query: string) => void;
-  onSetFilter: (category: string, filter: string) => void; // was union type
+  onSetFilter: (category: string, filter: string) => void;
   getFilteredRequirements: (category: string) => RequirementLocal[];
   isLoading?: boolean;
-  /** Called after an admin assigns a product to a requirement so the page can re-fetch. */
   onProductAssigned?: () => void;
 }
 
@@ -76,6 +68,7 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
   sortedCategories,
   groupedRequirements,
   products,
+  legalUnavailableInCounty,
   categoryStates,
   globalSearchQuery,
   globalFilter,
@@ -189,12 +182,12 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
         </div>
         <div className="mt-6 text-sm text-gray-500">
           <p className="mb-2">Try adjusting your search terms or filters, or</p>
-          <a
+          <Link
             href="/contact"
             className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
           >
             request specific requirements for {businessName} business
-          </a>
+          </Link>
         </div>
       </div>
     );
@@ -335,41 +328,38 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
         role="main"
         aria-label={`Requirements for ${businessName} business`}
       >
-        {/* ── Section heading — styled to match BusinessHeader's cost section:
-            centered, same font size, same gradient underline bar, card panel. */}
-        
-          <div className="mt-6 mb-4">
-            <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-center text-slate-900 mb-3 sm:mb-4">
-              Complete List of Requirements For {businessName} Business
-            </h2>
-            <div className="w-16 sm:w-20 h-1 bg-gradient-to-r from-emerald-500 to-blue-500 mx-auto rounded-full mb-4" />
-            <p className="text-gray-700 leading-relaxed">
-              Below is a categorized list of all the requirements you need to
-              start a profitable {businessName} business. Each category contains
-              both essential and optional requirements. Use the search and filter
-              options to easily find items, and add them to your cost calculator
-              to understand how much you need to start a {businessName} business.
-            </p>
-          </div>
-        
+        <div className="mt-6 mb-4">
+          <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-center text-slate-900 mb-3 sm:mb-4">
+            Complete List of Requirements For {businessName} Business
+          </h2>
+          <div className="w-16 sm:w-20 h-1 bg-gradient-to-r from-emerald-500 to-blue-500 mx-auto rounded-full mb-4" />
+          <p className="text-gray-700 leading-relaxed">
+            Below is a categorized list of all the requirements you need to
+            start a profitable {businessName} business. Each category contains
+            both essential and optional requirements. Use the search and filter
+            options to easily find items, and add them to your cost calculator
+            to understand how much you need to start a {businessName} business.
+          </p>
+        </div>
+
         <StickyQuickNavigation
-  categories={categoryInfo}
-  businessName={businessName}
-  globalSearchQuery={globalSearchQuery}
-  setGlobalSearchQuery={setGlobalSearchQuery}
-  globalFilter={globalFilter}
-  setGlobalFilter={setGlobalFilter}
-  availableNecessities={availableNecessities}
-/>
+          categories={categoryInfo}
+          businessName={businessName}
+          globalSearchQuery={globalSearchQuery}
+          setGlobalSearchQuery={setGlobalSearchQuery}
+          globalFilter={globalFilter}
+          setGlobalFilter={setGlobalFilter}
+          availableNecessities={availableNecessities}
+        />
 
         <section aria-label="Business search and filters">
           <GlobalSearchFilter
-  globalSearchQuery={globalSearchQuery}
-  setGlobalSearchQuery={setGlobalSearchQuery}
-  globalFilter={globalFilter}
-  setGlobalFilter={setGlobalFilter}
-  availableNecessities={availableNecessities}
-/>
+            globalSearchQuery={globalSearchQuery}
+            setGlobalSearchQuery={setGlobalSearchQuery}
+            globalFilter={globalFilter}
+            setGlobalFilter={setGlobalFilter}
+            availableNecessities={availableNecessities}
+          />
         </section>
 
         {showGlobalNoResults ? (
@@ -393,6 +383,7 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
                   requirements={groupedRequirements[category]}
                   filteredRequirements={filteredReqs}
                   products={products}
+                  legalUnavailableInCounty={legalUnavailableInCounty}
                   categoryState={categoryState}
                   globalSearchQuery={globalSearchQuery}
                   globalFilter={globalFilter}

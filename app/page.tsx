@@ -11,26 +11,16 @@ import { WhatWeDoSection } from "@/components/WhatWeDo";
 import { HomepageServicesSection } from "@/components/Homepageservicessection";
 import { HowItWorksSection } from "@/components/HowItWorksSection";
 
-// Requirements no longer come from @prisma/client directly.
-// The /api/businesses endpoint resolves them from BusinessRequirement + template
-// and returns this flat shape.
-type Requirement = {
-  id: number;
-  templateId: number;
-  name: string;
-  category: string;
-  image: string | null;
-  necessity: string;
-};
-
+// /api/businesses now returns { businesses, total, page, limit, totalPages }
+// with a precomputed requirementsCount instead of the full nested
+// grouped-requirements tree (BusinessCard only ever needed the count).
 type Business = {
-  sortedCategories: string[];
-  groupedRequirements: Record<string, Requirement[]>;
-  requirements: Requirement[];
   id: string;
   name: string;
   image: string;
   slug: string;
+  category?: string;
+  requirementsCount: number;
 };
 
 export default function Home() {
@@ -38,10 +28,12 @@ export default function Home() {
 
   const fetchBusinesses = async () => {
     try {
-      const res = await fetch("/api/businesses");
+      // Homepage only ever renders 3 cards — ask the API for exactly that
+      // instead of pulling the whole published catalog.
+      const res = await fetch("/api/businesses?limit=3");
       if (!res.ok) throw new Error("Failed to fetch businesses");
       const data = await res.json();
-      setBusinesses(data);
+      setBusinesses(data.businesses ?? []);
     } catch (error) {
       console.error("Error fetching businesses:", error);
     }
@@ -94,7 +86,7 @@ export default function Home() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {businesses.length > 0 ? (
-              businesses.slice(0, 3).map((business, index) => (
+              businesses.map((business, index) => (
                 <motion.div
                   key={business.id}
                   initial={{ y: 30, opacity: 0 }}
@@ -106,9 +98,8 @@ export default function Home() {
                     id={business.id}
                     name={business.name}
                     image={business.image}
-                    requirements={business.requirements}
-                    groupedRequirements={business.groupedRequirements}
-                    sortedCategories={business.sortedCategories}
+                    category={business.category}
+                    requirementsCount={business.requirementsCount}
                     slug={business.slug}
                   />
                 </motion.div>

@@ -14,11 +14,11 @@ import {
 import { FiPlus, FiCheck } from "react-icons/fi";
 import Image from "next/image";
 import { useCart } from "@/contexts/CartContext";
+import { useCounty } from "@/contexts/CountyContext";
 import { useSession } from "next-auth/react";
 import LoginModal from "@/components/LoginModal";
 import { necessityStyle } from "@/lib/necessity";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+import NoCountyProductState from "./NoCountyProductState";
 
 interface RequirementCardProps {
   requirement: {
@@ -31,14 +31,13 @@ interface RequirementCardProps {
     image?: string;
   };
   products?: Product[];
+  /** true when this is a Legal requirement with products elsewhere, but none matching the selected county */
+  countyUnavailable?: boolean;
   onProductAssigned?: () => void;
-  /** Business name used to fill in [businessName] placeholders in the description. */
   businessName?: string;
-  /** Needed so ProductCard's Buy Now can create an order tied to the right business. */
   businessId: number;
 }
 
-/** Replaces every [businessName] placeholder with the actual business name. */
 function personalizeDescription(text: string, businessName?: string): string {
   if (!businessName) return text;
   return text.replace(/\[businessName\]/g, businessName);
@@ -61,15 +60,13 @@ function AddProductToRequirementModal({
   onClose,
   onAssigned,
 }: AddProductModalProps) {
-  const [allProducts, setAllProducts] = useState<
-    {
-      id: number;
-      name: string;
-      price: number;
-      image?: string;
-      templateId?: number | null;
-    }[]
-  >([]);
+  const [allProducts, setAllProducts] = useState<{
+    id: number;
+    name: string;
+    price: number;
+    image?: string;
+    templateId?: number | null;
+  }[]>([]);
   const [search, setSearch] = useState("");
   const [fetching, setFetching] = useState(false);
   const [assigning, setAssigning] = useState<number | null>(null);
@@ -137,7 +134,6 @@ function AddProductToRequirementModal({
         style={{ maxHeight: "85vh", animation: "rc-slideUp 0.2s ease" }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex items-start justify-between gap-3 p-5 border-b border-gray-100">
           <div>
             <h3 className="text-base font-bold text-gray-900">
@@ -158,7 +154,6 @@ function AddProductToRequirementModal({
           </button>
         </div>
 
-        {/* Search */}
         <div className="px-4 py-3 border-b border-gray-50">
           <div className="relative">
             <svg
@@ -182,7 +177,6 @@ function AddProductToRequirementModal({
           </div>
         </div>
 
-        {/* Error banner */}
         {error && (
           <div className="mx-4 mt-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600 flex items-center gap-2">
             <svg
@@ -200,7 +194,6 @@ function AddProductToRequirementModal({
           </div>
         )}
 
-        {/* Product list */}
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
           {fetching ? (
             Array.from({ length: 5 }).map((_, i) => (
@@ -238,7 +231,6 @@ function AddProductToRequirementModal({
                       : "bg-gray-50 border-gray-100 hover:border-gray-200"
                   }`}
                 >
-                  {/* Thumbnail */}
                   <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-200 shrink-0 flex items-center justify-center">
                     {product.image ? (
                       <Image
@@ -263,7 +255,6 @@ function AddProductToRequirementModal({
                     )}
                   </div>
 
-                  {/* Name + price */}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-900 truncate">
                       {product.name}
@@ -273,7 +264,6 @@ function AddProductToRequirementModal({
                     </p>
                   </div>
 
-                  {/* Action */}
                   {isAlreadyAssigned ? (
                     <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-100 px-2.5 py-1 rounded-full">
                       <FiCheck size={12} />
@@ -317,7 +307,6 @@ function AddProductToRequirementModal({
           )}
         </div>
 
-        {/* Footer */}
         <div className="px-4 py-3 border-t border-gray-100 bg-gray-50 flex justify-end">
           <button
             onClick={onClose}
@@ -341,6 +330,7 @@ function AddProductToRequirementModal({
 export default function RequirementCard({
   requirement,
   products = [],
+  countyUnavailable = false,
   onProductAssigned,
   businessName,
   businessId,
@@ -352,6 +342,7 @@ export default function RequirementCard({
 
   const { addToCart, removeFromCart, items } = useCart();
   const { data: session } = useSession();
+  const { selectedCounty } = useCounty();
 
   const canAddProduct =
     (session?.user as { role?: string })?.role === "admin" ||
@@ -386,14 +377,10 @@ export default function RequirementCard({
     }
   };
 
-  // Necessity/demand display config — driven by category, so "Stock" gets the
-  // High/Medium/Low Demand palette while every other category keeps
-  // Required/Optional styling. See lib/necessity.ts for the source of truth.
   const style = necessityStyle(requirement.category, requirement.necessity);
 
   return (
     <>
-      {/* Login Modal */}
       {showLoginModal && (
         <LoginModal
           isOpen={showLoginModal}
@@ -402,7 +389,6 @@ export default function RequirementCard({
         />
       )}
 
-      {/* Add Product Modal */}
       {showAddProductModal && requirement.templateId && (
         <AddProductToRequirementModal
           templateId={requirement.templateId}
@@ -413,7 +399,6 @@ export default function RequirementCard({
         />
       )}
 
-      {/* Image Lightbox */}
       {isImageOpen && requirement.image && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
@@ -445,13 +430,10 @@ export default function RequirementCard({
       )}
 
       <div className="group relative bg-white sm:rounded-2xl border-y sm:border border-gray-100 shadow-sm hover:shadow-xl sm:hover:border-gray-200 transition-all duration-300 sm:mb-6 mb-4 overflow-hidden">
-        {/* Gradient hover overlay — pointer-events-none so it never blocks clicks */}
         <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 via-transparent to-purple-50/30 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
-        {/* ── Collapsed card body ────────────────────────────────────────── */}
         <div className="relative p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-start sm:space-x-4">
-            {/* Image + title */}
             <div className="flex items-start space-x-3 sm:space-x-4 mb-3 sm:mb-0 sm:w-64 sm:flex-shrink-0">
               <div className="relative flex-shrink-0">
                 <div
@@ -489,7 +471,6 @@ export default function RequirementCard({
               </div>
             </div>
 
-            {/* Stats + action buttons */}
             <div className="w-full sm:flex-1 sm:min-w-0">
               {requirement.description && (
                 <p className="text-gray-600 text-sm leading-relaxed mb-4">
@@ -501,9 +482,7 @@ export default function RequirementCard({
               )}
 
               <div className="space-y-4">
-                {/* Price + count + right-side buttons row */}
                 <div className="flex flex-row items-center justify-between sm:justify-start sm:gap-6">
-                  {/* Price */}
                   {productCount > 0 ? (
                     <div className="flex items-center space-x-2">
                       <div className="p-2 rounded-lg bg-emerald-50">
@@ -530,7 +509,6 @@ export default function RequirementCard({
                     </div>
                   )}
 
-                  {/* Product count */}
                   {productCount > 0 && (
                     <div className="flex items-center space-x-2">
                       <div className="p-2 rounded-lg bg-blue-50">
@@ -548,7 +526,6 @@ export default function RequirementCard({
                     </div>
                   )}
 
-                  {/* ── Desktop: right-side buttons (collapsed state) ──────── */}
                   <div className="hidden sm:flex items-center gap-2 ml-auto">
                     {productCount === 0 &&
                       canAddProduct &&
@@ -604,7 +581,6 @@ export default function RequirementCard({
                   </div>
                 </div>
 
-                {/* ── Mobile: buttons (collapsed state) ─────────────────────── */}
                 <div className="sm:hidden flex flex-col gap-2">
                   {productCount === 0 &&
                     canAddProduct &&
@@ -657,19 +633,25 @@ export default function RequirementCard({
                     </button>
                   )}
                 </div>
+
+                {/* County-specific empty state — only when this Legal
+                    requirement has products elsewhere but none for the
+                    currently selected county. */}
+                {countyUnavailable && productCount === 0 && (
+                  <NoCountyProductState
+                    requirementName={requirement.name}
+                    countyName={selectedCounty?.name || "your county"}
+                  />
+                )}
               </div>
             </div>
           </div>
         </div>
 
-        {/* ── Expanded products section ───────────────────────────────────── */}
         {isExpanded && productCount > 0 && (
           <div className="border-t border-gray-100 bg-gradient-to-r from-gray-50/50 to-blue-50/50">
             <div className="p-2 sm:p-6">
-              {/* Header row */}
               <div className="flex items-center justify-between mb-4">
-                {/* Left side: icon + heading — capped so it can never overflow
-                    into the Add Product button on the right */}
                 <div className="flex items-center space-x-2 min-w-0 mr-3">
                   <div className="w-6 h-6 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
                     <ShoppingBagIcon className="h-4 w-4 text-blue-600" />
@@ -679,8 +661,6 @@ export default function RequirementCard({
                   </h4>
                 </div>
 
-                {/* Add Product button — flex-shrink-0 ensures it is never
-                    compressed or overlapped by the heading on the left */}
                 {canAddProduct && requirement.templateId && (
                   <button
                     onClick={() => setShowAddProductModal(true)}

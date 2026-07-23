@@ -24,6 +24,7 @@ import Image from "next/image";
 import { useCart } from "@/contexts/CartContext";
 import { useSession } from "next-auth/react";
 import LoginModal from "../LoginModal";
+import { getBuyActionLabel } from "@/lib/buyAction";
 
 type DurationUnit = "days" | "months" | "years";
 
@@ -75,12 +76,16 @@ interface ProductCardProps {
     // Commercial terms
     negotiable?: boolean;
     bulkPricing?: BulkPriceTier[];
+
+    // Legal (Legal-category products) — county availability is derived
+    // from the vendor, not stored here.
+    validityValue?: number | null;
+    validityUnit?: DurationUnit | null;
+    processingTimeMinDays?: number | null;
+    processingTimeMaxDays?: number | null;
   };
   requirementName: string;
   category: string;
-  // Passed through as query params on the redirect link so the interstitial
-  // can log a fully-contextualized analytics event (which business/requirement
-  // this click came from, not just which product).
   businessId?: number;
 }
 
@@ -113,6 +118,13 @@ function formatReceipt(hasReceipt?: "YES" | "NO" | "UNKNOWN" | null): string | n
     case "UNKNOWN": return "Receipt availability not specified";
     default: return null;
   }
+}
+
+function formatProcessingTime(min?: number | null, max?: number | null): string | null {
+  if (min == null && max == null) return null;
+  if (min != null && max != null && min !== max) return `${min}–${max} Days`;
+  const val = min ?? max;
+  return `${val} Day${val === 1 ? "" : "s"}`;
 }
 
 function buildRedirectHref(
@@ -180,17 +192,19 @@ function Portal({ children }: { children: React.ReactNode }) {
   return createPortal(children, portalRoot.current);
 }
 
-// ── Image Lightbox — "buy" link now goes to the redirect interstitial ─────────
+// ── Image Lightbox ─────────────────────────────────────────────────────────
 function ImageLightbox({
   src,
   alt,
   onClose,
   redirectHref,
+  buyLabel,
 }: {
   src: string;
   alt: string;
   onClose: () => void;
   redirectHref: string;
+  buyLabel: string;
 }) {
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -243,7 +257,7 @@ function ImageLightbox({
               onClick={(e) => e.stopPropagation()}
               className="inline-block bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-lg shadow-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
             >
-              Buy Now
+              {buyLabel}
             </Link>
           </div>
         </div>
@@ -305,6 +319,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
   const cartQuantity = cartItem?.quantity || 0;
 
   const redirectHref = buildRedirectHref(product.id, businessId, requirementName, category);
+  const buyLabel = getBuyActionLabel(category);
 
   const handleAddToCart = async () => {
     if (!session) {
@@ -348,19 +363,23 @@ const ProductCard: React.FC<ProductCardProps> = ({
   const hasSpecs = !!(product.brand || product.modelNumber || product.voltage || product.wattage || product.dimensions || weightLabel);
   const hasBulkPricing = Array.isArray(product.bulkPricing) && product.bulkPricing.length > 0;
 
+  const isLegal = category === "Legal";
+  const validityLabel = formatDuration(product.validityValue, product.validityUnit);
+  const processingTimeLabel = formatProcessingTime(product.processingTimeMinDays, product.processingTimeMaxDays);
+  const hasLegalDetails = isLegal && (validityLabel || processingTimeLabel);
+
   return (
     <>
-      {/* Lightbox — portaled to body, always above everything */}
       {isImageOpen && product.image && (
         <ImageLightbox
           src={product.image}
           alt={product.name}
           onClose={() => setIsImageOpen(false)}
           redirectHref={redirectHref}
+          buyLabel={buyLabel}
         />
       )}
 
-      {/* Login modal — portaled to body, always above everything */}
       <PortaledLoginModal
         isOpen={showLoginModal}
         onClose={() => setShowLoginModal(false)}
@@ -370,10 +389,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
       {/* ── Card ── */}
       <div className="border rounded-xl overflow-hidden bg-white transition-all duration-200">
         <div className="p-3">
-          {/* Top Row: Image, Name/Price, Add Button */}
           <div className="flex items-start gap-3 mb-3">
-
-            {/* Product Image — clickable to open lightbox */}
             <div
               className={`group/img relative w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-gray-50 to-gray-100 flex-shrink-0 rounded-lg overflow-hidden ${
                 product.image ? "cursor-pointer" : ""
@@ -424,7 +440,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
               )}
             </div>
 
-            {/* Name and Price */}
             <div className="flex-1 min-w-0">
               <h3 className="text-sm sm:text-base font-semibold text-gray-900 line-clamp-2 leading-snug mb-1">
                 {product.name}
@@ -442,7 +457,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
               </div>
             </div>
 
-            {/* Add / Remove Button */}
             <button
               onClick={isInCart ? handleRemoveFromCart : handleAddToCart}
               className={`flex-shrink-0 flex items-center justify-center w-9 h-9 sm:w-auto sm:h-auto sm:gap-1.5 sm:px-3 sm:py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${
@@ -466,7 +480,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
             </button>
           </div>
 
-          {/* Trust / condition badges */}
           {(product.condition || hasWarranty || product.deliveryAvailable) && (
             <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
               {product.condition && (
@@ -487,7 +500,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
             </div>
           )}
 
-          {/* Cart Status */}
           {isInCart && (
             <div className="flex items-center gap-1.5 text-xs text-green-600 mb-3">
               <FiCheck size={12} />
@@ -495,21 +507,19 @@ const ProductCard: React.FC<ProductCardProps> = ({
             </div>
           )}
 
-          {/* Description preview (collapsed state) */}
           {!showDetails && product.description && (
             <p className="text-xs sm:text-sm text-gray-600 line-clamp-2 mb-3">
               {product.description}
             </p>
           )}
 
-          {/* Action Buttons Row */}
           <div className="flex items-center gap-2 flex-wrap">
             <Link
               href={redirectHref}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition font-medium"
             >
               <FiShoppingBag size={14} />
-              <span>Buy Now</span>
+              <span>{buyLabel}</span>
             </Link>
 
             <button
@@ -526,7 +536,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
           </div>
         </div>
 
-        {/* Expandable Details Panel */}
         {showDetails && (
           <div className="px-3 pb-3 pt-2 border-t bg-gray-50">
             <div className="space-y-3 text-sm">
@@ -540,6 +549,15 @@ const ProductCard: React.FC<ProductCardProps> = ({
                 <DetailBlock label="Category">{category}</DetailBlock>
                 <DetailBlock label="Requirement">{requirementName}</DetailBlock>
               </div>
+
+              {hasLegalDetails && (
+                <DetailBlock label="Legal Details">
+                  <div className="space-y-1">
+                    {validityLabel && <p>Validity: {validityLabel}</p>}
+                    {processingTimeLabel && <p>Processing Time: {processingTimeLabel}</p>}
+                  </div>
+                </DetailBlock>
+              )}
 
               {product.condition && (
                 <DetailBlock label="Condition">

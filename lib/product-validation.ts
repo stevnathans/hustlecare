@@ -20,7 +20,10 @@ export interface BulkTierInput { minQty: number | string; price: number | string
  */
 export function validateProductEnums(body: Record<string, unknown>): string[] {
   const errors: string[] = [];
-  const { condition, usedDurationUnit, hasReceipt, weightUnit, warrantyType, warrantyDurationUnit, leadTime, status } = body as any;
+  const {
+    condition, usedDurationUnit, hasReceipt, weightUnit, warrantyType,
+    warrantyDurationUnit, leadTime, status, validityUnit,
+  } = body as any;
 
   if (condition !== undefined && condition !== null && !VALID_CONDITIONS.includes(condition)) {
     errors.push('Invalid condition.');
@@ -45,6 +48,9 @@ export function validateProductEnums(body: Record<string, unknown>): string[] {
   }
   if (status !== undefined && status !== null && !VALID_PRODUCT_STATUSES.includes(status)) {
     errors.push('Invalid status.');
+  }
+  if (validityUnit !== undefined && validityUnit !== null && !VALID_DURATION_UNITS.includes(validityUnit)) {
+    errors.push('Invalid validity unit.');
   }
   return errors;
 }
@@ -77,24 +83,41 @@ export function validateBulkPricing(bulkPricing: unknown): { errors: string[]; t
   };
 }
 
-/** Shared field mapper for the "create" shape (undefined → null defaults). */
+/** True if `v` is present and not an empty string (but 0 and false both count as present). */
+export function hasValue(v: unknown): boolean {
+  return v !== undefined && v !== null && v !== '';
+}
+
+/** Shared field mapper for the "create" shape (undefined/blank → null defaults).
+ *
+ *  BUGFIX: every optional numeric field here must check `hasValue()` (which
+ *  excludes '') and NOT just `!= null` — an empty string is neither undefined
+ *  nor null, so `Number('')` silently evaluates to 0 instead of staying null.
+ *  That previously affected price, priceMin, priceMax, stock,
+ *  usedDurationValue, and warrantyDurationValue (e.g. an admin marking a
+ *  product USED but leaving "how long used" blank would save it as
+ *  "used for 0 months" instead of leaving it unset). weight, validityValue,
+ *  and processingTimeMinDays/MaxDays were already guarded correctly — this
+ *  just brings the rest of the function in line with that same pattern.
+ */
 export function mapProductCreateFields(body: Record<string, any>) {
   const isUsed = body.condition === 'USED';
   const hasWarranty = !!body.warrantyType && body.warrantyType !== 'NONE';
+  const hasValidity = hasValue(body.validityValue);
   return {
     name: body.name?.trim(),
     description: body.description?.trim() || null,
-    price: body.price !== undefined && body.price !== null ? Number(body.price) : null,
-    priceMin: body.priceMin !== undefined && body.priceMin !== null ? Number(body.priceMin) : null,
-    priceMax: body.priceMax !== undefined && body.priceMax !== null ? Number(body.priceMax) : null,
+    price: hasValue(body.price) ? Number(body.price) : null,
+    priceMin: hasValue(body.priceMin) ? Number(body.priceMin) : null,
+    priceMax: hasValue(body.priceMax) ? Number(body.priceMax) : null,
     currency: body.currency || 'KES',
     image: body.image?.trim() || null,
     url: body.url?.trim() || null,
     sku: body.sku?.trim() || null,
-    stock: body.stock !== undefined && body.stock !== null ? Number(body.stock) : null,
+    stock: hasValue(body.stock) ? Number(body.stock) : null,
 
     condition: body.condition || 'NEW',
-    usedDurationValue: isUsed && body.usedDurationValue != null ? Number(body.usedDurationValue) : null,
+    usedDurationValue: isUsed && hasValue(body.usedDurationValue) ? Number(body.usedDurationValue) : null,
     usedDurationUnit: isUsed ? (body.usedDurationUnit || null) : null,
     hasReceipt: isUsed ? (body.hasReceipt || null) : null,
 
@@ -103,11 +126,11 @@ export function mapProductCreateFields(body: Record<string, any>) {
     voltage: body.voltage?.trim() || null,
     wattage: body.wattage?.trim() || null,
     dimensions: body.dimensions?.trim() || null,
-    weight: body.weight != null && body.weight !== '' ? Number(body.weight) : null,
-    weightUnit: body.weight != null && body.weight !== '' ? (body.weightUnit || null) : null,
+    weight: hasValue(body.weight) ? Number(body.weight) : null,
+    weightUnit: hasValue(body.weight) ? (body.weightUnit || null) : null,
 
     warrantyType: body.warrantyType || 'NONE',
-    warrantyDurationValue: hasWarranty && body.warrantyDurationValue != null ? Number(body.warrantyDurationValue) : null,
+    warrantyDurationValue: hasWarranty && hasValue(body.warrantyDurationValue) ? Number(body.warrantyDurationValue) : null,
     warrantyDurationUnit: hasWarranty ? (body.warrantyDurationUnit || null) : null,
 
     deliveryAvailable: !!body.deliveryAvailable,
@@ -115,5 +138,12 @@ export function mapProductCreateFields(body: Record<string, any>) {
     leadTime: body.leadTime || 'IN_STOCK',
 
     negotiable: !!body.negotiable,
+
+    // Legal — validity + processing time only. County availability is NOT
+    // a product field; it's derived from the product's Vendor.
+    validityValue: hasValidity ? Number(body.validityValue) : null,
+    validityUnit: hasValidity ? (body.validityUnit || null) : null,
+    processingTimeMinDays: hasValue(body.processingTimeMinDays) ? Number(body.processingTimeMinDays) : null,
+    processingTimeMaxDays: hasValue(body.processingTimeMaxDays) ? Number(body.processingTimeMaxDays) : null,
   };
 }

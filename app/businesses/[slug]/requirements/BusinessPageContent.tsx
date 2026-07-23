@@ -1,15 +1,18 @@
-// businesses/[slug]/requirements/BusinessPageContent.tsx
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
-import React from 'react';
+import React, { useMemo } from 'react';
 import CostCalculator from '@/components/CostCalculator';
 import BusinessHeader from '@/components/DetailsPage/BusinessHeader';
 import RequirementsSection from '@/components/DetailsPage/RequirementsSection';
+import CountySelector from '@/components/DetailsPage/CountySelector';
+import { CountyProvider, useCounty } from '@/contexts/CountyContext';
 import {
   useBusinessData,
   type Business as BusinessData,
   type Requirement as RequirementData,
 } from 'hooks/useBusinessData';
 import { useFilterState } from 'hooks/useFilterState';
+import { Product as ProductType } from '@/types';
 import Link from 'next/link';
 
 interface Faq {
@@ -18,26 +21,47 @@ interface Faq {
 }
 
 interface BusinessPageContentProps {
-  // Receives the plain resolved slug string from the server component.
-  // Do NOT pass the raw params Promise — it causes double-unwrapping
-  // and intermittent "business not found" errors.
   slug: string;
-  // Server-fetched data (see page.tsx). When present, useBusinessData uses
-  // it for the initial render instead of waiting on a client-side fetch,
-  // so the requirements list is in the raw HTML response.
   initialBusiness?: BusinessData;
   initialRequirements?: RequirementData[];
-  // Auto-generated FAQ content from page.tsx, rendered here to back the
-  // FAQPage schema with actual visible content.
   faqs?: Faq[];
 }
 
-export default function BusinessPageContent({
+// ── County-aware helpers ──────────────────────────────────────────────────
+// A vendor "serves" a county if it's flagged to serve all counties (the
+// default — covers national bodies like KRA/KEBS and vendors whose
+// products, e.g. software, aren't tied to a location at all) or if the
+// selected county is explicitly among the counties it operates in.
+//
+// `vendor` is typed loosely (any) here because types/vendor.ts hasn't been
+// updated yet to declare `servesAllCounties` / `counties` — once it is,
+// these can be typed against the real Vendor interface directly.
+function vendorServesCounty(vendor: any, countyId: number): boolean {
+  if (!vendor) return false;
+  if (vendor.servesAllCounties) return true;
+  return (vendor.counties ?? []).some((vc: any) => vc.countyId === countyId);
+}
+
+// Sort priority for the "soft prioritize" categories (everything except
+// Legal) — lower sorts first. 0 = vendor explicitly serves this county,
+// 1 = vendor serves all counties (neutral, always relevant), 2 = vendor
+// serves other counties only. Nothing is ever excluded by this — it's a
+// sort key, not a filter.
+function countyPriority(vendor: any, countyId: number): number {
+  if (!vendor) return 1;
+  if (vendor.servesAllCounties) return 1;
+  const serves = (vendor.counties ?? []).some((vc: any) => vc.countyId === countyId);
+  return serves ? 0 : 2;
+}
+
+function BusinessPageContentInner({
   slug,
   initialBusiness,
   initialRequirements,
   faqs,
 }: BusinessPageContentProps) {
+  const { selectedCounty } = useCounty();
+
   const {
     business,
     requirements,
@@ -53,6 +77,39 @@ export default function BusinessPageContent({
       : undefined
   );
 
+  const requirementCategoryByName = useMemo(() => {
+    const map: Record<string, string> = {};
+    requirements.forEach((r) => { map[r.name] = r.category || 'Uncategorized'; });
+    return map;
+  }, [requirements]);
+
+  // Legal: hard filter (vendor must cover the selected county, or serve all).
+  // Everything else: soft sort only — nothing is ever hidden.
+  const { countyAdjustedProducts, legalUnavailableInCounty } = useMemo(() => {
+    if (!selectedCounty) {
+      return { countyAdjustedProducts: products, legalUnavailableInCounty: {} as Record<string, boolean> };
+    }
+
+    const out: Record<string, ProductType[]> = {};
+    const unavailable: Record<string, boolean> = {};
+
+    for (const [reqName, prods] of Object.entries(products)) {
+      const category = requirementCategoryByName[reqName];
+
+      if (category === 'Legal') {
+        const filtered = prods.filter((p) => vendorServesCounty(p.vendor, selectedCounty.id));
+        out[reqName] = filtered;
+        unavailable[reqName] = prods.length > 0 && filtered.length === 0;
+      } else {
+        out[reqName] = [...prods].sort(
+          (a, b) => countyPriority(a.vendor, selectedCounty.id) - countyPriority(b.vendor, selectedCounty.id)
+        );
+      }
+    }
+
+    return { countyAdjustedProducts: out, legalUnavailableInCounty: unavailable };
+  }, [products, selectedCounty, requirementCategoryByName]);
+
   const {
     categoryStates,
     globalSearchQuery,
@@ -62,9 +119,6 @@ export default function BusinessPageContent({
     availableNecessities,
     requiredCount,
     optionalCount,
-    // Required-only cost (default) and full required+optional cost
-    // (shown when the "Include optional items" toggle is on) — both
-    // exclude Stock. See useFilterState.ts.
     unfilteredRequiredLowPrice,
     unfilteredRequiredMediumPrice,
     unfilteredRequiredHighPrice,
@@ -73,7 +127,6 @@ export default function BusinessPageContent({
     unfilteredHighPrice,
     unfilteredRequirementsWithProducts,
     unfilteredRequiredRequirementsWithProducts,
-    // Stock is tracked separately — see useFilterState.ts.
     unfilteredStockCount,
     unfilteredStockLowPrice,
     unfilteredStockMedianPrice,
@@ -85,9 +138,7 @@ export default function BusinessPageContent({
     toggleFilter,
     setFilter,
     handleCategorySearchChange,
-  } = useFilterState(requirements, products, groupedRequirements, sortedCategories);
-
-  // ── Error states ──────────────────────────────────────────────────────────
+  } = useFilterState(requirements, countyAdjustedProducts, groupedRequirements, sortedCategories);
 
   if (error === 'Business not found') {
     return (
@@ -114,11 +165,6 @@ export default function BusinessPageContent({
     );
   }
 
-  // ── Loading skeleton ──────────────────────────────────────────────────────
-  // With SSR initial data this branch is skipped entirely on first render,
-  // since `business` is already populated. It's still needed for the
-  // no-initial-data fallback path.
-
   if (!business) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -134,17 +180,12 @@ export default function BusinessPageContent({
     );
   }
 
-  // ── Main render ───────────────────────────────────────────────────────────
-  // Note: the page's single, real H1 lives inside BusinessHeader below.
-  // A separate sr-only H1 used to be rendered here too — that was a
-  // duplicate-H1 issue (one hidden, one visible, both on the same page)
-  // and has been removed in favor of making BusinessHeader's H1 carry the
-  // full keyword-relevant text itself.
-
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <main className="md:col-span-2">
+          <CountySelector />
+
           <BusinessHeader
             totalRequirements={totalRequirements}
             businessName={business.name}
@@ -170,7 +211,8 @@ export default function BusinessPageContent({
               businessName={business.name}
               sortedCategories={filteredCategories}
               groupedRequirements={groupedRequirements}
-              products={products}
+              products={countyAdjustedProducts}
+              legalUnavailableInCounty={legalUnavailableInCounty}
               categoryStates={categoryStates}
               globalSearchQuery={globalSearchQuery}
               globalFilter={globalFilter}
@@ -186,11 +228,6 @@ export default function BusinessPageContent({
             />
           </section>
 
-          {/* ── FAQ section ──────────────────────────────────────────────
-              Backs the FAQPage schema emitted in page.tsx with real,
-              visible content. Plain <details>/<summary> — no extra client
-              state needed, styled to match the cards used elsewhere on
-              this page. */}
           {faqs && faqs.length > 0 && (
             <section aria-labelledby="requirements-faq-heading" className="mt-10">
               <h2
@@ -226,5 +263,13 @@ export default function BusinessPageContent({
         </aside>
       </div>
     </div>
+  );
+}
+
+export default function BusinessPageContent(props: BusinessPageContentProps) {
+  return (
+    <CountyProvider businessSlug={props.slug}>
+      <BusinessPageContentInner {...props} />
+    </CountyProvider>
   );
 }

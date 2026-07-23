@@ -1,3 +1,4 @@
+// emails/NotificationEmail.tsx
 import {
   Html, Head, Body, Container, Section,
   Heading, Text, Button, Hr, Preview, Img,

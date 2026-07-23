@@ -49,6 +49,12 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
         deliveryAvailable: !!p.deliveryAvailable, pickupLocation: p.pickupLocation || '', leadTime: p.leadTime || 'IN_STOCK', negotiable: !!p.negotiable,
         bulkPricingEnabled: Array.isArray(p.bulkPricing) && p.bulkPricing.length > 0,
         publishImmediately: p.status === 'ACTIVE',
+
+        // Legal
+        validityValue: p.validityValue?.toString() || '',
+        validityUnit: p.validityUnit || 'years',
+        processingTimeMinDays: p.processingTimeMinDays?.toString() || '',
+        processingTimeMaxDays: p.processingTimeMaxDays?.toString() || '',
       });
       setBulkTiers(
         Array.isArray(p.bulkPricing)
@@ -103,6 +109,12 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
               .filter((t) => t.minQty && t.price)
               .map((t) => ({ minQty: parseInt(t.minQty), price: parseFloat(t.price) }))
           : [],
+
+        // Legal
+        validityValue: form.validityValue ? Number(form.validityValue) : null,
+        validityUnit: form.validityValue ? form.validityUnit : null,
+        processingTimeMinDays: form.processingTimeMinDays ? parseInt(form.processingTimeMinDays) : null,
+        processingTimeMaxDays: form.processingTimeMaxDays ? parseInt(form.processingTimeMaxDays) : null,
       };
       const url = editingProduct ? `/api/admin/products/${editingProduct.id}` : '/api/admin/products';
       const method = editingProduct ? 'PATCH' : 'POST';

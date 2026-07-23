@@ -1,4 +1,6 @@
 // DetailsPage/CategorySection.tsx
+// New: accepts `legalUnavailableInCounty`, looked up per requirement and
+// passed to RequirementCard as `countyUnavailable`.
 
 import React from 'react';
 import Link from 'next/link';
@@ -20,7 +22,7 @@ interface Requirement {
 
 interface CategoryState {
   showFilter: boolean;
-  filter: string; // 'all' or a lowercase necessity value
+  filter: string;
   showSearch: boolean;
   searchQuery: string;
 }
@@ -32,6 +34,7 @@ interface CategorySectionProps {
   requirements: Requirement[];
   filteredRequirements: Requirement[];
   products: Record<string, Product[]>;
+  legalUnavailableInCounty?: Record<string, boolean>;
   categoryState: CategoryState;
   globalSearchQuery: string;
   globalFilter: string;
@@ -50,6 +53,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
   requirements,
   filteredRequirements,
   products,
+  legalUnavailableInCounty,
   categoryState,
   globalSearchQuery,
   globalFilter,
@@ -66,9 +70,6 @@ const CategorySection: React.FC<CategorySectionProps> = ({
     return null;
   }
 
-  // Group filtered requirements by their necessity/demand value, driven by
-  // the option list for this category (Required/Optional, or the 3-way
-  // demand scale for Stock). Replaces the old hardcoded requiredItems/optionalItems split.
   const necessityGroups = necessityOptions(category).map((opt) => ({
     ...opt,
     items: filteredRequirements.filter(
@@ -87,6 +88,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
           templateId: requirement.templateId,
         }}
         products={products[requirement.name] || []}
+        countyUnavailable={legalUnavailableInCounty?.[requirement.name] || false}
         onProductAssigned={onProductAssigned}
         businessName={businessName}
         businessId={typeof businessId === 'string' ? parseInt(businessId, 10) : businessId}
@@ -128,7 +130,6 @@ const CategorySection: React.FC<CategorySectionProps> = ({
                   ? `Products You Can Sell in Your ${businessName} Business`
                   : `${category} Requirements for Your ${businessName} Business`}
               </h3>
-            
             </div>
 
             {necessityGroups.map((group) =>
@@ -138,7 +139,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
                     <span className={`w-2.5 h-2.5 rounded-full mr-2 ${group.dot}`} />
                     {group.label} {category === 'Stock' ? 'Products' : 'Items'} ({group.items.length})
                   </h4>
-                  
+
                   <div className="space-y-4 sm:space-y-6">
                     {group.items.map((requirement) => renderRequirementCard(requirement))}
                   </div>

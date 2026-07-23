@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/admin/products/[id]/route.ts
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -7,13 +8,6 @@ import { ProductStatus } from '@prisma/client';
 
 type Params = { params: Promise<{ id: string }> };
 
-/**
- * `body.field?.trim() ?? undefined` looks safe but isn't: when `field` is
- * explicitly `null` (an intentional "clear this") optional chaining collapses
- * straight to `undefined`, which Prisma treats as "don't touch this column" —
- * so clearing never actually persists. This normalizes the three states we
- * care about: undefined (untouched), null/empty (explicit clear), string (set).
- */
 function nullableString(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
@@ -36,10 +30,6 @@ export async function PATCH(request: Request, { params }: Params) {
     const { errors: bulkErrors, tiers } = validateBulkPricing(body.bulkPricing);
     if (bulkErrors.length) return NextResponse.json({ error: bulkErrors[0] }, { status: 400 });
 
-    // Same price-or-range check as the create route. The admin form always
-    // sends the full field set (never a true partial patch), so it's safe to
-    // enforce here too — but we only run it if the request actually touches
-    // price fields, so other callers doing narrow partial updates are unaffected.
     const touchesPrice = body.price !== undefined || body.priceMin !== undefined || body.priceMax !== undefined;
     if (touchesPrice) {
       const usingPriceRange = !!(body.priceMin || body.priceMax);
@@ -80,84 +70,90 @@ export async function PATCH(request: Request, { params }: Params) {
 
     const isUsed = body.condition === 'USED' || (body.condition === undefined && existing.condition === 'USED');
     const hasWarranty = body.warrantyType ? body.warrantyType !== 'NONE' : existing.warrantyType !== 'NONE';
+    const hasValidity = body.validityValue !== undefined
+      ? body.validityValue !== null && body.validityValue !== ''
+      : existing.validityValue !== null;
 
-    // The admin form always sends `publishImmediately` (mirroring whether the
-    // product is currently ACTIVE when the modal opens) but never sends `status`
-    // directly — so status changes were previously silently dropped on edit.
-    // The admin form always sends `publishImmediately` (mirroring whether the
-    // product is currently ACTIVE when the modal opens) but never sends `status`
-    // directly — so status changes were previously silently dropped on edit.
-    let status: ProductStatus | undefined; // <-- Change string to ProductStatus
+    let status: ProductStatus | undefined;
     if (body.publishImmediately === true) {
       status = 'ACTIVE';
     } else if (body.publishImmediately === false) {
-      // Toggled off from a live product → unpublish back to draft.
-      // Otherwise fall back to an explicit `status` if some other caller sent one.
       status = existing.status === 'ACTIVE' ? 'DRAFT' : ((body.status as ProductStatus) || undefined);
     } else {
       status = (body.status as ProductStatus) || undefined;
     }
 
-    const updated = await prisma.$transaction(async (tx) => {
-      const product = await tx.product.update({
-        where: { id: productId },
-        data: {
-          name: body.name?.trim() || undefined,
-          description: body.description !== undefined ? nullableString(body.description) : undefined,
-          price: body.price !== undefined ? (body.price === null ? null : Number(body.price)) : undefined,
-          priceMin: body.priceMin !== undefined ? (body.priceMin === null ? null : Number(body.priceMin)) : undefined,
-          priceMax: body.priceMax !== undefined ? (body.priceMax === null ? null : Number(body.priceMax)) : undefined,
-          currency: body.currency || undefined,
-          image: body.image !== undefined ? nullableString(body.image) : undefined,
-          url: body.url !== undefined ? nullableString(body.url) : undefined,
-          sku: body.sku !== undefined ? nullableString(body.sku) : undefined,
-          stock: body.stock !== undefined ? (body.stock === null ? null : Number(body.stock)) : undefined,
-          vendorId: body.vendorId !== undefined ? Number(body.vendorId) : undefined,
-          templateId: body.templateId || undefined,
-          businessTags: finalTags,
-          // Admins can move a product to any status directly (unlike vendors,
-          // who are restricted to DRAFT/REJECTED editing + PENDING_REVIEW resubmit).
-          status: status,
-          ...(status === 'ACTIVE' ? { publishedAt: new Date(), rejectedAt: null, rejectReason: null } : {}),
-
-          condition: body.condition ?? undefined,
-          usedDurationValue: isUsed ? (body.usedDurationValue != null ? Number(body.usedDurationValue) : undefined) : (body.usedDurationValue === undefined ? undefined : null),
-          usedDurationUnit: isUsed ? (body.usedDurationUnit ?? undefined) : (body.usedDurationUnit === undefined ? undefined : null),
-          hasReceipt: isUsed ? (body.hasReceipt || undefined) : (body.hasReceipt === undefined ? undefined : null),
-
-          brand: body.brand !== undefined ? nullableString(body.brand) : undefined,
-          modelNumber: body.model !== undefined ? nullableString(body.model) : undefined,
-          voltage: body.voltage !== undefined ? nullableString(body.voltage) : undefined,
-          wattage: body.wattage !== undefined ? nullableString(body.wattage) : undefined,
-          dimensions: body.dimensions !== undefined ? nullableString(body.dimensions) : undefined,
-          weight: body.weight !== undefined ? (body.weight === null ? null : Number(body.weight)) : undefined,
-          weightUnit: body.weightUnit !== undefined ? (body.weightUnit || null) : undefined,
-
-          warrantyType: body.warrantyType ?? undefined,
-          warrantyDurationValue: hasWarranty ? (body.warrantyDurationValue != null ? Number(body.warrantyDurationValue) : undefined) : (body.warrantyDurationValue === undefined ? undefined : null),
-          warrantyDurationUnit: hasWarranty ? (body.warrantyDurationUnit ?? undefined) : (body.warrantyDurationUnit === undefined ? undefined : null),
-
-          deliveryAvailable: body.deliveryAvailable !== undefined ? Boolean(body.deliveryAvailable) : undefined,
-          pickupLocation: body.pickupLocation !== undefined ? nullableString(body.pickupLocation) : undefined,
-          leadTime: body.leadTime || undefined,
-
-          negotiable: body.negotiable !== undefined ? Boolean(body.negotiable) : undefined,
-        },
-        include: { template: { select: { id: true, name: true, category: true } }, vendor: true, bulkPricing: true },
-      });
-
-      if (body.bulkPricing !== undefined) {
-        await tx.bulkPriceTier.deleteMany({ where: { productId } });
-        if (tiers.length > 0) {
-          await tx.bulkPriceTier.createMany({ data: tiers.map((t) => ({ productId, ...t })) });
+    const updated = await prisma.$transaction(
+      async (tx) => {
+        // If bulk pricing array is explicitly passed, clear old tiers first
+        if (body.bulkPricing !== undefined) {
+          await tx.bulkPriceTier.deleteMany({ where: { productId } });
         }
-        return tx.product.findUnique({
+
+        // Perform main update and create new bulk pricing tiers nested in a single query
+        return tx.product.update({
           where: { id: productId },
-          include: { template: { select: { id: true, name: true, category: true } }, vendor: true, bulkPricing: true },
+          data: {
+            name: body.name?.trim() || undefined,
+            description: body.description !== undefined ? nullableString(body.description) : undefined,
+            price: body.price !== undefined ? (body.price === null ? null : Number(body.price)) : undefined,
+            priceMin: body.priceMin !== undefined ? (body.priceMin === null ? null : Number(body.priceMin)) : undefined,
+            priceMax: body.priceMax !== undefined ? (body.priceMax === null ? null : Number(body.priceMax)) : undefined,
+            currency: body.currency || undefined,
+            image: body.image !== undefined ? nullableString(body.image) : undefined,
+            url: body.url !== undefined ? nullableString(body.url) : undefined,
+            sku: body.sku !== undefined ? nullableString(body.sku) : undefined,
+            stock: body.stock !== undefined ? (body.stock === null ? null : Number(body.stock)) : undefined,
+            vendorId: body.vendorId !== undefined ? Number(body.vendorId) : undefined,
+            templateId: body.templateId || undefined,
+            businessTags: finalTags,
+            status: status,
+            ...(status === 'ACTIVE' ? { publishedAt: new Date(), rejectedAt: null, rejectReason: null } : {}),
+
+            condition: body.condition ?? undefined,
+            usedDurationValue: isUsed ? (body.usedDurationValue != null ? Number(body.usedDurationValue) : undefined) : (body.usedDurationValue === undefined ? undefined : null),
+            usedDurationUnit: isUsed ? (body.usedDurationUnit ?? undefined) : (body.usedDurationUnit === undefined ? undefined : null),
+            hasReceipt: isUsed ? (body.hasReceipt || undefined) : (body.hasReceipt === undefined ? undefined : null),
+
+            brand: body.brand !== undefined ? nullableString(body.brand) : undefined,
+            modelNumber: body.model !== undefined ? nullableString(body.model) : undefined,
+            voltage: body.voltage !== undefined ? nullableString(body.voltage) : undefined,
+            wattage: body.wattage !== undefined ? nullableString(body.wattage) : undefined,
+            dimensions: body.dimensions !== undefined ? nullableString(body.dimensions) : undefined,
+            weight: body.weight !== undefined ? (body.weight === null ? null : Number(body.weight)) : undefined,
+            weightUnit: body.weightUnit !== undefined ? (body.weightUnit || null) : undefined,
+
+            warrantyType: body.warrantyType ?? undefined,
+            warrantyDurationValue: hasWarranty ? (body.warrantyDurationValue != null ? Number(body.warrantyDurationValue) : undefined) : (body.warrantyDurationValue === undefined ? undefined : null),
+            warrantyDurationUnit: hasWarranty ? (body.warrantyDurationUnit ?? undefined) : (body.warrantyDurationUnit === undefined ? undefined : null),
+
+            deliveryAvailable: body.deliveryAvailable !== undefined ? Boolean(body.deliveryAvailable) : undefined,
+            pickupLocation: body.pickupLocation !== undefined ? nullableString(body.pickupLocation) : undefined,
+            leadTime: body.leadTime || undefined,
+
+            negotiable: body.negotiable !== undefined ? Boolean(body.negotiable) : undefined,
+
+            // Legal — validity + processing time only (county comes from Vendor)
+            validityValue: hasValidity ? (body.validityValue != null ? Number(body.validityValue) : undefined) : (body.validityValue === undefined ? undefined : null),
+            validityUnit: hasValidity ? (body.validityUnit ?? undefined) : (body.validityUnit === undefined ? undefined : null),
+            processingTimeMinDays: body.processingTimeMinDays !== undefined ? (body.processingTimeMinDays === null || body.processingTimeMinDays === '' ? null : Number(body.processingTimeMinDays)) : undefined,
+            processingTimeMaxDays: body.processingTimeMaxDays !== undefined ? (body.processingTimeMaxDays === null || body.processingTimeMaxDays === '' ? null : Number(body.processingTimeMaxDays)) : undefined,
+
+            ...(body.bulkPricing !== undefined && tiers.length > 0
+              ? { bulkPricing: { createMany: { data: tiers } } }
+              : {}),
+          },
+          include: {
+            template: { select: { id: true, name: true, category: true } },
+            vendor: true,
+            bulkPricing: true,
+          },
         });
+      },
+      {
+        timeout: 10000, // Extends timeout from 5000ms default to 10 seconds
       }
-      return product;
-    });
+    );
 
     await createAuditLog({
       action: 'UPDATE',

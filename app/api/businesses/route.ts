@@ -1,76 +1,87 @@
 // app/api/businesses/route.ts
 import { prisma } from "@/lib/prisma";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { EXCLUDED_FROM_TOTALS_CATEGORIES } from "@/lib/necessity";
 
-// Fetch all businesses with their grouped requirements.
-// Requirements now live in RequirementTemplate, linked via BusinessRequirement.
-// We join through to get name and category from the template.
-export async function GET() {
+// Fetch published businesses.
+//
+// IMPORTANT: this used to `include` every BusinessRequirement + its
+// RequirementTemplate for every business with no `take`/`skip`, which meant
+// a single call returned the entire catalog (we saw single requests pull
+// 1000+ RequirementTemplate ids). BusinessCard only ever used that data to
+// compute a count, so we now compute the count in the DB via `_count`
+// instead of shipping the full nested rows to the client.
+//
+// If a future page needs the full grouped requirement breakdown (name,
+// image, necessity) for a *single* business, fetch it from a
+// business-detail-specific endpoint instead of this list endpoint.
+export async function GET(req: NextRequest) {
   try {
-    const businesses = await prisma.business.findMany({
-      where: { published: true },
-      include: {
-        category: true, // ← was missing; needed for the category pill strip
-        requirements: {
-          where: {
-            isActive: true,
-            template: { isDeprecated: false },
-          },
-          include: {
-            template: {
-              select: {
-                id: true,
-                name: true,
-                category: true,
-                image: true,
-                necessity: true,
+    const { searchParams } = new URL(req.url);
+    const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);
+    const limit = Math.min(
+      Math.max(parseInt(searchParams.get("limit") || "20", 10), 1),
+      50
+    );
+    const skip = (page - 1) * limit;
+
+    const [businesses, total] = await Promise.all([
+      prisma.business.findMany({
+        where: { published: true },
+        select: {
+          id: true,
+          name: true,
+          image: true,
+          slug: true,
+          description: true,
+          category: { select: { name: true } },
+          _count: {
+            select: {
+              requirements: {
+                where: {
+                  isActive: true,
+                  template: {
+                    isDeprecated: false,
+                    // EXCLUDED_FROM_TOTALS_CATEGORIES is a Set (see lib/necessity.ts) —
+                    // Prisma's `notIn` needs a plain array.
+                    category: { notIn: Array.from(EXCLUDED_FROM_TOTALS_CATEGORIES) },
+                  },
+                },
               },
             },
           },
-          orderBy: [{ displayOrder: "asc" }, { createdAt: "asc" }],
         },
+        orderBy: { id: "asc" },
+        take: limit,
+        skip,
+      }),
+      prisma.business.count({ where: { published: true } }),
+    ]);
+
+    const result = businesses.map((business) => ({
+      id: business.id,
+      name: business.name,
+      image: business.image,
+      slug: business.slug,
+      description: business.description,
+      category: business.category?.name ?? undefined,
+      requirementsCount: business._count.requirements,
+    }));
+
+    return NextResponse.json(
+      {
+        businesses: result,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
       },
-    });
-
-    const businessesWithGroupedRequirements = businesses.map((business) => {
-      const resolved = business.requirements.map((link) => ({
-        id: link.id,
-        templateId: link.template.id,
-        name: link.template.name,
-        category: link.template.category,
-        image: link.template.image,
-        necessity: link.template.necessity,
-      }));
-
-      const groupedRequirements = resolved.reduce(
-        (groups: Record<string, typeof resolved>, req) => {
-          const category = req.category || "Uncategorized";
-          if (!groups[category]) groups[category] = [];
-          groups[category].push(req);
-          return groups;
-        },
-        {}
-      );
-
-      return {
-        id: business.id,
-        name: business.name,
-        image: business.image,
-        slug: business.slug,
-        description: business.description,
-        estimatedCost: (business as Record<string, unknown>).estimatedCost as string | undefined,
-        timeToLaunch: (business as Record<string, unknown>).timeToLaunch as string | undefined,
-        category: business.category?.name ?? undefined, // ← flattened for the client
-        groupedRequirements,
-        sortedCategories: Object.keys(groupedRequirements),
-      };
-    });
-
-    return NextResponse.json(businessesWithGroupedRequirements, { status: 200 });
+      { status: 200 }
+    );
   } catch (error) {
     console.error(error);
     return NextResponse.json(
-      { error: "Failed to fetch businesses with requirements" },
+      { error: "Failed to fetch businesses" },
       { status: 500 }
     );
   }

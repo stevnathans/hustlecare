@@ -1,10 +1,18 @@
 // types/vendor.ts
+import { County } from './index';
+
 export type Vendor = {
   id: number;
   name: string;
   website: string;
   logo: string;
   slug?: string;
+
+  // County coverage — defaults to "serves everywhere" (see schema comment
+  // on Vendor.servesAllCounties). `counties` is only meaningful when
+  // servesAllCounties is false.
+  servesAllCounties?: boolean;
+  counties?: { countyId: number; county?: County }[];
 };
 
 export type ProductStatus = 'DRAFT' | 'PENDING_REVIEW' | 'ACTIVE' | 'REJECTED' | 'ARCHIVED';
@@ -71,6 +79,13 @@ export type Product = {
   // Commercial terms
   negotiable: boolean;
   bulkPricing: BulkPriceTier[];
+
+  // Legal (Legal-category products) — validity + processing time only.
+  // County availability is derived from `vendor`, not stored on Product.
+  validityValue?: number | null;
+  validityUnit?: DurationUnit | null;
+  processingTimeMinDays?: number | null;
+  processingTimeMaxDays?: number | null;
 };
 
 export type SortField = 'name' | 'price' | 'vendor' | 'id' | 'status';

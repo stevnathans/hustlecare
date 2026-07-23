@@ -23,9 +23,14 @@ type BusinessCardProps = {
   slug: string;
   category?: string;
   estimatedCost?: string;
-  requirements: Requirement[];
-  sortedCategories: string[];
   timeToLaunch?: string;
+  // Preferred: server-computed count (from /api/businesses' _count query).
+  // Avoids shipping the full requirements/template payload just to render a number.
+  requirementsCount?: number;
+  // Legacy path: full breakdown, still supported for callers (e.g. search
+  // results) that already have it. Only used if requirementsCount is absent.
+  requirements?: Requirement[];
+  sortedCategories?: string[];
   groupedRequirements?: Record<string, Requirement[]>;
 };
 
@@ -46,6 +51,7 @@ export default function BusinessCard({
   image,
   slug,
   category,
+  requirementsCount,
   groupedRequirements = {},
 }: BusinessCardProps) {
   const [cost, setCost]           = useState<CostData | null>(null);
@@ -58,11 +64,11 @@ export default function BusinessCard({
       .catch(() => setCostLoading(false));
   }, [slug]);
 
-  // Excludes Stock (and any future excluded-from-totals categories) — Stock
-  // items are products a business can sell, not fixed startup requirements,
-  // so counting them here would inflate the requirement count shown on the
-  // card. See lib/necessity.ts: EXCLUDED_FROM_TOTALS_CATEGORIES.
-  const totalRequirements = useMemo(() => {
+  // Legacy fallback: derive the count from a full groupedRequirements
+  // breakdown, excluding Stock (and any other EXCLUDED_FROM_TOTALS_CATEGORIES)
+  // — see lib/necessity.ts. Only runs if the caller didn't already give us
+  // requirementsCount directly.
+  const legacyCount = useMemo(() => {
     if (!groupedRequirements || Object.keys(groupedRequirements).length === 0) return 0;
     return Object.entries(groupedRequirements).reduce(
       (total, [cat, reqs]) =>
@@ -70,6 +76,8 @@ export default function BusinessCard({
       0
     );
   }, [groupedRequirements]);
+
+  const totalRequirements = requirementsCount ?? legacyCount;
 
   const overviewHref     = `/businesses/${slug}`;
   const requirementsHref = `/businesses/${slug}/requirements`;

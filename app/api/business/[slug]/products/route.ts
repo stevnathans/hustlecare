@@ -2,6 +2,10 @@
 // Returns all ACTIVE products for every active requirement of a business in one query.
 // Response shape: Record<templateId, Product[]>
 // The client maps templateId → requirement name using the requirements it already has.
+//
+// vendor select now includes servesAllCounties + counties, which the client
+// uses to hard-filter Legal products and soft-sort every other category by
+// the selected county (see BusinessPageContent.tsx).
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -27,8 +31,8 @@ export async function GET(
                 id: true,
                 products: {
                   where: {
-                    status: 'ACTIVE',        // ← only approved products
-                    price:  { not: null },
+                    status: 'ACTIVE',
+                    price: { not: null },
                   },
                   select: {
                     id: true,
@@ -40,7 +44,11 @@ export async function GET(
                     templateId: true,
                     vendorId: true,
                     vendor: {
-                      select: { id: true, name: true, website: true, logo: true },
+                      select: {
+                        id: true, name: true, website: true, logo: true,
+                        servesAllCounties: true,
+                        counties: { select: { countyId: true } },
+                      },
                     },
 
                     // Condition
@@ -74,6 +82,12 @@ export async function GET(
                       select: { id: true, minQty: true, price: true },
                       orderBy: { minQty: 'asc' },
                     },
+
+                    // Legal
+                    validityValue: true,
+                    validityUnit: true,
+                    processingTimeMinDays: true,
+                    processingTimeMaxDays: true,
                   },
                   orderBy: { price: 'asc' },
                 },
@@ -88,7 +102,6 @@ export async function GET(
       return NextResponse.json({ error: 'Business not found' }, { status: 404 });
     }
 
-    // Build a map of templateId → products[]
     const productsByTemplateId: Record<number, typeof business.requirements[0]['template']['products']> = {};
 
     for (const req of business.requirements) {

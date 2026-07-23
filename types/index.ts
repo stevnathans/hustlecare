@@ -1,6 +1,12 @@
 // types/index.ts
 import { Vendor, ProductCondition, DurationUnit, ReceiptStatus, WeightUnit, WarrantyType, LeadTime, BulkPriceTier } from "./vendor";
 
+export interface County {
+  id: number;
+  name: string;
+  slug: string;
+}
+
 export interface Product {
   unit: number;
   inCart: boolean;
@@ -50,6 +56,16 @@ export interface Product {
   // Commercial terms
   negotiable?: boolean;
   bulkPricing?: BulkPriceTier[];
+
+  // Legal (Legal-category products) — validity + processing time only.
+  // County availability comes from `vendor` (servesAllCounties / counties),
+  // NOT from a field on Product — see Vendor type in ./vendor (needs
+  // `servesAllCounties: boolean` and `counties: { countyId: number }[]`
+  // added there; not yet updated as of this file).
+  validityValue?: number | null;
+  validityUnit?: DurationUnit | null;
+  processingTimeMinDays?: number | null;
+  processingTimeMaxDays?: number | null;
 }
 
 export type ProductFormValues = {
@@ -67,10 +83,10 @@ export interface CartItem {
   id: string;
   name: string;
   price: number;
-  quantity: number; // This 'quantity' will represent the number of this item in the cart.
+  quantity: number;
   category: string;
 }
 
 export type CartItems = CartItem[];
 
-export type NecessityFilter = string; // 'all' or a lowercase necessity value, e.g. 'required', 'high demand'
+export type NecessityFilter = string;

@@ -11,6 +11,13 @@ import { compare } from 'bcrypt';
 import { sendEmail } from '@/lib/email';
 import WelcomeEmail from '@/emails/WelcomeEmail';
 
+// How often the jwt callback is allowed to re-hit the DB to re-validate
+// role/isActive/vendorId for an already-issued token. Without this, every
+// single request that calls getServerSession/getToken (every API route,
+// independently) re-queries User + vendorProfile from scratch — that's
+// what was showing up as 5-6 repeated User/Vendor queries per page load.
+const REVALIDATE_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: 'jwt',
@@ -176,9 +183,15 @@ export const authOptions: NextAuthOptions = {
         token.image = user.image;
         token.role = (user as any).role || 'user';
         token.vendorId = (user as any).vendorId ?? null;
+        // Fresh sign-in — we already have current data, no need to
+        // immediately re-check against the DB on the very next request.
+        token.lastValidated = Date.now();
       }
 
-      if (token.email) {
+      const lastValidated = (token.lastValidated as number | undefined) ?? 0;
+      const isStale = Date.now() - lastValidated > REVALIDATE_INTERVAL_MS;
+
+      if (token.email && isStale) {
         try {
           const dbUser = await prisma.user.findUnique({
             where: { email: token.email as string },
@@ -202,8 +215,12 @@ export const authOptions: NextAuthOptions = {
             token.isActive = dbUser.isActive;
             token.vendorId = dbUser.vendorProfile?.id ?? null;
           }
+
+          token.lastValidated = Date.now();
         } catch (error) {
           console.error("JWT callback DB error:", (error as Error).message);
+          // Don't update lastValidated on failure — retry next request
+          // instead of silently trusting stale data for a full interval.
         }
       }
 

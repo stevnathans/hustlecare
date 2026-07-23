@@ -1,4 +1,3 @@
-//businesses/BusinessesContent.tsx
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
@@ -245,8 +244,10 @@ export default function BusinessesContent() {
     setCurrentPage(1);
   }, [searchTerm, selectedCategory, sortOption]);
 
-  // Extract unique categories from businesses
+  // Extract unique categories from businesses safely
   const categories = useMemo(() => {
+    if (!Array.isArray(businesses)) return ["all"];
+
     const allCategories = businesses
       .map((b) => b.category)
       .filter(Boolean) as string[];
@@ -258,9 +259,35 @@ export default function BusinessesContent() {
       try {
         const res = await fetch("/api/businesses");
         const data = await res.json();
-        setBusinesses(data);
+
+        if (Array.isArray(data)) {
+          setBusinesses(data);
+        } else if (Array.isArray(data?.businesses)) {
+          setBusinesses(data.businesses);
+        } else if (Array.isArray(data?.data)) {
+          setBusinesses(data.data);
+        } else if (Array.isArray(data?.items)) {
+          setBusinesses(data.items);
+        } else if (Array.isArray(data?.results)) {
+          setBusinesses(data.results);
+        } else {
+          // Fallback: search values inside object for the first array found
+          const firstArray = Object.values(data || {}).find((val) =>
+            Array.isArray(val),
+          );
+          if (firstArray && Array.isArray(firstArray)) {
+            setBusinesses(firstArray as Business[]);
+          } else {
+            console.warn(
+              "API response object does not contain an array of businesses:",
+              data,
+            );
+            setBusinesses([]);
+          }
+        }
       } catch (error) {
         console.error("Error loading businesses:", error);
+        setBusinesses([]);
       } finally {
         setLoading(false);
       }
@@ -269,6 +296,8 @@ export default function BusinessesContent() {
   }, []);
 
   const filteredBusinesses = useMemo(() => {
+    if (!Array.isArray(businesses)) return [];
+
     let result = businesses.filter((business) =>
       business.name.toLowerCase().includes(searchTerm.toLowerCase()),
     );
@@ -334,7 +363,7 @@ export default function BusinessesContent() {
   };
 
   // Dynamic hero headline
-  const totalCount = businesses.length;
+  const totalCount = Array.isArray(businesses) ? businesses.length : 0;
   const heroHeadline =
     totalCount > 0
       ? `${totalCount} Small Business Ideas To Start In Kenya Today`
@@ -730,7 +759,6 @@ export default function BusinessesContent() {
                 We&apos;re constantly adding new business ideas for Kenya. Sign
                 up to be notified when we add new ventures.
               </p>
-              {/* Wire up onSubmit to your notification backend when ready */}
               <form
                 className="max-w-md mx-auto flex gap-2"
                 aria-label="Notify me about new business ideas"

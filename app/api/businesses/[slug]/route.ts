@@ -1,3 +1,4 @@
+// app/api/businesses/[slug]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma"; // adjust this path if your prisma client is elsewhere
 
