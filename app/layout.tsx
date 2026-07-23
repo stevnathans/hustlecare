@@ -16,9 +16,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Hustlecare | Start Any Business in Kenya",
+  title: "Hustlecare | Everything You Need To Start Any Business in Kenya",
   description:
-    "Your smart partner in starting a business – explore ideas, requirements, and startup costs tailored for Kenya.",
+    "Hustlecare provides you with complete requirements you need to start any business in Kenya while helping you calculate startup costs in real time. ",
   keywords: ["start business Kenya", "business requirements", "startup costs", "Hustlecare"],
   icons: {
     icon: "/favicon.ico",
@@ -27,13 +27,13 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: "website",
-    url: "https://hustlecare.com",
+    url: "https://hustlecare.net",
     title: "Hustlecare – Start Your Business in Kenya",
     description:
       "Discover business ideas, explore requirements, and calculate startup costs with Hustlecare.",
     images: [
       {
-        url: "https://hustlecare.com/og-image.jpg",
+        url: "https://hustlecare.net/og-image.jpg",
         width: 1200,
         height: 630,
         alt: "Hustlecare – Start Your Business in Kenya",
@@ -45,10 +45,10 @@ export const metadata: Metadata = {
     title: "Hustlecare – Start Your Business in Kenya",
     description:
       "Everything you need to launch your business in Kenya: Ideas, requirements, costs, and tools.",
-    images: ["https://hustlecare.com/og-image.jpg"],
+    images: ["https://hustlecare.net/og-image.jpg"],
     creator: "@hustlecare", // update if you have a Twitter handle
   },
-  metadataBase: new URL("https://hustlecare.com"),
+  metadataBase: new URL("https://hustlecare.net"),
 };
 
 export const viewport: Viewport = {
@@ -67,7 +67,7 @@ export default function RootLayout({
       <head>
         <meta charSet="UTF-8" />
         <link rel="manifest" href="/site.webmanifest" />
-        <link rel="canonical" href="https://hustlecare.com/" />
+        <link rel="canonical" href="https://hustlecare.net/" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}

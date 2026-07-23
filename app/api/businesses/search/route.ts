@@ -11,6 +11,16 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '12')
     const skip = (page - 1) * limit
 
+    // Typeahead/live-search widgets (e.g. the header search bar) pass
+    // suggest=1 so every keystroke pause doesn't write a SearchLog row —
+    // only an explicit, completed search (Enter / suggestion click, which
+    // navigates to the full /search results page) should be logged.
+    // Without this split, live search suggestions polluted SearchLog with
+    // every partial fragment typed ("sa", "sal", "salo", "salon"), which
+    // also skewed /api/businesses/popular's "most searched" ranking toward
+    // fragments instead of real completed searches.
+    const suggestOnly = searchParams.get('suggest') === '1'
+
     if (!keyword) {
       return NextResponse.json({ 
         businesses: [], 
@@ -19,8 +29,10 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Log the search for analytics
-    await logSearch(keyword, location, request)
+    // Log the search for analytics — skipped for suggest-only calls
+    if (!suggestOnly) {
+      await logSearch(keyword, location, request)
+    }
 
     // Requirements are now in RequirementTemplate, linked via BusinessRequirement.
     // To search by requirement name/category we go:
@@ -71,6 +83,36 @@ export async function GET(request: NextRequest) {
           },
         },
       ],
+    }
+
+    // Suggest-only calls (typeahead) only need id/name/slug for a dropdown —
+    // skip the groupedRequirements include entirely rather than fetching and
+    // discarding it. The full search results page still gets the complete
+    // shape below.
+    if (suggestOnly) {
+      const businesses = await prisma.business.findMany({
+        where: searchConditions,
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+        },
+        orderBy: [
+          { name: 'asc' },
+          { createdAt: 'desc' },
+        ],
+        take: Math.min(limit, 8),
+      })
+
+      return NextResponse.json({
+        businesses: businesses.map(b => ({
+          id: b.id.toString(),
+          name: b.name,
+          slug: b.slug,
+        })),
+        total: businesses.length,
+        success: true,
+      })
     }
 
     // Execute search query

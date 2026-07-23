@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 
 // Define types for our cart items and context
 export type CartItem = {
@@ -89,15 +89,12 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
     setTotalItems(itemCount);
   }, [items]);
 
-  // Load cart from server when businessId changes
-  useEffect(() => {
-    if (businessId !== null) {
-      fetchCart(businessId);
-    }
-  }, [businessId]);
-
   // Function to load cart from the server
-  const fetchCart = async (businessId: number) => {
+  // Wrapped in useCallback: this is called directly by consumers (e.g. via
+  // context) and referenced in the businessId-change effect below. Without
+  // memoization, every CartProvider re-render would give consumers a new
+  // function identity, which is exactly the bug that hit switchBusiness.
+  const fetchCart = useCallback(async (businessId: number) => {
     try {
       setLoading(true);
       setError(null);
@@ -116,10 +113,17 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Load cart from server when businessId changes
+  useEffect(() => {
+    if (businessId !== null) {
+      fetchCart(businessId);
+    }
+  }, [businessId, fetchCart]);
 
   // Add item to cart
-  const addToCart = async (product: Omit<CartItem, 'id' | 'quantity'>) => {
+  const addToCart = useCallback(async (product: Omit<CartItem, 'id' | 'quantity'>) => {
     if (!businessId) {
       setError('No business selected');
       return;
@@ -127,19 +131,19 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
 
     // Handle productless requirements locally (no server call needed for $0 items)
     if (product.isProductless) {
-      const existingIndex = items.findIndex(
-        (item) => item.productId === product.productId
-      );
-      if (existingIndex === -1) {
-        // Add it locally with a generated id
+      setItems((prev) => {
+        const existingIndex = prev.findIndex(
+          (item) => item.productId === product.productId
+        );
+        if (existingIndex !== -1) return prev;
         const newItem: CartItem = {
           ...product,
           id: `local_${product.productId}`,
           quantity: 1,
           price: 0,
         };
-        setItems((prev) => [...prev, newItem]);
-      }
+        return [...prev, newItem];
+      });
       return;
     }
 
@@ -163,28 +167,33 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
       }
      
       const data = await response.json();
-      setItems(mergeProductlessItems(data.items, items));
+      setItems((prev) => mergeProductlessItems(data.items, prev));
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       console.error('Error adding to cart:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [businessId]);
 
   // Remove item from cart
-  const removeFromCart = async (productId: string | number) => {
+  const removeFromCart = useCallback(async (productId: string | number) => {
     if (!businessId) {
       setError('No business selected');
       return;
     }
 
     // Handle productless requirements locally
-    const itemToRemove = items.find((item) => item.productId === productId);
-    if (itemToRemove?.isProductless) {
-      setItems((prev) => prev.filter((item) => item.productId !== productId));
-      return;
-    }
+    let wasProductless = false;
+    setItems((prev) => {
+      const itemToRemove = prev.find((item) => item.productId === productId);
+      if (itemToRemove?.isProductless) {
+        wasProductless = true;
+        return prev.filter((item) => item.productId !== productId);
+      }
+      return prev;
+    });
+    if (wasProductless) return;
 
     try {
       setLoading(true);
@@ -206,17 +215,17 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
       }
      
       const data = await response.json();
-      setItems(mergeProductlessItems(data.items, items));
+      setItems((prev) => mergeProductlessItems(data.items, prev));
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       console.error('Error removing from cart:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [businessId]);
 
   // Update item quantity
-  const updateQuantity = async (productId: string | number, quantity: number) => {
+  const updateQuantity = useCallback(async (productId: string | number, quantity: number) => {
     if (!businessId) {
       setError('No business selected');
       return;
@@ -247,17 +256,17 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
       }
      
       const data = await response.json();
-      setItems(mergeProductlessItems(data.items, items));
+      setItems((prev) => mergeProductlessItems(data.items, prev));
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       console.error('Error updating cart:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [businessId, items]);
 
   // Clear cart
-  const clearCart = async () => {
+  const clearCart = useCallback(async () => {
     if (!businessId) {
       setError('No business selected');
       return;
@@ -288,10 +297,10 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
     } finally {
       setLoading(false);
     }
-  };
+  }, [businessId]);
 
   // Clear items from a specific category
-  const clearCategory = async (category: string) => {
+  const clearCategory = useCallback(async (category: string) => {
     if (!businessId) {
       setError('No business selected');
       return;
@@ -322,17 +331,17 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
       }
      
       const data = await response.json();
-      setItems(mergeProductlessItems(data.items, items));
+      setItems((prev) => mergeProductlessItems(data.items, prev));
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       console.error('Error clearing category:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [businessId]);
 
   // Clear items for a specific requirement within a category
-  const clearRequirement = async (requirementName: string, category: string) => {
+  const clearRequirement = useCallback(async (requirementName: string, category: string) => {
     if (!businessId) {
       setError('No business selected');
       return;
@@ -367,24 +376,28 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
       }
      
       const data = await response.json();
-      setItems(mergeProductlessItems(data.items, items));
+      setItems((prev) => mergeProductlessItems(data.items, prev));
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An unknown error occurred');
       console.error('Error clearing requirement:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [businessId]);
 
-  // Switch to a different business
-  const switchBusiness = async (newBusinessId: number) => {
-    if (businessId === newBusinessId) return;
-    setBusinessId(newBusinessId);
-    
-  };
+  // Switch to a different business.
+  // THE FIX: this was previously a plain function, recreated on every
+  // render of CartProvider. useBusinessData's effect lists switchBusiness
+  // in its dependency array — so every re-render of anything wrapping
+  // CartProvider (which, via layout.tsx, is effectively "most navigations")
+  // was silently re-triggering the full business-data + batched product
+  // fetch, even when the slug hadn't changed at all.
+  const switchBusiness = useCallback(async (newBusinessId: number) => {
+    setBusinessId((prev) => (prev === newBusinessId ? prev : newBusinessId));
+  }, []);
 
   // Save cart for sharing
-  const saveCart = async (name?: string) => {
+  const saveCart = useCallback(async (name?: string) => {
     if (!businessId) {
       setError('No business selected');
       return { success: false };
@@ -419,28 +432,52 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
     } finally {
       setLoading(false);
     }
-  };
+  }, [businessId, totalCost]);
+
+  // Memoize the provider value itself — without this, every render of
+  // CartProvider creates a brand-new object, which would cause every
+  // consumer of useCart() to re-render (and, for consumers like
+  // useBusinessData that key effects off individual context values,
+  // potentially re-fetch) even when nothing they actually use changed.
+  const value = useMemo(
+    () => ({
+      items,
+      businessId,
+      loading,
+      error,
+      totalCost,
+      totalItems,
+      fetchCart,
+      addToCart,
+      removeFromCart,
+      updateQuantity,
+      clearCart,
+      clearCategory,
+      clearRequirement,
+      switchBusiness,
+      saveCart,
+    }),
+    [
+      items,
+      businessId,
+      loading,
+      error,
+      totalCost,
+      totalItems,
+      fetchCart,
+      addToCart,
+      removeFromCart,
+      updateQuantity,
+      clearCart,
+      clearCategory,
+      clearRequirement,
+      switchBusiness,
+      saveCart,
+    ]
+  );
 
   return (
-    <CartContext.Provider
-      value={{
-        items,
-        businessId,
-        loading,
-        error,
-        totalCost,
-        totalItems,
-        fetchCart,
-        addToCart,
-        removeFromCart,
-        updateQuantity,
-        clearCart,
-        clearCategory,
-        clearRequirement,
-        switchBusiness,
-        saveCart,
-      }}
-    >
+    <CartContext.Provider value={value}>
       {children}
     </CartContext.Provider>
   );
