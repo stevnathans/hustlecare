@@ -50,11 +50,23 @@ export default function MenuSearchBar({ autoFocus = false, onNavigate }: MenuSea
     try {
       setLoading(true);
 
-      const response = await fetch(`/api/businesses/search?q=${encodeURIComponent(query)}`);
+      // FIX: this previously sent `q=` and read `data.results` — neither
+      // matches /api/businesses/search, which reads `keyword` and returns
+      // `{ businesses: [...] }`. That mismatch meant this request always
+      // hit the route's early "keyword is required" branch before ever
+      // touching the DB, so suggestions silently never worked.
+      //
+      // suggest=1 tells the route this is a live-typing lookup, not a
+      // completed search — it skips the SearchLog write (which would
+      // otherwise fire on every keystroke pause) and returns a lean
+      // id/name/slug shape instead of the full grouped-requirements tree.
+      const response = await fetch(
+        `/api/businesses/search?keyword=${encodeURIComponent(query)}&suggest=1&limit=5`
+      );
       const data = await response.json();
 
-      if (response.ok && data.success) {
-        setSearchSuggestions(data.results?.slice(0, 5) || []);
+      if (response.ok && data.businesses) {
+        setSearchSuggestions(data.businesses.slice(0, 5));
       } else {
         setSearchSuggestions([]);
       }
