@@ -15,6 +15,11 @@ export type CartItem = {
   requirementName: string;  // Add requirement name
   category: string;         // Add category
   isProductless?: boolean;  // True when requirement has no products
+  // Only used transiently on the add-to-cart request for a fee-schedule
+  // shell product, so the server can resolve the authoritative price for
+  // that county. Never persisted, never present on items read back from
+  // the server.
+  countyId?: number;
 };
 
 type CartContextType = {
@@ -90,10 +95,6 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
   }, [items]);
 
   // Function to load cart from the server
-  // Wrapped in useCallback: this is called directly by consumers (e.g. via
-  // context) and referenced in the businessId-change effect below. Without
-  // memoization, every CartProvider re-render would give consumers a new
-  // function identity, which is exactly the bug that hit switchBusiness.
   const fetchCart = useCallback(async (businessId: number) => {
     try {
       setLoading(true);
@@ -147,6 +148,8 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
       return;
     }
 
+    // Everything else — including fee-schedule shell products — goes
+    // through the real server call, so it persists as a genuine CartItem.
     try {
       setLoading(true);
       setError(null);
@@ -163,7 +166,8 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
       });
      
       if (!response.ok) {
-        throw new Error('Failed to add item to cart');
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to add item to cart');
       }
      
       const data = await response.json();
@@ -386,12 +390,6 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
   }, [businessId]);
 
   // Switch to a different business.
-  // THE FIX: this was previously a plain function, recreated on every
-  // render of CartProvider. useBusinessData's effect lists switchBusiness
-  // in its dependency array — so every re-render of anything wrapping
-  // CartProvider (which, via layout.tsx, is effectively "most navigations")
-  // was silently re-triggering the full business-data + batched product
-  // fetch, even when the slug hadn't changed at all.
   const switchBusiness = useCallback(async (newBusinessId: number) => {
     setBusinessId((prev) => (prev === newBusinessId ? prev : newBusinessId));
   }, []);
@@ -434,11 +432,6 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
     }
   }, [businessId, totalCost]);
 
-  // Memoize the provider value itself — without this, every render of
-  // CartProvider creates a brand-new object, which would cause every
-  // consumer of useCart() to re-render (and, for consumers like
-  // useBusinessData that key effects off individual context values,
-  // potentially re-fetch) even when nothing they actually use changed.
   const value = useMemo(
     () => ({
       items,

@@ -1,4 +1,3 @@
-// app/api/requirements/route.ts
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { revalidateBusinessPages } from "@/lib/revalidate";
@@ -25,6 +24,7 @@ export async function GET() {
         necessity: t.necessity,
         isDeprecated: t.isDeprecated,
         isGlobal: t.isGlobal,
+        isCountyFeeSchedule: t.isCountyFeeSchedule,
         productCount: t._count.products,
         businessCount: t._count.businesses,
         createdAt: t.createdAt,
@@ -51,6 +51,7 @@ export async function POST(req: Request) {
       necessity,
       businessId,
       isGlobal = false,
+      isCountyFeeSchedule = false,
     } = body;
 
     if (!name || !category || !necessity) {
@@ -61,7 +62,7 @@ export async function POST(req: Request) {
     }
 
     const template = await prisma.requirementTemplate.create({
-      data: { name, description, image, category, necessity, isGlobal },
+      data: { name, description, image, category, necessity, isGlobal, isCountyFeeSchedule },
       include: { _count: { select: { products: true, businesses: true } } },
     });
 
@@ -137,6 +138,7 @@ export async function POST(req: Request) {
         category: template.category,
         necessity: template.necessity,
         isGlobal: template.isGlobal,
+        isCountyFeeSchedule: template.isCountyFeeSchedule,
         productCount: template._count.products,
         businessCount: updatedCount,
         createdAt: template.createdAt,

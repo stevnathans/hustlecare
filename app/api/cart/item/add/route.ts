@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/cart/item/add/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
@@ -5,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { authOptions } from '@/lib/auth'
 import { notify } from '@/lib/notify'
 import { trackEvent } from '@/lib/analytics'
+import { resolveFeeSchedule } from '@/lib/legalFeeSchedule'
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,6 +26,59 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = session.user.id as string
+
+    // Look up the real product row being added. For a fee-schedule shell
+    // product, the client-sent price is only a hint — the authoritative
+    // price is re-resolved here from LegalFeeSchedule using the county the
+    // client says it's adding for. This mirrors the project's existing
+    // "never trust a client-sent price, snapshot the real one" pattern
+    // (see OrderItem.unitPrice).
+    const productRecord = await prisma.product.findUnique({
+      where: { id: Number(product.productId) },
+      select: { id: true, isFeeScheduleShell: true, templateId: true },
+    })
+
+    if (!productRecord) {
+      return NextResponse.json({ error: 'Product not found.' }, { status: 404 })
+    }
+
+    let unitPrice = product.price
+
+    if (productRecord.isFeeScheduleShell) {
+      const countyId = product.countyId ? Number(product.countyId) : null
+      if (!countyId || !productRecord.templateId) {
+        return NextResponse.json(
+          { error: 'A county must be selected to add this requirement.' },
+          { status: 400 }
+        )
+      }
+
+      const schedules = await prisma.legalFeeSchedule.findMany({
+        where: { templateId: productRecord.templateId, countyId },
+        select: {
+          id: true, templateId: true, countyId: true, businessCategoryId: true, sizeBand: true,
+          price: true, validityValue: true, validityUnit: true,
+          processingTimeMinDays: true, processingTimeMaxDays: true, notes: true,
+        },
+      })
+
+      const resolution = resolveFeeSchedule(schedules as any, countyId, {})
+
+      if (resolution.status === 'unavailable') {
+        return NextResponse.json(
+          { error: 'No price is available for this county yet.' },
+          { status: 400 }
+        )
+      }
+      if (resolution.status === 'range') {
+        return NextResponse.json(
+          { error: 'Price varies by business type/size — use the Permit Cost Calculator for an exact figure.' },
+          { status: 400 }
+        )
+      }
+
+      unitPrice = resolution.price
+    }
 
     // Find or create cart for this user and business
     let cart = await prisma.cart.findUnique({
@@ -52,17 +107,28 @@ export async function POST(request: NextRequest) {
     })
 
     if (existingItem) {
-      await prisma.cartItem.update({
-        where: { id: existingItem.id },
-        data:  { quantity: { increment: 1 } },
-      })
+      if (productRecord.isFeeScheduleShell) {
+        // For a fee-schedule shell, re-adding (e.g. after switching county)
+        // should REPLACE the snapshotted price, not blindly increment
+        // quantity like a normal product — a business only needs one
+        // Business Permit, priced for wherever it's actually located.
+        await prisma.cartItem.update({
+          where: { id: existingItem.id },
+          data:  { unitPrice },
+        })
+      } else {
+        await prisma.cartItem.update({
+          where: { id: existingItem.id },
+          data:  { quantity: { increment: 1 } },
+        })
+      }
     } else {
       await prisma.cartItem.create({
         data: {
           cartId:          cart.id,
           productId:       product.productId,
           quantity:        1,
-          unitPrice:       product.price,
+          unitPrice,
           category:        product.category        || 'Uncategorized',
           requirementName: product.requirementName || 'Unspecified Requirement',
         },
@@ -85,8 +151,6 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      // This is what actually increments VendorAnalytics.cartAdds — that field
-      // existed on the schema already but nothing was writing to it before.
       await trackEvent({
         type: 'CART_ADD',
         userId,

@@ -1,7 +1,4 @@
 // DetailsPage/CategorySection.tsx
-// New: accepts `legalUnavailableInCounty`, looked up per requirement and
-// passed to RequirementCard as `countyUnavailable`.
-
 import React from 'react';
 import Link from 'next/link';
 import RequirementCard from '@/components/Requirements/RequirementCard';
@@ -9,6 +6,8 @@ import CategorySectionHeader from './CategorySectionHeader';
 import CategorySearchFilter from './CategorySearchFilter';
 import { Product } from '@/types';
 import { necessityOptions } from '@/lib/necessity';
+import { FeeScheduleResolution } from '@/lib/legalFeeSchedule';
+import { FeeScheduleShellProductDetails } from 'hooks/useBusinessData';
 
 interface Requirement {
   id: number;
@@ -35,6 +34,10 @@ interface CategorySectionProps {
   filteredRequirements: Requirement[];
   products: Record<string, Product[]>;
   legalUnavailableInCounty?: Record<string, boolean>;
+  feeScheduleResolutions?: Record<string, FeeScheduleResolution>;
+  countyFeeScheduleNames?: Set<string>;
+  countyFeeShellProductIds?: Record<string, number>;
+  countyFeeShellProductDetails?: Record<string, FeeScheduleShellProductDetails>;
   categoryState: CategoryState;
   globalSearchQuery: string;
   globalFilter: string;
@@ -54,6 +57,10 @@ const CategorySection: React.FC<CategorySectionProps> = ({
   filteredRequirements,
   products,
   legalUnavailableInCounty,
+  feeScheduleResolutions,
+  countyFeeScheduleNames,
+  countyFeeShellProductIds,
+  countyFeeShellProductDetails,
   categoryState,
   globalSearchQuery,
   globalFilter,
@@ -89,6 +96,10 @@ const CategorySection: React.FC<CategorySectionProps> = ({
         }}
         products={products[requirement.name] || []}
         countyUnavailable={legalUnavailableInCounty?.[requirement.name] || false}
+        isCountyFeeRequirement={countyFeeScheduleNames?.has(requirement.name) || false}
+        feeScheduleResolution={feeScheduleResolutions?.[requirement.name]}
+        feeScheduleShellProductId={countyFeeShellProductIds?.[requirement.name]}
+        feeScheduleShellProductDetails={countyFeeShellProductDetails?.[requirement.name]}
         onProductAssigned={onProductAssigned}
         businessName={businessName}
         businessId={typeof businessId === 'string' ? parseInt(businessId, 10) : businessId}
@@ -195,6 +206,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 
       <div className="bg-gray-100 px-4 py-3 sm:px-6 sm:py-4 border-t">
         <div className="flex flex-col xs:flex-row xs:items-center xs:justify-between text-sm text-gray-600 gap-2 xs:gap-0">
+          
           <a
             href={`#${categoryId}`}
             className="text-blue-600 hover:text-blue-800 hover:underline text-center"

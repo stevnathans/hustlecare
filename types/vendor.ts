@@ -86,6 +86,7 @@ export type Product = {
   validityUnit?: DurationUnit | null;
   processingTimeMinDays?: number | null;
   processingTimeMaxDays?: number | null;
+  isFeeScheduleShell?: boolean;
 };
 
 export type SortField = 'name' | 'price' | 'vendor' | 'id' | 'status';

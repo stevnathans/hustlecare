@@ -24,6 +24,8 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
   const [errors, setErrors] = useState<Record<string, string>>({});
   const firstInputRef = useRef<HTMLInputElement>(null);
 
+  const isShellProduct = !!editingProduct?.isFeeScheduleShell;
+
   useEffect(() => {
     if (!open) return;
     setLoadingRequirements(true);
@@ -50,7 +52,6 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
         bulkPricingEnabled: Array.isArray(p.bulkPricing) && p.bulkPricing.length > 0,
         publishImmediately: p.status === 'ACTIVE',
 
-        // Legal
         validityValue: p.validityValue?.toString() || '',
         validityUnit: p.validityUnit || 'years',
         processingTimeMinDays: p.processingTimeMinDays?.toString() || '',
@@ -82,11 +83,19 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
   const validate = () => {
     const errs: Record<string, string> = {};
     if (!form.name.trim()) errs.name = 'Product name is required';
-    if (!form.usePriceRange && (!form.price.trim() || isNaN(Number(form.price)) || Number(form.price) < 0)) {
-      errs.price = 'Enter a valid price';
+
+    // Shell products (county-fee requirements) have no price/vendor/
+    // requirement to validate — their price lives in LegalFeeSchedule,
+    // and their vendor/requirement links are fixed at creation. Requiring
+    // a price here is exactly what previously blocked editing them.
+    if (!isShellProduct) {
+      if (!form.usePriceRange && (!form.price.trim() || isNaN(Number(form.price)) || Number(form.price) < 0)) {
+        errs.price = 'Enter a valid price';
+      }
+      if (!form.vendorId) errs.vendorId = 'Select a vendor';
+      if (!form.templateId) errs.templateId = 'Select a requirement';
     }
-    if (!form.vendorId) errs.vendorId = 'Select a vendor';
-    if (!form.templateId) errs.templateId = 'Select a requirement';
+
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -95,27 +104,41 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
     if (!validate()) return;
     setSaving(true);
     try {
-      const payload = {
-        ...form,
-        price: form.usePriceRange ? null : Number(form.price),
-        priceMin: form.usePriceRange && form.priceMin ? Number(form.priceMin) : null,
-        priceMax: form.usePriceRange && form.priceMax ? Number(form.priceMax) : null,
-        sku: form.sku || null,
-        stock: form.stock ? parseInt(form.stock) : null,
-        vendorId: Number(form.vendorId),
-        templateId: Number(form.templateId),
-        bulkPricing: form.bulkPricingEnabled
-          ? bulkTiers
-              .filter((t) => t.minQty && t.price)
-              .map((t) => ({ minQty: parseInt(t.minQty), price: parseFloat(t.price) }))
-          : [],
+      // Shell products: only send the fields that are actually editable
+      // for them (name, description, image, url). Deliberately omit
+      // price/priceMin/priceMax/vendorId/templateId/condition/warranty/
+      // delivery/legal fields — sending them as e.g. price: 0 would give
+      // the shell product a real, non-null price, which would make it
+      // start showing up as a normal $0 product everywhere the app
+      // filters on "price is not null".
+      const payload = isShellProduct
+        ? {
+            name: form.name,
+            description: form.description,
+            image: form.image,
+            url: form.url,
+          }
+        : {
+            ...form,
+            price: form.usePriceRange ? null : Number(form.price),
+            priceMin: form.usePriceRange && form.priceMin ? Number(form.priceMin) : null,
+            priceMax: form.usePriceRange && form.priceMax ? Number(form.priceMax) : null,
+            sku: form.sku || null,
+            stock: form.stock ? parseInt(form.stock) : null,
+            vendorId: Number(form.vendorId),
+            templateId: Number(form.templateId),
+            bulkPricing: form.bulkPricingEnabled
+              ? bulkTiers
+                  .filter((t) => t.minQty && t.price)
+                  .map((t) => ({ minQty: parseInt(t.minQty), price: parseFloat(t.price) }))
+              : [],
 
-        // Legal
-        validityValue: form.validityValue ? Number(form.validityValue) : null,
-        validityUnit: form.validityValue ? form.validityUnit : null,
-        processingTimeMinDays: form.processingTimeMinDays ? parseInt(form.processingTimeMinDays) : null,
-        processingTimeMaxDays: form.processingTimeMaxDays ? parseInt(form.processingTimeMaxDays) : null,
-      };
+            validityValue: form.validityValue ? Number(form.validityValue) : null,
+            validityUnit: form.validityValue ? form.validityUnit : null,
+            processingTimeMinDays: form.processingTimeMinDays ? parseInt(form.processingTimeMinDays) : null,
+            processingTimeMaxDays: form.processingTimeMaxDays ? parseInt(form.processingTimeMaxDays) : null,
+          };
+
       const url = editingProduct ? `/api/admin/products/${editingProduct.id}` : '/api/admin/products';
       const method = editingProduct ? 'PATCH' : 'POST';
       const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -139,7 +162,11 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
         <div className="modal-header">
           <div>
             <div className="modal-title">{isEdit ? 'Edit Product' : 'New Product'}</div>
-            <div className="modal-subtitle">Admin-managed product — requires a vendor and requirement</div>
+            <div className="modal-subtitle">
+              {isShellProduct
+                ? 'System-managed county-fee requirement — only name, description, image, and apply link are editable'
+                : 'Admin-managed product — requires a vendor and requirement'}
+            </div>
           </div>
           <button className="modal-close" onClick={() => setOpen(false)}>✕</button>
         </div>
@@ -156,6 +183,7 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
             vendors={vendors}
             bulkTiers={bulkTiers}
             setBulkTiers={setBulkTiers}
+            isFeeScheduleShell={isShellProduct}
           />
         </div>
         <div className="modal-footer">

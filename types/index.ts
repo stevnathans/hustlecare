@@ -7,6 +7,22 @@ export interface County {
   slug: string;
 }
 
+export type BusinessSizeBand = 'MICRO' | 'SMALL' | 'MEDIUM' | 'LARGE';
+
+export interface LegalFeeSchedule {
+  id: number;
+  templateId: number;
+  countyId: number;
+  businessCategoryId: number | null;
+  sizeBand: BusinessSizeBand | null;
+  price: number;
+  validityValue: number | null;
+  validityUnit: DurationUnit | null;
+  processingTimeMinDays: number | null;
+  processingTimeMaxDays: number | null;
+  notes: string | null;
+}
+
 export interface Product {
   unit: number;
   inCart: boolean;
@@ -28,13 +44,11 @@ export interface Product {
   createdAt: string;
   updatedAt: string;
 
-  // Condition
   condition?: ProductCondition;
   usedDurationValue?: number | null;
   usedDurationUnit?: DurationUnit | null;
   hasReceipt?: ReceiptStatus | null;
 
-  // Specifications (structured — distinct from the free-text `specifications` list above)
   brand?: string | null;
   modelNumber?: string | null;
   voltage?: string | null;
@@ -43,25 +57,17 @@ export interface Product {
   weight?: number | null;
   weightUnit?: WeightUnit | null;
 
-  // Warranty
   warrantyType?: WarrantyType;
   warrantyDurationValue?: number | null;
   warrantyDurationUnit?: DurationUnit | null;
 
-  // Delivery / logistics
   deliveryAvailable?: boolean;
   pickupLocation?: string | null;
   leadTime?: LeadTime | null;
 
-  // Commercial terms
   negotiable?: boolean;
   bulkPricing?: BulkPriceTier[];
 
-  // Legal (Legal-category products) — validity + processing time only.
-  // County availability comes from `vendor` (servesAllCounties / counties),
-  // NOT from a field on Product — see Vendor type in ./vendor (needs
-  // `servesAllCounties: boolean` and `counties: { countyId: number }[]`
-  // added there; not yet updated as of this file).
   validityValue?: number | null;
   validityUnit?: DurationUnit | null;
   processingTimeMinDays?: number | null;

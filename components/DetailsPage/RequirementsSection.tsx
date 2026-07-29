@@ -1,9 +1,4 @@
 // detailsPage/RequirementsSection.tsx
-// New: threads `legalUnavailableInCounty` down to CategorySection so a
-// Legal requirement that's empty ONLY because of the county filter can
-// show the "not yet listed for this county" state instead of the generic
-// "no products" one.
-
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import CategorySection from "./CategorySection";
@@ -11,6 +6,8 @@ import GlobalSearchFilter from "./GlobalSearchFilter";
 import StickyQuickNavigation from "./StickyQuickNavigation";
 import BusinessCard from "../business/BusinessCards";
 import { Product } from "@/types";
+import { FeeScheduleResolution } from '@/lib/legalFeeSchedule';
+import { FeeScheduleShellProductDetails } from 'hooks/useBusinessData';
 
 interface RequirementLocal {
   id: number;
@@ -35,9 +32,12 @@ interface RequirementsSectionProps {
   sortedCategories: string[];
   groupedRequirements: Record<string, RequirementLocal[]>;
   products: Record<string, Product[]>;
-  /** requirement name -> true when Legal products exist elsewhere but none match the selected county */
   legalUnavailableInCounty?: Record<string, boolean>;
   categoryStates: Record<string, CategoryState>;
+  feeScheduleResolutions?: Record<string, FeeScheduleResolution>;
+  countyFeeScheduleNames?: Set<string>;
+  countyFeeShellProductIds?: Record<string, number>;
+  countyFeeShellProductDetails?: Record<string, FeeScheduleShellProductDetails>;
   globalSearchQuery: string;
   globalFilter: string;
   availableNecessities: string[];
@@ -70,6 +70,10 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
   products,
   legalUnavailableInCounty,
   categoryStates,
+  feeScheduleResolutions,
+  countyFeeScheduleNames,
+  countyFeeShellProductIds,
+  countyFeeShellProductDetails,
   globalSearchQuery,
   globalFilter,
   setGlobalSearchQuery,
@@ -384,6 +388,10 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
                   filteredRequirements={filteredReqs}
                   products={products}
                   legalUnavailableInCounty={legalUnavailableInCounty}
+                  feeScheduleResolutions={feeScheduleResolutions}
+                  countyFeeScheduleNames={countyFeeScheduleNames}
+                  countyFeeShellProductIds={countyFeeShellProductIds}
+                  countyFeeShellProductDetails={countyFeeShellProductDetails}
                   categoryState={categoryState}
                   globalSearchQuery={globalSearchQuery}
                   globalFilter={globalFilter}

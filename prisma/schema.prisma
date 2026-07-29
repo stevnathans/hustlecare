@@ -166,13 +166,18 @@ model BusinessFaq {
   @@index([isActive])
 }
 
+// BusinessCategory doubles as the "business type" dimension for
+// LegalFeeSchedule (see below) — reused rather than inventing a parallel
+// taxonomy, since it already represents the kind of business (Retail,
+// Food & Beverage, etc.).
 model BusinessCategory {
-  id         Int        @id @default(autoincrement())
-  name       String     @unique
-  slug       String     @unique
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
-  businesses Business[]
+  id            Int                @id @default(autoincrement())
+  name          String             @unique
+  slug          String             @unique
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  businesses    Business[]
+  feeSchedules  LegalFeeSchedule[]
 
   @@index([name])
   @@index([slug])
@@ -192,6 +197,13 @@ model RequirementTemplate {
   isGlobal     Boolean               @default(false)
   businesses   BusinessRequirement[]
   products     Product[]
+
+  // When true, this requirement's pricing comes from LegalFeeSchedule
+  // (county-issued permits/certificates whose price varies by county and
+  // sometimes business type/size) instead of the normal Product catalog.
+  // Only meaningful for Legal-category templates.
+  isCountyFeeSchedule Boolean            @default(false)
+  feeSchedules        LegalFeeSchedule[]
 
   @@index([category])
   @@index([necessity])
@@ -260,13 +272,11 @@ model Product {
   businessTags Int[]
   status       ProductStatus        @default(PENDING_REVIEW)
 
-  // Condition
   condition          ProductCondition @default(NEW)
   usedDurationValue  Float?
   usedDurationUnit   DurationUnit?
   hasReceipt         ReceiptStatus?
 
-  // Specifications
   brand        String?
   modelNumber  String?
   voltage      String?
@@ -275,30 +285,32 @@ model Product {
   weight       Float?
   weightUnit   WeightUnit?
 
-  // Warranty
   warrantyType           WarrantyType @default(NONE)
   warrantyDurationValue  Float?
   warrantyDurationUnit   DurationUnit?
 
-  // Delivery / logistics
   deliveryAvailable Boolean  @default(false)
   pickupLocation    String?
-  leadTime          String?  @default("IN_STOCK") // IN_STOCK | 1_3_DAYS | 1_WEEK | 2_WEEKS_PLUS
+  leadTime          String?  @default("IN_STOCK")
 
-  // Commercial terms
   negotiable   Boolean         @default(false)
   bulkPricing  BulkPriceTier[]
 
-  // Legal (Legal-category products only — validity + processing time for a
-  // permit/licence/certificate). County availability is NOT stored here —
-  // it's derived from the product's Vendor (see Vendor.servesAllCounties /
-  // Vendor.counties below), since a vendor's county coverage is the single
-  // source of truth for both hard-filtering Legal products and soft-sorting
-  // every other category.
+  // Legal (Legal-category products with a real Vendor — e.g. KRA, KEBS).
+  // County-issued permits use LegalFeeSchedule instead — see
+  // RequirementTemplate.isCountyFeeSchedule.
   validityValue          Float?
   validityUnit           DurationUnit?
   processingTimeMinDays  Int?
   processingTimeMaxDays  Int?
+
+  // True for the one system-generated "shell" product per county-fee
+  // requirement (e.g. Business Permit). Its price is always null — real
+  // pricing lives in LegalFeeSchedule, resolved dynamically by county at
+  // cart-add time. This row exists only so CartItem has a real Product to
+  // point at, letting county-fee cart lines persist exactly like any
+  // other product instead of living only in browser memory.
+  isFeeScheduleShell   Boolean @default(false)
 
   cartItems    CartItem[]
   template     RequirementTemplate? @relation(fields: [templateId], references: [id])
@@ -349,13 +361,6 @@ enum VendorClaimStatus {
   REJECTED
 }
 
-// ── County (Kenya's 47 counties) ────────────────────────────────────────────
-// Reference data — seeded once, rarely changes. Used two ways:
-//   1. Legal category: a vendor NOT flagged servesAllCounties only shows its
-//      products when its county is selected (e.g. County Government of
-//      Nairobi's Business Permit only appears when Nairobi is selected).
-//   2. Every other category: purely a sort signal — vendors covering the
-//      selected county float to the top, nothing is ever hidden.
 model County {
   id        Int            @id @default(autoincrement())
   name      String         @unique
@@ -364,13 +369,11 @@ model County {
   updatedAt DateTime       @updatedAt
 
   vendorCounties VendorCounty[]
+  feeSchedules   LegalFeeSchedule[]
 
   @@index([slug])
 }
 
-// Many-to-many: a vendor can serve several counties (e.g. an equipment
-// supplier with branches in Nairobi + Mombasa). County governments will
-// typically have exactly one row here (their own county).
 model VendorCounty {
   id       Int    @id @default(autoincrement())
   vendorId Int
@@ -381,6 +384,52 @@ model VendorCounty {
   @@unique([vendorId, countyId])
   @@index([vendorId])
   @@index([countyId])
+}
+
+// Fee schedule for county-issued Legal requirements (Business Permit,
+// Health Certificate, etc.) whose price genuinely depends on which county
+// issues it — and sometimes on the business's category/size too.
+//
+// businessCategoryId and sizeBand are BOTH nullable so a county only needs
+// ONE row per requirement when its price is flat (the common case). Extra
+// rows are added only where a county genuinely tiers pricing by business
+// type or size — never a full combinatorial grid.
+//
+// NOTE: because Postgres treats NULL as distinct in unique constraints,
+// the @@unique below does not prevent two rows with businessCategoryId:
+// null AND sizeBand: null for the same (templateId, countyId) — that
+// invariant ("at most one flat/default row") is enforced at the
+// application layer (see the bulk-default admin endpoint, which does a
+// find-then-update-or-create rather than relying on the DB constraint).
+model LegalFeeSchedule {
+  id                     Int                @id @default(autoincrement())
+  templateId             Int
+  countyId               Int
+  businessCategoryId     Int?
+  sizeBand               BusinessSizeBand?
+  price                  Float
+  validityValue          Float?
+  validityUnit           DurationUnit?
+  processingTimeMinDays  Int?
+  processingTimeMaxDays  Int?
+  notes                  String?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  template         RequirementTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  county           County              @relation(fields: [countyId], references: [id], onDelete: Cascade)
+  businessCategory BusinessCategory?   @relation(fields: [businessCategoryId], references: [id])
+
+  @@unique([templateId, countyId, businessCategoryId, sizeBand])
+  @@index([templateId, countyId])
+  @@index([countyId])
+}
+
+enum BusinessSizeBand {
+  MICRO
+  SMALL
+  MEDIUM
+  LARGE
 }
 
 model Vendor {
@@ -424,18 +473,14 @@ model Vendor {
   claimReviewedBy      String?
   claimRejectionReason String?
   claimRequestedBy     User?             @relation("VendorClaimRequests", fields: [claimRequestedById], references: [id])
-  commissionRate       Float              @default(0.05) // 5% for now — change here when rates are finalized
-  mpesaNumber          String?            // for payouts; add bank fields later if needed
+  commissionRate       Float              @default(0.05)
+  mpesaNumber          String?
   vendorSubOrders      VendorSubOrder[]
   payouts              VendorPayout[]
 
-  // County coverage — defaults to "serves everywhere" so vendors whose
-  // products aren't location-bound (software, KRA, KEBS, most national
-  // bodies) need zero setup. Only vendors who actually restrict themselves
-  // to specific counties (county governments, local suppliers) need to flip
-  // this off and populate `counties`.
   servesAllCounties Boolean        @default(true)
   counties          VendorCounty[]
+  
 
   @@index([claimStatus])
   @@unique([name, website])
@@ -1008,4 +1053,22 @@ enum AnalyticsEventType {
   CART_ADD
   CART_REMOVE
   DONATION_CLICK
+}
+
+model ApplyAssistanceRequest {
+  id              String   @id @default(uuid())
+  requirementName String
+  countyName      String?
+  businessName    String?
+  businessId      Int?
+  contactName     String
+  contactPhone    String
+  contactEmail    String?
+  notes           String?
+  status          String   @default("new") // new | contacted | completed
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
 }

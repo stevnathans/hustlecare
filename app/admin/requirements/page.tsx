@@ -1,4 +1,3 @@
-// app/admin/requirements/page.tsx
 'use client';
 import { useEffect, useState, useMemo, useRef } from 'react';
 import Image from 'next/image';
@@ -16,6 +15,7 @@ type Template = {
   necessity: string; // e.g. "Required"/"Optional", or a demand value for Stock — see lib/necessity.ts
   isDeprecated: boolean;
   isGlobal: boolean;
+  isCountyFeeSchedule: boolean;
   productCount: number;
   businessCount: number;
   createdAt: string;
@@ -61,10 +61,12 @@ const defaultForm: {
   category: string;
   necessity: string;
   isGlobal: boolean;
+  isCountyFeeSchedule: boolean;
 } = {
   name: '', description: '', image: '', category: '',
   necessity: 'Required',
   isGlobal: false,
+  isCountyFeeSchedule: false,
 };
 
 const S = `
@@ -429,6 +431,7 @@ export default function RequirementsPage() {
       category: t.category,
       necessity: t.necessity,
       isGlobal: t.isGlobal,
+      isCountyFeeSchedule: t.isCountyFeeSchedule,
     });
     setEditingId(t.id); setFormLinkToBiz(false); setFormBizId(null); setFormOpen(true);
   }
@@ -747,6 +750,19 @@ export default function RequirementsPage() {
                                 <span style={{ fontWeight: 600, fontSize: '0.87rem', color: '#f0f0f5' }}>{t.name}</span>
                                 {t.isDeprecated && <span className="dep-badge">deprecated</span>}
                                 {t.isGlobal && <span className="global-badge">global</span>}
+                                {t.isCountyFeeSchedule && (
+                                  <span
+                                    style={{
+                                      display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                                      padding: '0.15rem 0.5rem', borderRadius: 100, fontSize: '0.65rem',
+                                      fontWeight: 700, background: 'rgba(20,184,166,0.12)', color: '#2dd4bf',
+                                      border: '1px solid rgba(20,184,166,0.2)',
+                                    }}
+                                    title="Price varies by county — managed via the Legal Fee Schedule"
+                                  >
+                                    county fee
+                                  </span>
+                                )}
                               </div>
                               {t.description && <div style={{ fontSize: '0.74rem', color: '#55556e', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '0.1rem' }}>{t.description}</div>}
                             </div>
@@ -801,6 +817,19 @@ export default function RequirementsPage() {
                       {t.name}
                       {t.isDeprecated && <span className="dep-badge">deprecated</span>}
                       {t.isGlobal && <span className="global-badge">global</span>}
+                      {t.isCountyFeeSchedule && (
+                        <span
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                            padding: '0.15rem 0.5rem', borderRadius: 100, fontSize: '0.65rem',
+                            fontWeight: 700, background: 'rgba(20,184,166,0.12)', color: '#2dd4bf',
+                            border: '1px solid rgba(20,184,166,0.2)',
+                          }}
+                          title="Price varies by county — managed via the Legal Fee Schedule"
+                        >
+                          county fee
+                        </span>
+                      )}
                     </div>
                     {t.description && <div style={{ fontSize: '0.74rem', color: '#55556e', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, marginBottom: '0.6rem' }}>{t.description}</div>}
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
@@ -867,12 +896,15 @@ export default function RequirementsPage() {
                         // (e.g. moving into/out of Stock). If the current necessity
                         // value isn't valid for the new category, reset it to that
                         // category's default rather than leaving a stale value.
+                        // Also reset isCountyFeeSchedule when leaving Legal — that
+                        // toggle only makes sense for Legal requirements.
                         setFormData(f => ({
                           ...f,
                           category: newCategory,
                           necessity: necessityOptions(newCategory).some(o => o.value === f.necessity)
                             ? f.necessity
                             : defaultNecessity(newCategory),
+                          isCountyFeeSchedule: newCategory === 'Legal' ? f.isCountyFeeSchedule : false,
                         }));
                       }}
                     >
@@ -934,6 +966,35 @@ export default function RequirementsPage() {
                     </div>
                   )}
                 </div>
+
+                {/* County fee-schedule toggle — Legal category only */}
+                {formData.category === 'Legal' && (
+                  <div>
+                    <label
+                      className="link-biz-toggle"
+                      style={{ borderColor: formData.isCountyFeeSchedule ? 'rgba(20,184,166,0.4)' : 'rgba(99,102,241,0.15)', background: formData.isCountyFeeSchedule ? 'rgba(20,184,166,0.1)' : 'rgba(99,102,241,0.06)' }}
+                      onClick={() => setFormData(f => ({ ...f, isCountyFeeSchedule: !f.isCountyFeeSchedule }))}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={formData.isCountyFeeSchedule}
+                        onChange={() => setFormData(f => ({ ...f, isCountyFeeSchedule: !f.isCountyFeeSchedule }))}
+                        style={{ accentColor: '#14b8a6', cursor: 'pointer' }}
+                      />
+                      <span style={{ fontWeight: 600, color: formData.isCountyFeeSchedule ? '#2dd4bf' : '#9494b0' }}>
+                        County fee schedule
+                      </span>
+                      <span style={{ fontSize: '0.72rem', color: '#55556e', marginLeft: 'auto' }}>
+                        price varies by county, e.g. Business Permit
+                      </span>
+                    </label>
+                    {formData.isCountyFeeSchedule && (
+                      <div className="f-hint highlight" style={{ marginTop: '0.4rem' }}>
+                        Pricing for this requirement is managed via the Legal Fee Schedule (per-county rates), not the normal product catalog.
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Link to specific biz — only shown when NOT global and NOT editing */}
                 {!editingId && !formData.isGlobal && (

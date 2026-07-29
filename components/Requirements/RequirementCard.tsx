@@ -11,7 +11,7 @@ import {
   XMarkIcon,
   PlusIcon,
 } from "@heroicons/react/24/outline";
-import { FiPlus, FiCheck } from "react-icons/fi";
+import { FiPlus, FiCheck, FiMapPin } from "react-icons/fi";
 import Image from "next/image";
 import { useCart } from "@/contexts/CartContext";
 import { useCounty } from "@/contexts/CountyContext";
@@ -19,6 +19,9 @@ import { useSession } from "next-auth/react";
 import LoginModal from "@/components/LoginModal";
 import { necessityStyle } from "@/lib/necessity";
 import NoCountyProductState from "./NoCountyProductState";
+import CountyFeeCard from "./CountyFeeCard";
+import { FeeScheduleResolution } from "@/lib/legalFeeSchedule";
+import ApplyForMeButton from "@/components/shared/ApplyForMeButton";
 
 interface RequirementCardProps {
   requirement: {
@@ -31,11 +34,16 @@ interface RequirementCardProps {
     image?: string;
   };
   products?: Product[];
-  /** true when this is a Legal requirement with products elsewhere, but none matching the selected county */
   countyUnavailable?: boolean;
+  /** True when this requirement is flagged county-fee-schedule, regardless of whether a county has been selected yet. */
+  isCountyFeeRequirement?: boolean;
+  /** Present once a county is selected — the resolved price for that county. */
+  feeScheduleResolution?: FeeScheduleResolution;
   onProductAssigned?: () => void;
   businessName?: string;
   businessId: number;
+  feeScheduleShellProductId?: number;
+  feeScheduleShellProductDetails?: { name: string; description: string | null; image: string | null; url: string | null };
 }
 
 function personalizeDescription(text: string, businessName?: string): string {
@@ -43,7 +51,7 @@ function personalizeDescription(text: string, businessName?: string): string {
   return text.replace(/\[businessName\]/g, businessName);
 }
 
-// ─── Add-Product-to-Requirement Modal ────────────────────────────────────────
+// ─── Add-Product-to-Requirement Modal (unchanged) ────────────────────────────
 
 interface AddProductModalProps {
   templateId: number;
@@ -60,13 +68,15 @@ function AddProductToRequirementModal({
   onClose,
   onAssigned,
 }: AddProductModalProps) {
-  const [allProducts, setAllProducts] = useState<{
-    id: number;
-    name: string;
-    price: number;
-    image?: string;
-    templateId?: number | null;
-  }[]>([]);
+  const [allProducts, setAllProducts] = useState<
+    {
+      id: number;
+      name: string;
+      price: number;
+      image?: string;
+      templateId?: number | null;
+    }[]
+  >([]);
   const [search, setSearch] = useState("");
   const [fetching, setFetching] = useState(false);
   const [assigning, setAssigning] = useState<number | null>(null);
@@ -331,6 +341,10 @@ export default function RequirementCard({
   requirement,
   products = [],
   countyUnavailable = false,
+  isCountyFeeRequirement = false,
+  feeScheduleResolution,
+  feeScheduleShellProductId,
+  feeScheduleShellProductDetails,
   onProductAssigned,
   businessName,
   businessId,
@@ -351,6 +365,36 @@ export default function RequirementCard({
   const productCount = products?.length || 0;
   const lowestPrice =
     productCount > 0 ? Math.min(...products.map((p) => p.price)) : 0;
+
+  // ── Fee-schedule state, mapped onto the SAME "count/price" shape the
+  // normal path uses, so the collapsed row and "View Products" toggle work
+  // identically whether this is a real-product requirement or a
+  // county-fee one. The only thing that differs is what renders inside
+  // the expand panel (a CountyFeeCard vs a list of ProductCards).
+  const feeHasResolvedPrice =
+    isCountyFeeRequirement &&
+    (feeScheduleResolution?.status === "exact" ||
+      feeScheduleResolution?.status === "range");
+
+  const effectiveCount = isCountyFeeRequirement
+    ? feeHasResolvedPrice
+      ? 1
+      : 0
+    : productCount;
+
+  let priceLabel = "Starting from";
+  let priceValue: string | null = null;
+  if (isCountyFeeRequirement) {
+    if (feeScheduleResolution?.status === "exact") {
+      priceLabel = "Price";
+      priceValue = `KSh ${feeScheduleResolution.price.toLocaleString()}`;
+    } else if (feeScheduleResolution?.status === "range") {
+      priceLabel = "Estimated";
+      priceValue = `KSh ${feeScheduleResolution.lowPrice.toLocaleString()} – ${feeScheduleResolution.highPrice.toLocaleString()}`;
+    }
+  } else if (productCount > 0) {
+    priceValue = `KSh ${lowestPrice.toLocaleString()}`;
+  }
 
   const productlessId = `req_${requirement.id}`;
   const isProductlessInCart = items.some(
@@ -481,85 +525,159 @@ export default function RequirementCard({
                 </p>
               )}
 
-              <div className="space-y-4">
-                <div className="flex flex-row items-center justify-between sm:justify-start sm:gap-6">
-                  {productCount > 0 ? (
-                    <div className="flex items-center space-x-2">
-                      <div className="p-2 rounded-lg bg-emerald-50">
-                        <CurrencyDollarIcon className="h-4 w-4 text-emerald-600" />
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-500 font-medium">
-                          Starting from
+              {/* ── County fee-schedule requirement, but no county picked yet ── */}
+              {isCountyFeeRequirement && !selectedCounty ? (
+                <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 border border-gray-100 rounded-xl p-4">
+                  <FiMapPin size={14} className="text-gray-400" />
+                  Select your county above to see the price for{" "}
+                  {requirement.name}.
+                </div>
+              ) : isCountyFeeRequirement &&
+                feeScheduleResolution?.status === "unavailable" ? (
+                /* ── County fee-schedule requirement, county picked, no price entered for it yet ── */
+                <NoCountyProductState
+                  requirementName={requirement.name}
+                  countyName={selectedCounty?.name || "your county"}
+                />
+              ) : (
+                /* ── Normal collapsed row — used for BOTH real-product
+                     requirements AND resolved fee-schedule requirements.
+                     Only what renders in the expand panel differs. ── */
+                <div className="space-y-4">
+                  <div className="flex flex-row items-center justify-between sm:justify-start sm:gap-6">
+                    {priceValue ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="p-2 rounded-lg bg-emerald-50">
+                          <CurrencyDollarIcon className="h-4 w-4 text-emerald-600" />
                         </div>
-                        <div className="text-lg font-bold text-emerald-600">
-                          KSh {lowestPrice.toLocaleString()}
+                        <div>
+                          <div className="text-xs text-gray-500 font-medium">
+                            {priceLabel}
+                          </div>
+                          <div className="text-lg font-bold text-emerald-600">
+                            {priceValue}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center space-x-2 text-gray-400">
-                      <div className="p-2 rounded-lg bg-gray-50">
-                        <CurrencyDollarIcon className="h-4 w-4 text-gray-400" />
+                    ) : (
+                      <div className="flex items-center space-x-2 text-gray-400">
+                        <div className="p-2 rounded-lg bg-gray-50">
+                          <CurrencyDollarIcon className="h-4 w-4 text-gray-400" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-medium">No products</div>
+                          <div className="text-sm">available</div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="text-xs font-medium">No products</div>
-                        <div className="text-sm">available</div>
-                      </div>
-                    </div>
-                  )}
+                    )}
 
-                  {productCount > 0 && (
-                    <div className="flex items-center space-x-2">
-                      <div className="p-2 rounded-lg bg-blue-50">
-                        <ShoppingBagIcon className="h-4 w-4 text-blue-600" />
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-500 font-medium">
-                          Available
+                    {effectiveCount > 0 && (
+                      <div className="flex items-center space-x-2">
+                        <div className="p-2 rounded-lg bg-blue-50">
+                          <ShoppingBagIcon className="h-4 w-4 text-blue-600" />
                         </div>
-                        <div className="text-sm font-semibold text-gray-900">
-                          {productCount}{" "}
-                          {productCount === 1 ? "option" : "options"}
+                        <div>
+                          <div className="text-xs text-gray-500 font-medium">
+                            Available
+                          </div>
+                          <div className="text-sm font-semibold text-gray-900">
+                            {effectiveCount}{" "}
+                            {effectiveCount === 1 ? "option" : "options"}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  <div className="hidden sm:flex items-center gap-2 ml-auto">
-                    {productCount === 0 &&
+                    <div className="hidden sm:flex items-center gap-2 ml-auto">
+                      {!isCountyFeeRequirement &&
+                        productCount === 0 &&
+                        canAddProduct &&
+                        requirement.templateId && (
+                          <button
+                            onClick={() => setShowAddProductModal(true)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors whitespace-nowrap"
+                            title="Assign a product to this requirement"
+                          >
+                            <PlusIcon className="w-3.5 h-3.5" />
+                            Add Product
+                          </button>
+                        )}
+
+                      {effectiveCount > 0 && (
+                        <button
+                          onClick={() => setIsExpanded(!isExpanded)}
+                          className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-gray-50 hover:bg-blue-50 text-gray-700 hover:text-blue-700 transition-all duration-200 font-medium text-sm group/button"
+                        >
+                          <span>
+                            {isExpanded ? "Hide Products" : "View Products"}
+                          </span>
+                          {isExpanded ? (
+                            <ChevronUpIcon className="h-4 w-4 transition-transform group-hover/button:-translate-y-px" />
+                          ) : (
+                            <ChevronDownIcon className="h-4 w-4 transition-transform group-hover/button:translate-y-px" />
+                          )}
+                        </button>
+                      )}
+
+                      {!isCountyFeeRequirement && productCount === 0 && (
+                        <button
+                          onClick={handleAddProductlessToCart}
+                          className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${
+                            isProductlessInCart
+                              ? "bg-green-500 text-white hover:bg-green-600"
+                              : "bg-emerald-500 text-white hover:bg-emerald-600"
+                          }`}
+                        >
+                          {isProductlessInCart ? (
+                            <>
+                              <FiCheck size={16} />
+                              <span>Added</span>
+                            </>
+                          ) : (
+                            <>
+                              <FiPlus size={16} />
+                              <span>Add</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="sm:hidden flex flex-col gap-2">
+                    {!isCountyFeeRequirement &&
+                      productCount === 0 &&
                       canAddProduct &&
                       requirement.templateId && (
                         <button
                           onClick={() => setShowAddProductModal(true)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors whitespace-nowrap"
-                          title="Assign a product to this requirement"
+                          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium text-sm text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors"
                         >
-                          <PlusIcon className="w-3.5 h-3.5" />
-                          Add Product
+                          <PlusIcon className="w-4 h-4" />
+                          Add Product to This Requirement
                         </button>
                       )}
 
-                    {productCount > 0 && (
+                    {effectiveCount > 0 && (
                       <button
                         onClick={() => setIsExpanded(!isExpanded)}
-                        className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-gray-50 hover:bg-blue-50 text-gray-700 hover:text-blue-700 transition-all duration-200 font-medium text-sm group/button"
+                        className="w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-xl bg-gray-50 hover:bg-blue-50 text-gray-700 hover:text-blue-700 transition-all duration-200 font-medium text-sm"
                       >
                         <span>
                           {isExpanded ? "Hide Products" : "View Products"}
                         </span>
                         {isExpanded ? (
-                          <ChevronUpIcon className="h-4 w-4 transition-transform group-hover/button:-translate-y-px" />
+                          <ChevronUpIcon className="h-4 w-4" />
                         ) : (
-                          <ChevronDownIcon className="h-4 w-4 transition-transform group-hover/button:translate-y-px" />
+                          <ChevronDownIcon className="h-4 w-4" />
                         )}
                       </button>
                     )}
 
-                    {productCount === 0 && (
+                    {!isCountyFeeRequirement && productCount === 0 && (
                       <button
                         onClick={handleAddProductlessToCart}
-                        className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${
+                        className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium text-sm transition-all ${
                           isProductlessInCart
                             ? "bg-green-500 text-white hover:bg-green-600"
                             : "bg-emerald-500 text-white hover:bg-emerald-600"
@@ -568,87 +686,45 @@ export default function RequirementCard({
                         {isProductlessInCart ? (
                           <>
                             <FiCheck size={16} />
-                            <span>Added</span>
+                            <span>Added to List</span>
                           </>
                         ) : (
                           <>
                             <FiPlus size={16} />
-                            <span>Add</span>
+                            <span>Add to List</span>
                           </>
                         )}
                       </button>
                     )}
                   </div>
-                </div>
 
-                <div className="sm:hidden flex flex-col gap-2">
-                  {productCount === 0 &&
-                    canAddProduct &&
-                    requirement.templateId && (
-                      <button
-                        onClick={() => setShowAddProductModal(true)}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium text-sm text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors"
-                      >
-                        <PlusIcon className="w-4 h-4" />
-                        Add Product to This Requirement
-                      </button>
+                  {!isCountyFeeRequirement &&
+                    countyUnavailable &&
+                    productCount === 0 && (
+                      <NoCountyProductState
+                        requirementName={requirement.name}
+                        countyName={selectedCounty?.name || "your county"}
+                      />
                     )}
-
-                  {productCount > 0 && (
-                    <button
-                      onClick={() => setIsExpanded(!isExpanded)}
-                      className="w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-xl bg-gray-50 hover:bg-blue-50 text-gray-700 hover:text-blue-700 transition-all duration-200 font-medium text-sm"
-                    >
-                      <span>
-                        {isExpanded ? "Hide Products" : "View Products"}
-                      </span>
-                      {isExpanded ? (
-                        <ChevronUpIcon className="h-4 w-4" />
-                      ) : (
-                        <ChevronDownIcon className="h-4 w-4" />
-                      )}
-                    </button>
-                  )}
-
-                  {productCount === 0 && (
-                    <button
-                      onClick={handleAddProductlessToCart}
-                      className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium text-sm transition-all ${
-                        isProductlessInCart
-                          ? "bg-green-500 text-white hover:bg-green-600"
-                          : "bg-emerald-500 text-white hover:bg-emerald-600"
-                      }`}
-                    >
-                      {isProductlessInCart ? (
-                        <>
-                          <FiCheck size={16} />
-                          <span>Added to List</span>
-                        </>
-                      ) : (
-                        <>
-                          <FiPlus size={16} />
-                          <span>Add to List</span>
-                        </>
-                      )}
-                    </button>
-                  )}
                 </div>
+              )}
 
-                {/* County-specific empty state — only when this Legal
-                    requirement has products elsewhere but none for the
-                    currently selected county. */}
-                {countyUnavailable && productCount === 0 && (
-                  <NoCountyProductState
+              {/* ── Apply-For-Me Button for Legal requirements ── */}
+              {requirement.category === "Legal" && (
+                <div className="mt-3">
+                  <ApplyForMeButton
                     requirementName={requirement.name}
-                    countyName={selectedCounty?.name || "your county"}
+                    countyName={selectedCounty?.name}
+                    businessId={businessId}
                   />
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {isExpanded && productCount > 0 && (
+        {/* ── Expanded section — real products OR a single CountyFeeCard ── */}
+        {isExpanded && effectiveCount > 0 && (
           <div className="border-t border-gray-100 bg-gradient-to-r from-gray-50/50 to-blue-50/50">
             <div className="p-2 sm:p-6">
               <div className="flex items-center justify-between mb-4">
@@ -657,40 +733,61 @@ export default function RequirementCard({
                     <ShoppingBagIcon className="h-4 w-4 text-blue-600" />
                   </div>
                   <h4 className="font-semibold text-gray-900 truncate">
-                    Recommended Products
+                    {isCountyFeeRequirement
+                      ? "Pricing"
+                      : "Recommended Products"}
                   </h4>
                 </div>
 
-                {canAddProduct && requirement.templateId && (
-                  <button
-                    onClick={() => setShowAddProductModal(true)}
-                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors whitespace-nowrap"
-                    title="Assign a product to this requirement"
-                  >
-                    <PlusIcon className="w-3.5 h-3.5" />
-                    Add Product
-                  </button>
-                )}
+                {!isCountyFeeRequirement &&
+                  canAddProduct &&
+                  requirement.templateId && (
+                    <button
+                      onClick={() => setShowAddProductModal(true)}
+                      className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors whitespace-nowrap"
+                      title="Assign a product to this requirement"
+                    >
+                      <PlusIcon className="w-3.5 h-3.5" />
+                      Add Product
+                    </button>
+                  )}
               </div>
 
               <div className="grid gap-4">
-                {products.map((product, index) => (
-                  <div
-                    key={product.id}
-                    className="transform transition-all duration-300"
-                    style={{
-                      animationDelay: `${index * 100}ms`,
-                      animation: "slideInUp 0.5s ease-out forwards",
-                    }}
-                  >
-                    <ProductCard
-                      product={product}
-                      requirementName={requirement.name}
-                      category={requirement.category}
-                      businessId={businessId}
-                    />
-                  </div>
-                ))}
+                {isCountyFeeRequirement &&
+                feeScheduleResolution &&
+                selectedCounty &&
+                requirement.templateId ? (
+                  <CountyFeeCard
+                    shellProductId={feeScheduleShellProductId}
+                    shellProduct={feeScheduleShellProductDetails}
+                    countyId={selectedCounty.id}
+                    countyName={selectedCounty.name}
+                    requirementName={requirement.name}
+                    requirementDescription={requirement.description}
+                    category={requirement.category}
+                    resolution={feeScheduleResolution}
+                    businessId={businessId}
+                  />
+                ) : (
+                  products.map((product, index) => (
+                    <div
+                      key={product.id}
+                      className="transform transition-all duration-300"
+                      style={{
+                        animationDelay: `${index * 100}ms`,
+                        animation: "slideInUp 0.5s ease-out forwards",
+                      }}
+                    >
+                      <ProductCard
+                        product={product}
+                        requirementName={requirement.name}
+                        category={requirement.category}
+                        businessId={businessId}
+                      />
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>

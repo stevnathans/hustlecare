@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useCart } from '@/contexts/CartContext';
-import { Product as ProductType } from '@/types';
+import { Product as ProductType, LegalFeeSchedule } from '@/types';
 
 export interface Requirement {
   id: number;
@@ -46,6 +46,13 @@ export interface UseBusinessDataInitial {
   requirements: Requirement[];
 }
 
+export interface FeeScheduleShellProductDetails {
+  name: string;
+  description: string | null;
+  image: string | null;
+  url: string | null;
+}
+
 const CATEGORY_ORDER = [
   'Legal',
   'Equipment',
@@ -57,9 +64,6 @@ const CATEGORY_ORDER = [
   'Uncategorized',
 ];
 
-// ── Grouping helpers ──────────────────────────────────────────────────────
-// Extracted so the same logic can run synchronously (for SSR-provided
-// initial data) and inside the client-fetch effect (for the no-SSR-data path).
 function groupByCategory(reqs: Requirement[]): Record<string, Requirement[]> {
   return reqs.reduce((groups: Record<string, Requirement[]>, req) => {
     const category = req.category || 'Uncategorized';
@@ -79,16 +83,20 @@ export const useBusinessData = (
 ) => {
   const { switchBusiness } = useCart();
 
-  // Captured once at mount — used only to decide whether the initial
-  // business/requirements fetch can be skipped. Deliberately NOT reactive:
-  // the parent may pass a new object literal on every render, and treating
-  // that as a dependency would re-trigger the effect on every render.
   const hasInitialData = useRef(!!initialData).current;
   const initialDataRef = useRef(initialData);
 
   const [business, setBusiness]           = useState<Business | null>(initialData?.business ?? null);
   const [requirements, setRequirements]   = useState<Requirement[]>(initialData?.requirements ?? []);
   const [products, setProducts]           = useState<Record<string, ProductType[]>>({});
+  const [feeSchedules, setFeeSchedules]   = useState<Record<string, LegalFeeSchedule[]>>({});
+  const [countyFeeScheduleNames, setCountyFeeScheduleNames] = useState<Set<string>>(new Set());
+  const [countyFeeShellProductIds, setCountyFeeShellProductIds] = useState<Record<string, number>>({});
+  // Requirement name -> the shell product's editable fields (name,
+  // description, image, url). Lets the front end show admin-edited
+  // content instead of always falling back to the requirement template's
+  // generic description.
+  const [countyFeeShellProductDetails, setCountyFeeShellProductDetails] = useState<Record<string, FeeScheduleShellProductDetails>>({});
   const [error, setError]                 = useState<string | null>(null);
   const [isLoading, setIsLoading]         = useState<boolean>(!hasInitialData);
   const [groupedRequirements, setGroupedRequirements] = useState<Record<string, Requirement[]>>(
@@ -98,32 +106,41 @@ export const useBusinessData = (
     () => sortCategoryKeys(groupByCategory(initialData?.requirements ?? []))
   );
 
-  // ── Single batch fetch — one request for all products ────────────────────
-  // Previously this was a sequential per-requirement loop (N requests).
-  // Now we hit /api/business/[slug]/products which returns a templateId→products
-  // map in one DB query, then we remap it to requirementName→products for the UI.
   const fetchProducts = useCallback(async (
     requirementsData: Requirement[],
     businessName: string,
     businessSlug: string,
   ) => {
     try {
-      const response = await fetch(`/api/business/${businessSlug}/products`);
+      const response = await fetch(`/api/business/${businessSlug}/products`, { cache: 'no-store' });
       if (!response.ok) {
         setProducts({});
+        setFeeSchedules({});
+        setCountyFeeScheduleNames(new Set());
+        setCountyFeeShellProductIds({});
+        setCountyFeeShellProductDetails({});
         return;
       }
 
-      // productsByTemplateId: { [templateId]: Product[] }
-      const productsByTemplateId: Record<string, any[]> = await response.json();
+      const data: {
+        products: Record<string, any[]>;
+        feeSchedules: Record<string, any[]>;
+        feeScheduleShellProductIds: Record<string, number>;
+        feeScheduleShellProductDetails: Record<string, FeeScheduleShellProductDetails>;
+      } = await response.json();
 
-      // Remap to requirementName → ProductType[] for compatibility with
-      // useFilterState and all components that key products by name.
       const productsByName: Record<string, ProductType[]> = {};
+      const feeSchedulesByName: Record<string, LegalFeeSchedule[]> = {};
+      const feeNames = new Set<string>();
+      const shellIdsByName: Record<string, number> = {};
+      const shellDetailsByName: Record<string, FeeScheduleShellProductDetails> = {};
+      const rawFeeSchedules = data.feeSchedules ?? {};
+      const rawShellIds = data.feeScheduleShellProductIds ?? {};
+      const rawShellDetails = data.feeScheduleShellProductDetails ?? {};
 
       for (const requirement of requirementsData) {
         const templateId = requirement.templateId;
-        const rawProducts = templateId ? (productsByTemplateId[templateId] ?? []) : [];
+        const rawProducts = templateId ? (data.products?.[templateId] ?? []) : [];
 
         productsByName[requirement.name] = rawProducts.map(
           (product: any): ProductType => ({
@@ -147,13 +164,11 @@ export const useBusinessData = (
             createdAt:       product.createdAt || new Date().toISOString(),
             updatedAt:       product.updatedAt || new Date().toISOString(),
 
-            // Condition
             condition:            product.condition,
             usedDurationValue:    product.usedDurationValue,
             usedDurationUnit:     product.usedDurationUnit,
             hasReceipt:           product.hasReceipt,
 
-            // Specifications
             brand:                product.brand,
             modelNumber:          product.modelNumber,
             voltage:              product.voltage,
@@ -162,26 +177,51 @@ export const useBusinessData = (
             weight:               product.weight,
             weightUnit:           product.weightUnit,
 
-            // Warranty
             warrantyType:            product.warrantyType,
             warrantyDurationValue:   product.warrantyDurationValue,
             warrantyDurationUnit:    product.warrantyDurationUnit,
 
-            // Delivery / logistics
             deliveryAvailable:  product.deliveryAvailable || false,
             pickupLocation:     product.pickupLocation,
             leadTime:           product.leadTime,
 
-            // Commercial terms
             negotiable:   product.negotiable || false,
             bulkPricing:  Array.isArray(product.bulkPricing) ? product.bulkPricing : [],
+
+            validityValue: product.validityValue,
+            validityUnit: product.validityUnit,
+            processingTimeMinDays: product.processingTimeMinDays,
+            processingTimeMaxDays: product.processingTimeMaxDays,
           })
         );
+
+        const isFeeScheduleTemplate =
+          templateId != null && Object.prototype.hasOwnProperty.call(rawFeeSchedules, templateId);
+
+        feeSchedulesByName[requirement.name] = isFeeScheduleTemplate
+          ? (rawFeeSchedules[templateId as number] as LegalFeeSchedule[])
+          : [];
+
+        if (isFeeScheduleTemplate) {
+          feeNames.add(requirement.name);
+          const shellId = templateId != null ? rawShellIds[templateId as number] : undefined;
+          if (shellId != null) shellIdsByName[requirement.name] = shellId;
+          const shellDetails = templateId != null ? rawShellDetails[templateId as number] : undefined;
+          if (shellDetails) shellDetailsByName[requirement.name] = shellDetails;
+        }
       }
 
       setProducts(productsByName);
+      setFeeSchedules(feeSchedulesByName);
+      setCountyFeeScheduleNames(feeNames);
+      setCountyFeeShellProductIds(shellIdsByName);
+      setCountyFeeShellProductDetails(shellDetailsByName);
     } catch {
       setProducts({});
+      setFeeSchedules({});
+      setCountyFeeScheduleNames(new Set());
+      setCountyFeeShellProductIds({});
+      setCountyFeeShellProductDetails({});
     }
   }, []);
 
@@ -200,17 +240,11 @@ export const useBusinessData = (
         let requirementsData: Requirement[];
 
         if (hasInitialData && initialDataRef.current) {
-          // ── SSR fast path ────────────────────────────────────────────────
-          // Business + requirements were already rendered server-side (see
-          // page.tsx), so no fetch is needed here — this avoids the page
-          // shipping an empty shell that only fills in after hydration.
           transformedBusiness = initialDataRef.current.business;
           requirementsData = initialDataRef.current.requirements;
         } else {
-          // ── Client-fetch path (unchanged) ────────────────────────────────
           setIsLoading(true);
 
-          // Business and requirements fetched in parallel.
           const [businessResponse, requirementsResponse] = await Promise.all([
             fetch(`/api/business/${slug}`),
             fetch(`/api/business/${slug}/requirements`),
@@ -270,7 +304,6 @@ export const useBusinessData = (
           switchBusiness(transformedBusiness.id);
         }
 
-        // One batch fetch for all products — runs on both paths.
         await fetchProducts(requirementsData, transformedBusiness.name, transformedBusiness.slug);
 
         setIsLoading(false);
@@ -282,7 +315,6 @@ export const useBusinessData = (
     };
 
     loadBusinessData();
-    // hasInitialData / initialDataRef intentionally excluded — see comment above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, switchBusiness, fetchProducts]);
 
@@ -290,6 +322,10 @@ export const useBusinessData = (
     business,
     requirements,
     products,
+    feeSchedules,
+    countyFeeScheduleNames,
+    countyFeeShellProductIds,
+    countyFeeShellProductDetails,
     error,
     isLoading,
     groupedRequirements,

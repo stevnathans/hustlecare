@@ -97,18 +97,19 @@ type Props = {
   errors: Record<string, string>;
   requirements: RequirementOption[];
   loadingRequirements?: boolean;
-  /** admin only */
   vendors?: [string, string][];
-  /** vendor only */
   bulkTiers?: BulkTier[];
   setBulkTiers?: (updater: (t: BulkTier[]) => BulkTier[]) => void;
+  /** True for a system-generated county-fee shell product — hides price/vendor/legal fields that don't apply to it. */
+  isFeeScheduleShell?: boolean;
 };
 
 export default function ProductForm({
   mode, theme, form, setForm, errors, requirements, loadingRequirements = false,
-  vendors = [], bulkTiers = [], setBulkTiers,
+  vendors = [], bulkTiers = [], setBulkTiers, isFeeScheduleShell,
 }: Props) {
   const t = tokens(theme);
+  const isShellProduct = mode === 'admin' && isFeeScheduleShell;
 
   const [vendorSearch, setVendorSearch] = useState('');
   const [isVendorDropdownOpen, setIsVendorDropdownOpen] = useState(false);
@@ -297,6 +298,17 @@ export default function ProductForm({
           </div>
         </Section>
       )}
+
+      {isShellProduct && (
+  <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4 text-sm text-gray-600">
+    This is a system-managed product representing a county-issued requirement.
+    Its price is set per-county on the{' '}
+    <a href="/admin/legal-fee-schedules" className="text-indigo-600 underline font-medium">
+      Legal Fee Schedule
+    </a>{' '}
+    page, not here. You can still edit its name, description, image, and apply link below.
+  </div>
+)}
 
       {/* Details */}
       <Section theme={theme} title="Product Details" icon={<Package size={14} />}>

@@ -25,6 +25,7 @@ import { useCart } from "@/contexts/CartContext";
 import { useSession } from "next-auth/react";
 import LoginModal from "../LoginModal";
 import { getBuyActionLabel } from "@/lib/buyAction";
+import ApplyForMeButton from "@/components/shared/ApplyForMeButton";
 
 type DurationUnit = "days" | "months" | "years";
 
@@ -90,7 +91,10 @@ interface ProductCardProps {
 }
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
-function formatDuration(value?: number | null, unit?: DurationUnit | null): string | null {
+function formatDuration(
+  value?: number | null,
+  unit?: DurationUnit | null,
+): string | null {
   if (value === undefined || value === null || !unit) return null;
   const label = value === 1 ? unit.slice(0, -1) : unit;
   return `${value} ${label}`;
@@ -98,29 +102,46 @@ function formatDuration(value?: number | null, unit?: DurationUnit | null): stri
 
 function formatLeadTime(leadTime?: string | null): string | null {
   switch (leadTime) {
-    case "IN_STOCK": return "In stock — ships immediately";
-    case "1_3_DAYS": return "Ships in 1–3 days";
-    case "1_WEEK": return "Ships in about 1 week";
-    case "2_WEEKS_PLUS": return "Ships in 2+ weeks";
-    default: return null;
+    case "IN_STOCK":
+      return "In stock — ships immediately";
+    case "1_3_DAYS":
+      return "Ships in 1–3 days";
+    case "1_WEEK":
+      return "Ships in about 1 week";
+    case "2_WEEKS_PLUS":
+      return "Ships in 2+ weeks";
+    default:
+      return null;
   }
 }
 
-function formatWeight(value?: number | null, unit?: string | null): string | null {
+function formatWeight(
+  value?: number | null,
+  unit?: string | null,
+): string | null {
   if (value === undefined || value === null || !unit) return null;
   return `${value}${unit}`;
 }
 
-function formatReceipt(hasReceipt?: "YES" | "NO" | "UNKNOWN" | null): string | null {
+function formatReceipt(
+  hasReceipt?: "YES" | "NO" | "UNKNOWN" | null,
+): string | null {
   switch (hasReceipt) {
-    case "YES": return "Original receipt available";
-    case "NO": return "No receipt available";
-    case "UNKNOWN": return "Receipt availability not specified";
-    default: return null;
+    case "YES":
+      return "Original receipt available";
+    case "NO":
+      return "No receipt available";
+    case "UNKNOWN":
+      return "Receipt availability not specified";
+    default:
+      return null;
   }
 }
 
-function formatProcessingTime(min?: number | null, max?: number | null): string | null {
+function formatProcessingTime(
+  min?: number | null,
+  max?: number | null,
+): string | null {
   if (min == null && max == null) return null;
   if (min != null && max != null && min !== max) return `${min}–${max} Days`;
   const val = min ?? max;
@@ -131,7 +152,7 @@ function buildRedirectHref(
   productId: string | number,
   businessId?: number,
   requirementName?: string,
-  category?: string
+  category?: string,
 ) {
   const params = new URLSearchParams();
   if (businessId) params.set("businessId", String(businessId));
@@ -156,17 +177,27 @@ function Badge({
     gray: "bg-gray-100 text-gray-600",
   }[tone];
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.68rem] font-semibold ${toneCls}`}>
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.68rem] font-semibold ${toneCls}`}
+    >
       {children}
     </span>
   );
 }
 
 // ── Detail panel row: label above, value below (matches existing style) ────────
-function DetailBlock({ label, children }: { label: string; children: React.ReactNode }) {
+function DetailBlock({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div>
-      <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">{label}</h4>
+      <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">
+        {label}
+      </h4>
       <div className="text-gray-700 text-xs sm:text-sm">{children}</div>
     </div>
   );
@@ -209,11 +240,15 @@ function ImageLightbox({
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
+    return () => {
+      document.body.style.overflow = prev;
+    };
   }, []);
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
@@ -285,14 +320,23 @@ function PortaledLoginModal({
     if (!isOpen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
+    return () => {
+      document.body.style.overflow = prev;
+    };
   }, [isOpen]);
 
   if (!isOpen) return null;
 
   return (
     <Portal>
-      <div style={{ position: "fixed", inset: 0, zIndex: 9999, pointerEvents: "none" }}>
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 9999,
+          pointerEvents: "none",
+        }}
+      >
         <div style={{ pointerEvents: "auto" }}>
           <LoginModal isOpen={isOpen} onClose={onClose} onLogin={onLogin} />
         </div>
@@ -318,7 +362,12 @@ const ProductCard: React.FC<ProductCardProps> = ({
   const isInCart = !!cartItem;
   const cartQuantity = cartItem?.quantity || 0;
 
-  const redirectHref = buildRedirectHref(product.id, businessId, requirementName, category);
+  const redirectHref = buildRedirectHref(
+    product.id,
+    businessId,
+    requirementName,
+    category,
+  );
   const buyLabel = getBuyActionLabel(category);
 
   const handleAddToCart = async () => {
@@ -356,16 +405,36 @@ const ProductCard: React.FC<ProductCardProps> = ({
 
   const isUsed = product.condition === "USED";
   const hasWarranty = !!product.warrantyType && product.warrantyType !== "NONE";
-  const usedDuration = formatDuration(product.usedDurationValue, product.usedDurationUnit);
-  const warrantyDuration = formatDuration(product.warrantyDurationValue, product.warrantyDurationUnit);
+  const usedDuration = formatDuration(
+    product.usedDurationValue,
+    product.usedDurationUnit,
+  );
+  const warrantyDuration = formatDuration(
+    product.warrantyDurationValue,
+    product.warrantyDurationUnit,
+  );
   const leadTimeLabel = formatLeadTime(product.leadTime);
   const weightLabel = formatWeight(product.weight, product.weightUnit);
-  const hasSpecs = !!(product.brand || product.modelNumber || product.voltage || product.wattage || product.dimensions || weightLabel);
-  const hasBulkPricing = Array.isArray(product.bulkPricing) && product.bulkPricing.length > 0;
+  const hasSpecs = !!(
+    product.brand ||
+    product.modelNumber ||
+    product.voltage ||
+    product.wattage ||
+    product.dimensions ||
+    weightLabel
+  );
+  const hasBulkPricing =
+    Array.isArray(product.bulkPricing) && product.bulkPricing.length > 0;
 
   const isLegal = category === "Legal";
-  const validityLabel = formatDuration(product.validityValue, product.validityUnit);
-  const processingTimeLabel = formatProcessingTime(product.processingTimeMinDays, product.processingTimeMaxDays);
+  const validityLabel = formatDuration(
+    product.validityValue,
+    product.validityUnit,
+  );
+  const processingTimeLabel = formatProcessingTime(
+    product.processingTimeMinDays,
+    product.processingTimeMaxDays,
+  );
   const hasLegalDetails = isLegal && (validityLabel || processingTimeLabel);
 
   return (
@@ -484,7 +553,9 @@ const ProductCard: React.FC<ProductCardProps> = ({
             <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
               {product.condition && (
                 <Badge tone={isUsed ? "amber" : "emerald"}>
-                  {isUsed ? `Used${usedDuration ? ` · ${usedDuration}` : ""}` : "Brand New"}
+                  {isUsed
+                    ? `Used${usedDuration ? ` · ${usedDuration}` : ""}`
+                    : "Brand New"}
                 </Badge>
               )}
               {hasWarranty && (
@@ -522,6 +593,13 @@ const ProductCard: React.FC<ProductCardProps> = ({
               <span>{buyLabel}</span>
             </Link>
 
+            {category === "Legal" && (
+              <ApplyForMeButton
+                requirementName={requirementName}
+                businessId={businessId}
+              />
+            )}
+
             <button
               onClick={toggleDetails}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 transition font-medium ml-auto"
@@ -554,7 +632,9 @@ const ProductCard: React.FC<ProductCardProps> = ({
                 <DetailBlock label="Legal Details">
                   <div className="space-y-1">
                     {validityLabel && <p>Validity: {validityLabel}</p>}
-                    {processingTimeLabel && <p>Processing Time: {processingTimeLabel}</p>}
+                    {processingTimeLabel && (
+                      <p>Processing Time: {processingTimeLabel}</p>
+                    )}
                   </div>
                 </DetailBlock>
               )}
@@ -565,11 +645,16 @@ const ProductCard: React.FC<ProductCardProps> = ({
                     <Badge tone={isUsed ? "amber" : "emerald"}>
                       {isUsed ? "Used" : "Brand New"}
                     </Badge>
-                    {isUsed && usedDuration && <span className="text-gray-600">Used for {usedDuration}</span>}
+                    {isUsed && usedDuration && (
+                      <span className="text-gray-600">
+                        Used for {usedDuration}
+                      </span>
+                    )}
                   </div>
                   {isUsed && product.hasReceipt && (
                     <p className="mt-1 flex items-center gap-1 text-gray-600">
-                      <FiFileText size={11} /> {formatReceipt(product.hasReceipt)}
+                      <FiFileText size={11} />{" "}
+                      {formatReceipt(product.hasReceipt)}
                     </p>
                   )}
                 </DetailBlock>
@@ -579,11 +664,20 @@ const ProductCard: React.FC<ProductCardProps> = ({
                 <DetailBlock label="Specifications">
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                     {product.brand && <span>Brand: {product.brand}</span>}
-                    {product.modelNumber && <span>Model: {product.modelNumber}</span>}
-                    {(product.voltage || product.wattage) && (
-                      <span>Power: {[product.voltage, product.wattage].filter(Boolean).join(", ")}</span>
+                    {product.modelNumber && (
+                      <span>Model: {product.modelNumber}</span>
                     )}
-                    {product.dimensions && <span>Dimensions: {product.dimensions}</span>}
+                    {(product.voltage || product.wattage) && (
+                      <span>
+                        Power:{" "}
+                        {[product.voltage, product.wattage]
+                          .filter(Boolean)
+                          .join(", ")}
+                      </span>
+                    )}
+                    {product.dimensions && (
+                      <span>Dimensions: {product.dimensions}</span>
+                    )}
                     {weightLabel && <span>Weight: {weightLabel}</span>}
                   </div>
                 </DetailBlock>
@@ -593,23 +687,36 @@ const ProductCard: React.FC<ProductCardProps> = ({
                 <DetailBlock label="Warranty">
                   <p className="flex items-center gap-1">
                     <FiShield size={11} className="text-gray-400" />
-                    {product.warrantyType === "MANUFACTURER" ? "Manufacturer warranty" : "Vendor-provided warranty"}
+                    {product.warrantyType === "MANUFACTURER"
+                      ? "Manufacturer warranty"
+                      : "Vendor-provided warranty"}
                     {warrantyDuration && ` · ${warrantyDuration}`}
                   </p>
                 </DetailBlock>
               )}
 
-              {(product.deliveryAvailable || product.pickupLocation || leadTimeLabel) && (
+              {(product.deliveryAvailable ||
+                product.pickupLocation ||
+                leadTimeLabel) && (
                 <DetailBlock label="Delivery & Logistics">
                   <div className="space-y-1">
                     {product.deliveryAvailable && (
-                      <p className="flex items-center gap-1"><FiTruck size={11} className="text-gray-400" /> Delivery available</p>
+                      <p className="flex items-center gap-1">
+                        <FiTruck size={11} className="text-gray-400" /> Delivery
+                        available
+                      </p>
                     )}
                     {product.pickupLocation && (
-                      <p className="flex items-center gap-1"><FiMapPin size={11} className="text-gray-400" /> Pickup: {product.pickupLocation}</p>
+                      <p className="flex items-center gap-1">
+                        <FiMapPin size={11} className="text-gray-400" /> Pickup:{" "}
+                        {product.pickupLocation}
+                      </p>
                     )}
                     {leadTimeLabel && (
-                      <p className="flex items-center gap-1"><FiClock size={11} className="text-gray-400" /> {leadTimeLabel}</p>
+                      <p className="flex items-center gap-1">
+                        <FiClock size={11} className="text-gray-400" />{" "}
+                        {leadTimeLabel}
+                      </p>
                     )}
                   </div>
                 </DetailBlock>
@@ -621,16 +728,20 @@ const ProductCard: React.FC<ProductCardProps> = ({
                     <FiTag size={11} /> <span>Buy more, pay less</span>
                   </div>
                   <div className="rounded-lg border border-gray-200 overflow-hidden">
-                    {product.bulkPricing!
-                      .slice()
+                    {product
+                      .bulkPricing!.slice()
                       .sort((a, b) => a.minQty - b.minQty)
                       .map((tier, i) => (
                         <div
                           key={i}
                           className={`flex items-center justify-between px-2.5 py-1.5 text-xs sm:text-sm ${i % 2 ? "bg-white" : "bg-gray-50"}`}
                         >
-                          <span className="text-gray-600">{tier.minQty}+ units</span>
-                          <span className="font-semibold text-gray-900">KSh {tier.price.toLocaleString()} / unit</span>
+                          <span className="text-gray-600">
+                            {tier.minQty}+ units
+                          </span>
+                          <span className="font-semibold text-gray-900">
+                            KSh {tier.price.toLocaleString()} / unit
+                          </span>
                         </div>
                       ))}
                   </div>

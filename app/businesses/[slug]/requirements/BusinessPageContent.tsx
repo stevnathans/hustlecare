@@ -13,6 +13,7 @@ import {
 } from 'hooks/useBusinessData';
 import { useFilterState } from 'hooks/useFilterState';
 import { Product as ProductType } from '@/types';
+import { resolveFeeSchedule, FeeScheduleResolution } from '@/lib/legalFeeSchedule';
 import Link from 'next/link';
 
 interface Faq {
@@ -27,26 +28,12 @@ interface BusinessPageContentProps {
   faqs?: Faq[];
 }
 
-// ── County-aware helpers ──────────────────────────────────────────────────
-// A vendor "serves" a county if it's flagged to serve all counties (the
-// default — covers national bodies like KRA/KEBS and vendors whose
-// products, e.g. software, aren't tied to a location at all) or if the
-// selected county is explicitly among the counties it operates in.
-//
-// `vendor` is typed loosely (any) here because types/vendor.ts hasn't been
-// updated yet to declare `servesAllCounties` / `counties` — once it is,
-// these can be typed against the real Vendor interface directly.
 function vendorServesCounty(vendor: any, countyId: number): boolean {
   if (!vendor) return false;
   if (vendor.servesAllCounties) return true;
   return (vendor.counties ?? []).some((vc: any) => vc.countyId === countyId);
 }
 
-// Sort priority for the "soft prioritize" categories (everything except
-// Legal) — lower sorts first. 0 = vendor explicitly serves this county,
-// 1 = vendor serves all counties (neutral, always relevant), 2 = vendor
-// serves other counties only. Nothing is ever excluded by this — it's a
-// sort key, not a filter.
 function countyPriority(vendor: any, countyId: number): number {
   if (!vendor) return 1;
   if (vendor.servesAllCounties) return 1;
@@ -66,6 +53,10 @@ function BusinessPageContentInner({
     business,
     requirements,
     products,
+    feeSchedules,
+    countyFeeScheduleNames,
+    countyFeeShellProductIds,
+    countyFeeShellProductDetails,
     error,
     groupedRequirements,
     sortedCategories,
@@ -83,8 +74,10 @@ function BusinessPageContentInner({
     return map;
   }, [requirements]);
 
-  // Legal: hard filter (vendor must cover the selected county, or serve all).
-  // Everything else: soft sort only — nothing is ever hidden.
+  // Legal (vendor-issued, e.g. KRA/KEBS): hard filter by vendor county coverage.
+  // Everything else: soft sort only. Fee-schedule requirements are handled
+  // separately below and untouched here (their "products" array is empty
+  // by design — they have no real Product rows).
   const { countyAdjustedProducts, legalUnavailableInCounty } = useMemo(() => {
     if (!selectedCounty) {
       return { countyAdjustedProducts: products, legalUnavailableInCounty: {} as Record<string, boolean> };
@@ -96,7 +89,7 @@ function BusinessPageContentInner({
     for (const [reqName, prods] of Object.entries(products)) {
       const category = requirementCategoryByName[reqName];
 
-      if (category === 'Legal') {
+      if (category === 'Legal' && !countyFeeScheduleNames.has(reqName)) {
         const filtered = prods.filter((p) => vendorServesCounty(p.vendor, selectedCounty.id));
         out[reqName] = filtered;
         unavailable[reqName] = prods.length > 0 && filtered.length === 0;
@@ -108,7 +101,22 @@ function BusinessPageContentInner({
     }
 
     return { countyAdjustedProducts: out, legalUnavailableInCounty: unavailable };
-  }, [products, selectedCounty, requirementCategoryByName]);
+  }, [products, selectedCounty, requirementCategoryByName, countyFeeScheduleNames]);
+
+  // County-issued permits (Business Permit, Health Certificate, etc.) —
+  // resolved from LegalFeeSchedule. Only computed once a county is picked;
+  // countyFeeScheduleNames (from useBusinessData) already tells the UI
+  // which requirements are this type even before that, so there's no
+  // "flash of wrong content" while waiting for a selection.
+  const feeScheduleResolutions = useMemo(() => {
+    if (!selectedCounty) return {} as Record<string, FeeScheduleResolution>;
+    const out: Record<string, FeeScheduleResolution> = {};
+    for (const [reqName, schedules] of Object.entries(feeSchedules)) {
+      if (!countyFeeScheduleNames.has(reqName)) continue;
+      out[reqName] = resolveFeeSchedule(schedules, selectedCounty.id, {});
+    }
+    return out;
+  }, [feeSchedules, selectedCounty, countyFeeScheduleNames]);
 
   const {
     categoryStates,
@@ -213,6 +221,10 @@ function BusinessPageContentInner({
               groupedRequirements={groupedRequirements}
               products={countyAdjustedProducts}
               legalUnavailableInCounty={legalUnavailableInCounty}
+              feeScheduleResolutions={feeScheduleResolutions}
+              countyFeeScheduleNames={countyFeeScheduleNames}
+              countyFeeShellProductIds={countyFeeShellProductIds}
+              countyFeeShellProductDetails={countyFeeShellProductDetails}
               categoryStates={categoryStates}
               globalSearchQuery={globalSearchQuery}
               globalFilter={globalFilter}

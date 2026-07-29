@@ -43,6 +43,7 @@ export async function GET(_: NextRequest, { params }: Params) {
       necessity: template.necessity,
       isDeprecated: template.isDeprecated,
       isGlobal: template.isGlobal,
+      isCountyFeeSchedule: template.isCountyFeeSchedule,
       deprecatedAt: template.deprecatedAt,
       productCount: template._count.products,
       businessCount: template._count.businesses,
@@ -71,7 +72,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
     const body = await req.json();
-    const { name, description, image, category, necessity, isGlobal } = body;
+    const { name, description, image, category, necessity, isGlobal, isCountyFeeSchedule } = body;
 
     const template = await prisma.requirementTemplate.findUnique({
       where: { id: Number(id) },
@@ -97,6 +98,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         ...(category    !== undefined && { category }),
         ...(necessity   !== undefined && { necessity }),
         ...(isGlobal    !== undefined && { isGlobal }),
+        ...(isCountyFeeSchedule !== undefined && { isCountyFeeSchedule }),
       },
       include: { _count: { select: { businesses: true, products: true } } },
     });
@@ -131,6 +133,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       category: updated.category,
       necessity: updated.necessity,
       isGlobal: updated.isGlobal,
+      isCountyFeeSchedule: updated.isCountyFeeSchedule,
       productCount: updated._count.products,
       businessCount: updatedCount,
       updatedAt: updated.updatedAt,

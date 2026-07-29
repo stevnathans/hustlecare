@@ -41,6 +41,8 @@ const navItems: NavItem[] = [
   { name: "Products",     href: "/admin/products",       icon: ShoppingCart,  requiredRoles: ["author","editor","admin"] },
   { name: "Vendors",      href: "/admin/vendors",        icon: Store,         requiredRoles: ["editor","admin"] },
   { name: "Orders",       href: "/admin/orders",         icon: ShoppingCart,  requiredRoles: ["editor","admin"] },
+  { name: "Apply Requests", href: "/admin/apply-requests", icon: ShoppingCart,  requiredRoles: ["editor","admin"] },
+  { name: "Legal Fees",       href: "/admin/legal-fee-schedules",         icon: ShoppingCart,  requiredRoles: ["editor","admin"] },
   { name: "Comments",     href: "/admin/comments",       icon: MessageSquare, requiredRoles: ["reviewer","editor","admin"] },
   { name: "Reviews",      href: "/admin/reviews",        icon: Star,          requiredRoles: ["reviewer","editor","admin"] },
   { name: "Redirects",    href: "/admin/redirects",      icon: GitMerge,      requiredRoles: ["editor", "admin"] },
