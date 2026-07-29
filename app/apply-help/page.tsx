@@ -1,5 +1,6 @@
 // app/apply-help/page.tsx
 import { Metadata } from 'next';
+import { Suspense } from 'react';
 import ApplyHelpForm from '@/components/apply-help/ApplyHelpForm';
 
 export const metadata: Metadata = {
@@ -18,7 +19,9 @@ export default function ApplyHelpPage() {
           Tell us what you need and where — our team will reach out to help you complete the application.
         </p>
       </div>
-      <ApplyHelpForm />
+      <Suspense fallback={<div className="bg-white rounded-2xl border border-slate-200 p-6 h-64 animate-pulse" />}>
+        <ApplyHelpForm />
+      </Suspense>
     </div>
   );
 }
