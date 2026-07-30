@@ -190,8 +190,13 @@ const plans: Plan[] = [
     id: "quick",
     name: "Quick Names",
     tag: "Best for quick decisions",
-    price: "$40",
-    items: ["10 name ideas", "Domain availability check", "1 round of refinement"],
+    price: "KSh 2,500",
+    items: [
+      "Business name brainstorming",
+      "20 suggested names",
+      "Domain availability check (.co.ke & .com)",
+      "Basic name report",
+    ],
     delivery: "1–2 days",
     cta: "Start Quick Names",
     popular: false,
@@ -200,12 +205,13 @@ const plans: Plan[] = [
     id: "complete",
     name: "Complete Naming",
     tag: "Most popular",
-    price: "$80",
+    price: "KSh 5,500",
     items: [
-      "20 name ideas",
-      "Domain + social handle check",
-      "Trademark quick-check",
-      "2 rounds of refinement",
+      "Everything in Quick Names",
+      "40 curated business names",
+      "Trademark conflict screening (basic)",
+      "Social media username check",
+      "Brand positioning suggestions & slogan ideas",
     ],
     delivery: "2–3 days",
     cta: "Start Complete Naming",
@@ -215,12 +221,13 @@ const plans: Plan[] = [
     id: "brand-ready",
     name: "Brand Ready",
     tag: "Best for serious brands",
-    price: "$130",
+    price: "KSh 10,000",
     items: [
-      "30 name ideas",
-      "Full domain, social & trademark check",
-      "Naming rationale document",
-      "Unlimited refinement rounds",
+      "Everything in Complete Naming",
+      "Premium naming consultation",
+      "Business tagline & brand story",
+      "Domain registration assistance & email setup",
+      "Logo style recommendations",
     ],
     delivery: "3–5 days",
     cta: "Start Brand Ready",
@@ -579,7 +586,7 @@ function PlatformIntegrationSection() {
         <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-10 lg:p-14">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              
+            
               <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-5">
                 Where Your Brand Starts
               </h2>
