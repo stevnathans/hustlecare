@@ -401,6 +401,7 @@ model VendorCounty {
 // invariant ("at most one flat/default row") is enforced at the
 // application layer (see the bulk-default admin endpoint, which does a
 // find-then-update-or-create rather than relying on the DB constraint).
+
 model LegalFeeSchedule {
   id                     Int                @id @default(autoincrement())
   templateId             Int
@@ -413,6 +414,7 @@ model LegalFeeSchedule {
   processingTimeMinDays  Int?
   processingTimeMaxDays  Int?
   notes                  String?
+  applyUrl               String?
   createdAt              DateTime           @default(now())
   updatedAt              DateTime           @updatedAt
 

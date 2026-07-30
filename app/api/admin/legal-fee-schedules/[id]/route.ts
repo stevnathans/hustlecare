@@ -11,31 +11,45 @@ export async function PATCH(request: Request, { params }: Params) {
   try {
     const user = await requirePermission('products.update');
     const { id } = await params;
+    const scheduleId = Number(id);
+
+    if (Number.isNaN(scheduleId)) {
+      return NextResponse.json({ error: 'Invalid ID provided.' }, { status: 400 });
+    }
+
     const body = await request.json();
 
-    const existing = await prisma.legalFeeSchedule.findUnique({ where: { id: Number(id) } });
-    if (!existing) return NextResponse.json({ error: 'Fee schedule row not found.' }, { status: 404 });
+    const existing = await prisma.legalFeeSchedule.findUnique({
+      where: { id: scheduleId },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: 'Fee schedule row not found.' }, { status: 404 });
+    }
 
     // Every field on a row is editable now, not just price/validity/
     // processing/notes — including county, business type, size band, and
-    // the county-specific apply URL. This is what lets a mistaken entry
-    // be corrected in place instead of deleting and re-creating the row.
+    // the county-specific apply URL.
     if (body.price !== undefined && (body.price === null || Number.isNaN(Number(body.price)) || Number(body.price) < 0)) {
       return NextResponse.json({ error: 'Enter a valid price.' }, { status: 400 });
     }
+
     if (body.countyId !== undefined) {
-      const county = await prisma.county.findUnique({ where: { id: Number(body.countyId) }, select: { id: true } });
+      const county = await prisma.county.findUnique({
+        where: { id: Number(body.countyId) },
+        select: { id: true },
+      });
       if (!county) return NextResponse.json({ error: 'County not found.' }, { status: 400 });
     }
+
     if (body.businessCategoryId !== undefined && body.businessCategoryId !== null) {
-      const category = await prisma.businessCategory.findUnique({ where: { id: Number(body.businessCategoryId) }, select: { id: true } });
+      const category = await prisma.businessCategory.findUnique({
+        where: { id: Number(body.businessCategoryId) },
+        select: { id: true },
+      });
       if (!category) return NextResponse.json({ error: 'Business category not found.' }, { status: 400 });
     }
 
-    // If county/category/size are changing, guard against creating a
-    // duplicate of an already-existing row for that combination (the
-    // schema's @@unique constraint would otherwise throw a raw Prisma
-    // error instead of a friendly message).
+    // Guard against creating duplicate rows for unique combinations
     const nextCountyId = body.countyId !== undefined ? Number(body.countyId) : existing.countyId;
     const nextCategoryId = body.businessCategoryId !== undefined
       ? (body.businessCategoryId === null ? null : Number(body.businessCategoryId))
@@ -50,7 +64,7 @@ export async function PATCH(request: Request, { params }: Params) {
     if (combinationChanged) {
       const duplicate = await prisma.legalFeeSchedule.findFirst({
         where: {
-          id: { not: Number(id) },
+          id: { not: scheduleId },
           templateId: existing.templateId,
           countyId: nextCountyId,
           businessCategoryId: nextCategoryId,
@@ -67,7 +81,7 @@ export async function PATCH(request: Request, { params }: Params) {
     }
 
     const updated = await prisma.legalFeeSchedule.update({
-      where: { id: Number(id) },
+      where: { id: scheduleId },
       data: {
         countyId: body.countyId !== undefined ? Number(body.countyId) : undefined,
         businessCategoryId: body.businessCategoryId !== undefined
@@ -88,7 +102,13 @@ export async function PATCH(request: Request, { params }: Params) {
       },
     });
 
-    await createAuditLog({ action: 'UPDATE', entity: 'Product', entityId: id, changes: { fields: Object.keys(body), updatedBy: user.id } });
+    await createAuditLog({
+      action: 'UPDATE',
+      entity: 'Product',
+      entityId: id,
+      changes: { fields: Object.keys(body), updatedBy: user.id },
+    });
+
     return NextResponse.json(updated);
   } catch (error) {
     if (error instanceof Error) {
@@ -104,12 +124,24 @@ export async function DELETE(_req: Request, { params }: Params) {
   try {
     const user = await requirePermission('products.delete');
     const { id } = await params;
+    const scheduleId = Number(id);
 
-    const existing = await prisma.legalFeeSchedule.findUnique({ where: { id: Number(id) } });
+    if (Number.isNaN(scheduleId)) {
+      return NextResponse.json({ error: 'Invalid ID provided.' }, { status: 400 });
+    }
+
+    const existing = await prisma.legalFeeSchedule.findUnique({
+      where: { id: scheduleId },
+    });
     if (!existing) return NextResponse.json({ error: 'Fee schedule row not found.' }, { status: 404 });
 
-    await prisma.legalFeeSchedule.delete({ where: { id: Number(id) } });
-    await createAuditLog({ action: 'DELETE', entity: 'Product', entityId: id, changes: { deletedBy: user.id } });
+    await prisma.legalFeeSchedule.delete({ where: { id: scheduleId } });
+    await createAuditLog({
+      action: 'DELETE',
+      entity: 'Product',
+      entityId: id,
+      changes: { deletedBy: user.id },
+    });
 
     return NextResponse.json({ message: 'Fee schedule row deleted.' });
   } catch (error) {
