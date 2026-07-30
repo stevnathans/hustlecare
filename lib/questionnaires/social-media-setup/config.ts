@@ -1,11 +1,60 @@
 // lib/questionnaires/social-media-setup/config.ts
-import type { QuestionnaireConfig } from "../types";
+import type { QuestionnaireConfig, PackageTierConfig } from "../types";
 import { contactStepSchema } from "./schema";
+
+// Matches the pricing cards on the Social Media Setup landing page.
+const packageTiers: PackageTierConfig[] = [
+  {
+    id: "starter",
+    name: "Starter Setup",
+    tag: "Best for new businesses",
+    priceLabel: "$70",
+    includes: [
+      "2 social media platforms",
+      "Branded profile setup",
+      "Optimised bio writing",
+      "Profile and cover images",
+      "Links and contact setup",
+    ],
+  },
+  {
+    id: "full",
+    name: "Full Social Launch",
+    tag: "Most popular",
+    priceLabel: "$140",
+    includes: [
+      "4 social media platforms",
+      "Branded profile setup",
+      "Optimised bio writing",
+      "Profile and cover images",
+      "Links, contact & category setup",
+      "SEO-friendly username selection",
+      "Starter content strategy guide",
+    ],
+  },
+  {
+    id: "complete",
+    name: "Complete Brand Presence",
+    tag: "Best for serious startups",
+    priceLabel: "$220",
+    includes: [
+      "Up to 6 social media platforms",
+      "Full branded profile setup",
+      "Optimised bios and descriptions",
+      "Custom-sized images for each platform",
+      "Links, integrations & booking setup",
+      "30-day content calendar",
+      "Hashtag strategy guide",
+      "Platform-specific growth tips",
+    ],
+  },
+];
 
 export const socialMediaSetupConfig: QuestionnaireConfig = {
   serviceSlug: "social-media-setup",
   serviceName: "Social Media Setup",
   estimatedMinutes: 8,
+  packageTiers,
   reviewSectionLabels: {
     contact: "Contact Information",
     "business-overview": "Business Overview",

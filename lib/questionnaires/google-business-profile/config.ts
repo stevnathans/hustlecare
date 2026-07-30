@@ -1,14 +1,40 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // lib/questionnaires/google-business-profile/config.ts
-import type { QuestionnaireConfig } from "../types";
+import type { QuestionnaireConfig, PackageTierConfig } from "../types";
 import { contactStepSchema } from "./schema";
 
 const hasExistingProfile = (answers: Record<string, any>) => answers?.existingProfile?.hasProfile === "yes";
+
+// Matches the pricing cards on the Google Business Profile landing page.
+const packageTiers: PackageTierConfig[] = [
+  {
+    id: "basic",
+    name: "Basic Listing",
+    tag: "Best for simple setup",
+    priceLabel: "$50",
+    includes: ["Profile creation", "Category & hours setup", "Business description"],
+  },
+  {
+    id: "optimized",
+    name: "Optimized Listing",
+    tag: "Most popular",
+    priceLabel: "$90",
+    includes: ["Everything in Basic", "Photos uploaded", "Product/service listings", "Q&A seeding", "Review response templates"],
+  },
+  {
+    id: "local-seo",
+    name: "Local SEO Boost",
+    tag: "Best for local visibility",
+    priceLabel: "$150",
+    includes: ["Everything in Optimized", "Keyword-optimised description", "3 starter Google Posts", "Citation consistency check", "Competitor comparison summary"],
+  },
+];
 
 export const googleBusinessProfileConfig: QuestionnaireConfig = {
   serviceSlug: "google-business-profile",
   serviceName: "Google Business Profile Setup",
   estimatedMinutes: 8,
+  packageTiers,
   reviewSectionLabels: {
     contact: "Contact Information",
     details: "Business Details",

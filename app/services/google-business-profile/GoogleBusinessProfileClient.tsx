@@ -1,8 +1,10 @@
-// app/services/logo-design/LogoDesignClient.tsx
+/* eslint-disable react/no-unescaped-entities */
+// app/services/google-business-profile/GoogleBusinessProfileClient.tsx
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Feature {
@@ -38,9 +40,17 @@ interface FAQItem {
   a: string;
 }
 
-interface PlatformLink {
+interface RelatedService {
   emoji: string;
+  title: string;
+  desc: string;
+  href: string;
+}
+
+interface StackItem {
   label: string;
+  status: "complete" | "current" | "upcoming";
+  emoji: string;
 }
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -74,65 +84,70 @@ function ChevronIcon({ open }: { open: boolean }) {
   );
 }
 
-// ── Logo Illustration ─────────────────────────────────────────────────────────
-function LogoIllustration() {
-  const mockLogos = [
-    { letter: "A", bg: "from-violet-500 to-purple-600", shape: "rounded-2xl" },
-    { letter: "B", bg: "from-emerald-500 to-teal-600", shape: "rounded-full" },
-    { letter: "C", bg: "from-amber-400 to-orange-500", shape: "rounded-xl rotate-12" },
-    { letter: "D", bg: "from-sky-500 to-blue-600", shape: "rounded-2xl" },
-  ];
-
+// ── Google Business Profile Illustration ───────────────────────────────────────
+function GoogleProfileIllustration() {
   return (
     <div className="relative w-full max-w-md mx-auto">
       <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-3xl" />
-      <div className="relative p-8 rounded-3xl border border-emerald-100 shadow-xl shadow-emerald-100/50">
+      <div className="relative p-7 rounded-3xl border border-emerald-100 shadow-xl shadow-emerald-100/50">
 
-        {/* Header label */}
-        <div className="flex items-center justify-between mb-5">
-          <span className="text-xs font-bold text-slate-400 tracking-widest uppercase">Logo Concepts</span>
-          <span className="bg-emerald-100 text-emerald-700 text-xs font-semibold px-2.5 py-1 rounded-full">4 Concepts</span>
-        </div>
-
-        {/* Logo concept grid */}
-        <div className="grid grid-cols-2 gap-3 mb-5">
-          {mockLogos.map(({ letter, bg, shape }) => (
-            <div
-              key={letter}
-              className="bg-white rounded-xl border border-slate-100 p-4 flex flex-col items-center gap-2 shadow-sm"
-            >
-              <div className={`w-12 h-12 bg-gradient-to-br ${bg} ${shape} flex items-center justify-center text-white font-extrabold text-xl shadow-md`}>
-                {letter}
-              </div>
-              <div className="h-2 w-16 bg-slate-100 rounded" />
-              <div className="h-1.5 w-10 bg-slate-50 rounded" />
+        {/* Map card */}
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden mb-4">
+          <div className="h-24 bg-gradient-to-br from-emerald-100 to-teal-100 relative flex items-center justify-center">
+            <div className="w-9 h-9 rounded-full bg-red-500 border-4 border-white shadow-lg flex items-center justify-center">
+              <div className="w-2.5 h-2.5 rounded-full bg-white" />
             </div>
-          ))}
+          </div>
+          <div className="p-4">
+            <div className="flex items-start justify-between mb-2">
+              <div>
+                <p className="text-sm font-bold text-slate-800">Wanjiru Fresh Foods</p>
+                <div className="flex items-center gap-1 mt-0.5">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <span key={i} className="text-amber-400 text-xs">★</span>
+                  ))}
+                  <span className="text-[10px] text-slate-400 ml-1">(24)</span>
+                </div>
+              </div>
+              <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full">Open</span>
+            </div>
+            <p className="text-[11px] text-slate-400 mb-1">Grocery Store · Nairobi, Kenya</p>
+            <p className="text-[11px] text-slate-400">Open · Closes 6:00 PM</p>
+          </div>
         </div>
 
-        {/* File formats row */}
-        <div className="bg-white rounded-xl border border-slate-100 p-4 mb-3">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">File Formats Included</p>
-          <div className="flex gap-2 flex-wrap">
-            {["PNG", "JPG", "SVG", "PDF"].map((fmt) => (
-              <span key={fmt} className="bg-emerald-50 border border-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-lg">
-                {fmt}
-              </span>
+        {/* Setup checklist */}
+        <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm mb-3">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Profile Setup</p>
+          <div className="space-y-2">
+            {[
+              { label: "Business details", done: true },
+              { label: "Photos uploaded", done: true },
+              { label: "Hours & category", done: true },
+              { label: "Posts scheduled", done: false },
+            ].map(({ label, done }) => (
+              <div key={label} className="flex items-center gap-2.5">
+                <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 ${done ? "bg-emerald-500" : "border-2 border-slate-200"}`}>
+                  {done && (
+                    <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                  )}
+                </div>
+                <span className={`text-xs font-medium ${done ? "text-slate-700" : "text-slate-400"}`}>{label}</span>
+              </div>
             ))}
           </div>
         </div>
 
-        {/* Color palette strip */}
-        <div className="bg-white rounded-xl border border-slate-100 p-4">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Brand Colors</p>
-          <div className="flex gap-2">
-            {["#059669", "#0f172a", "#f59e0b", "#6366f1", "#e2e8f0"].map((color) => (
-              <div
-                key={color}
-                className="w-7 h-7 rounded-full shadow-sm border border-white"
-                style={{ backgroundColor: color }}
-              />
-            ))}
+        {/* Local visibility stat */}
+        <div className="bg-emerald-600 rounded-xl p-3.5 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+            <span className="text-sm">📍</span>
+          </div>
+          <div>
+            <p className="text-white text-xs font-bold">Ready to Show Up Locally</p>
+            <p className="text-emerald-200 text-[10px]">Visible on Google Search & Maps</p>
           </div>
         </div>
       </div>
@@ -142,106 +157,141 @@ function LogoIllustration() {
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 const heroKeyPoints: string[] = [
-  "Custom logo concepts",
-  "Designed for startups and small businesses",
-  "Professional and modern design",
-  "Delivered in all formats you need",
+  "Complete, accurate profile setup on Google",
+  "Category, hours, and location configured correctly",
+  "Photos and business description optimised",
+  "Ready to be found on Search and Maps",
 ];
 
-const trustBadges: string[] = ["Startup Friendly", "Custom Designs", "Commercial Use"];
+const trustBadges: string[] = ["Local Search Ready", "Google Optimised", "Startup Focused"];
 
-const logoAppearsOn: string[] = [
-  "Your website",
-  "Social media pages",
-  "Business cards",
-  "Packaging",
-  "Advertisements",
+const problemRisks: string[] = [
+  "Being invisible when customers search nearby",
+  "Losing trust from an empty or incomplete profile",
+  "Missing calls and directions from an outdated listing",
+  "Competitors outranking you with a better-optimised profile",
 ];
 
 const features: Feature[] = [
-  { emoji: "🎨", title: "Custom Logo Concepts", desc: "Multiple original logo ideas created specifically for your brand." },
-  { emoji: "✨", title: "Professional Design", desc: "Clean, modern designs that work across digital and print media." },
-  { emoji: "🖼️", title: "High Resolution Files", desc: "High-quality logo files ready for any use case." },
-  { emoji: "📁", title: "Multiple Formats", desc: "Files for websites, social media, printing, and branding." },
-  { emoji: "🎨", title: "Brand Color Suggestions", desc: "Recommended colors that match your brand personality." },
-  { emoji: "✅", title: "Commercial Rights", desc: "Full rights to use your logo for your business, forever." },
+  { emoji: "📍", title: "Business Details Setup", desc: "Accurate name, address, category, and contact details configured correctly from the start." },
+  { emoji: "🕒", title: "Hours & Availability", desc: "Opening hours set up so customers always know when you're open." },
+  { emoji: "📸", title: "Photo Upload", desc: "Storefront, product, and team photos added to make your listing feel trustworthy." },
+  { emoji: "📝", title: "Optimised Description", desc: "A clear, keyword-aware business description that helps you show up in local searches." },
+  { emoji: "🗨️", title: "Q&A Seeding", desc: "Common customer questions answered upfront so you're not caught off guard." },
+  { emoji: "⭐", title: "Review Response Templates", desc: "Ready-to-use templates for responding to reviews professionally." },
+  { emoji: "📣", title: "Starter Posts", desc: "A few initial Google Posts published to show your profile is active." },
+  { emoji: "🔍", title: "Local SEO Basics", desc: "Category and description choices made with local search ranking in mind." },
 ];
 
 const audienceItems: AudienceItem[] = [
-  { icon: "🚀", text: "Launching a new business" },
-  { icon: "💼", text: "Want a professional brand identity" },
-  { icon: "🌐", text: "Need a logo for your website or social media" },
-  { icon: "📢", text: "Want a logo that works across all marketing materials" },
-  { icon: "🏆", text: "Want to stand out from competitors" },
+  { icon: "🏪", text: "Have a physical location or serve a local area" },
+  { icon: "🔍", text: "Want to show up when customers search nearby" },
+  { icon: "🧹", text: "Have an existing profile that's incomplete or outdated" },
+  { icon: "🗺️", text: "Want to appear on Google Maps correctly" },
+  { icon: "⭐", text: "Want a professional first impression for new customers" },
 ];
 
 const steps: Step[] = [
-  { n: "01", title: "Tell Us About Your Brand", desc: "Complete a short questionnaire about your business, industry, and design preferences." },
-  { n: "02", title: "Concept Creation", desc: "Our designers create several custom logo concepts based on your brand." },
-  { n: "03", title: "Feedback and Revisions", desc: "Choose your favorite design and request revisions if needed." },
-  { n: "04", title: "Receive Your Final Logo", desc: "Get your final logo files ready for websites, social media, and marketing materials." },
+  { n: "01", title: "Tell Us About Your Business", desc: "Share your business details, category, hours, and location." },
+  { n: "02", title: "Profile Setup", desc: "We configure your Google Business Profile with accurate, complete information." },
+  { n: "03", title: "Content & Optimisation", desc: "Photos, description, and starter posts are added and optimised for local search." },
+  { n: "04", title: "Go Live", desc: "Your profile is ready to be found on Google Search and Maps." },
 ];
 
 // `id` matches the packageTier id in
-// lib/questionnaires/logo-design/config.ts.
+// lib/questionnaires/google-business-profile/config.ts.
 const plans: Plan[] = [
   {
-    id: "starter",
-    name: "Starter Logo",
-    tag: "Best for simple brands",
-    price: "$60",
-    items: ["2 logo concepts", "1 revision round", "PNG + JPG files"],
-    delivery: "3–4 days",
-    cta: "Start Starter Logo",
+    id: "basic",
+    name: "Basic Listing",
+    tag: "Best for simple setup",
+    price: "$50",
+    items: ["Profile creation", "Category & hours setup", "Business description"],
+    delivery: "2–3 days",
+    cta: "Start Basic Listing",
     popular: false,
   },
   {
-    id: "professional",
-    name: "Professional Logo",
+    id: "optimized",
+    name: "Optimized Listing",
     tag: "Most popular",
-    price: "$120",
+    price: "$90",
     items: [
-      "4 logo concepts",
-      "3 revision rounds",
-      "PNG, JPG, SVG & transparent files",
-      "Brand color suggestions",
+      "Everything in Basic",
+      "Photos uploaded",
+      "Product/service listings",
+      "Q&A seeding",
+      "Review response templates",
     ],
-    delivery: "4–6 days",
-    cta: "Start Professional Logo",
+    delivery: "3–4 days",
+    cta: "Start Optimized Listing",
     popular: true,
   },
   {
-    id: "complete",
-    name: "Complete Brand Kit",
-    tag: "Best for serious startups",
-    price: "$220",
+    id: "local-seo",
+    name: "Local SEO Boost",
+    tag: "Best for local visibility",
+    price: "$150",
     items: [
-      "5 logo concepts",
-      "Unlimited revisions",
-      "Full logo file formats",
-      "Brand color palette",
-      "Typography recommendations",
-      "Social media logo versions",
+      "Everything in Optimized",
+      "Keyword-optimised description",
+      "3 starter Google Posts",
+      "Citation consistency check",
+      "Competitor comparison summary",
     ],
-    delivery: "5–7 days",
-    cta: "Start Brand Kit",
+    delivery: "4–6 days",
+    cta: "Start Local SEO Boost",
     popular: false,
   },
 ];
 
-const platformLinks: PlatformLink[] = [
-  { emoji: "💡", label: "Business name selection" },
-  { emoji: "🌐", label: "Website creation" },
-  { emoji: "📣", label: "Marketing setup" },
-  { emoji: "📱", label: "Social media branding" },
+const stackItems: StackItem[] = [
+  { label: "Website Creation", status: "complete", emoji: "🌐" },
+  { label: "Google Business Profile", status: "current", emoji: "📍" },
+  { label: "Social Media Setup", status: "upcoming", emoji: "📱" },
+  { label: "Marketing Setup", status: "upcoming", emoji: "📣" },
+];
+
+const platformLinks: string[] = [
+  "Website creation",
+  "Social media setup",
+  "Logo design and branding",
+  "Business registration",
+];
+
+const relatedServices: RelatedService[] = [
+  {
+    emoji: "🌐",
+    title: "Website Creation",
+    desc: "Link your website directly from your Google profile.",
+    href: "/services/website-creation",
+  },
+  {
+    emoji: "📱",
+    title: "Social Media Setup",
+    desc: "Round out your local presence across social platforms too.",
+    href: "/services/social-media-setup",
+  },
+  {
+    emoji: "🎨",
+    title: "Logo Design",
+    desc: "A strong logo makes your profile photos look more professional.",
+    href: "/services/logo-design",
+  },
+  {
+    emoji: "⚖️",
+    title: "Business Registration",
+    desc: "Make sure your business is officially registered under the same name.",
+    href: "/services/business-registration",
+  },
 ];
 
 const faqs: FAQItem[] = [
-  { q: "How long does logo design take?", a: "Most logo designs are delivered within 3–6 days depending on the package." },
-  { q: "Can I request changes?", a: "Yes. All packages include revision rounds to refine your design." },
-  { q: "Will I own the logo?", a: "Yes. Once completed, the logo belongs fully to your business." },
-  { q: "What file formats will I receive?", a: "You receive multiple formats including PNG, JPG, and scalable files for printing and digital use." },
-  { q: "Can I use the logo on my website and social media?", a: "Yes. The logo will work across all digital and marketing platforms." },
+  { q: "Do I need a physical location to have a Google Business Profile?", a: "Not necessarily — service-area businesses without a public storefront can still set one up. We'll configure it correctly for your business type." },
+  { q: "Can you fix an existing profile instead of creating a new one?", a: "Yes. We can take over and optimise an existing profile as well as set one up from scratch." },
+  { q: "Will I have access to manage the profile myself afterward?", a: "Yes. You keep full ownership and access — we simply set it up and hand it over ready to go." },
+  { q: "How long does it take to show up on Google Search?", a: "Once verified, most profiles start appearing in local search results within a few days, though full ranking improvement takes time." },
+  { q: "What does the competitor comparison in the Local SEO Boost package include?", a: "A short summary of how nearby competitors' profiles are set up, so you know where you have room to stand out." },
 ];
 
 // ── 1. HERO ───────────────────────────────────────────────────────────────────
@@ -269,13 +319,13 @@ function HeroSection() {
           <div>
 
             <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 leading-tight tracking-tight mb-6">
-              Professional Logo Design{" "}
-              <span className="text-emerald-600">for Your Business</span>
+              Get Found by Customers{" "}
+              <span className="text-emerald-600">Searching Near You</span>
             </h1>
 
             <p className="text-lg text-slate-500 leading-relaxed mb-8">
-              Your logo is the face of your business. Hustlecare creates professional, memorable logos
-              designed to help your brand stand out and build trust with customers.
+              Hustlecare sets up and optimises your Google Business Profile so your business shows up
+              correctly — and looks professional — on Search and Maps from day one.
             </p>
 
             <ul className="space-y-2 mb-10">
@@ -294,7 +344,7 @@ function HeroSection() {
                 href="#pricing"
                 className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-all text-white font-semibold px-7 py-3.5 rounded-xl shadow-lg shadow-emerald-200"
               >
-                Start My Logo Design
+                Set Up My Google Listing
                 <ArrowIcon />
               </a>
               <a
@@ -320,7 +370,7 @@ function HeroSection() {
 
           {/* RIGHT */}
           <div className="flex justify-center lg:justify-end">
-            <LogoIllustration />
+            <GoogleProfileIllustration />
           </div>
         </div>
       </div>
@@ -337,46 +387,39 @@ function ProblemSection() {
           <div>
             
             <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight mb-6">
-              Your Logo Is the First Thing Customers Notice
+              If You're Not on Google, You're Invisible Locally
             </h2>
             <p className="text-slate-400 leading-relaxed mb-4">
-              A strong logo helps customers remember your brand and trust your business. A poorly
-              designed logo can make even a great business look unprofessional.
+              Most customers check Google before visiting or calling a business. A missing or
+              incomplete profile means they find your competitor instead.
             </p>
-            <p className="text-slate-400 leading-relaxed font-medium text-sm">
-              That&apos;s why your brand needs a professional identity from the start. Hustlecare helps
-              entrepreneurs create logos that represent their business and communicate their brand clearly.
+            <p className="text-slate-400 leading-relaxed">
+              A properly set up Google Business Profile is one of the highest-leverage things a local
+              business can do — and it's often overlooked.
             </p>
           </div>
 
           <div className="bg-slate-800 rounded-2xl p-8 border border-slate-700">
-            <p className="text-slate-300 font-semibold mb-5">Your logo appears everywhere:</p>
+            <p className="text-slate-300 font-semibold mb-5">Without a proper listing, you risk:</p>
             <ul className="space-y-3 mb-8">
-              {logoAppearsOn.map((item) => (
-                <li key={item} className="flex items-center gap-3 text-slate-300">
-                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                    <CheckIcon />
+              {problemRisks.map((item) => (
+                <li key={item} className="flex items-start gap-3 text-slate-300">
+                  <span className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                   </span>
                   {item}
                 </li>
               ))}
             </ul>
-            {/* Visual bar showing brand recognition */}
-            <div className="pt-6 border-t border-slate-700 space-y-2.5">
-              {[
-                { label: "Brand Recognition", pct: 88 },
-                { label: "Customer Trust", pct: 76 },
-                { label: "Competitive Edge", pct: 92 },
-              ].map(({ label, pct }) => (
-                <div key={label}>
-                  <div className="flex justify-between text-[11px] text-slate-400 mb-1">
-                    <span>{label}</span><span>{pct}%</span>
-                  </div>
-                  <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-              ))}
+            <div className="pt-6 border-t border-slate-700 bg-emerald-500/10 rounded-xl p-4 border border-emerald-500/20">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">📍</span>
+                <p className="text-emerald-300 text-sm font-medium leading-snug">
+                  A complete, accurate profile is often the first thing a potential customer ever sees of your business.
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -393,10 +436,10 @@ function FeaturesGrid() {
         <div className="text-center mb-14">
           
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
-            What&apos;s Included in Your Logo Design
+            What&apos;s Included in Your Setup
           </h2>
         </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {features.map(({ emoji, title, desc }) => (
             <div
               key={title}
@@ -423,7 +466,7 @@ function AudienceSection() {
         <div className="text-center mb-14">
           
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
-            Perfect for New Businesses and Startups
+            Perfect for Locally Discoverable Businesses
           </h2>
           <p className="text-slate-500 mt-3">This service is ideal if you:</p>
         </div>
@@ -453,10 +496,7 @@ function ProcessSteps() {
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">Simple 4-Step Process</h2>
         </div>
         <div className="relative">
-          <div
-            className="hidden lg:block absolute top-10 left-[12.5%] right-[12.5%] h-0.5 bg-emerald-100"
-            aria-hidden
-          />
+          <div className="hidden lg:block absolute top-10 left-[12.5%] right-[12.5%] h-0.5 bg-emerald-100" aria-hidden />
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
             {steps.map(({ n, title, desc }) => (
               <div key={n} className="relative text-center">
@@ -479,7 +519,7 @@ function PricingCards() {
   const router = useRouter();
 
   function handleSelectPlan(planId: string) {
-    router.push(`/services/logo-design/questionnaire?package=${planId}`);
+    router.push(`/services/google-business-profile/questionnaire?package=${planId}`);
   }
 
   return (
@@ -488,7 +528,7 @@ function PricingCards() {
         <div className="text-center mb-14">
           
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
-            Choose Your Logo Design Package
+            Choose Your Setup Package
           </h2>
         </div>
         <div className="grid md:grid-cols-3 gap-6 items-stretch">
@@ -519,15 +559,8 @@ function PricingCards() {
               </div>
               <ul className="space-y-2.5 mb-6 flex-1">
                 {items.map((item) => (
-                  <li
-                    key={item}
-                    className={`flex items-center gap-2.5 text-sm ${popular ? "text-emerald-100" : "text-slate-600"}`}
-                  >
-                    <span
-                      className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${
-                        popular ? "bg-emerald-500 text-white" : "bg-emerald-100 text-emerald-600"
-                      }`}
-                    >
+                  <li key={item} className={`flex items-center gap-2.5 text-sm ${popular ? "text-emerald-100" : "text-slate-600"}`}>
+                    <span className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${popular ? "bg-emerald-500 text-white" : "bg-emerald-100 text-emerald-600"}`}>
                       <CheckIcon />
                     </span>
                     {item}
@@ -563,19 +596,19 @@ function PlatformIntegrationSection() {
         <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-10 lg:p-14">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-             
+              
               <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-5">
-                Part of Your Startup Branding
+                Part of Your Local Presence
               </h2>
               <p className="text-slate-400 leading-relaxed mb-6">
-                Logo design is one of the key requirements when starting a business. Hustlecare connects
-                branding services with other startup needs so you can build everything in one place.
+                A Google Business Profile works best alongside your website and social presence.
+                Hustlecare connects all three so customers find a consistent, trustworthy brand.
               </p>
-              <ul className="space-y-3 mb-8">
-                {platformLinks.map(({ emoji, label }) => (
-                  <li key={label} className="flex items-center gap-3 text-slate-300 text-sm">
-                    <span className="text-base">{emoji}</span>
-                    {label}
+              <ul className="space-y-2 mb-8">
+                {platformLinks.map((link) => (
+                  <li key={link} className="flex items-center gap-2.5 text-slate-300 text-sm">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
+                    {link}
                   </li>
                 ))}
               </ul>
@@ -588,21 +621,15 @@ function PlatformIntegrationSection() {
               </a>
             </div>
 
-            {/* Branding stack visual */}
             <div className="flex justify-center">
               <div className="space-y-3 w-full max-w-xs">
-                {[
-                  { label: "Logo Design", status: "Complete", color: "emerald", emoji: "🎨" },
-                  { label: "Business Name", status: "Next Step", color: "amber", emoji: "💡" },
-                  { label: "Website Creation", status: "Upcoming", color: "slate", emoji: "🌐" },
-                  { label: "Social Media Setup", status: "Upcoming", color: "slate", emoji: "📱" },
-                ].map(({ label, status, color, emoji }) => (
+                {stackItems.map(({ label, status, emoji }) => (
                   <div
                     key={label}
                     className={`flex items-center gap-4 rounded-xl px-4 py-3 border ${
-                      color === "emerald"
+                      status === "complete"
                         ? "bg-emerald-500/10 border-emerald-500/30"
-                        : color === "amber"
+                        : status === "current"
                         ? "bg-amber-500/10 border-amber-500/30"
                         : "bg-slate-700/50 border-slate-600/50"
                     }`}
@@ -613,14 +640,14 @@ function PlatformIntegrationSection() {
                     </div>
                     <span
                       className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        color === "emerald"
+                        status === "complete"
                           ? "bg-emerald-500/20 text-emerald-300"
-                          : color === "amber"
+                          : status === "current"
                           ? "bg-amber-500/20 text-amber-300"
                           : "bg-slate-600 text-slate-400"
                       }`}
                     >
-                      {status}
+                      {status === "complete" ? "Complete" : status === "current" ? "In Progress" : "Upcoming"}
                     </span>
                   </div>
                 ))}
@@ -633,12 +660,48 @@ function PlatformIntegrationSection() {
   );
 }
 
-// ── 8. FAQ ────────────────────────────────────────────────────────────────────
+// ── RELATED SERVICES ──────────────────────────────────────────────────────────
+function RelatedServicesSection() {
+  return (
+    <section className="bg-slate-50 py-20">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center mb-14">
+          
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
+            Round Out Your Digital Presence
+          </h2>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          {relatedServices.map(({ emoji, title, desc, href }) => (
+            <Link
+              key={title}
+              href={href}
+              className="group flex flex-col bg-white border border-slate-100 hover:border-emerald-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5"
+            >
+              <div className="w-11 h-11 bg-emerald-50 group-hover:bg-emerald-100 rounded-xl flex items-center justify-center text-xl mb-4 transition-colors">
+                {emoji}
+              </div>
+              <h3 className="font-bold text-slate-800 mb-1.5 group-hover:text-emerald-700 transition-colors">
+                {title}
+              </h3>
+              <p className="text-sm text-slate-500 leading-relaxed flex-1">{desc}</p>
+              <span className="inline-flex items-center gap-1.5 text-emerald-600 text-xs font-semibold mt-4 group-hover:gap-2.5 transition-all">
+                Learn more <ArrowIcon />
+              </span>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── FAQ ───────────────────────────────────────────────────────────────────────
 function FAQAccordion() {
   const [open, setOpen] = useState<number | null>(null);
 
   return (
-    <section className="bg-slate-50 py-20">
+    <section className="bg-white py-20">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
           
@@ -648,10 +711,7 @@ function FAQAccordion() {
         </div>
         <div className="space-y-3">
           {faqs.map(({ q, a }, i) => (
-            <div
-              key={q}
-              className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm"
-            >
+            <div key={q} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
               <button
                 className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left"
                 onClick={() => setOpen(open === i ? null : i)}
@@ -672,32 +732,32 @@ function FAQAccordion() {
   );
 }
 
-// ── 9. FINAL CTA ──────────────────────────────────────────────────────────────
+// ── FINAL CTA ─────────────────────────────────────────────────────────────────
 function CTASection() {
   return (
     <section className="bg-emerald-600 py-20">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
         <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-5">
-          Build a Brand Customers Remember
+          Show Up When Customers Are Searching
         </h2>
         <p className="text-emerald-100 text-lg leading-relaxed mb-10 max-w-2xl mx-auto">
-          A professional logo is one of the most important steps when launching a new business. Let
-          Hustlecare help you create a brand identity that stands out.
+          A well-set-up Google Business Profile is one of the easiest ways to win local customers. Let
+          Hustlecare get it right from the start.
         </p>
         <div className="flex flex-wrap justify-center gap-4">
           <a
             href="#pricing"
             className="inline-flex items-center gap-2 bg-white text-emerald-700 hover:bg-emerald-50 font-bold px-8 py-4 rounded-xl shadow-lg transition-all active:scale-95"
           >
-            Start My Logo Design
+            Set Up My Google Listing
             <ArrowIcon />
           </a>
-          <a
+          <Link
             href="/services"
             className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-8 py-4 rounded-xl transition-all active:scale-95"
           >
             Explore Startup Services
-          </a>
+          </Link>
         </div>
       </div>
     </section>
@@ -705,7 +765,7 @@ function CTASection() {
 }
 
 // ── ROOT EXPORT ───────────────────────────────────────────────────────────────
-export default function LogoDesignClient() {
+export default function GoogleBusinessProfileClient() {
   return (
     <main className="font-sans antialiased text-slate-900">
       <HeroSection />
@@ -715,6 +775,7 @@ export default function LogoDesignClient() {
       <ProcessSteps />
       <PricingCards />
       <PlatformIntegrationSection />
+      <RelatedServicesSection />
       <FAQAccordion />
       <CTASection />
     </main>

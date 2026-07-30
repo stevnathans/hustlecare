@@ -1,15 +1,53 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // lib/questionnaires/pitch-deck/config.ts
-import type { QuestionnaireConfig } from "../types";
+import type { QuestionnaireConfig, PackageTierConfig } from "../types";
 import { contactStepSchema } from "./schema";
 
 const isOperatingOrGrowing = (answers: Record<string, any>) =>
   ["operating", "growing"].includes(answers?.businessOverview?.businessStage);
 
+// Matches the pricing cards on the Pitch Deck Creation landing page.
+const packageTiers: PackageTierConfig[] = [
+  {
+    id: "starter",
+    name: "Starter Deck",
+    tag: "Best for early pitches",
+    priceLabel: "$90",
+    includes: ["Up to 10 slides", "1 revision round", "PDF + PowerPoint files"],
+  },
+  {
+    id: "investor",
+    name: "Investor Deck",
+    tag: "Most popular",
+    priceLabel: "$180",
+    includes: [
+      "Up to 15 slides",
+      "3 revision rounds",
+      "PDF, PowerPoint & Keynote files",
+      "Speaker notes included",
+      "Custom data visualizations",
+    ],
+  },
+  {
+    id: "fundraising",
+    name: "Fundraising Deck",
+    tag: "Best for serious fundraising",
+    priceLabel: "$320",
+    includes: [
+      "Up to 20 slides",
+      "Unlimited revisions",
+      "All file formats",
+      "Advanced financial visualizations",
+      "30-minute pitch coaching call",
+    ],
+  },
+];
+
 export const pitchDeckConfig: QuestionnaireConfig = {
   serviceSlug: "pitch-deck",
   serviceName: "Pitch Deck Creation",
   estimatedMinutes: 15,
+  packageTiers,
   reviewSectionLabels: {
     contact: "Contact Information",
     "business-overview": "Business Overview",

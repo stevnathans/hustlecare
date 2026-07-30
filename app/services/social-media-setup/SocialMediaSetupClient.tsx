@@ -1,6 +1,8 @@
+// app/services/social-media-setup/SocialMediaSetupClient.tsx
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -22,6 +24,7 @@ interface Step {
 }
 
 interface Plan {
+  id: string;
   name: string;
   tag: string;
   price: string;
@@ -216,8 +219,11 @@ const steps: Step[] = [
   { n: "04", title: "Handover & Content Guide", desc: "Your profiles go live and you receive a starter content guide so you can hit the ground running." },
 ];
 
+// `id` matches the packageTier id in
+// lib/questionnaires/social-media-setup/config.ts.
 const plans: Plan[] = [
   {
+    id: "starter",
     name: "Starter Setup",
     tag: "Best for new businesses",
     price: "$70",
@@ -233,6 +239,7 @@ const plans: Plan[] = [
     popular: false,
   },
   {
+    id: "full",
     name: "Full Social Launch",
     tag: "Most popular",
     price: "$140",
@@ -250,6 +257,7 @@ const plans: Plan[] = [
     popular: true,
   },
   {
+    id: "complete",
     name: "Complete Brand Presence",
     tag: "Best for serious startups",
     price: "$220",
@@ -360,10 +368,6 @@ function HeroSection() {
         <div className="grid lg:grid-cols-2 gap-14 items-center">
           {/* LEFT */}
           <div>
-            <span className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold tracking-widest uppercase px-4 py-1.5 rounded-full mb-6">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              Social Media Setup Service
-            </span>
 
             <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 leading-tight tracking-tight mb-6">
               Launch Your Business on{" "}
@@ -439,9 +443,7 @@ function ProblemSection() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           <div>
-            <span className="inline-block text-emerald-400 text-xs font-bold tracking-widest uppercase mb-4">
-              The Problem
-            </span>
+            
             <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight mb-6">
               Your Customers Are Already on Social Media
             </h2>
@@ -499,9 +501,7 @@ function FeaturesGrid() {
     <section className="bg-white py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="inline-block text-emerald-600 text-xs font-bold tracking-widest uppercase mb-3">
-            Deliverables
-          </span>
+          
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
             What&apos;s Included in Your Social Media Setup
           </h2>
@@ -540,9 +540,7 @@ function PlatformsSection() {
     <section className="bg-slate-50 py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="inline-block text-emerald-600 text-xs font-bold tracking-widest uppercase mb-3">
-            Platforms
-          </span>
+          
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
             We Set You Up on the Right Platforms
           </h2>
@@ -579,9 +577,7 @@ function AudienceSection() {
     <section className="bg-emerald-50 py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="inline-block text-emerald-600 text-xs font-bold tracking-widest uppercase mb-3">
-            Who It&apos;s For
-          </span>
+          
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
             Perfect for Businesses Ready to Go Social
           </h2>
@@ -609,9 +605,7 @@ function ProcessSteps() {
     <section className="bg-white py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="inline-block text-emerald-600 text-xs font-bold tracking-widest uppercase mb-3">
-            How It Works
-          </span>
+          
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
             Simple 4-Step Process
           </h2>
@@ -640,19 +634,23 @@ function ProcessSteps() {
 
 // ── 7. PRICING ────────────────────────────────────────────────────────────────
 function PricingCards() {
+  const router = useRouter();
+
+  function handleSelectPlan(planId: string) {
+    router.push(`/services/social-media-setup/questionnaire?package=${planId}`);
+  }
+
   return (
     <section id="pricing" className="bg-slate-50 py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="inline-block text-emerald-600 text-xs font-bold tracking-widest uppercase mb-3">
-            Pricing
-          </span>
+        
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
             Choose Your Social Media Package
           </h2>
         </div>
         <div className="grid md:grid-cols-3 gap-6 items-stretch">
-          {plans.map(({ name, tag, price, items, delivery, cta, popular }) => (
+          {plans.map(({ id, name, tag, price, items, delivery, cta, popular }) => (
             <div
               key={name}
               className={`relative flex flex-col rounded-2xl p-8 border transition-all duration-200 ${
@@ -700,6 +698,7 @@ function PricingCards() {
                 📅 Delivery: <strong>{delivery}</strong>
               </p>
               <button
+                onClick={() => handleSelectPlan(id)}
                 className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all active:scale-95 ${
                   popular
                     ? "bg-white text-emerald-700 hover:bg-emerald-50"
@@ -724,9 +723,7 @@ function PlatformIntegrationSection() {
         <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-10 lg:p-14">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              <span className="inline-block text-emerald-400 text-xs font-bold tracking-widest uppercase mb-4">
-                The Hustlecare Ecosystem
-              </span>
+              
               <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-5">
                 Part of Your Complete Digital Presence
               </h2>
@@ -802,9 +799,7 @@ function RelatedServicesSection() {
     <section className="bg-slate-50 py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="inline-block text-emerald-600 text-xs font-bold tracking-widest uppercase mb-3">
-            Complete Your Brand
-          </span>
+          
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
             Services That Work Best Together
           </h2>
@@ -846,9 +841,7 @@ function FAQAccordion() {
     <section className="bg-white py-20">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="inline-block text-emerald-600 text-xs font-bold tracking-widest uppercase mb-3">
-            FAQ
-          </span>
+          
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
             Frequently Asked Questions
           </h2>

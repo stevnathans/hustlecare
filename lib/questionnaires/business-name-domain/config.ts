@@ -1,11 +1,37 @@
 // lib/questionnaires/business-name-domain/config.ts
-import type { QuestionnaireConfig } from "../types";
+import type { QuestionnaireConfig, PackageTierConfig } from "../types";
 import { contactStepSchema } from "./schema";
+
+// Matches the pricing cards on the Business Name + Domain landing page.
+const packageTiers: PackageTierConfig[] = [
+  {
+    id: "quick",
+    name: "Quick Names",
+    tag: "Best for quick decisions",
+    priceLabel: "$40",
+    includes: ["10 name ideas", "Domain availability check", "1 round of refinement"],
+  },
+  {
+    id: "complete",
+    name: "Complete Naming",
+    tag: "Most popular",
+    priceLabel: "$80",
+    includes: ["20 name ideas", "Domain + social handle check", "Trademark quick-check", "2 rounds of refinement"],
+  },
+  {
+    id: "brand-ready",
+    name: "Brand Ready",
+    tag: "Best for serious brands",
+    priceLabel: "$130",
+    includes: ["30 name ideas", "Full domain, social & trademark check", "Naming rationale document", "Unlimited refinement rounds"],
+  },
+];
 
 export const businessNameDomainConfig: QuestionnaireConfig = {
   serviceSlug: "business-name-domain",
   serviceName: "Business Name + Domain",
   estimatedMinutes: 5,
+  packageTiers,
   reviewSectionLabels: {
     contact: "Contact Information",
     description: "Business Description",

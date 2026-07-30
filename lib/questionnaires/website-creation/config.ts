@@ -1,16 +1,42 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // lib/questionnaires/website-creation/config.ts
-import type { QuestionnaireConfig } from "../types";
+import type { QuestionnaireConfig, PackageTierConfig } from "../types";
 import { contactStepSchema } from "./schema";
 
 const hasDomainAlready = (answers: Record<string, any>) => answers?.domain?.hasDomain === "yes";
 const sellsOnline = (answers: Record<string, any>) =>
   Array.isArray(answers?.goals?.siteGoals) && answers.goals.siteGoals.includes("sell-products");
 
+// Matches the pricing cards on the Website Creation landing page.
+const packageTiers: PackageTierConfig[] = [
+  {
+    id: "starter",
+    name: "Starter Website",
+    tag: "Best for small businesses",
+    priceLabel: "$180",
+    includes: ["3 pages", "Mobile responsive design", "Contact form", "Social media links"],
+  },
+  {
+    id: "business",
+    name: "Business Website",
+    tag: "Most popular",
+    priceLabel: "$350",
+    includes: ["Up to 6 pages", "Modern professional design", "Mobile responsive layout", "Contact forms", "Basic SEO structure"],
+  },
+  {
+    id: "premium",
+    name: "Premium Website",
+    tag: "Best for growing startups",
+    priceLabel: "$600",
+    includes: ["Up to 10 pages", "Premium custom design", "Blog or content section", "Advanced contact forms", "SEO optimization"],
+  },
+];
+
 export const websiteCreationConfig: QuestionnaireConfig = {
   serviceSlug: "website-creation",
   serviceName: "Website Creation",
   estimatedMinutes: 12,
+  packageTiers,
   reviewSectionLabels: {
     contact: "Contact Information",
     "business-overview": "Business Overview",

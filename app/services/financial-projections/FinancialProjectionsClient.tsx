@@ -376,10 +376,6 @@ function HeroSection() {
         <div className="grid lg:grid-cols-2 gap-14 items-center">
           {/* LEFT */}
           <div>
-            <span className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold tracking-widest uppercase px-4 py-1.5 rounded-full mb-6">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              Financial Projections Service
-            </span>
 
             <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 leading-tight tracking-tight mb-6">
               Know Your Numbers Before{" "}
@@ -449,9 +445,7 @@ function ProblemSection() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           <div>
-            <span className="inline-block text-emerald-400 text-xs font-bold tracking-widest uppercase mb-4">
-              The Risk
-            </span>
+            
             <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight mb-6">
               Launching Without Financial Clarity Is Dangerous
             </h2>
@@ -515,9 +509,7 @@ function FeaturesGrid() {
     <section className="bg-white py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="inline-block text-emerald-600 text-xs font-bold tracking-widest uppercase mb-3">
-            Deliverables
-          </span>
+          
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
             What&apos;s Included in Your Financial Projections
           </h2>
@@ -547,9 +539,7 @@ function AudienceSection() {
     <section className="bg-emerald-50 py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="inline-block text-emerald-600 text-xs font-bold tracking-widest uppercase mb-3">
-            Who It&apos;s For
-          </span>
+          
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
             Perfect for Entrepreneurs Who Need Financial Clarity
           </h2>
@@ -577,9 +567,7 @@ function ProcessSteps() {
     <section className="bg-white py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="inline-block text-emerald-600 text-xs font-bold tracking-widest uppercase mb-3">
-            How It Works
-          </span>
+          
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
             Simple 4-Step Process
           </h2>
@@ -618,9 +606,7 @@ function PricingCards() {
     <section id="pricing" className="bg-slate-50 py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="inline-block text-emerald-600 text-xs font-bold tracking-widest uppercase mb-3">
-            Pricing
-          </span>
+          
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
             Choose Your Financial Projections Package
           </h2>
@@ -705,9 +691,7 @@ function PlatformIntegrationSection() {
         <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-10 lg:p-14">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              <span className="inline-block text-emerald-400 text-xs font-bold tracking-widest uppercase mb-4">
-                The Hustlecare Ecosystem
-              </span>
+              
               <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-5">
                 Part of the Hustlecare Startup System
               </h2>
@@ -782,9 +766,7 @@ function RelatedServicesSection() {
     <section className="bg-slate-50 py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="inline-block text-emerald-600 text-xs font-bold tracking-widest uppercase mb-3">
-            Pair With
-          </span>
+        
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
             Services That Work Best Together
           </h2>
@@ -825,9 +807,7 @@ function FAQAccordion() {
     <section className="bg-white py-20">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
-          <span className="inline-block text-emerald-600 text-xs font-bold tracking-widest uppercase mb-3">
-            FAQ
-          </span>
+          
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
             Frequently Asked Questions
           </h2>

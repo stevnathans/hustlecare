@@ -1,11 +1,44 @@
 // lib/questionnaires/logo-design/config.ts
-import type { QuestionnaireConfig } from "../types";
+import type { QuestionnaireConfig, PackageTierConfig } from "../types";
 import { contactStepSchema } from "./schema";
+
+// Matches the pricing cards on the Logo Design landing page.
+const packageTiers: PackageTierConfig[] = [
+  {
+    id: "starter",
+    name: "Starter Logo",
+    tag: "Best for simple brands",
+    priceLabel: "$60",
+    includes: ["2 logo concepts", "1 revision round", "PNG + JPG files"],
+  },
+  {
+    id: "professional",
+    name: "Professional Logo",
+    tag: "Most popular",
+    priceLabel: "$120",
+    includes: ["4 logo concepts", "3 revision rounds", "PNG, JPG, SVG & transparent files", "Brand color suggestions"],
+  },
+  {
+    id: "complete",
+    name: "Complete Brand Kit",
+    tag: "Best for serious startups",
+    priceLabel: "$220",
+    includes: [
+      "5 logo concepts",
+      "Unlimited revisions",
+      "Full logo file formats",
+      "Brand color palette",
+      "Typography recommendations",
+      "Social media logo versions",
+    ],
+  },
+];
 
 export const logoDesignConfig: QuestionnaireConfig = {
   serviceSlug: "logo-design",
   serviceName: "Logo Design",
   estimatedMinutes: 8,
+  packageTiers,
   reviewSectionLabels: {
     contact: "Contact Information",
     "business-overview": "Business Overview",

@@ -1,8 +1,9 @@
-// app/services/logo-design/LogoDesignClient.tsx
+// app/services/business-name-domain/BusinessNameDomainClient.tsx
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Feature {
@@ -38,9 +39,17 @@ interface FAQItem {
   a: string;
 }
 
-interface PlatformLink {
+interface RelatedService {
   emoji: string;
+  title: string;
+  desc: string;
+  href: string;
+}
+
+interface StackItem {
   label: string;
+  status: "complete" | "current" | "upcoming";
+  emoji: string;
 }
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -74,64 +83,57 @@ function ChevronIcon({ open }: { open: boolean }) {
   );
 }
 
-// ── Logo Illustration ─────────────────────────────────────────────────────────
-function LogoIllustration() {
-  const mockLogos = [
-    { letter: "A", bg: "from-violet-500 to-purple-600", shape: "rounded-2xl" },
-    { letter: "B", bg: "from-emerald-500 to-teal-600", shape: "rounded-full" },
-    { letter: "C", bg: "from-amber-400 to-orange-500", shape: "rounded-xl rotate-12" },
-    { letter: "D", bg: "from-sky-500 to-blue-600", shape: "rounded-2xl" },
+// ── Name + Domain Illustration ─────────────────────────────────────────────────
+function NameDomainIllustration() {
+  const nameOptions = [
+    { name: "Hustlebase", domain: "hustlebase.com", available: true },
+    { name: "Vertexly", domain: "vertexly.co", available: true },
+    { name: "Founderloop", domain: "founderloop.com", available: false },
   ];
 
   return (
     <div className="relative w-full max-w-md mx-auto">
       <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-3xl" />
-      <div className="relative p-8 rounded-3xl border border-emerald-100 shadow-xl shadow-emerald-100/50">
+      <div className="relative p-7 rounded-3xl border border-emerald-100 shadow-xl shadow-emerald-100/50">
 
-        {/* Header label */}
-        <div className="flex items-center justify-between mb-5">
-          <span className="text-xs font-bold text-slate-400 tracking-widest uppercase">Logo Concepts</span>
-          <span className="bg-emerald-100 text-emerald-700 text-xs font-semibold px-2.5 py-1 rounded-full">4 Concepts</span>
+        {/* Search bar mock */}
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 mb-4 flex items-center gap-2.5">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
+          <span className="text-sm text-slate-400">fresh produce delivery startup…</span>
         </div>
 
-        {/* Logo concept grid */}
-        <div className="grid grid-cols-2 gap-3 mb-5">
-          {mockLogos.map(({ letter, bg, shape }) => (
+        {/* Name option cards */}
+        <div className="space-y-2.5 mb-4">
+          {nameOptions.map(({ name, domain, available }) => (
             <div
-              key={letter}
-              className="bg-white rounded-xl border border-slate-100 p-4 flex flex-col items-center gap-2 shadow-sm"
+              key={name}
+              className={`rounded-xl border px-4 py-3 flex items-center justify-between ${
+                available ? "bg-emerald-50 border-emerald-200" : "bg-slate-50 border-slate-200"
+              }`}
             >
-              <div className={`w-12 h-12 bg-gradient-to-br ${bg} ${shape} flex items-center justify-center text-white font-extrabold text-xl shadow-md`}>
-                {letter}
+              <div>
+                <p className="text-sm font-bold text-slate-800">{name}</p>
+                <p className="text-[11px] text-slate-400">{domain}</p>
               </div>
-              <div className="h-2 w-16 bg-slate-100 rounded" />
-              <div className="h-1.5 w-10 bg-slate-50 rounded" />
+              <span
+                className={`text-[10px] font-bold px-2 py-1 rounded-full ${
+                  available ? "bg-emerald-500 text-white" : "bg-slate-300 text-slate-600"
+                }`}
+              >
+                {available ? "Available" : "Taken"}
+              </span>
             </div>
           ))}
         </div>
 
-        {/* File formats row */}
-        <div className="bg-white rounded-xl border border-slate-100 p-4 mb-3">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">File Formats Included</p>
-          <div className="flex gap-2 flex-wrap">
-            {["PNG", "JPG", "SVG", "PDF"].map((fmt) => (
-              <span key={fmt} className="bg-emerald-50 border border-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-lg">
-                {fmt}
+        {/* Coverage checklist */}
+        <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Checked For You</p>
+          <div className="grid grid-cols-3 gap-2">
+            {["Domain", "Social", "Trademark"].map((item) => (
+              <span key={item} className="text-[10px] text-center font-semibold text-emerald-700 bg-emerald-50 rounded-lg py-1.5">
+                {item} ✓
               </span>
-            ))}
-          </div>
-        </div>
-
-        {/* Color palette strip */}
-        <div className="bg-white rounded-xl border border-slate-100 p-4">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Brand Colors</p>
-          <div className="flex gap-2">
-            {["#059669", "#0f172a", "#f59e0b", "#6366f1", "#e2e8f0"].map((color) => (
-              <div
-                key={color}
-                className="w-7 h-7 rounded-full shadow-sm border border-white"
-                style={{ backgroundColor: color }}
-              />
             ))}
           </div>
         </div>
@@ -142,106 +144,137 @@ function LogoIllustration() {
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 const heroKeyPoints: string[] = [
-  "Custom logo concepts",
-  "Designed for startups and small businesses",
-  "Professional and modern design",
-  "Delivered in all formats you need",
+  "Multiple curated name options, not a random generator",
+  "Domain and social handle availability checked",
+  "Quick trademark conflict screening",
+  "Delivered with a short rationale for each name",
 ];
 
-const trustBadges: string[] = ["Startup Friendly", "Custom Designs", "Commercial Use"];
+const trustBadges: string[] = ["Fast Turnaround", "Domain Checked", "Startup Focused"];
 
-const logoAppearsOn: string[] = [
-  "Your website",
-  "Social media pages",
-  "Business cards",
-  "Packaging",
-  "Advertisements",
+const problemRisks: string[] = [
+  "Picking a name that's already trademarked elsewhere",
+  "Discovering the domain is taken after you've told everyone",
+  "A name that's forgettable or hard to spell",
+  "Losing weeks brainstorming without a clear direction",
 ];
 
 const features: Feature[] = [
-  { emoji: "🎨", title: "Custom Logo Concepts", desc: "Multiple original logo ideas created specifically for your brand." },
-  { emoji: "✨", title: "Professional Design", desc: "Clean, modern designs that work across digital and print media." },
-  { emoji: "🖼️", title: "High Resolution Files", desc: "High-quality logo files ready for any use case." },
-  { emoji: "📁", title: "Multiple Formats", desc: "Files for websites, social media, printing, and branding." },
-  { emoji: "🎨", title: "Brand Color Suggestions", desc: "Recommended colors that match your brand personality." },
-  { emoji: "✅", title: "Commercial Rights", desc: "Full rights to use your logo for your business, forever." },
+  { emoji: "💡", title: "Curated Name Options", desc: "Multiple name ideas generated around your business, industry, and tone — not random word mashups." },
+  { emoji: "🌐", title: "Domain Availability", desc: "Every suggested name is checked for domain availability across common extensions." },
+  { emoji: "📱", title: "Social Handle Check", desc: "We check whether matching usernames are available on major social platforms." },
+  { emoji: "⚖️", title: "Trademark Quick-Check", desc: "A fast screening for obvious trademark conflicts, so you don't build a brand you'll have to abandon." },
+  { emoji: "📝", title: "Naming Rationale", desc: "A short explanation of why each name works, so you can decide with confidence." },
+  { emoji: "🔁", title: "Refinement Rounds", desc: "Not quite right? We refine the direction based on your feedback." },
 ];
 
 const audienceItems: AudienceItem[] = [
-  { icon: "🚀", text: "Launching a new business" },
-  { icon: "💼", text: "Want a professional brand identity" },
-  { icon: "🌐", text: "Need a logo for your website or social media" },
-  { icon: "📢", text: "Want a logo that works across all marketing materials" },
-  { icon: "🏆", text: "Want to stand out from competitors" },
+  { icon: "🚀", text: "Starting a business and need a name" },
+  { icon: "🔄", text: "Rebranding an existing business" },
+  { icon: "🌐", text: "Want to confirm a domain is available before committing" },
+  { icon: "🧠", text: "Have ideas but can't land on the right one" },
+  { icon: "⚡", text: "Need a name fast, without weeks of brainstorming" },
 ];
 
 const steps: Step[] = [
-  { n: "01", title: "Tell Us About Your Brand", desc: "Complete a short questionnaire about your business, industry, and design preferences." },
-  { n: "02", title: "Concept Creation", desc: "Our designers create several custom logo concepts based on your brand." },
-  { n: "03", title: "Feedback and Revisions", desc: "Choose your favorite design and request revisions if needed." },
-  { n: "04", title: "Receive Your Final Logo", desc: "Get your final logo files ready for websites, social media, and marketing materials." },
+  { n: "01", title: "Tell Us About Your Business", desc: "Share what your business does, your audience, and any style preferences." },
+  { n: "02", title: "Name Generation", desc: "We generate name options aligned with your brand direction." },
+  { n: "03", title: "Availability Checks", desc: "We check domain, social handle, and trademark availability for each option." },
+  { n: "04", title: "Receive Your Shortlist", desc: "You get a curated shortlist with availability status and reasoning for each." },
 ];
 
 // `id` matches the packageTier id in
-// lib/questionnaires/logo-design/config.ts.
+// lib/questionnaires/business-name-domain/config.ts.
 const plans: Plan[] = [
   {
-    id: "starter",
-    name: "Starter Logo",
-    tag: "Best for simple brands",
-    price: "$60",
-    items: ["2 logo concepts", "1 revision round", "PNG + JPG files"],
-    delivery: "3–4 days",
-    cta: "Start Starter Logo",
+    id: "quick",
+    name: "Quick Names",
+    tag: "Best for quick decisions",
+    price: "$40",
+    items: ["10 name ideas", "Domain availability check", "1 round of refinement"],
+    delivery: "1–2 days",
+    cta: "Start Quick Names",
     popular: false,
-  },
-  {
-    id: "professional",
-    name: "Professional Logo",
-    tag: "Most popular",
-    price: "$120",
-    items: [
-      "4 logo concepts",
-      "3 revision rounds",
-      "PNG, JPG, SVG & transparent files",
-      "Brand color suggestions",
-    ],
-    delivery: "4–6 days",
-    cta: "Start Professional Logo",
-    popular: true,
   },
   {
     id: "complete",
-    name: "Complete Brand Kit",
-    tag: "Best for serious startups",
-    price: "$220",
+    name: "Complete Naming",
+    tag: "Most popular",
+    price: "$80",
     items: [
-      "5 logo concepts",
-      "Unlimited revisions",
-      "Full logo file formats",
-      "Brand color palette",
-      "Typography recommendations",
-      "Social media logo versions",
+      "20 name ideas",
+      "Domain + social handle check",
+      "Trademark quick-check",
+      "2 rounds of refinement",
     ],
-    delivery: "5–7 days",
-    cta: "Start Brand Kit",
+    delivery: "2–3 days",
+    cta: "Start Complete Naming",
+    popular: true,
+  },
+  {
+    id: "brand-ready",
+    name: "Brand Ready",
+    tag: "Best for serious brands",
+    price: "$130",
+    items: [
+      "30 name ideas",
+      "Full domain, social & trademark check",
+      "Naming rationale document",
+      "Unlimited refinement rounds",
+    ],
+    delivery: "3–5 days",
+    cta: "Start Brand Ready",
     popular: false,
   },
 ];
 
-const platformLinks: PlatformLink[] = [
-  { emoji: "💡", label: "Business name selection" },
-  { emoji: "🌐", label: "Website creation" },
-  { emoji: "📣", label: "Marketing setup" },
-  { emoji: "📱", label: "Social media branding" },
+const stackItems: StackItem[] = [
+  { label: "Business Name & Domain", status: "current", emoji: "💡" },
+  { label: "Logo Design", status: "upcoming", emoji: "🎨" },
+  { label: "Website Creation", status: "upcoming", emoji: "🌐" },
+  { label: "Social Media Setup", status: "upcoming", emoji: "📱" },
+];
+
+const platformLinks: string[] = [
+  "Logo design and branding",
+  "Website creation",
+  "Social media setup",
+  "Business registration",
+];
+
+const relatedServices: RelatedService[] = [
+  {
+    emoji: "🎨",
+    title: "Logo Design",
+    desc: "Once your name is locked in, build a visual identity to match.",
+    href: "/services/logo-design",
+  },
+  {
+    emoji: "🌐",
+    title: "Website Creation",
+    desc: "Launch a website on your new domain right away.",
+    href: "/services/website-creation",
+  },
+  {
+    emoji: "📱",
+    title: "Social Media Setup",
+    desc: "Claim your matching handles across social platforms.",
+    href: "/services/social-media-setup",
+  },
+  {
+    emoji: "⚖️",
+    title: "Business Registration",
+    desc: "Register your business under your new name.",
+    href: "/services/business-registration",
+  },
 ];
 
 const faqs: FAQItem[] = [
-  { q: "How long does logo design take?", a: "Most logo designs are delivered within 3–6 days depending on the package." },
-  { q: "Can I request changes?", a: "Yes. All packages include revision rounds to refine your design." },
-  { q: "Will I own the logo?", a: "Yes. Once completed, the logo belongs fully to your business." },
-  { q: "What file formats will I receive?", a: "You receive multiple formats including PNG, JPG, and scalable files for printing and digital use." },
-  { q: "Can I use the logo on my website and social media?", a: "Yes. The logo will work across all digital and marketing platforms." },
+  { q: "Do you register the domain for me?", a: "We check availability and tell you exactly where to register it. Domain registration itself is a quick step you complete yourself, so you keep full ownership." },
+  { q: "What if none of the names feel right?", a: "Each package includes refinement rounds — tell us what's off and we'll generate a new direction." },
+  { q: "Is the trademark check a full legal search?", a: "No — it's a quick screening for obvious conflicts, not a substitute for a formal trademark search. We'll flag if you should pursue one." },
+  { q: "Can you check names I've already thought of?", a: "Yes. Share your own ideas in the questionnaire and we'll check availability alongside our suggestions." },
+  { q: "How fast can I get results?", a: "Quick Names typically delivers in 1–2 days. More thorough packages take a bit longer to properly check everything." },
 ];
 
 // ── 1. HERO ───────────────────────────────────────────────────────────────────
@@ -269,13 +302,13 @@ function HeroSection() {
           <div>
 
             <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 leading-tight tracking-tight mb-6">
-              Professional Logo Design{" "}
-              <span className="text-emerald-600">for Your Business</span>
+              Find the Right Name{" "}
+              <span className="text-emerald-600">Before You Build Anything Else</span>
             </h1>
 
             <p className="text-lg text-slate-500 leading-relaxed mb-8">
-              Your logo is the face of your business. Hustlecare creates professional, memorable logos
-              designed to help your brand stand out and build trust with customers.
+              Hustlecare helps you land on a business name that&apos;s memorable, available, and ready to
+              build a brand around — domain and social handles included.
             </p>
 
             <ul className="space-y-2 mb-10">
@@ -294,7 +327,7 @@ function HeroSection() {
                 href="#pricing"
                 className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-all text-white font-semibold px-7 py-3.5 rounded-xl shadow-lg shadow-emerald-200"
               >
-                Start My Logo Design
+                Find My Business Name
                 <ArrowIcon />
               </a>
               <a
@@ -320,7 +353,7 @@ function HeroSection() {
 
           {/* RIGHT */}
           <div className="flex justify-center lg:justify-end">
-            <LogoIllustration />
+            <NameDomainIllustration />
           </div>
         </div>
       </div>
@@ -337,46 +370,39 @@ function ProblemSection() {
           <div>
             
             <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight mb-6">
-              Your Logo Is the First Thing Customers Notice
+              Picking a Name Is Harder Than It Looks
             </h2>
             <p className="text-slate-400 leading-relaxed mb-4">
-              A strong logo helps customers remember your brand and trust your business. A poorly
-              designed logo can make even a great business look unprofessional.
+              A great name that&apos;s already trademarked, or a perfect fit with no available domain,
+              can cost you weeks of wasted branding work down the line.
             </p>
-            <p className="text-slate-400 leading-relaxed font-medium text-sm">
-              That&apos;s why your brand needs a professional identity from the start. Hustlecare helps
-              entrepreneurs create logos that represent their business and communicate their brand clearly.
+            <p className="text-slate-400 leading-relaxed">
+              Getting the name and domain checked properly from the start means everything you build
+              after — logo, website, social profiles — has a solid foundation.
             </p>
           </div>
 
           <div className="bg-slate-800 rounded-2xl p-8 border border-slate-700">
-            <p className="text-slate-300 font-semibold mb-5">Your logo appears everywhere:</p>
+            <p className="text-slate-300 font-semibold mb-5">Without checking properly, you risk:</p>
             <ul className="space-y-3 mb-8">
-              {logoAppearsOn.map((item) => (
-                <li key={item} className="flex items-center gap-3 text-slate-300">
-                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                    <CheckIcon />
+              {problemRisks.map((item) => (
+                <li key={item} className="flex items-start gap-3 text-slate-300">
+                  <span className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                   </span>
                   {item}
                 </li>
               ))}
             </ul>
-            {/* Visual bar showing brand recognition */}
-            <div className="pt-6 border-t border-slate-700 space-y-2.5">
-              {[
-                { label: "Brand Recognition", pct: 88 },
-                { label: "Customer Trust", pct: 76 },
-                { label: "Competitive Edge", pct: 92 },
-              ].map(({ label, pct }) => (
-                <div key={label}>
-                  <div className="flex justify-between text-[11px] text-slate-400 mb-1">
-                    <span>{label}</span><span>{pct}%</span>
-                  </div>
-                  <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-              ))}
+            <div className="pt-6 border-t border-slate-700 bg-emerald-500/10 rounded-xl p-4 border border-emerald-500/20">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">💡</span>
+                <p className="text-emerald-300 text-sm font-medium leading-snug">
+                  A name you have to change later costs far more than getting it right the first time.
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -393,7 +419,7 @@ function FeaturesGrid() {
         <div className="text-center mb-14">
           
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
-            What&apos;s Included in Your Logo Design
+            What&apos;s Included in Your Naming Package
           </h2>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -423,7 +449,7 @@ function AudienceSection() {
         <div className="text-center mb-14">
           
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
-            Perfect for New Businesses and Startups
+            Perfect for Founders Naming a Business
           </h2>
           <p className="text-slate-500 mt-3">This service is ideal if you:</p>
         </div>
@@ -453,10 +479,7 @@ function ProcessSteps() {
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">Simple 4-Step Process</h2>
         </div>
         <div className="relative">
-          <div
-            className="hidden lg:block absolute top-10 left-[12.5%] right-[12.5%] h-0.5 bg-emerald-100"
-            aria-hidden
-          />
+          <div className="hidden lg:block absolute top-10 left-[12.5%] right-[12.5%] h-0.5 bg-emerald-100" aria-hidden />
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
             {steps.map(({ n, title, desc }) => (
               <div key={n} className="relative text-center">
@@ -479,7 +502,7 @@ function PricingCards() {
   const router = useRouter();
 
   function handleSelectPlan(planId: string) {
-    router.push(`/services/logo-design/questionnaire?package=${planId}`);
+    router.push(`/services/business-name-domain/questionnaire?package=${planId}`);
   }
 
   return (
@@ -488,7 +511,7 @@ function PricingCards() {
         <div className="text-center mb-14">
           
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
-            Choose Your Logo Design Package
+            Choose Your Naming Package
           </h2>
         </div>
         <div className="grid md:grid-cols-3 gap-6 items-stretch">
@@ -519,15 +542,8 @@ function PricingCards() {
               </div>
               <ul className="space-y-2.5 mb-6 flex-1">
                 {items.map((item) => (
-                  <li
-                    key={item}
-                    className={`flex items-center gap-2.5 text-sm ${popular ? "text-emerald-100" : "text-slate-600"}`}
-                  >
-                    <span
-                      className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${
-                        popular ? "bg-emerald-500 text-white" : "bg-emerald-100 text-emerald-600"
-                      }`}
-                    >
+                  <li key={item} className={`flex items-center gap-2.5 text-sm ${popular ? "text-emerald-100" : "text-slate-600"}`}>
+                    <span className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${popular ? "bg-emerald-500 text-white" : "bg-emerald-100 text-emerald-600"}`}>
                       <CheckIcon />
                     </span>
                     {item}
@@ -563,19 +579,19 @@ function PlatformIntegrationSection() {
         <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-10 lg:p-14">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-             
+              
               <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-5">
-                Part of Your Startup Branding
+                Where Your Brand Starts
               </h2>
               <p className="text-slate-400 leading-relaxed mb-6">
-                Logo design is one of the key requirements when starting a business. Hustlecare connects
-                branding services with other startup needs so you can build everything in one place.
+                Your name is the foundation everything else builds on. Hustlecare connects your naming
+                decision with the branding and setup steps that come next.
               </p>
-              <ul className="space-y-3 mb-8">
-                {platformLinks.map(({ emoji, label }) => (
-                  <li key={label} className="flex items-center gap-3 text-slate-300 text-sm">
-                    <span className="text-base">{emoji}</span>
-                    {label}
+              <ul className="space-y-2 mb-8">
+                {platformLinks.map((link) => (
+                  <li key={link} className="flex items-center gap-2.5 text-slate-300 text-sm">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
+                    {link}
                   </li>
                 ))}
               </ul>
@@ -588,21 +604,15 @@ function PlatformIntegrationSection() {
               </a>
             </div>
 
-            {/* Branding stack visual */}
             <div className="flex justify-center">
               <div className="space-y-3 w-full max-w-xs">
-                {[
-                  { label: "Logo Design", status: "Complete", color: "emerald", emoji: "🎨" },
-                  { label: "Business Name", status: "Next Step", color: "amber", emoji: "💡" },
-                  { label: "Website Creation", status: "Upcoming", color: "slate", emoji: "🌐" },
-                  { label: "Social Media Setup", status: "Upcoming", color: "slate", emoji: "📱" },
-                ].map(({ label, status, color, emoji }) => (
+                {stackItems.map(({ label, status, emoji }) => (
                   <div
                     key={label}
                     className={`flex items-center gap-4 rounded-xl px-4 py-3 border ${
-                      color === "emerald"
+                      status === "complete"
                         ? "bg-emerald-500/10 border-emerald-500/30"
-                        : color === "amber"
+                        : status === "current"
                         ? "bg-amber-500/10 border-amber-500/30"
                         : "bg-slate-700/50 border-slate-600/50"
                     }`}
@@ -613,14 +623,14 @@ function PlatformIntegrationSection() {
                     </div>
                     <span
                       className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        color === "emerald"
+                        status === "complete"
                           ? "bg-emerald-500/20 text-emerald-300"
-                          : color === "amber"
+                          : status === "current"
                           ? "bg-amber-500/20 text-amber-300"
                           : "bg-slate-600 text-slate-400"
                       }`}
                     >
-                      {status}
+                      {status === "complete" ? "Complete" : status === "current" ? "In Progress" : "Upcoming"}
                     </span>
                   </div>
                 ))}
@@ -633,12 +643,48 @@ function PlatformIntegrationSection() {
   );
 }
 
-// ── 8. FAQ ────────────────────────────────────────────────────────────────────
+// ── RELATED SERVICES ──────────────────────────────────────────────────────────
+function RelatedServicesSection() {
+  return (
+    <section className="bg-slate-50 py-20">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center mb-14">
+          
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900">
+            Build on Your New Name
+          </h2>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          {relatedServices.map(({ emoji, title, desc, href }) => (
+            <Link
+              key={title}
+              href={href}
+              className="group flex flex-col bg-white border border-slate-100 hover:border-emerald-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5"
+            >
+              <div className="w-11 h-11 bg-emerald-50 group-hover:bg-emerald-100 rounded-xl flex items-center justify-center text-xl mb-4 transition-colors">
+                {emoji}
+              </div>
+              <h3 className="font-bold text-slate-800 mb-1.5 group-hover:text-emerald-700 transition-colors">
+                {title}
+              </h3>
+              <p className="text-sm text-slate-500 leading-relaxed flex-1">{desc}</p>
+              <span className="inline-flex items-center gap-1.5 text-emerald-600 text-xs font-semibold mt-4 group-hover:gap-2.5 transition-all">
+                Learn more <ArrowIcon />
+              </span>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── FAQ ───────────────────────────────────────────────────────────────────────
 function FAQAccordion() {
   const [open, setOpen] = useState<number | null>(null);
 
   return (
-    <section className="bg-slate-50 py-20">
+    <section className="bg-white py-20">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14">
           
@@ -648,10 +694,7 @@ function FAQAccordion() {
         </div>
         <div className="space-y-3">
           {faqs.map(({ q, a }, i) => (
-            <div
-              key={q}
-              className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm"
-            >
+            <div key={q} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
               <button
                 className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left"
                 onClick={() => setOpen(open === i ? null : i)}
@@ -672,32 +715,32 @@ function FAQAccordion() {
   );
 }
 
-// ── 9. FINAL CTA ──────────────────────────────────────────────────────────────
+// ── FINAL CTA ─────────────────────────────────────────────────────────────────
 function CTASection() {
   return (
     <section className="bg-emerald-600 py-20">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
         <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-5">
-          Build a Brand Customers Remember
+          Get a Name You Can Build a Business On
         </h2>
         <p className="text-emerald-100 text-lg leading-relaxed mb-10 max-w-2xl mx-auto">
-          A professional logo is one of the most important steps when launching a new business. Let
-          Hustlecare help you create a brand identity that stands out.
+          Stop guessing whether a name is available. Let Hustlecare check it properly and hand you a
+          shortlist you can commit to.
         </p>
         <div className="flex flex-wrap justify-center gap-4">
           <a
             href="#pricing"
             className="inline-flex items-center gap-2 bg-white text-emerald-700 hover:bg-emerald-50 font-bold px-8 py-4 rounded-xl shadow-lg transition-all active:scale-95"
           >
-            Start My Logo Design
+            Find My Business Name
             <ArrowIcon />
           </a>
-          <a
+          <Link
             href="/services"
             className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-8 py-4 rounded-xl transition-all active:scale-95"
           >
             Explore Startup Services
-          </a>
+          </Link>
         </div>
       </div>
     </section>
@@ -705,7 +748,7 @@ function CTASection() {
 }
 
 // ── ROOT EXPORT ───────────────────────────────────────────────────────────────
-export default function LogoDesignClient() {
+export default function BusinessNameDomainClient() {
   return (
     <main className="font-sans antialiased text-slate-900">
       <HeroSection />
@@ -715,6 +758,7 @@ export default function LogoDesignClient() {
       <ProcessSteps />
       <PricingCards />
       <PlatformIntegrationSection />
+      <RelatedServicesSection />
       <FAQAccordion />
       <CTASection />
     </main>
