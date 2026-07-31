@@ -21,6 +21,13 @@ async function fetchBusinessWithRequirements(slug: string) {
   const business = await prisma.business.findUnique({
     where: { slug },
     include: {
+      // County-fee trade-class resolution (see lib/legalFeeSchedule.ts).
+      // category.defaultTradeClassId is the fallback used below to compute
+      // effectiveTradeClassId, mirroring /api/business/[slug]/route.ts so
+      // SSR and client-side re-fetches resolve fee schedules identically.
+      category: {
+        select: { defaultTradeClassId: true },
+      },
       requirements: {
         // Match the hub page's filtering so both pages agree on the
         // canonical set of requirements. Previously this query had no
@@ -529,6 +536,14 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   // section via CategorySection). Only the SEO-facing counts/schema above
   // are Stock-excluded from the main Requirements surfaces, not the actual
   // page content.
+  //
+  // effectiveTradeClassId mirrors the same computation as
+  // /api/business/[slug]/route.ts — this business's own override, else its
+  // category's default — so the county-fee resolution a visitor sees on
+  // first server-rendered load matches what they'd get from a client-side
+  // re-fetch (e.g. after switching businesses via the cart context).
+  const effectiveTradeClassId = business.tradeClassId ?? business.category?.defaultTradeClassId ?? null;
+
   const initialBusiness: BusinessData = {
     id: business.id,
     name: business.name,
@@ -547,6 +562,8 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
     profitPotential: business.profitPotential,
     skillLevel: business.skillLevel,
     bestLocations: business.bestLocations,
+    tradeClassId: business.tradeClassId,
+    effectiveTradeClassId,
   };
 
   const initialRequirements: RequirementData[] = requirements.map((req) => ({
