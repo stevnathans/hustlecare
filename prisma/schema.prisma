@@ -146,6 +146,15 @@ model Business {
   sharedBusinesses SharedBusiness[]
   orders  Order[]
 
+  // Override for county-fee resolution (see TradeClass below). Most
+  // businesses inherit their trade class from category.defaultTradeClassId
+  // and never need this set — only use it for the exceptions where a
+  // specific business idea genuinely needs a different trade
+  // classification than its siblings in the same BusinessCategory (e.g.
+  // "High-End Spa" vs "Barbershop", both under Beauty & Wellness).
+  tradeClassId     Int?
+  tradeClass       TradeClass?           @relation(fields: [tradeClassId], references: [id])
+
   @@index([name])
   @@index([slug])
   @@index([published])
@@ -166,10 +175,14 @@ model BusinessFaq {
   @@index([isActive])
 }
 
-// BusinessCategory doubles as the "business type" dimension for
-// LegalFeeSchedule (see below) — reused rather than inventing a parallel
-// taxonomy, since it already represents the kind of business (Retail,
-// Food & Beverage, etc.).
+// BusinessCategory is purely the consumer-facing browsing taxonomy
+// (Retail, Food & Beverage, etc.) — kept deliberately separate from
+// TradeClass, which is how COUNTIES classify trades for fee purposes.
+// The two taxonomies don't share a shape (one category commonly spans
+// several trade classes, e.g. Retail -> Hyper Supermarket / Large Trader
+// Shop / Wines & Spirits Retailer), so forcing fee data onto
+// BusinessCategory was the wrong model. See TradeClass for the resolution
+// chain.
 model BusinessCategory {
   id            Int                @id @default(autoincrement())
   name          String             @unique
@@ -177,7 +190,38 @@ model BusinessCategory {
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
   businesses    Business[]
-  feeSchedules  LegalFeeSchedule[]
+
+  // Most businesses in this category resolve their fee-schedule trade
+  // class from here, unless the individual Business has its own
+  // tradeClassId override set.
+  defaultTradeClassId Int?
+  defaultTradeClass   TradeClass?    @relation("CategoryDefaultTradeClass", fields: [defaultTradeClassId], references: [id])
+
+  @@index([name])
+  @@index([slug])
+}
+
+// The taxonomy counties actually use when writing their Finance Act fee
+// schedules — e.g. "Hyper Supermarket", "Large Trader Shop", "Barbershop /
+// Salon". Deliberately separate from BusinessCategory (see comment above).
+//
+// Resolution chain for "what does business X pay in county Y":
+//   1. Business.tradeClassId (explicit override), else
+//   2. Business.category.defaultTradeClassId (the common case), else
+//   3. the flat/generic LegalFeeSchedule row for that county (tradeClassId: null)
+// See lib/legalFeeSchedule.ts (resolveFeeSchedule) for the matching logic
+// once a tradeClassId is known.
+model TradeClass {
+  id          Int      @id @default(autoincrement())
+  name        String
+  slug        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  feeSchedules         LegalFeeSchedule[]
+  businesses           Business[]
+  defaultForCategories BusinessCategory[] @relation("CategoryDefaultTradeClass")
 
   @@index([name])
   @@index([slug])
@@ -200,7 +244,7 @@ model RequirementTemplate {
 
   // When true, this requirement's pricing comes from LegalFeeSchedule
   // (county-issued permits/certificates whose price varies by county and
-  // sometimes business type/size) instead of the normal Product catalog.
+  // sometimes trade class/size) instead of the normal Product catalog.
   // Only meaningful for Legal-category templates.
   isCountyFeeSchedule Boolean            @default(false)
   feeSchedules        LegalFeeSchedule[]
@@ -388,43 +432,52 @@ model VendorCounty {
 
 // Fee schedule for county-issued Legal requirements (Business Permit,
 // Health Certificate, etc.) whose price genuinely depends on which county
-// issues it — and sometimes on the business's category/size too.
+// issues it — and sometimes on the business's trade class/size too.
 //
-// businessCategoryId and sizeBand are BOTH nullable so a county only needs
-// ONE row per requirement when its price is flat (the common case). Extra
-// rows are added only where a county genuinely tiers pricing by business
-// type or size — never a full combinatorial grid.
+// tradeClassId and sizeBand are BOTH nullable so a county only needs ONE
+// row per requirement when its price is flat (the common case). Extra
+// rows are added only where a county genuinely tiers pricing by trade
+// class or size — never a full combinatorial grid.
+//
+// employeeCountMax and floorAreaSqm are informational/display fields for
+// the more granular criteria some counties actually publish (e.g. "up to
+// 10 employees", "under 500 sqm"). They are NOT part of the automated
+// resolveFeeSchedule() matching — matching is by tradeClassId + sizeBand
+// only, since incorporating numeric ranges would require collecting that
+// data from the business side first. Use `notes` for anything unusual
+// this doesn't capture (seating capacity, star rating, turnover bands).
 //
 // NOTE: because Postgres treats NULL as distinct in unique constraints,
-// the @@unique below does not prevent two rows with businessCategoryId:
-// null AND sizeBand: null for the same (templateId, countyId) — that
+// the @@unique below does not prevent two rows with tradeClassId: null
+// AND sizeBand: null for the same (templateId, countyId) — that
 // invariant ("at most one flat/default row") is enforced at the
 // application layer (see the bulk-default admin endpoint, which does a
 // find-then-update-or-create rather than relying on the DB constraint).
-
 model LegalFeeSchedule {
   id                     Int                @id @default(autoincrement())
   templateId             Int
   countyId               Int
-  businessCategoryId     Int?
+  tradeClassId           Int?
   sizeBand               BusinessSizeBand?
+  employeeCountMax       Int?
+  floorAreaSqm           Float?
   price                  Float
   validityValue          Float?
   validityUnit           DurationUnit?
   processingTimeMinDays  Int?
   processingTimeMaxDays  Int?
   notes                  String?
-  applyUrl               String?
   createdAt              DateTime           @default(now())
   updatedAt              DateTime           @updatedAt
 
   template         RequirementTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   county           County              @relation(fields: [countyId], references: [id], onDelete: Cascade)
-  businessCategory BusinessCategory?   @relation(fields: [businessCategoryId], references: [id])
+  tradeClass       TradeClass?         @relation(fields: [tradeClassId], references: [id])
 
-  @@unique([templateId, countyId, businessCategoryId, sizeBand])
+  @@unique([templateId, countyId, tradeClassId, sizeBand])
   @@index([templateId, countyId])
   @@index([countyId])
+  @@index([tradeClassId])
 }
 
 enum BusinessSizeBand {
@@ -995,7 +1048,7 @@ model Payment {
   updatedAt     DateTime      @updatedAt
 
   @@index([status])
-}
+} 
 
 enum PaymentStatus {
   PENDING

@@ -1,4 +1,4 @@
-'use client';
+"use client";
 import { ReactNode, useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -22,6 +22,7 @@ import {
   GitMerge,
   BookOpen,
   Mail,
+  Layers,
 } from "lucide-react";
 
 interface NavItem {
@@ -32,30 +33,116 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { name: "Dashboard",    href: "/admin",                icon: Home,          requiredRoles: ["author","editor","reviewer","admin"] },
-  { name: "Users",        href: "/admin/users",          icon: Users,         requiredRoles: ["admin"] },
-  { name: "Businesses",   href: "/admin/businesses",     icon: Building,      requiredRoles: ["author","editor","admin"] },
-  { name: "Guides",       href: "/admin/guides",         icon: BookOpen,      requiredRoles: ["author","editor","admin"] },
-  { name: "Categories",   href: "/admin/categories",     icon: LayoutGrid,    requiredRoles: ["author","editor","admin"] },
-  { name: "Requirements", href: "/admin/requirements",   icon: ClipboardList, requiredRoles: ["author","editor","admin"] },
-  { name: "Products",     href: "/admin/products",       icon: ShoppingCart,  requiredRoles: ["author","editor","admin"] },
-  { name: "Vendors",      href: "/admin/vendors",        icon: Store,         requiredRoles: ["editor","admin"] },
-  { name: "Orders",       href: "/admin/orders",         icon: ShoppingCart,  requiredRoles: ["editor","admin"] },
-  { name: "Apply Requests", href: "/admin/apply-requests", icon: ShoppingCart,  requiredRoles: ["editor","admin"] },
-  { name: "Legal Fees",       href: "/admin/legal-fee-schedules",         icon: ShoppingCart,  requiredRoles: ["editor","admin"] },
-  { name: "Comments",     href: "/admin/comments",       icon: MessageSquare, requiredRoles: ["reviewer","editor","admin"] },
-  { name: "Reviews",      href: "/admin/reviews",        icon: Star,          requiredRoles: ["reviewer","editor","admin"] },
-  { name: "Redirects",    href: "/admin/redirects",      icon: GitMerge,      requiredRoles: ["editor", "admin"] },
-  { name: "Audit Logs",   href: "/admin/audit",          icon: FileText,      requiredRoles: ["admin"] },
-  { name: "Emails", href: "/admin/emails",               icon: Mail,          requiredRoles: ["admin"] },
+  {
+    name: "Dashboard",
+    href: "/admin",
+    icon: Home,
+    requiredRoles: ["author", "editor", "reviewer", "admin"],
+  },
+  {
+    name: "Users",
+    href: "/admin/users",
+    icon: Users,
+    requiredRoles: ["admin"],
+  },
+  {
+    name: "Businesses",
+    href: "/admin/businesses",
+    icon: Building,
+    requiredRoles: ["author", "editor", "admin"],
+  },
+  {
+    name: "Guides",
+    href: "/admin/guides",
+    icon: BookOpen,
+    requiredRoles: ["author", "editor", "admin"],
+  },
+  {
+    name: "Categories",
+    href: "/admin/categories",
+    icon: LayoutGrid,
+    requiredRoles: ["author", "editor", "admin"],
+  },
+  {
+    name: "Requirements",
+    href: "/admin/requirements",
+    icon: ClipboardList,
+    requiredRoles: ["author", "editor", "admin"],
+  },
+  {
+    name: "Products",
+    href: "/admin/products",
+    icon: ShoppingCart,
+    requiredRoles: ["author", "editor", "admin"],
+  },
+  {
+    name: "Vendors",
+    href: "/admin/vendors",
+    icon: Store,
+    requiredRoles: ["editor", "admin"],
+  },
+  {
+    name: "Orders",
+    href: "/admin/orders",
+    icon: ShoppingCart,
+    requiredRoles: ["editor", "admin"],
+  },
+  {
+    name: "Apply Requests",
+    href: "/admin/apply-requests",
+    icon: ShoppingCart,
+    requiredRoles: ["editor", "admin"],
+  },
+  {
+    name: "Legal Fees",
+    href: "/admin/legal-fee-schedules",
+    icon: ShoppingCart,
+    requiredRoles: ["editor", "admin"],
+  },
+  {
+    name: "Trade Classes",
+    href: "/admin/trade-classes",
+    icon: Layers,
+    requiredRoles: ["editor", "admin"],
+  },
+  {
+    name: "Comments",
+    href: "/admin/comments",
+    icon: MessageSquare,
+    requiredRoles: ["reviewer", "editor", "admin"],
+  },
+  {
+    name: "Reviews",
+    href: "/admin/reviews",
+    icon: Star,
+    requiredRoles: ["reviewer", "editor", "admin"],
+  },
+  {
+    name: "Redirects",
+    href: "/admin/redirects",
+    icon: GitMerge,
+    requiredRoles: ["editor", "admin"],
+  },
+  {
+    name: "Audit Logs",
+    href: "/admin/audit",
+    icon: FileText,
+    requiredRoles: ["admin"],
+  },
+  {
+    name: "Emails",
+    href: "/admin/emails",
+    icon: Mail,
+    requiredRoles: ["admin"],
+  },
 ];
 
 const ROLE_BADGE: Record<string, string> = {
-  user:     "bg-admin-muted/60 text-admin-muted-fg",
-  author:   "bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20",
-  editor:   "bg-violet-500/10 text-violet-400 ring-1 ring-violet-500/20",
+  user: "bg-admin-muted/60 text-admin-muted-fg",
+  author: "bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20",
+  editor: "bg-violet-500/10 text-violet-400 ring-1 ring-violet-500/20",
   reviewer: "bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20",
-  admin:    "bg-rose-500/10 text-rose-400 ring-1 ring-rose-500/20",
+  admin: "bg-rose-500/10 text-rose-400 ring-1 ring-rose-500/20",
 };
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
@@ -64,17 +151,18 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const { data: session } = useSession();
   const userRole = session?.user?.role || "user";
 
-  useEffect(() => { setSidebarOpen(false); }, [pathname]);
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
 
-  const visibleNavItems = navItems.filter(item =>
-    item.requiredRoles.includes(userRole)
+  const visibleNavItems = navItems.filter((item) =>
+    item.requiredRoles.includes(userRole),
   );
 
   const roleBadge = ROLE_BADGE[userRole] ?? ROLE_BADGE.user;
 
   const Sidebar = () => (
     <aside className="w-64 bg-admin-surface border-r border-admin-border flex flex-col h-full">
-
       {/* Brand */}
       <div className="p-6 border-b border-admin-border">
         <div className="flex items-center gap-3">
@@ -82,8 +170,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             <Shield className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-admin-fg tracking-tight">Hustlecare</h2>
-            <p className="text-[11px] text-admin-muted-fg font-medium tracking-wide uppercase">Admin Panel</p>
+            <h2 className="text-sm font-bold text-admin-fg tracking-tight">
+              Hustlecare
+            </h2>
+            <p className="text-[11px] text-admin-muted-fg font-medium tracking-wide uppercase">
+              Admin Panel
+            </p>
           </div>
         </div>
       </div>
@@ -98,7 +190,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             <p className="text-sm font-semibold text-admin-fg truncate">
               {session?.user?.name || "User"}
             </p>
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold mt-0.5 ${roleBadge}`}>
+            <span
+              className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold mt-0.5 ${roleBadge}`}
+            >
               {userRole.charAt(0).toUpperCase() + userRole.slice(1)}
             </span>
           </div>
@@ -120,9 +214,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               className={`
                 flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
                 transition-all duration-150 group relative
-                ${isActive
-                  ? "bg-indigo-600/15 text-indigo-400 shadow-sm"
-                  : "text-admin-nav-fg hover:bg-admin-hover hover:text-admin-fg"
+                ${
+                  isActive
+                    ? "bg-indigo-600/15 text-indigo-400 shadow-sm"
+                    : "text-admin-nav-fg hover:bg-admin-hover hover:text-admin-fg"
                 }
               `}
             >
@@ -130,7 +225,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               {isActive && (
                 <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-indigo-500 rounded-r-full" />
               )}
-              <Icon className={`h-4 w-4 flex-shrink-0 transition-colors ${isActive ? "text-indigo-400" : "text-admin-muted-fg group-hover:text-admin-fg"}`} />
+              <Icon
+                className={`h-4 w-4 flex-shrink-0 transition-colors ${isActive ? "text-indigo-400" : "text-admin-muted-fg group-hover:text-admin-fg"}`}
+              />
               <span>{item.name}</span>
             </Link>
           );
@@ -189,7 +286,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       `}</style>
 
       <div className="admin-shell flex min-h-screen bg-admin-bg">
-
         {/* Desktop Sidebar */}
         <div className="hidden md:flex md:flex-col md:fixed md:inset-y-0 md:w-64 md:z-10">
           <Sidebar />
@@ -222,7 +318,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
         {/* Main content */}
         <main className="flex-1 md:pl-64 min-w-0">
-
           {/* Mobile header */}
           <header className="sticky top-0 z-30 bg-admin-surface border-b border-admin-border md:hidden backdrop-blur-md">
             <div className="flex items-center justify-between px-4 py-3">
@@ -236,16 +331,16 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 <div className="bg-indigo-600 p-1.5 rounded-lg">
                   <Shield className="h-4 w-4 text-white" />
                 </div>
-                <span className="text-sm font-bold text-admin-fg">Admin Panel</span>
+                <span className="text-sm font-bold text-admin-fg">
+                  Admin Panel
+                </span>
               </div>
               <div className="w-9" />
             </div>
           </header>
 
           {/* Page content */}
-          <div className="p-6 md:p-8 text-admin-fg">
-            {children}
-          </div>
+          <div className="p-6 md:p-8 text-admin-fg">{children}</div>
         </main>
       </div>
     </>

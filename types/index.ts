@@ -9,12 +9,21 @@ export interface County {
 
 export type BusinessSizeBand = 'MICRO' | 'SMALL' | 'MEDIUM' | 'LARGE';
 
+export interface TradeClass {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+}
+
 export interface LegalFeeSchedule {
   id: number;
   templateId: number;
   countyId: number;
-  businessCategoryId: number | null;
+  tradeClassId: number | null;
   sizeBand: BusinessSizeBand | null;
+  employeeCountMax: number | null;
+  floorAreaSqm: number | null;
   price: number;
   validityValue: number | null;
   validityUnit: DurationUnit | null;

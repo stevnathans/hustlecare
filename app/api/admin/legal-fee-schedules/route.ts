@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 
     const rows = await prisma.legalFeeSchedule.findMany({
       where: { templateId: Number(templateId) },
-      include: { county: { select: { id: true, name: true } }, businessCategory: { select: { id: true, name: true } } },
+      include: { county: { select: { id: true, name: true } }, tradeClass: { select: { id: true, name: true } } },
       orderBy: [{ county: { name: 'asc' } }],
     });
 
@@ -28,12 +28,16 @@ export async function GET(request: Request) {
   }
 }
 
-// POST — create or update a single row (specific county, optional category/size override)
+// POST — create or update a single row (specific county, optional trade class/size override)
 export async function POST(request: Request) {
   try {
     const user = await requirePermission('products.create');
     const body = await request.json();
-    const { templateId, countyId, businessCategoryId = null, sizeBand = null, price, validityValue, validityUnit, processingTimeMinDays, processingTimeMaxDays, notes } = body;
+    const {
+      templateId, countyId, tradeClassId = null, sizeBand = null,
+      employeeCountMax, floorAreaSqm,
+      price, validityValue, validityUnit, processingTimeMinDays, processingTimeMaxDays, notes,
+    } = body;
 
     if (!templateId || !countyId) return NextResponse.json({ error: 'templateId and countyId are required.' }, { status: 400 });
     if (price == null || Number.isNaN(Number(price)) || Number(price) < 0) {
@@ -49,7 +53,7 @@ export async function POST(request: Request) {
       where: {
         templateId: Number(templateId),
         countyId: Number(countyId),
-        businessCategoryId: businessCategoryId ? Number(businessCategoryId) : null,
+        tradeClassId: tradeClassId ? Number(tradeClassId) : null,
         sizeBand: sizeBand || null,
       },
     });
@@ -60,6 +64,8 @@ export async function POST(request: Request) {
       validityUnit: validityValue != null ? (validityUnit || null) : null,
       processingTimeMinDays: processingTimeMinDays != null ? Number(processingTimeMinDays) : null,
       processingTimeMaxDays: processingTimeMaxDays != null ? Number(processingTimeMaxDays) : null,
+      employeeCountMax: employeeCountMax != null ? Number(employeeCountMax) : null,
+      floorAreaSqm: floorAreaSqm != null ? Number(floorAreaSqm) : null,
       notes: notes?.trim() || null,
     };
 
@@ -69,7 +75,7 @@ export async function POST(request: Request) {
           data: {
             templateId: Number(templateId),
             countyId: Number(countyId),
-            businessCategoryId: businessCategoryId ? Number(businessCategoryId) : null,
+            tradeClassId: tradeClassId ? Number(tradeClassId) : null,
             sizeBand: sizeBand || null,
             ...data,
           },

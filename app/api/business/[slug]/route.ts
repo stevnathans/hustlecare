@@ -31,6 +31,13 @@ export async function GET(
         profitPotential: true,
         skillLevel: true,
         bestLocations: true,
+        // County-fee trade-class resolution (see lib/legalFeeSchedule.ts):
+        // this business's own override, plus its category's default as
+        // the fallback used to compute effectiveTradeClassId below.
+        tradeClassId: true,
+        category: {
+          select: { defaultTradeClassId: true },
+        },
       },
     });
 
@@ -41,7 +48,13 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(business);
+    const { category, ...businessFields } = business;
+    const effectiveTradeClassId = business.tradeClassId ?? category?.defaultTradeClassId ?? null;
+
+    return NextResponse.json({
+      ...businessFields,
+      effectiveTradeClassId,
+    });
   } catch (error) {
     console.error('Error fetching business:', error);
     return NextResponse.json(

@@ -108,15 +108,24 @@ function BusinessPageContentInner({
   // countyFeeScheduleNames (from useBusinessData) already tells the UI
   // which requirements are this type even before that, so there's no
   // "flash of wrong content" while waiting for a selection.
+  //
+  // Passes the business's EFFECTIVE trade class (its own override, else
+  // its category's default — see Business.effectiveTradeClassId in
+  // useBusinessData) so fee rows tiered by trade class actually resolve
+  // to the right price instead of always falling back to the flat/generic
+  // county rate. If effectiveTradeClassId isn't populated yet (API not
+  // updated, or business/category has no trade class assigned), this
+  // degrades gracefully to the same flat-rate behavior as before.
   const feeScheduleResolutions = useMemo(() => {
     if (!selectedCounty) return {} as Record<string, FeeScheduleResolution>;
     const out: Record<string, FeeScheduleResolution> = {};
+    const tradeClassId = business?.effectiveTradeClassId ?? null;
     for (const [reqName, schedules] of Object.entries(feeSchedules)) {
       if (!countyFeeScheduleNames.has(reqName)) continue;
-      out[reqName] = resolveFeeSchedule(schedules, selectedCounty.id, {});
+      out[reqName] = resolveFeeSchedule(schedules, selectedCounty.id, { tradeClassId });
     }
     return out;
-  }, [feeSchedules, selectedCounty, countyFeeScheduleNames]);
+  }, [feeSchedules, selectedCounty, countyFeeScheduleNames, business]);
 
   const {
     categoryStates,

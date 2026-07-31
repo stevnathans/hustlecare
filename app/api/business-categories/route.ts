@@ -7,7 +7,13 @@ export const revalidate = 3600; // rarely changes
 export async function GET() {
   try {
     const categories = await prisma.businessCategory.findMany({
-      select: { id: true, name: true, slug: true },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        defaultTradeClassId: true,
+        defaultTradeClass: { select: { id: true, name: true, slug: true } },
+      },
       orderBy: { name: 'asc' },
     });
     return NextResponse.json(categories);

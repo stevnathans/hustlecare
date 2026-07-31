@@ -1,15 +1,15 @@
 // app/api/admin/legal-fee-schedules/bulk-default/route.ts
 //
 // Sets one flat, generic price for a requirement template across ALL
-// counties. Rewritten to use ONE delete + ONE bulk-insert instead of a
-// 47-iteration loop — the loop version could exceed the database's
-// transaction timeout on a remote DB (e.g. Supabase), silently rolling
-// back with nothing saved. This version is two round-trips total,
-// regardless of how many counties exist.
+// counties. Uses ONE delete + ONE bulk-insert instead of a 47-iteration
+// loop — the loop version could exceed the database's transaction
+// timeout on a remote DB (e.g. Supabase), silently rolling back with
+// nothing saved. This version is two round-trips total, regardless of
+// how many counties exist.
 //
-// Existing per-county or per-category/size OVERRIDES (rows with a
-// non-null businessCategoryId/sizeBand) are untouched — only the generic
-// (businessCategoryId: null, sizeBand: null) rows are replaced.
+// Existing per-county or per-trade-class/size OVERRIDES (rows with a
+// non-null tradeClassId/sizeBand) are untouched — only the generic
+// (tradeClassId: null, sizeBand: null) rows are replaced.
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -48,14 +48,14 @@ export async function POST(request: Request) {
     // Wipe existing generic rows for this template, then recreate one per
     // county in a single batch insert.
     await prisma.legalFeeSchedule.deleteMany({
-      where: { templateId: Number(templateId), businessCategoryId: null, sizeBand: null },
+      where: { templateId: Number(templateId), tradeClassId: null, sizeBand: null },
     });
 
     await prisma.legalFeeSchedule.createMany({
       data: counties.map((county) => ({
         templateId: Number(templateId),
         countyId: county.id,
-        businessCategoryId: null,
+        tradeClassId: null,
         sizeBand: null,
         ...data,
       })),

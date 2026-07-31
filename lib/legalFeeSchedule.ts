@@ -1,22 +1,28 @@
 // lib/legalFeeSchedule.ts
 //
 // Pure resolver for LegalFeeSchedule rows — no Prisma import, so it's safe
-// to use both server-side (future calculator API) and client-side (the
-// requirements page, which already has all a business's fee-schedule rows
-// in memory and just needs to pick the right one per county/query).
+// to use both server-side (the calculator/resolve API) and client-side
+// (the requirements page, which already has all a business's fee-schedule
+// rows in memory and just needs to pick the right one per county/query).
 //
-// Resolution rule: a row is "eligible" if its businessCategoryId and
-// sizeBand are each either null (generic — applies to everyone) or match
-// the query exactly. Among eligible rows, prefer the MOST SPECIFIC ones
-// (both dimensions matched > one matched > fully generic). If all
-// top-scoring rows agree on price, return an exact price; if they don't
-// (because the query is under-specified, e.g. no business type/size
-// chosen yet), return a range instead of guessing.
+// Resolution rule: a row is "eligible" if its tradeClassId and sizeBand
+// are each either null (generic — applies to everyone) or match the
+// query exactly. Among eligible rows, prefer the MOST SPECIFIC ones (both
+// dimensions matched > one matched > fully generic). If all top-scoring
+// rows agree on price, return an exact price; if they don't (because the
+// query is under-specified, e.g. no trade class/size chosen yet), return
+// a range instead of guessing.
+//
+// The query's tradeClassId is expected to already be the EFFECTIVE trade
+// class for a business — i.e. business.tradeClassId ?? business.category
+// ?.defaultTradeClassId — resolved by the caller before this function is
+// invoked. This function itself only does row matching, not the
+// business -> trade-class lookup.
 
 import { LegalFeeSchedule, BusinessSizeBand } from '@/types';
 
 export interface FeeScheduleQuery {
-  businessCategoryId?: number | null;
+  tradeClassId?: number | null;
   sizeBand?: BusinessSizeBand | null;
 }
 
@@ -36,9 +42,9 @@ export function resolveFeeSchedule(
   }
 
   const eligible = countyRows.filter((row) => {
-    const categoryOk = row.businessCategoryId == null || row.businessCategoryId === query.businessCategoryId;
+    const tradeClassOk = row.tradeClassId == null || row.tradeClassId === query.tradeClassId;
     const sizeOk = row.sizeBand == null || row.sizeBand === query.sizeBand;
-    return categoryOk && sizeOk;
+    return tradeClassOk && sizeOk;
   });
 
   if (eligible.length === 0) {
@@ -47,7 +53,7 @@ export function resolveFeeSchedule(
 
   const scored = eligible.map((row) => {
     let score = 0;
-    if (row.businessCategoryId != null) score += 2;
+    if (row.tradeClassId != null) score += 2;
     if (row.sizeBand != null) score += 1;
     return { row, score };
   });

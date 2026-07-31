@@ -39,6 +39,17 @@ export interface Business {
   socialLinks?: never[];
   reviewCount?: number;
   rating?: any;
+
+  // County-fee trade-class resolution (see lib/legalFeeSchedule.ts).
+  // tradeClassId is this business's own override, if set.
+  // effectiveTradeClassId is the one to actually use for fee lookups —
+  // tradeClassId ?? category.defaultTradeClassId — expected to be
+  // computed server-side by /api/business/[slug] and passed through here
+  // as-is. If the API hasn't been updated to include it yet, this will
+  // just be undefined and fee resolution gracefully falls back to the
+  // flat/generic county rate (no regression from current behavior).
+  tradeClassId?: number | null;
+  effectiveTradeClassId?: number | null;
 }
 
 export interface UseBusinessDataInitial {
@@ -289,6 +300,8 @@ export const useBusinessData = (
             socialLinks:     businessData.socialLinks     || [],
             reviewCount:     businessData.reviewCount     || 0,
             rating:          businessData.rating,
+            tradeClassId:          businessData.tradeClassId          ?? null,
+            effectiveTradeClassId: businessData.effectiveTradeClassId ?? null,
           };
           requirementsData = requirementsResult;
 

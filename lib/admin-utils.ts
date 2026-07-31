@@ -142,7 +142,9 @@ function getUserAgent(req: NextRequest): string {
 }
 
 export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'VIEW' | 'EXPORT' | 'APPROVE' | 'REJECT' | 'SEND' | 'BULK_UPDATE';
-export type AuditEntity = 'Business' | 'Product' | 'Requirement' | 'Vendor' | 'User' | 'Comment' | 'Review' | 'LegalFeeSchedule';
+// Added 'TradeClass' — used by the new /admin/trade-classes screen and
+// its API routes (app/api/admin/trade-classes/**).
+export type AuditEntity = 'Business' | 'Product' | 'Requirement' | 'Vendor' | 'User' | 'Comment' | 'Review' | 'LegalFeeSchedule' | 'TradeClass';
 
 interface AuditLogData {
   action: AuditAction;
