@@ -45,11 +45,13 @@ export interface Business {
   // effectiveTradeClassId is the one to actually use for fee lookups —
   // tradeClassId ?? category.defaultTradeClassId — expected to be
   // computed server-side by /api/business/[slug] and passed through here
-  // as-is. If the API hasn't been updated to include it yet, this will
-  // just be undefined and fee resolution gracefully falls back to the
-  // flat/generic county rate (no regression from current behavior).
-  tradeClassId?: number | null;
-  effectiveTradeClassId?: number | null;
+  // as-is. Both are always `number | null`, never `undefined` — the
+  // mapping below guarantees a null fallback. This matters because
+  // CostCalculator's prop type is the real Prisma-generated Business
+  // type, where tradeClassId is a required `number | null` column (not
+  // optional) — an `undefined` here would be a type mismatch there.
+  tradeClassId: number | null;
+  effectiveTradeClassId: number | null;
 }
 
 export interface UseBusinessDataInitial {
