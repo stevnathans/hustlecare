@@ -60,7 +60,8 @@ export async function GET(
                 },
                 feeSchedules: {
                   select: {
-                    id: true, templateId: true, countyId: true, businessCategoryId: true, sizeBand: true,
+                    id: true, templateId: true, countyId: true, tradeClassId: true, sizeBand: true,
+                    employeeCountMax: true, floorAreaSqm: true,
                     price: true, validityValue: true, validityUnit: true,
                     processingTimeMinDays: true, processingTimeMaxDays: true, notes: true,
                   },
