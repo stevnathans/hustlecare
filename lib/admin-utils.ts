@@ -188,6 +188,7 @@ export async function getAuditLogs(filters?: {
   action?: AuditAction;
   startDate?: Date;
   endDate?: Date;
+  search?: string;
   limit?: number;
   offset?: number;
 }) {
@@ -206,6 +207,14 @@ export async function getAuditLogs(filters?: {
     where.createdAt = {};
     if (filters.startDate) (where.createdAt as Record<string, unknown>).gte = filters.startDate;
     if (filters.endDate) (where.createdAt as Record<string, unknown>).lte = filters.endDate;
+  }
+  // Matches against entityId or the acting user's name/email.
+  if (filters?.search) {
+    where.OR = [
+      { entityId: { contains: filters.search, mode: 'insensitive' } },
+      { user: { name: { contains: filters.search, mode: 'insensitive' } } },
+      { user: { email: { contains: filters.search, mode: 'insensitive' } } },
+    ];
   }
 
   const [logs, total] = await Promise.all([
