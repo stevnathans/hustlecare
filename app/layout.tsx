@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 import Menu from "@/components/header/menu";
 import { GlobalProvider } from "./GlobalProvider";
@@ -69,12 +68,14 @@ export default function RootLayout({
         <meta charSet="UTF-8" />
         <link rel="manifest" href="/site.webmanifest" />
         <link rel="canonical" href="https://hustlecare.net/" />
-        <Script
+        {/* Raw tag on purpose — next/script's beforeInteractive optimization
+            replaces this with a preload+runtime-injected script, which
+            AdSense's verifier doesn't detect. This must stay a literal tag. */}
+        <script
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9836756079336428"
           crossOrigin="anonymous"
-          strategy="beforeInteractive"
-        />
+        ></script>
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
