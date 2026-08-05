@@ -55,8 +55,15 @@ type AnalyticsResponse = {
 type VendorSortField = 'vendorName' | 'buyNowClicks' | 'outboundRedirects' | 'cartAdds' | 'clickThroughRate' | 'suggestedInvoiceKES';
 type ProductSortField = 'productName' | 'priceKES' | 'buyNowClicks' | 'outboundRedirects' | 'cartAdds' | 'clickThroughRate';
 type SortDir = 'asc' | 'desc';
+type TabKey = 'vendors' | 'products' | 'requirements';
 
 const RANGE_OPTIONS = [7, 30, 90];
+
+const TABS: { key: TabKey; label: string }[] = [
+  { key: 'vendors', label: 'Vendors' },
+  { key: 'products', label: 'Top Products' },
+  { key: 'requirements', label: 'Popular Requirements' },
+];
 
 // ── Styles (matches the dark admin theme used across /admin) ──────────────
 const S = `
@@ -93,6 +100,13 @@ const S = `
   .scroll::-webkit-scrollbar { width:4px; height:4px; }
   .scroll::-webkit-scrollbar-track { background:transparent; }
   .scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:2px; }
+  .tab-bar { display:flex; gap:0.35rem; border-bottom:1px solid rgba(255,255,255,0.07); margin-bottom:1.25rem; }
+  .tab-btn { position:relative; padding:0.7rem 0.25rem; margin-right:1.5rem; background:none; border:none; cursor:pointer; font-family:'Sora',sans-serif; font-size:0.86rem; font-weight:600; color:#55556e; transition:color 0.15s; }
+  .tab-btn:hover { color:#9494b0; }
+  .tab-btn.active { color:#f0f0f5; }
+  .tab-btn.active::after { content:''; position:absolute; left:0; right:0; bottom:-1px; height:2px; background:linear-gradient(90deg,#6366f1,#a5b4fc); border-radius:2px; }
+  .tab-count { display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 0.35rem; margin-left:0.4rem; border-radius:100px; font-size:0.66rem; font-weight:700; background:rgba(255,255,255,0.08); color:#9494b0; }
+  .tab-btn.active .tab-count { background:rgba(99,102,241,0.2); color:#a5b4fc; }
 `;
 
 function statusBadgeStyle(status: string) {
@@ -144,6 +158,7 @@ export default function AdminAnalyticsPage() {
   const [data, setData] = useState<AnalyticsResponse | null>(null);
   const [days, setDays] = useState(30);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<TabKey>('vendors');
 
   const [vendorSearch, setVendorSearch] = useState('');
   const [vendorSortField, setVendorSortField] = useState<VendorSortField>('suggestedInvoiceKES');
@@ -218,6 +233,12 @@ export default function AdminAnalyticsPage() {
   const requirementRows = data?.requirements ?? [];
   const maxRequirementEngagement = Math.max(1, ...requirementRows.map((r) => r.buyNowClicks + r.cartAdds));
 
+  const tabCounts: Record<TabKey, number> = {
+    vendors: data?.vendors.length ?? 0,
+    products: data?.products.length ?? 0,
+    requirements: data?.requirements.length ?? 0,
+  };
+
   return (
     <>
       <style>{S}</style>
@@ -244,7 +265,7 @@ export default function AdminAnalyticsPage() {
           </div>
 
           {/* KPI cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '0.75rem', marginBottom: '2rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '0.75rem', marginBottom: '1.75rem' }}>
             <div className="kpi-card">
               <div className="kpi-icon" style={{ background: 'rgba(99,102,241,0.12)' }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#818cf8" strokeWidth="2">
@@ -301,223 +322,243 @@ export default function AdminAnalyticsPage() {
             </div>
           </div>
 
-          {/* ── Vendors ── */}
-          <div style={{ marginBottom: '2.25rem' }}>
-            <div className="section-title">Vendors</div>
-            <div className="section-sub">Redirects and suggested invoicing per vendor.</div>
+          {/* Tabs */}
+          <div className="tab-bar">
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                className={`tab-btn${activeTab === tab.key ? ' active' : ''}`}
+                onClick={() => setActiveTab(tab.key)}
+              >
+                {tab.label}
+                <span className="tab-count">{tabCounts[tab.key]}</span>
+              </button>
+            ))}
+          </div>
 
-            <div style={{ marginBottom: '0.75rem' }}>
-              <SearchInput value={vendorSearch} onChange={setVendorSearch} placeholder="Search vendor…" />
+          {/* ── Vendors tab ── */}
+          {activeTab === 'vendors' && (
+            <div>
+              <div className="section-title">Vendors</div>
+              <div className="section-sub">Redirects and suggested invoicing per vendor.</div>
+
+              <div style={{ marginBottom: '0.75rem' }}>
+                <SearchInput value={vendorSearch} onChange={setVendorSearch} placeholder="Search vendor…" />
+              </div>
+
+              <div style={{ fontSize: '0.75rem', color: '#55556e', marginBottom: '0.75rem' }}>
+                Showing <strong style={{ color: '#9494b0' }}>{vendorRows.length}</strong> vendor{vendorRows.length === 1 ? '' : 's'}
+              </div>
+
+              <div style={{ background: '#13131a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+                <div className="scroll" style={{ overflowX: 'auto' }}>
+                  <table className="r-table">
+                    <thead>
+                      <tr>
+                        <th onClick={() => handleVendorSort('vendorName')} style={{ paddingLeft: '1.25rem' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                            Vendor<SortArrow field="vendorName" sortField={vendorSortField} sortDir={vendorSortDir} />
+                          </span>
+                        </th>
+                        <th className="no-sort">Status</th>
+                        <th onClick={() => handleVendorSort('buyNowClicks')} style={{ textAlign: 'right' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                            Buy Now<SortArrow field="buyNowClicks" sortField={vendorSortField} sortDir={vendorSortDir} />
+                          </span>
+                        </th>
+                        <th onClick={() => handleVendorSort('outboundRedirects')} style={{ textAlign: 'right' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                            Continued to Vendor<SortArrow field="outboundRedirects" sortField={vendorSortField} sortDir={vendorSortDir} />
+                          </span>
+                        </th>
+                        <th onClick={() => handleVendorSort('cartAdds')} style={{ textAlign: 'right' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                            Cart Adds<SortArrow field="cartAdds" sortField={vendorSortField} sortDir={vendorSortDir} />
+                          </span>
+                        </th>
+                        <th onClick={() => handleVendorSort('clickThroughRate')} style={{ textAlign: 'right' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                            Click-through<SortArrow field="clickThroughRate" sortField={vendorSortField} sortDir={vendorSortDir} />
+                          </span>
+                        </th>
+                        <th onClick={() => handleVendorSort('suggestedInvoiceKES')} style={{ textAlign: 'right', paddingRight: '1.25rem' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                            Suggested Invoice<SortArrow field="suggestedInvoiceKES" sortField={vendorSortField} sortDir={vendorSortDir} />
+                          </span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loading && (
+                        <tr><td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: '#3a3a56' }}>Loading…</td></tr>
+                      )}
+                      {!loading && vendorRows.length === 0 && (
+                        <tr><td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: '#3a3a56' }}>
+                          {vendorSearch ? 'No vendors match your search.' : 'No engagement recorded in this window yet.'}
+                        </td></tr>
+                      )}
+                      {!loading && vendorRows.map((v) => {
+                        const badge = statusBadgeStyle(v.vendorStatus);
+                        const barPct = Math.max(2, Math.round((v.suggestedInvoiceKES / maxInvoice) * 100));
+                        return (
+                          <tr key={v.vendorId}>
+                            <td style={{ paddingLeft: '1.25rem', fontWeight: 600, fontSize: '0.84rem' }}>{v.vendorName}</td>
+                            <td><span className="status-badge" style={{ background: badge.bg, color: badge.color }}>{v.vendorStatus}</span></td>
+                            <td style={{ textAlign: 'right', fontSize: '0.83rem', color: '#9494b0' }} className="adm-mono">{v.buyNowClicks}</td>
+                            <td style={{ textAlign: 'right', fontSize: '0.83rem', color: '#9494b0' }} className="adm-mono">{v.outboundRedirects}</td>
+                            <td style={{ textAlign: 'right', fontSize: '0.83rem', color: '#9494b0' }} className="adm-mono">{v.cartAdds}</td>
+                            <td style={{ textAlign: 'right' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+                                <span className="ctr-track"><span className="ctr-fill" style={{ width: `${Math.min(100, v.clickThroughRate * 100)}%` }} /></span>
+                                <span className="adm-mono" style={{ fontSize: '0.8rem', color: '#9494b0', minWidth: 32, textAlign: 'right' }}>{(v.clickThroughRate * 100).toFixed(0)}%</span>
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'right', paddingRight: '1.25rem' }}>
+                              <div style={{ fontWeight: 700, color: '#34d399', fontSize: '0.86rem' }} className="adm-mono">KSh {v.suggestedInvoiceKES.toLocaleString()}</div>
+                              <div style={{ width: '100%', height: 3, borderRadius: 100, background: 'rgba(255,255,255,0.06)', marginTop: 4 }}>
+                                <div style={{ width: `${barPct}%`, height: '100%', borderRadius: 100, background: 'rgba(52,211,153,0.5)' }} />
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
+          )}
 
-            <div style={{ fontSize: '0.75rem', color: '#55556e', marginBottom: '0.75rem' }}>
-              Showing <strong style={{ color: '#9494b0' }}>{vendorRows.length}</strong> vendor{vendorRows.length === 1 ? '' : 's'}
-            </div>
+          {/* ── Top Products tab ── */}
+          {activeTab === 'products' && (
+            <div>
+              <div className="section-title">Top Products</div>
+              <div className="section-sub">Which specific products get clicked, and whether that turns into a vendor visit or cart add.</div>
 
-            <div style={{ background: '#13131a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
-              <div className="scroll" style={{ overflowX: 'auto' }}>
-                <table className="r-table">
-                  <thead>
-                    <tr>
-                      <th onClick={() => handleVendorSort('vendorName')} style={{ paddingLeft: '1.25rem' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                          Vendor<SortArrow field="vendorName" sortField={vendorSortField} sortDir={vendorSortDir} />
-                        </span>
-                      </th>
-                      <th className="no-sort">Status</th>
-                      <th onClick={() => handleVendorSort('buyNowClicks')} style={{ textAlign: 'right' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                          Buy Now<SortArrow field="buyNowClicks" sortField={vendorSortField} sortDir={vendorSortDir} />
-                        </span>
-                      </th>
-                      <th onClick={() => handleVendorSort('outboundRedirects')} style={{ textAlign: 'right' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                          Continued to Vendor<SortArrow field="outboundRedirects" sortField={vendorSortField} sortDir={vendorSortDir} />
-                        </span>
-                      </th>
-                      <th onClick={() => handleVendorSort('cartAdds')} style={{ textAlign: 'right' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                          Cart Adds<SortArrow field="cartAdds" sortField={vendorSortField} sortDir={vendorSortDir} />
-                        </span>
-                      </th>
-                      <th onClick={() => handleVendorSort('clickThroughRate')} style={{ textAlign: 'right' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                          Click-through<SortArrow field="clickThroughRate" sortField={vendorSortField} sortDir={vendorSortDir} />
-                        </span>
-                      </th>
-                      <th onClick={() => handleVendorSort('suggestedInvoiceKES')} style={{ textAlign: 'right', paddingRight: '1.25rem' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                          Suggested Invoice<SortArrow field="suggestedInvoiceKES" sortField={vendorSortField} sortDir={vendorSortDir} />
-                        </span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading && (
-                      <tr><td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: '#3a3a56' }}>Loading…</td></tr>
-                    )}
-                    {!loading && vendorRows.length === 0 && (
-                      <tr><td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: '#3a3a56' }}>
-                        {vendorSearch ? 'No vendors match your search.' : 'No engagement recorded in this window yet.'}
-                      </td></tr>
-                    )}
-                    {!loading && vendorRows.map((v) => {
-                      const badge = statusBadgeStyle(v.vendorStatus);
-                      const barPct = Math.max(2, Math.round((v.suggestedInvoiceKES / maxInvoice) * 100));
-                      return (
-                        <tr key={v.vendorId}>
-                          <td style={{ paddingLeft: '1.25rem', fontWeight: 600, fontSize: '0.84rem' }}>{v.vendorName}</td>
-                          <td><span className="status-badge" style={{ background: badge.bg, color: badge.color }}>{v.vendorStatus}</span></td>
-                          <td style={{ textAlign: 'right', fontSize: '0.83rem', color: '#9494b0' }} className="adm-mono">{v.buyNowClicks}</td>
-                          <td style={{ textAlign: 'right', fontSize: '0.83rem', color: '#9494b0' }} className="adm-mono">{v.outboundRedirects}</td>
-                          <td style={{ textAlign: 'right', fontSize: '0.83rem', color: '#9494b0' }} className="adm-mono">{v.cartAdds}</td>
-                          <td style={{ textAlign: 'right' }}>
+              <div style={{ marginBottom: '0.75rem' }}>
+                <SearchInput value={productSearch} onChange={setProductSearch} placeholder="Search product, vendor, or requirement…" />
+              </div>
+
+              <div style={{ fontSize: '0.75rem', color: '#55556e', marginBottom: '0.75rem' }}>
+                Showing <strong style={{ color: '#9494b0' }}>{productRows.length}</strong> product{productRows.length === 1 ? '' : 's'}
+              </div>
+
+              <div style={{ background: '#13131a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+                <div className="scroll" style={{ overflowX: 'auto' }}>
+                  <table className="r-table">
+                    <thead>
+                      <tr>
+                        <th onClick={() => handleProductSort('productName')} style={{ paddingLeft: '1.25rem' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                            Product<SortArrow field="productName" sortField={productSortField} sortDir={productSortDir} />
+                          </span>
+                        </th>
+                        <th className="no-sort">Requirement</th>
+                        <th className="no-sort">Vendor</th>
+                        <th onClick={() => handleProductSort('priceKES')} style={{ textAlign: 'right' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                            Price<SortArrow field="priceKES" sortField={productSortField} sortDir={productSortDir} />
+                          </span>
+                        </th>
+                        <th onClick={() => handleProductSort('buyNowClicks')} style={{ textAlign: 'right' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                            Buy Now<SortArrow field="buyNowClicks" sortField={productSortField} sortDir={productSortDir} />
+                          </span>
+                        </th>
+                        <th onClick={() => handleProductSort('outboundRedirects')} style={{ textAlign: 'right' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                            Continued to Vendor<SortArrow field="outboundRedirects" sortField={productSortField} sortDir={productSortDir} />
+                          </span>
+                        </th>
+                        <th onClick={() => handleProductSort('cartAdds')} style={{ textAlign: 'right' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                            Cart Adds<SortArrow field="cartAdds" sortField={productSortField} sortDir={productSortDir} />
+                          </span>
+                        </th>
+                        <th onClick={() => handleProductSort('clickThroughRate')} style={{ textAlign: 'right', paddingRight: '1.25rem' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                            Click-through<SortArrow field="clickThroughRate" sortField={productSortField} sortDir={productSortDir} />
+                          </span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loading && (
+                        <tr><td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: '#3a3a56' }}>Loading…</td></tr>
+                      )}
+                      {!loading && productRows.length === 0 && (
+                        <tr><td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: '#3a3a56' }}>
+                          {productSearch ? 'No products match your search.' : 'No product engagement recorded in this window yet.'}
+                        </td></tr>
+                      )}
+                      {!loading && productRows.map((p) => (
+                        <tr key={p.productId}>
+                          <td style={{ paddingLeft: '1.25rem', fontWeight: 600, fontSize: '0.84rem', maxWidth: 220 }}>{p.productName}</td>
+                          <td style={{ fontSize: '0.8rem' }}>
+                            {p.category && <span className="cat-badge" style={{ marginRight: 6 }}>{p.category}</span>}
+                            <span style={{ color: '#9494b0' }}>{p.requirementName ?? '—'}</span>
+                          </td>
+                          <td style={{ fontSize: '0.8rem', color: '#9494b0' }}>{p.vendorName ?? '—'}</td>
+                          <td style={{ textAlign: 'right', fontSize: '0.83rem' }} className="adm-mono">
+                            {p.priceKES != null ? `${p.currency} ${p.priceKES.toLocaleString()}` : '—'}
+                          </td>
+                          <td style={{ textAlign: 'right', fontSize: '0.83rem', color: '#9494b0' }} className="adm-mono">{p.buyNowClicks}</td>
+                          <td style={{ textAlign: 'right', fontSize: '0.83rem', color: '#9494b0' }} className="adm-mono">{p.outboundRedirects}</td>
+                          <td style={{ textAlign: 'right', fontSize: '0.83rem', color: '#9494b0' }} className="adm-mono">{p.cartAdds}</td>
+                          <td style={{ textAlign: 'right', paddingRight: '1.25rem' }}>
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
-                              <span className="ctr-track"><span className="ctr-fill" style={{ width: `${Math.min(100, v.clickThroughRate * 100)}%` }} /></span>
-                              <span className="adm-mono" style={{ fontSize: '0.8rem', color: '#9494b0', minWidth: 32, textAlign: 'right' }}>{(v.clickThroughRate * 100).toFixed(0)}%</span>
+                              <span className="ctr-track"><span className="ctr-fill" style={{ width: `${Math.min(100, p.clickThroughRate * 100)}%` }} /></span>
+                              <span className="adm-mono" style={{ fontSize: '0.8rem', color: '#9494b0', minWidth: 32, textAlign: 'right' }}>{(p.clickThroughRate * 100).toFixed(0)}%</span>
                             </span>
                           </td>
-                          <td style={{ textAlign: 'right', paddingRight: '1.25rem' }}>
-                            <div style={{ fontWeight: 700, color: '#34d399', fontSize: '0.86rem' }} className="adm-mono">KSh {v.suggestedInvoiceKES.toLocaleString()}</div>
-                            <div style={{ width: '100%', height: 3, borderRadius: 100, background: 'rgba(255,255,255,0.06)', marginTop: 4 }}>
-                              <div style={{ width: `${barPct}%`, height: '100%', borderRadius: 100, background: 'rgba(52,211,153,0.5)' }} />
-                            </div>
-                          </td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* ── Top Products ── */}
-          <div style={{ marginBottom: '2.25rem' }}>
-            <div className="section-title">Top Products</div>
-            <div className="section-sub">Which specific products get clicked, and whether that turns into a vendor visit or cart add.</div>
+          {/* ── Popular Requirements tab ── */}
+          {activeTab === 'requirements' && (
+            <div>
+              <div className="section-title">Popular Requirements</div>
+              <div className="section-sub">Which requirements drive the most product engagement, across all products under them — useful for spotting where vendor coverage matters most.</div>
 
-            <div style={{ marginBottom: '0.75rem' }}>
-              <SearchInput value={productSearch} onChange={setProductSearch} placeholder="Search product, vendor, or requirement…" />
-            </div>
-
-            <div style={{ fontSize: '0.75rem', color: '#55556e', marginBottom: '0.75rem' }}>
-              Showing <strong style={{ color: '#9494b0' }}>{productRows.length}</strong> product{productRows.length === 1 ? '' : 's'}
-            </div>
-
-            <div style={{ background: '#13131a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
-              <div className="scroll" style={{ overflowX: 'auto' }}>
-                <table className="r-table">
-                  <thead>
-                    <tr>
-                      <th onClick={() => handleProductSort('productName')} style={{ paddingLeft: '1.25rem' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                          Product<SortArrow field="productName" sortField={productSortField} sortDir={productSortDir} />
-                        </span>
-                      </th>
-                      <th className="no-sort">Requirement</th>
-                      <th className="no-sort">Vendor</th>
-                      <th onClick={() => handleProductSort('priceKES')} style={{ textAlign: 'right' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                          Price<SortArrow field="priceKES" sortField={productSortField} sortDir={productSortDir} />
-                        </span>
-                      </th>
-                      <th onClick={() => handleProductSort('buyNowClicks')} style={{ textAlign: 'right' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                          Buy Now<SortArrow field="buyNowClicks" sortField={productSortField} sortDir={productSortDir} />
-                        </span>
-                      </th>
-                      <th onClick={() => handleProductSort('outboundRedirects')} style={{ textAlign: 'right' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                          Continued to Vendor<SortArrow field="outboundRedirects" sortField={productSortField} sortDir={productSortDir} />
-                        </span>
-                      </th>
-                      <th onClick={() => handleProductSort('cartAdds')} style={{ textAlign: 'right' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                          Cart Adds<SortArrow field="cartAdds" sortField={productSortField} sortDir={productSortDir} />
-                        </span>
-                      </th>
-                      <th onClick={() => handleProductSort('clickThroughRate')} style={{ textAlign: 'right', paddingRight: '1.25rem' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                          Click-through<SortArrow field="clickThroughRate" sortField={productSortField} sortDir={productSortDir} />
-                        </span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading && (
-                      <tr><td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: '#3a3a56' }}>Loading…</td></tr>
-                    )}
-                    {!loading && productRows.length === 0 && (
-                      <tr><td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: '#3a3a56' }}>
-                        {productSearch ? 'No products match your search.' : 'No product engagement recorded in this window yet.'}
-                      </td></tr>
-                    )}
-                    {!loading && productRows.map((p) => (
-                      <tr key={p.productId}>
-                        <td style={{ paddingLeft: '1.25rem', fontWeight: 600, fontSize: '0.84rem', maxWidth: 220 }}>{p.productName}</td>
-                        <td style={{ fontSize: '0.8rem' }}>
-                          {p.category && <span className="cat-badge" style={{ marginRight: 6 }}>{p.category}</span>}
-                          <span style={{ color: '#9494b0' }}>{p.requirementName ?? '—'}</span>
-                        </td>
-                        <td style={{ fontSize: '0.8rem', color: '#9494b0' }}>{p.vendorName ?? '—'}</td>
-                        <td style={{ textAlign: 'right', fontSize: '0.83rem' }} className="adm-mono">
-                          {p.priceKES != null ? `${p.currency} ${p.priceKES.toLocaleString()}` : '—'}
-                        </td>
-                        <td style={{ textAlign: 'right', fontSize: '0.83rem', color: '#9494b0' }} className="adm-mono">{p.buyNowClicks}</td>
-                        <td style={{ textAlign: 'right', fontSize: '0.83rem', color: '#9494b0' }} className="adm-mono">{p.outboundRedirects}</td>
-                        <td style={{ textAlign: 'right', fontSize: '0.83rem', color: '#9494b0' }} className="adm-mono">{p.cartAdds}</td>
-                        <td style={{ textAlign: 'right', paddingRight: '1.25rem' }}>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
-                            <span className="ctr-track"><span className="ctr-fill" style={{ width: `${Math.min(100, p.clickThroughRate * 100)}%` }} /></span>
-                            <span className="adm-mono" style={{ fontSize: '0.8rem', color: '#9494b0', minWidth: 32, textAlign: 'right' }}>{(p.clickThroughRate * 100).toFixed(0)}%</span>
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Popular Requirements ── */}
-          <div style={{ marginBottom: '1.5rem' }}>
-            <div className="section-title">Popular Requirements</div>
-            <div className="section-sub">Which requirements drive the most product engagement, across all products under them — useful for spotting where vendor coverage matters most.</div>
-
-            <div style={{ background: '#13131a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
-              {loading && <div style={{ textAlign: 'center', padding: '3rem', color: '#3a3a56' }}>Loading…</div>}
-              {!loading && requirementRows.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '3rem', color: '#3a3a56' }}>No requirement engagement recorded in this window yet.</div>
-              )}
-              {!loading && requirementRows.map((r, i) => {
-                const engagement = r.buyNowClicks + r.cartAdds;
-                const pct = Math.max(3, Math.round((engagement / maxRequirementEngagement) * 100));
-                return (
-                  <div className="req-row" key={r.requirementName}>
-                    <div className="req-rank">{i + 1}</div>
-                    <div style={{ width: 220, flexShrink: 0 }}>
-                      <div style={{ fontSize: '0.84rem', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {r.requirementName}
+              <div style={{ background: '#13131a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+                {loading && <div style={{ textAlign: 'center', padding: '3rem', color: '#3a3a56' }}>Loading…</div>}
+                {!loading && requirementRows.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '3rem', color: '#3a3a56' }}>No requirement engagement recorded in this window yet.</div>
+                )}
+                {!loading && requirementRows.map((r, i) => {
+                  const engagement = r.buyNowClicks + r.cartAdds;
+                  const pct = Math.max(3, Math.round((engagement / maxRequirementEngagement) * 100));
+                  return (
+                    <div className="req-row" key={r.requirementName}>
+                      <div className="req-rank">{i + 1}</div>
+                      <div style={{ width: 220, flexShrink: 0 }}>
+                        <div style={{ fontSize: '0.84rem', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {r.requirementName}
+                        </div>
+                        {r.category && <span className="cat-badge" style={{ marginTop: 4 }}>{r.category}</span>}
                       </div>
-                      {r.category && <span className="cat-badge" style={{ marginTop: 4 }}>{r.category}</span>}
+                      <div className="req-bar-track">
+                        <div className="req-bar-fill" style={{ width: `${pct}%` }} />
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.9rem', flexShrink: 0, fontSize: '0.78rem', color: '#9494b0' }} className="adm-mono">
+                        <span title="Buy Now clicks">{r.buyNowClicks} views</span>
+                        <span title="Continued to vendor">{r.outboundRedirects} redirects</span>
+                        <span title="Cart adds">{r.cartAdds} cart</span>
+                      </div>
                     </div>
-                    <div className="req-bar-track">
-                      <div className="req-bar-fill" style={{ width: `${pct}%` }} />
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.9rem', flexShrink: 0, fontSize: '0.78rem', color: '#9494b0' }} className="adm-mono">
-                      <span title="Buy Now clicks">{r.buyNowClicks} views</span>
-                      <span title="Continued to vendor">{r.outboundRedirects} redirects</span>
-                      <span title="Cart adds">{r.cartAdds} cart</span>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
-          <p style={{ fontSize: '0.74rem', color: '#3a3a56', marginTop: '1rem', lineHeight: 1.5 }}>
+          <p style={{ fontSize: '0.74rem', color: '#3a3a56', marginTop: '1.5rem', lineHeight: 1.5 }}>
             "Buy Now Clicks" = the interstitial page was viewed (purchase intent). "Continued to Vendor" = the
             user actually clicked through to the vendor's site or WhatsApp. A big gap between the two often
             means a product page or link needs work, not necessarily that demand is low. "Popular Requirements"
