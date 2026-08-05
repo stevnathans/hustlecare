@@ -33,20 +33,20 @@ export async function PATCH(request: Request, { params }: Params) {
       const county = await prisma.county.findUnique({ where: { id: Number(body.countyId) }, select: { id: true } });
       if (!county) return NextResponse.json({ error: 'County not found.' }, { status: 400 });
     }
-    if (body.businessCategoryId !== undefined && body.businessCategoryId !== null) {
-      const category = await prisma.businessCategory.findUnique({ where: { id: Number(body.businessCategoryId) }, select: { id: true } });
-      if (!category) return NextResponse.json({ error: 'Business category not found.' }, { status: 400 });
+    if (body.tradeClassId !== undefined && body.tradeClassId !== null) {
+      const tradeClass = await prisma.tradeClass.findUnique({ where: { id: Number(body.tradeClassId) }, select: { id: true } });
+      if (!tradeClass) return NextResponse.json({ error: 'Trade class not found.' }, { status: 400 });
     }
 
     const nextCountyId = body.countyId !== undefined ? Number(body.countyId) : existing.countyId;
-    const nextCategoryId = body.businessCategoryId !== undefined
-      ? (body.businessCategoryId === null ? null : Number(body.businessCategoryId))
-      : existing.businessCategoryId;
+    const nextTradeClassId = body.tradeClassId !== undefined
+      ? (body.tradeClassId === null ? null : Number(body.tradeClassId))
+      : existing.tradeClassId;
     const nextSizeBand = body.sizeBand !== undefined ? (body.sizeBand || null) : existing.sizeBand;
 
     const combinationChanged =
       nextCountyId !== existing.countyId ||
-      nextCategoryId !== existing.businessCategoryId ||
+      nextTradeClassId !== existing.tradeClassId ||
       nextSizeBand !== existing.sizeBand;
 
     if (combinationChanged) {
@@ -55,14 +55,14 @@ export async function PATCH(request: Request, { params }: Params) {
           id: { not: Number(id) },
           templateId: existing.templateId,
           countyId: nextCountyId,
-          businessCategoryId: nextCategoryId,
+          tradeClassId: nextTradeClassId,
           sizeBand: nextSizeBand,
         },
         select: { id: true },
       });
       if (duplicate) {
         return NextResponse.json(
-          { error: 'A pricing row for this county/business type/size already exists. Edit that row instead.' },
+          { error: 'A pricing row for this county/trade class/size already exists. Edit that row instead.' },
           { status: 409 }
         );
       }
@@ -72,8 +72,8 @@ export async function PATCH(request: Request, { params }: Params) {
       where: { id: Number(id) },
       data: {
         countyId: body.countyId !== undefined ? Number(body.countyId) : undefined,
-        businessCategoryId: body.businessCategoryId !== undefined
-          ? (body.businessCategoryId === null ? null : Number(body.businessCategoryId))
+        tradeClassId: body.tradeClassId !== undefined
+          ? (body.tradeClassId === null ? null : Number(body.tradeClassId))
           : undefined,
         sizeBand: body.sizeBand !== undefined ? (body.sizeBand || null) : undefined,
         ...(touchesPricing ? pricingUpdate : {}),
@@ -86,7 +86,7 @@ export async function PATCH(request: Request, { params }: Params) {
       },
       include: {
         county: { select: { id: true, name: true } },
-        businessCategory: { select: { id: true, name: true } },
+        tradeClass: { select: { id: true, name: true } },
       },
     });
 

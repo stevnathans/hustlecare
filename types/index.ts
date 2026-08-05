@@ -20,8 +20,18 @@ export interface LegalFeeSchedule {
   id: number;
   templateId: number;
   countyId: number;
+  // Retained alongside tradeClassId — see the comment in
+  // lib/legalFeeSchedule.ts. tradeClassId scores higher when both are
+  // present on a row, but existing businessCategoryId-tiered rows keep
+  // resolving correctly without needing a forced migration.
   businessCategoryId: number | null;
+  tradeClassId: number | null;
   sizeBand: BusinessSizeBand | null;
+  employeeCountMax: number | null;
+  floorAreaSqm: number | null;
+  // Exactly one pricing mode is populated: either `price` (fixed), or
+  // both `priceMin`/`priceMax` (range) — never both. See
+  // lib/legalFeeSchedule.ts for how a row's mode is resolved.
   price: number | null;
   priceMin: number | null;
   priceMax: number | null;
@@ -31,7 +41,6 @@ export interface LegalFeeSchedule {
   processingTimeMaxDays: number | null;
   applyUrl: string | null;
   notes: string | null;
-  tradeClassId?: number | null;
 }
 
 export interface Product {

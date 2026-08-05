@@ -3,18 +3,19 @@
 // app/admin/legal-fee-schedules/page.tsx
 'use client';
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 
 type Template = { id: number; name: string; category: string; isCountyFeeSchedule: boolean };
 type County = { id: number; name: string; slug: string };
-type BusinessCategory = { id: number; name: string };
+type TradeClass = { id: number; name: string };
 type SizeBand = 'MICRO' | 'SMALL' | 'MEDIUM' | 'LARGE';
 
 type FeeRow = {
   id: number;
   countyId: number;
   county: { id: number; name: string };
-  businessCategoryId: number | null;
-  businessCategory: { id: number; name: string } | null;
+  tradeClassId: number | null;
+  tradeClass: { id: number; name: string } | null;
   sizeBand: SizeBand | null;
   price: number | null;
   priceMin: number | null;
@@ -29,7 +30,7 @@ type FeeRow = {
 
 type RowDraft = {
   countyId: string;
-  businessCategoryId: string;
+  tradeClassId: string;
   sizeBand: SizeBand | '';
   usePriceRange: boolean;
   price: string;
@@ -44,7 +45,7 @@ type RowDraft = {
 };
 
 const EMPTY_NEW_ROW: RowDraft = {
-  countyId: '', businessCategoryId: '', sizeBand: '',
+  countyId: '', tradeClassId: '', sizeBand: '',
   usePriceRange: false, price: '', priceMin: '', priceMax: '',
   validityValue: '', validityUnit: 'years',
   processingTimeMinDays: '', processingTimeMaxDays: '',
@@ -54,7 +55,7 @@ const EMPTY_NEW_ROW: RowDraft = {
 function rowToDraft(row: FeeRow): RowDraft {
   return {
     countyId: String(row.countyId),
-    businessCategoryId: row.businessCategoryId != null ? String(row.businessCategoryId) : '',
+    tradeClassId: row.tradeClassId != null ? String(row.tradeClassId) : '',
     sizeBand: row.sizeBand ?? '',
     usePriceRange: row.price == null,
     price: row.price != null ? String(row.price) : '',
@@ -126,6 +127,8 @@ const S = `
   .btn-secondary:disabled { opacity:0.5; cursor:not-allowed; }
   .btn-ghost { background:rgba(255,255,255,0.06); color:#9494b0; border:1px solid rgba(255,255,255,0.09); }
   .btn-ghost:hover { background:rgba(255,255,255,0.1); color:#f0f0f5; }
+  .btn-accent { background:rgba(139,92,246,0.12); color:#a78bfa; border:1px solid rgba(139,92,246,0.22); }
+  .btn-accent:hover { background:rgba(139,92,246,0.22); }
   .btn-danger { background:rgba(239,68,68,0.12); color:#f87171; border:1px solid rgba(239,68,68,0.2); }
   .btn-danger:hover { background:rgba(239,68,68,0.22); }
   .btn-icon { padding:0.4rem; border-radius:8px; }
@@ -175,7 +178,7 @@ function PriceFields({
 export default function LegalFeeSchedulesAdminPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [counties, setCounties] = useState<County[]>([]);
-  const [categories, setCategories] = useState<BusinessCategory[]>([]);
+  const [tradeClasses, setTradeClasses] = useState<TradeClass[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
   const [rows, setRows] = useState<FeeRow[]>([]);
   const [loadingRows, setLoadingRows] = useState(false);
@@ -212,10 +215,10 @@ export default function LegalFeeSchedulesAdminPage() {
       .then((r) => r.json())
       .then((d) => setCounties(Array.isArray(d) ? d : []))
       .catch(() => setCounties([]));
-    fetch('/api/business-categories')
+    fetch('/api/admin/trade-classes')
       .then((r) => r.json())
-      .then((d) => setCategories(Array.isArray(d) ? d : []))
-      .catch(() => setCategories([]));
+      .then((d) => setTradeClasses(Array.isArray(d) ? d : []))
+      .catch(() => setTradeClasses([]));
   }, []);
 
   const fetchRows = useCallback(async (templateId: number) => {
@@ -283,7 +286,7 @@ export default function LegalFeeSchedulesAdminPage() {
         body: JSON.stringify({
           templateId: selectedTemplateId,
           countyId: Number(newRow.countyId),
-          businessCategoryId: newRow.businessCategoryId ? Number(newRow.businessCategoryId) : null,
+          tradeClassId: newRow.tradeClassId ? Number(newRow.tradeClassId) : null,
           sizeBand: newRow.sizeBand || null,
           ...draftToPricingBody(newRow),
           validityValue: newRow.validityValue ? Number(newRow.validityValue) : null,
@@ -352,7 +355,7 @@ export default function LegalFeeSchedulesAdminPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           countyId: Number(editDraft.countyId),
-          businessCategoryId: editDraft.businessCategoryId ? Number(editDraft.businessCategoryId) : null,
+          tradeClassId: editDraft.tradeClassId ? Number(editDraft.tradeClassId) : null,
           sizeBand: editDraft.sizeBand || null,
           ...draftToPricingBody(editDraft),
           validityValue: editDraft.validityValue ? Number(editDraft.validityValue) : null,
@@ -379,7 +382,7 @@ export default function LegalFeeSchedulesAdminPage() {
 
   const stats = useMemo(() => {
     const countiesCovered = new Set(rows.map((r) => r.countyId)).size;
-    const withOverrides = rows.filter((r) => r.businessCategoryId !== null || r.sizeBand !== null).length;
+    const withOverrides = rows.filter((r) => r.tradeClassId !== null || r.sizeBand !== null).length;
     const fixedRows = rows.filter((r) => r.price != null);
     const avgPrice = fixedRows.length ? Math.round(fixedRows.reduce((a, b) => a + (b.price ?? 0), 0) / fixedRows.length) : 0;
     return { countiesCovered, withOverrides, avgPrice, total: rows.length, fixedCount: fixedRows.length };
@@ -395,14 +398,20 @@ export default function LegalFeeSchedulesAdminPage() {
         </div>
       )}
 
-      <div style={{ marginBottom: '1.25rem' }}>
-        <h1 style={{ fontSize: '1.75rem', fontWeight: 700, letterSpacing: '-0.03em', marginBottom: '0.25rem' }}>County Fee Schedule</h1>
-        <p style={{ fontSize: '0.84rem', color: '#55556e', maxWidth: 640, lineHeight: 1.5 }}>
-          Enter prices for county-issued requirements (Business Permit, Health Certificate, etc.). If a
-          requirement doesn't show up below, first flag it "County fee schedule" in the Requirement Library.
-          Many county fees aren't fixed — use the range option when the exact amount depends on business
-          size, activity, or other factors.
-        </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+        <div>
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 700, letterSpacing: '-0.03em', marginBottom: '0.25rem' }}>County Fee Schedule</h1>
+          <p style={{ fontSize: '0.84rem', color: '#55556e', maxWidth: 640, lineHeight: 1.5 }}>
+            Enter prices for county-issued requirements (Business Permit, Health Certificate, etc.). If a
+            requirement doesn't show up below, first flag it "County fee schedule" in the Requirement Library.
+            Many county fees aren't fixed — use the range option when the exact amount depends on business
+            size, activity, or other factors.
+          </p>
+        </div>
+        <Link href="/admin/trade-classes" className="btn btn-accent">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M20 7h-9M14 17H5M17 3v8M7 13v8" /></svg>
+          Manage Trade Classes
+        </Link>
       </div>
 
       <div className="panel">
@@ -466,8 +475,10 @@ export default function LegalFeeSchedulesAdminPage() {
             <div className="panel-title">Add a new county's price</div>
             <div className="panel-sub">
               Use this when one county's real fee differs from the flat rate above — or to add pricing that
-              varies by business type/size. Already have a row for this combination? Edit it directly in the
-              table below instead.
+              varies by trade class or size. Trade classes are how counties actually classify businesses for
+              fees (e.g. "Hyper Supermarket") — not the site's browsing categories. Manage them via{' '}
+              <Link href="/admin/trade-classes" style={{ color: '#a78bfa' }}>Trade Classes</Link>.
+              Already have a row for this combination? Edit it directly in the table below instead.
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: '0.85rem', marginBottom: '1rem' }}>
               <div>
@@ -480,11 +491,11 @@ export default function LegalFeeSchedulesAdminPage() {
                 </select>
               </div>
               <div>
-                <div className="f-label">Business Type</div>
-                <select className="u-select" value={newRow.businessCategoryId} onChange={(e) => setNewRow((f) => ({ ...f, businessCategoryId: e.target.value }))}>
-                  <option value="">Any type</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                <div className="f-label">Trade Class</div>
+                <select className="u-select" value={newRow.tradeClassId} onChange={(e) => setNewRow((f) => ({ ...f, tradeClassId: e.target.value }))}>
+                  <option value="">Any trade class</option>
+                  {tradeClasses.map((tc) => (
+                    <option key={tc.id} value={tc.id}>{tc.name}</option>
                   ))}
                 </select>
               </div>
@@ -553,7 +564,7 @@ export default function LegalFeeSchedulesAdminPage() {
                   <thead>
                     <tr>
                       <th style={{ paddingLeft: '1.25rem' }}>County</th>
-                      <th>Business Type</th>
+                      <th>Trade Class</th>
                       <th>Size</th>
                       <th>Validity</th>
                       <th>Processing</th>
@@ -576,11 +587,11 @@ export default function LegalFeeSchedulesAdminPage() {
                                 </select>
                               </div>
                               <div>
-                                <div className="f-label">Business Type</div>
-                                <select className="u-select u-select-sm" value={editDraft.businessCategoryId} onChange={(e) => updateDraft({ businessCategoryId: e.target.value })}>
-                                  <option value="">Any type</option>
-                                  {categories.map((c) => (
-                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                <div className="f-label">Trade Class</div>
+                                <select className="u-select u-select-sm" value={editDraft.tradeClassId} onChange={(e) => updateDraft({ tradeClassId: e.target.value })}>
+                                  <option value="">Any trade class</option>
+                                  {tradeClasses.map((tc) => (
+                                    <option key={tc.id} value={tc.id}>{tc.name}</option>
                                   ))}
                                 </select>
                               </div>
@@ -645,8 +656,8 @@ export default function LegalFeeSchedulesAdminPage() {
                         <tr key={row.id}>
                           <td style={{ paddingLeft: '1.25rem', fontWeight: 600, color: '#f0f0f5' }}>{row.county.name}</td>
                           <td>
-                            {row.businessCategory ? (
-                              <span className="badge" style={{ background: 'rgba(99,102,241,0.12)', color: '#818cf8' }}>{row.businessCategory.name}</span>
+                            {row.tradeClass ? (
+                              <span className="badge" style={{ background: 'rgba(99,102,241,0.12)', color: '#818cf8' }}>{row.tradeClass.name}</span>
                             ) : (
                               <span style={{ color: '#55556e', fontSize: '0.8rem' }}>Any</span>
                             )}

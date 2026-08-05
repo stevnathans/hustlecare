@@ -58,7 +58,9 @@ export async function POST(request: NextRequest) {
       const schedules = await prisma.legalFeeSchedule.findMany({
         where: { templateId: productRecord.templateId, countyId },
         select: {
-          id: true, templateId: true, countyId: true, businessCategoryId: true, sizeBand: true,
+          id: true, templateId: true, countyId: true,
+          businessCategoryId: true, tradeClassId: true, sizeBand: true,
+          employeeCountMax: true, floorAreaSqm: true,
           price: true, priceMin: true, priceMax: true,
           validityValue: true, validityUnit: true,
           processingTimeMinDays: true, processingTimeMaxDays: true,
@@ -66,7 +68,28 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      const resolution = resolveFeeSchedule(schedules as any, countyId, {})
+      // Re-derive both matching dimensions defensively rather than trusting
+      // anything the client sent, consistent with the "never trust
+      // client-sent price" pattern this route already follows for
+      // unitPrice itself:
+      //   - businessCategoryId: the business's own browsing category,
+      //     matched directly against legacy category-tiered rows.
+      //   - tradeClassId: the business's own override, else its
+      //     category's default — matched against tradeClass-tiered rows.
+      // Passing both lets resolveFeeSchedule correctly resolve rows using
+      // either taxonomy, whichever a given county's data actually uses.
+      const business = await prisma.business.findUnique({
+        where: { id: parseInt(businessId.toString()) },
+        select: {
+          categoryId: true,
+          tradeClassId: true,
+          category: { select: { defaultTradeClassId: true } },
+        },
+      })
+      const businessCategoryId = business?.categoryId ?? null
+      const tradeClassId = business?.tradeClassId ?? business?.category?.defaultTradeClassId ?? null
+
+      const resolution = resolveFeeSchedule(schedules as any, countyId, { businessCategoryId, tradeClassId })
 
       if (resolution.status === 'unavailable') {
         return NextResponse.json(
@@ -76,7 +99,7 @@ export async function POST(request: NextRequest) {
       }
       if (resolution.status === 'range') {
         return NextResponse.json(
-          { error: 'Price varies by business type/size — use the Permit Cost Calculator for an exact figure.' },
+          { error: 'Price varies by trade class/size — use the Permit Cost Calculator for an exact figure.' },
           { status: 400 }
         )
       }

@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
     const rows = await prisma.legalFeeSchedule.findMany({
       where: { templateId: Number(templateId) },
-      include: { county: { select: { id: true, name: true } }, businessCategory: { select: { id: true, name: true } } },
+      include: { county: { select: { id: true, name: true } }, tradeClass: { select: { id: true, name: true } } },
       orderBy: [{ county: { name: 'asc' } }],
     });
 
@@ -31,12 +31,12 @@ export async function GET(request: Request) {
   }
 }
 
-// POST — create or update a single row (specific county, optional category/size override)
+// POST — create or update a single row (specific county, optional trade class/size override)
 export async function POST(request: Request) {
   try {
     const user = await requirePermission('products.create');
     const body = await request.json();
-    const { templateId, countyId, businessCategoryId = null, sizeBand = null, validityValue, validityUnit, processingTimeMinDays, processingTimeMaxDays, applyUrl, notes } = body;
+    const { templateId, countyId, tradeClassId = null, sizeBand = null, validityValue, validityUnit, processingTimeMinDays, processingTimeMaxDays, applyUrl, notes } = body;
 
     if (!templateId || !countyId) return NextResponse.json({ error: 'templateId and countyId are required.' }, { status: 400 });
 
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
       where: {
         templateId: Number(templateId),
         countyId: Number(countyId),
-        businessCategoryId: businessCategoryId ? Number(businessCategoryId) : null,
+        tradeClassId: tradeClassId ? Number(tradeClassId) : null,
         sizeBand: sizeBand || null,
       },
     });
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
           data: {
             templateId: Number(templateId),
             countyId: Number(countyId),
-            businessCategoryId: businessCategoryId ? Number(businessCategoryId) : null,
+            tradeClassId: tradeClassId ? Number(tradeClassId) : null,
             sizeBand: sizeBand || null,
             ...data,
           },

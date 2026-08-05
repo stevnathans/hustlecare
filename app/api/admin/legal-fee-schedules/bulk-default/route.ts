@@ -45,14 +45,14 @@ export async function POST(request: Request) {
     await prisma.$transaction(async (tx) => {
       for (const county of counties) {
         const existing = await tx.legalFeeSchedule.findFirst({
-          where: { templateId: Number(templateId), countyId: county.id, businessCategoryId: null, sizeBand: null },
+          where: { templateId: Number(templateId), countyId: county.id, tradeClassId: null, sizeBand: null },
         });
         if (existing) {
           await tx.legalFeeSchedule.update({ where: { id: existing.id }, data });
           updated++;
         } else {
           await tx.legalFeeSchedule.create({
-            data: { templateId: Number(templateId), countyId: county.id, businessCategoryId: null, sizeBand: null, ...data },
+            data: { templateId: Number(templateId), countyId: county.id, tradeClassId: null, sizeBand: null, ...data },
           });
           created++;
         }

@@ -7,6 +7,7 @@
 const BUY_ACTION_LABELS: Record<string, string> = {
   Legal: 'Apply',
   Software: 'Subscribe',
+  Branding: 'Order Now',
 };
 
 const DEFAULT_BUY_ACTION_LABEL = 'Buy Now';
