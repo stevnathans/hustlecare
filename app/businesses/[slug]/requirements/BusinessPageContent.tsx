@@ -4,7 +4,6 @@ import React, { useMemo } from 'react';
 import CostCalculator from '@/components/CostCalculator';
 import BusinessHeader from '@/components/DetailsPage/BusinessHeader';
 import RequirementsSection from '@/components/DetailsPage/RequirementsSection';
-import CountySelector from '@/components/DetailsPage/CountySelector';
 import { CountyProvider, useCounty } from '@/contexts/CountyContext';
 import {
   useBusinessData,
@@ -201,8 +200,6 @@ function BusinessPageContentInner({
     <div className="container mx-auto px-4 py-8">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <main className="md:col-span-2">
-          <CountySelector />
-
           <BusinessHeader
             totalRequirements={totalRequirements}
             businessName={business.name}

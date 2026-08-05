@@ -26,7 +26,7 @@ export default function NoCountyProductState({
           <a href="/contact" className="underline hover:text-amber-900">
             Let us know
           </a>{' '}
-          and we&apos;ll add it.
+          and we&apos;ll add it, or select a different county to see available options.
         </p>
       </div>
     </div>

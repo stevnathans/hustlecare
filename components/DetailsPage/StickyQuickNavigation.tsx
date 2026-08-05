@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useState, useEffect, useRef } from "react";
+import CountySelector from "@/components/DetailsPage/CountySelector";
 
 interface CategoryInfo {
   name: string;
@@ -183,22 +184,7 @@ const StickyQuickNavigation: React.FC<StickyQuickNavigationProps> = ({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="py-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-900 flex items-center">
-                <svg
-                  className="w-4 h-4 mr-2 text-emerald-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 10V3L4 14h7v7l9-11h-7z"
-                  />
-                </svg>
-                Quick Navigation
-              </h3>
+              <CountySelector />
 
               <div className="flex items-center gap-2">
                 {isSticky && (
