@@ -76,12 +76,16 @@ export default function MarketplaceContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputValue]);
 
-  const updateParams = (updates: Record<string, string>) => {
+  // `resetPage` controls whether changing these params should snap back to
+  // page 1 (true for filters/search/sort) or preserve the requested page
+  // (false when the pagination controls themselves are the ones updating it —
+  // otherwise every page click immediately got wiped back to page 1).
+  const updateParams = (updates: Record<string, string>, resetPage = true) => {
     const params = new URLSearchParams(searchParams.toString());
     Object.entries(updates).forEach(([key, value]) => {
       if (value) params.set(key, value); else params.delete(key);
     });
-    params.delete('page');
+    if (resetPage) params.delete('page');
     router.push(`/marketplace?${params}`);
   };
 
@@ -93,6 +97,10 @@ export default function MarketplaceContent() {
   const clearBusiness = () => {
     setInputValue('');
     updateParams({ business: '', q: '' });
+  };
+
+  const goToPage = (targetPage: number) => {
+    updateParams({ page: String(targetPage) }, false);
   };
 
   const totalPages = Math.max(Math.ceil(total / pageSize), 1);
@@ -262,7 +270,7 @@ export default function MarketplaceContent() {
                 {Array.from({ length: totalPages }).map((_, i) => (
                   <button
                     key={i}
-                    onClick={() => updateParams({ page: String(i + 1) })}
+                    onClick={() => goToPage(i + 1)}
                     className={`h-8 w-8 rounded-lg text-sm font-medium ${page === i + 1 ? 'bg-emerald-600 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
                   >
                     {i + 1}
