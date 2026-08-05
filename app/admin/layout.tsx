@@ -23,6 +23,7 @@ import {
   BookOpen,
   Mail,
   Layers,
+  BarChart,
 } from "lucide-react";
 
 interface NavItem {
@@ -103,6 +104,12 @@ const navItems: NavItem[] = [
     name: "Trade Classes",
     href: "/admin/trade-classes",
     icon: Layers,
+    requiredRoles: ["editor", "admin"],
+  },
+  {
+    name: "Analytics",
+    href: "/admin/analytics",
+    icon: BarChart,
     requiredRoles: ["editor", "admin"],
   },
   {

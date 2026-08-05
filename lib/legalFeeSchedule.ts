@@ -1,35 +1,39 @@
 // lib/legalFeeSchedule.ts
 //
-// Pure resolver for LegalFeeSchedule rows — no Prisma import, so it's safe
-// to use both server-side (the calculator/resolve API) and client-side
-// (the requirements page, which already has all a business's fee-schedule
-// rows in memory and just needs to pick the right one per county/query).
-//
-// Resolution rule: a row is "eligible" if its tradeClassId and sizeBand
-// are each either null (generic — applies to everyone) or match the
-// query exactly. Among eligible rows, prefer the MOST SPECIFIC ones (both
-// dimensions matched > one matched > fully generic). If all top-scoring
-// rows agree on price, return an exact price; if they don't (because the
-// query is under-specified, e.g. no trade class/size chosen yet), return
-// a range instead of guessing.
-//
-// The query's tradeClassId is expected to already be the EFFECTIVE trade
-// class for a business — i.e. business.tradeClassId ?? business.category
-// ?.defaultTradeClassId — resolved by the caller before this function is
-// invoked. This function itself only does row matching, not the
-// business -> trade-class lookup.
+// Pure resolver for LegalFeeSchedule rows — no Prisma import, safe for
+// both client and server use. A row is either fixed-price (`price` set)
+// or a range (`priceMin`/`priceMax` set) — resolved accordingly. When
+// the query is under-specified and multiple equally-specific rows exist
+// with disagreeing prices, they're aggregated into a range too.
 
 import { LegalFeeSchedule, BusinessSizeBand } from '@/types';
 
 export interface FeeScheduleQuery {
-  tradeClassId?: number | null;
+  businessCategoryId?: number | null;
   sizeBand?: BusinessSizeBand | null;
+  tradeClassId?: number | null;
 }
 
 export type FeeScheduleResolution =
   | { status: 'unavailable'; candidateRows: LegalFeeSchedule[] }
   | { status: 'exact'; price: number; matchedRow: LegalFeeSchedule; candidateRows: LegalFeeSchedule[] }
-  | { status: 'range'; lowPrice: number; highPrice: number; candidateRows: LegalFeeSchedule[] };
+  | {
+      status: 'range';
+      lowPrice: number;
+      highPrice: number;
+      /** Present when the range comes from a single row's own priceMin/priceMax; absent when aggregated across multiple disagreeing rows. */
+      matchedRow?: LegalFeeSchedule;
+      candidateRows: LegalFeeSchedule[];
+    };
+
+type RowPriceInfo =
+  | { kind: 'exact'; price: number }
+  | { kind: 'range'; low: number; high: number };
+
+function rowPriceInfo(row: LegalFeeSchedule): RowPriceInfo {
+  if (row.price != null) return { kind: 'exact', price: row.price };
+  return { kind: 'range', low: row.priceMin ?? 0, high: row.priceMax ?? row.priceMin ?? 0 };
+}
 
 export function resolveFeeSchedule(
   allSchedules: LegalFeeSchedule[],
@@ -42,9 +46,10 @@ export function resolveFeeSchedule(
   }
 
   const eligible = countyRows.filter((row) => {
-    const tradeClassOk = row.tradeClassId == null || row.tradeClassId === query.tradeClassId;
+    const categoryOk = row.businessCategoryId == null || row.businessCategoryId === query.businessCategoryId;
     const sizeOk = row.sizeBand == null || row.sizeBand === query.sizeBand;
-    return tradeClassOk && sizeOk;
+    const tradeClassOk = row.tradeClassId == null || row.tradeClassId === query.tradeClassId;
+    return categoryOk && sizeOk && tradeClassOk;
   });
 
   if (eligible.length === 0) {
@@ -53,7 +58,8 @@ export function resolveFeeSchedule(
 
   const scored = eligible.map((row) => {
     let score = 0;
-    if (row.tradeClassId != null) score += 2;
+    if (row.tradeClassId != null) score += 4;
+    if (row.businessCategoryId != null) score += 2;
     if (row.sizeBand != null) score += 1;
     return { row, score };
   });
@@ -61,16 +67,33 @@ export function resolveFeeSchedule(
   const topScore = scored[0].score;
   const topMatches = scored.filter((s) => s.score === topScore).map((s) => s.row);
 
-  const distinctPrices = new Set(topMatches.map((r) => r.price));
-  if (distinctPrices.size === 1) {
-    return { status: 'exact', price: topMatches[0].price, matchedRow: topMatches[0], candidateRows: countyRows };
+  // Single most-specific row: resolve directly from its own pricing mode.
+  if (topMatches.length === 1) {
+    const row = topMatches[0];
+    const info = rowPriceInfo(row);
+    if (info.kind === 'exact') {
+      return { status: 'exact', price: info.price, matchedRow: row, candidateRows: countyRows };
+    }
+    return { status: 'range', lowPrice: info.low, highPrice: info.high, matchedRow: row, candidateRows: countyRows };
   }
 
-  const prices = topMatches.map((r) => r.price);
+  // Multiple equally-specific rows (under-specified query) — aggregate.
+  const infos = topMatches.map(rowPriceInfo);
+  const allExactSamePrice =
+    infos.every((i) => i.kind === 'exact') &&
+    new Set(infos.map((i) => (i as { kind: 'exact'; price: number }).price)).size === 1;
+
+  if (allExactSamePrice) {
+    const price = (infos[0] as { kind: 'exact'; price: number }).price;
+    return { status: 'exact', price, matchedRow: topMatches[0], candidateRows: countyRows };
+  }
+
+  const lows = infos.map((i) => (i.kind === 'exact' ? i.price : i.low));
+  const highs = infos.map((i) => (i.kind === 'exact' ? i.price : i.high));
   return {
     status: 'range',
-    lowPrice: Math.min(...prices),
-    highPrice: Math.max(...prices),
+    lowPrice: Math.min(...lows),
+    highPrice: Math.max(...highs),
     candidateRows: countyRows,
   };
 }

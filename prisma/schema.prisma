@@ -25,7 +25,7 @@ model User {
   pushNotifications      Boolean                 @default(false)
   isActive               Boolean                 @default(true)
   lastLoginAt            DateTime?
-  isVerified              Boolean                 @default(false)
+  isVerified             Boolean                 @default(false)
   verifiedAt             DateTime?
   accounts               Account[]
   auditLogs              AuditLog[]
@@ -43,8 +43,8 @@ model User {
   emailLogs              EmailLog[]
   passwordResetTokens    PasswordResetToken[]
   notifications          InternalNotification[]
-  vendorClaimRequests    Vendor[] @relation("VendorClaimRequests")
-  orders            Order[]
+  vendorClaimRequests    Vendor[]                @relation("VendorClaimRequests")
+  orders                 Order[]
 
   @@index([email])
   @@index([role])
@@ -144,7 +144,7 @@ model Business {
   howToGuide       HowToGuide?
   searches         SearchLog[]
   sharedBusinesses SharedBusiness[]
-  orders  Order[]
+  orders           Order[]
 
   // Override for county-fee resolution (see TradeClass below). Most
   // businesses inherit their trade class from category.defaultTradeClassId
@@ -152,8 +152,8 @@ model Business {
   // specific business idea genuinely needs a different trade
   // classification than its siblings in the same BusinessCategory (e.g.
   // "High-End Spa" vs "Barbershop", both under Beauty & Wellness).
-  tradeClassId     Int?
-  tradeClass       TradeClass?           @relation(fields: [tradeClassId], references: [id])
+  tradeClassId Int?
+  tradeClass   TradeClass? @relation(fields: [tradeClassId], references: [id])
 
   @@index([name])
   @@index([slug])
@@ -184,18 +184,19 @@ model BusinessFaq {
 // BusinessCategory was the wrong model. See TradeClass for the resolution
 // chain.
 model BusinessCategory {
-  id            Int                @id @default(autoincrement())
-  name          String             @unique
-  slug          String             @unique
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
-  businesses    Business[]
+  id         Int        @id @default(autoincrement())
+  name       String     @unique
+  slug       String     @unique
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  businesses Business[]
 
   // Most businesses in this category resolve their fee-schedule trade
   // class from here, unless the individual Business has its own
   // tradeClassId override set.
   defaultTradeClassId Int?
-  defaultTradeClass   TradeClass?    @relation("CategoryDefaultTradeClass", fields: [defaultTradeClassId], references: [id])
+  defaultTradeClass   TradeClass?        @relation("CategoryDefaultTradeClass", fields: [defaultTradeClassId], references: [id])
+  LegalFeeSchedule    LegalFeeSchedule[]
 
   @@index([name])
   @@index([slug])
@@ -293,13 +294,13 @@ model Comment {
 }
 
 model Product {
-  id           Int                  @id @default(autoincrement())
+  id           Int           @id @default(autoincrement())
   name         String
   description  String?
   price        Float?
   image        String?
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
   vendorId     Int?
   url          String?
   templateId   Int?
@@ -310,43 +311,43 @@ model Product {
   stock        Int?
   priceMin     Float?
   priceMax     Float?
-  currency     String?              @default("KES")
-  isFeatured   Boolean              @default(false)
+  currency     String?       @default("KES")
+  isFeatured   Boolean       @default(false)
   featuredAt   DateTime?
   businessTags Int[]
-  status       ProductStatus        @default(PENDING_REVIEW)
+  status       ProductStatus @default(PENDING_REVIEW)
 
-  condition          ProductCondition @default(NEW)
-  usedDurationValue  Float?
-  usedDurationUnit   DurationUnit?
-  hasReceipt         ReceiptStatus?
+  condition         ProductCondition @default(NEW)
+  usedDurationValue Float?
+  usedDurationUnit  DurationUnit?
+  hasReceipt        ReceiptStatus?
 
-  brand        String?
-  modelNumber  String?
-  voltage      String?
-  wattage      String?
-  dimensions   String?
-  weight       Float?
-  weightUnit   WeightUnit?
+  brand       String?
+  modelNumber String?
+  voltage     String?
+  wattage     String?
+  dimensions  String?
+  weight      Float?
+  weightUnit  WeightUnit?
 
-  warrantyType           WarrantyType @default(NONE)
-  warrantyDurationValue  Float?
-  warrantyDurationUnit   DurationUnit?
+  warrantyType          WarrantyType  @default(NONE)
+  warrantyDurationValue Float?
+  warrantyDurationUnit  DurationUnit?
 
-  deliveryAvailable Boolean  @default(false)
+  deliveryAvailable Boolean @default(false)
   pickupLocation    String?
-  leadTime          String?  @default("IN_STOCK")
+  leadTime          String? @default("IN_STOCK")
 
-  negotiable   Boolean         @default(false)
-  bulkPricing  BulkPriceTier[]
+  negotiable  Boolean         @default(false)
+  bulkPricing BulkPriceTier[]
 
   // Legal (Legal-category products with a real Vendor — e.g. KRA, KEBS).
   // County-issued permits use LegalFeeSchedule instead — see
   // RequirementTemplate.isCountyFeeSchedule.
-  validityValue          Float?
-  validityUnit           DurationUnit?
-  processingTimeMinDays  Int?
-  processingTimeMaxDays  Int?
+  validityValue         Float?
+  validityUnit          DurationUnit?
+  processingTimeMinDays Int?
+  processingTimeMaxDays Int?
 
   // True for the one system-generated "shell" product per county-fee
   // requirement (e.g. Business Permit). Its price is always null — real
@@ -354,13 +355,13 @@ model Product {
   // cart-add time. This row exists only so CartItem has a real Product to
   // point at, letting county-fee cart lines persist exactly like any
   // other product instead of living only in browser memory.
-  isFeeScheduleShell   Boolean @default(false)
+  isFeeScheduleShell Boolean @default(false)
 
-  cartItems    CartItem[]
-  template     RequirementTemplate? @relation(fields: [templateId], references: [id])
-  vendor       Vendor?              @relation(fields: [vendorId], references: [id])
-  reviews      Review[]
-  orderItems  OrderItem[]
+  cartItems  CartItem[]
+  template   RequirementTemplate? @relation(fields: [templateId], references: [id])
+  vendor     Vendor?              @relation(fields: [vendorId], references: [id])
+  reviews    Review[]
+  orderItems OrderItem[]
 
   @@index([vendorId])
   @@index([templateId])
@@ -406,11 +407,11 @@ enum VendorClaimStatus {
 }
 
 model County {
-  id        Int            @id @default(autoincrement())
-  name      String         @unique
-  slug      String         @unique
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   vendorCounties VendorCounty[]
   feeSchedules   LegalFeeSchedule[]
@@ -453,31 +454,36 @@ model VendorCounty {
 // invariant ("at most one flat/default row") is enforced at the
 // application layer (see the bulk-default admin endpoint, which does a
 // find-then-update-or-create rather than relying on the DB constraint).
+
 model LegalFeeSchedule {
-  id                     Int                @id @default(autoincrement())
-  templateId             Int
-  countyId               Int
-  tradeClassId           Int?
-  sizeBand               BusinessSizeBand?
-  employeeCountMax       Int?
-  floorAreaSqm           Float?
-  price                  Float
-  validityValue          Float?
-  validityUnit           DurationUnit?
-  processingTimeMinDays  Int?
-  processingTimeMaxDays  Int?
-  notes                  String?
-  createdAt              DateTime           @default(now())
-  updatedAt              DateTime           @updatedAt
+  id                    Int               @id @default(autoincrement())
+  templateId            Int
+  countyId              Int
+  businessCategoryId    Int?
+  sizeBand              BusinessSizeBand?
+  price                 Float?
+  priceMin              Float?
+  priceMax              Float?
+  employeeCountMax      Int?              // ADD THIS
+  floorAreaSqm          Float?            // ADD THIS
+  validityValue         Float?
+  validityUnit          DurationUnit?
+  processingTimeMinDays Int?
+  processingTimeMaxDays Int?
+  applyUrl              String?
+  notes                 String?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
 
   template         RequirementTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   county           County              @relation(fields: [countyId], references: [id], onDelete: Cascade)
-  tradeClass       TradeClass?         @relation(fields: [tradeClassId], references: [id])
+  businessCategory BusinessCategory?   @relation(fields: [businessCategoryId], references: [id])
+  tradeClass       TradeClass?         @relation(fields: [tradeClassId], references: [id])  // renamed from TradeClass
+  tradeClassId     Int?
 
-  @@unique([templateId, countyId, tradeClassId, sizeBand])
+  @@unique([templateId, countyId, businessCategoryId, sizeBand])
   @@index([templateId, countyId])
   @@index([countyId])
-  @@index([tradeClassId])
 }
 
 enum BusinessSizeBand {
@@ -488,46 +494,46 @@ enum BusinessSizeBand {
 }
 
 model Vendor {
-  id                Int                @id @default(autoincrement())
-  name              String
-  website           String?
-  logo              String?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  slug              String             @unique @default("")
-  userId            String?            @unique
-  tagline           String?
-  description       String?
-  coverImage        String?
-  location          String?
-  phone             String?
-  twitterUrl        String?
-  instagramUrl      String?
-  facebookUrl       String?
-  linkedinUrl       String?
-  isVerified        Boolean            @default(false)
-  verifiedAt        DateTime?
-  suspendedAt       DateTime?
-  suspendReason     String?
-  status            VendorStatus       @default(ACTIVE)
-  appealMessage     String?
-  appealRespondedAt DateTime?
-  appealResponse    String?
-  appealStatus      AppealStatus       @default(NONE)
-  appealedAt        DateTime?
-  issueResolved     Boolean            @default(false)
-  products          Product[]
-  user              User?              @relation(fields: [userId], references: [id])
-  analytics         VendorAnalytics[]
-  application       VendorApplication?
-  claimStatus          VendorClaimStatus @default(NONE)
+  id                   Int                @id @default(autoincrement())
+  name                 String
+  website              String?
+  logo                 String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  slug                 String             @unique @default("")
+  userId               String?            @unique
+  tagline              String?
+  description          String?
+  coverImage           String?
+  location             String?
+  phone                String?
+  twitterUrl           String?
+  instagramUrl         String?
+  facebookUrl          String?
+  linkedinUrl          String?
+  isVerified           Boolean            @default(false)
+  verifiedAt           DateTime?
+  suspendedAt          DateTime?
+  suspendReason        String?
+  status               VendorStatus       @default(ACTIVE)
+  appealMessage        String?
+  appealRespondedAt    DateTime?
+  appealResponse       String?
+  appealStatus         AppealStatus       @default(NONE)
+  appealedAt           DateTime?
+  issueResolved        Boolean            @default(false)
+  products             Product[]
+  user                 User?              @relation(fields: [userId], references: [id])
+  analytics            VendorAnalytics[]
+  application          VendorApplication?
+  claimStatus          VendorClaimStatus  @default(NONE)
   claimRequestedById   String?
   claimMessage         String?
   claimedAt            DateTime?
   claimReviewedAt      DateTime?
   claimReviewedBy      String?
   claimRejectionReason String?
-  claimRequestedBy     User?             @relation("VendorClaimRequests", fields: [claimRequestedById], references: [id])
+  claimRequestedBy     User?              @relation("VendorClaimRequests", fields: [claimRequestedById], references: [id])
   commissionRate       Float              @default(0.05)
   mpesaNumber          String?
   vendorSubOrders      VendorSubOrder[]
@@ -535,10 +541,10 @@ model Vendor {
 
   servesAllCounties Boolean        @default(true)
   counties          VendorCounty[]
-  
+  isCountyGovernmentAuthority Boolean @default(false)
 
-  @@index([claimStatus])
   @@unique([name, website])
+  @@index([claimStatus])
   @@index([slug])
   @@index([status])
   @@index([userId])
@@ -852,19 +858,19 @@ enum HowToSectionType {
 }
 
 model EmailLog {
-  id         String      @id @default(uuid())
-  userId     String?
-  to         String
-  subject    String
-  type       EmailType
-  status     EmailStatus @default(SENT)
-  resendId   String?
-  error      String?
-  metadata   Json?
-  sentAt     DateTime    @default(now())
-  openedAt   DateTime?
-  bouncedAt  DateTime?
-  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  id        String      @id @default(uuid())
+  userId    String?
+  to        String
+  subject   String
+  type      EmailType
+  status    EmailStatus @default(SENT)
+  resendId  String?
+  error     String?
+  metadata  Json?
+  sentAt    DateTime    @default(now())
+  openedAt  DateTime?
+  bouncedAt DateTime?
+  user      User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([type])
@@ -889,29 +895,29 @@ enum EmailStatus {
 }
 
 model PasswordResetToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  token     String   @unique
+  token     String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([token])
   @@index([userId])
 }
 
 model InternalNotification {
-  id        String     @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
   title     String
   message   String
-  type      NotifType  @default(INFO)
+  type      NotifType @default(INFO)
   link      String?
-  isRead    Boolean    @default(false)
+  isRead    Boolean   @default(false)
   readAt    DateTime?
-  createdAt DateTime   @default(now())
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead])
   @@index([userId, createdAt])
@@ -924,22 +930,22 @@ enum NotifType {
 }
 
 model QuestionnaireDraft {
-  id           String   @id @default(cuid())
+  id           String  @id @default(cuid())
   serviceSlug  String
   packageTier  String?
-  currentStep  Int      @default(0)
-  answers      Json     @default("{}")
+  currentStep  Int     @default(0)
+  answers      Json    @default("{}")
   contactEmail String?
   contactPhone String?
-  status       String   @default("draft")
-  orderNumber  String?  @unique
+  status       String  @default("draft")
+  orderNumber  String? @unique
 
-  adminStatus  String   @default("new")
-  adminNotes   String?
-  archived     Boolean  @default(false)
+  adminStatus String  @default("new")
+  adminNotes  String?
+  archived    Boolean @default(false)
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([serviceSlug, status])
   @@index([contactEmail])
@@ -947,24 +953,24 @@ model QuestionnaireDraft {
 }
 
 model Order {
-  id                String            @id @default(uuid())
-  orderNumber       String            @unique
-  userId            String
-  businessId        Int
+  id          String @id @default(uuid())
+  orderNumber String @unique
+  userId      String
+  businessId  Int
 
-  subtotal          Float
-  consolidationFee  Float             @default(0)
-  totalAmount       Float
+  subtotal         Float
+  consolidationFee Float @default(0)
+  totalAmount      Float
 
-  status            OrderStatus       @default(PENDING_PAYMENT)
+  status OrderStatus @default(PENDING_PAYMENT)
 
-  user              User              @relation(fields: [userId], references: [id])
-  business          Business          @relation(fields: [businessId], references: [id])
-  vendorSubOrders   VendorSubOrder[]
-  payment           Payment?
+  user            User             @relation(fields: [userId], references: [id])
+  business        Business         @relation(fields: [businessId], references: [id])
+  vendorSubOrders VendorSubOrder[]
+  payment         Payment?
 
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([businessId])
@@ -981,25 +987,25 @@ enum OrderStatus {
 }
 
 model VendorSubOrder {
-  id                String            @id @default(uuid())
-  orderId           String
-  vendorId          Int
+  id       String @id @default(uuid())
+  orderId  String
+  vendorId Int
 
-  subtotal          Float
-  commissionRate    Float             @default(0)
-  commissionAmount  Float             @default(0)
-  payoutAmount      Float
+  subtotal         Float
+  commissionRate   Float @default(0)
+  commissionAmount Float @default(0)
+  payoutAmount     Float
 
-  status            VendorOrderStatus @default(PENDING_VENDOR_CONFIRMATION)
-  vendorNotes       String?
+  status      VendorOrderStatus @default(PENDING_VENDOR_CONFIRMATION)
+  vendorNotes String?
 
-  order             Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  vendor            Vendor            @relation(fields: [vendorId], references: [id])
-  items             OrderItem[]
-  payout            VendorPayout?
+  order  Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  vendor Vendor        @relation(fields: [vendorId], references: [id])
+  items  OrderItem[]
+  payout VendorPayout?
 
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([orderId])
   @@index([vendorId])
@@ -1016,39 +1022,39 @@ enum VendorOrderStatus {
 }
 
 model OrderItem {
-  id                String            @id @default(uuid())
-  vendorSubOrderId  String
-  productId         Int
+  id               String @id @default(uuid())
+  vendorSubOrderId String
+  productId        Int
 
-  quantity          Int               @default(1)
-  unitPrice         Float
-  lineTotal         Float
+  quantity  Int   @default(1)
+  unitPrice Float
+  lineTotal Float
 
-  vendorSubOrder    VendorSubOrder    @relation(fields: [vendorSubOrderId], references: [id], onDelete: Cascade)
-  product           Product           @relation(fields: [productId], references: [id])
+  vendorSubOrder VendorSubOrder @relation(fields: [vendorSubOrderId], references: [id], onDelete: Cascade)
+  product        Product        @relation(fields: [productId], references: [id])
 
-  createdAt         DateTime          @default(now())
+  createdAt DateTime @default(now())
 
   @@index([vendorSubOrderId])
   @@index([productId])
 }
 
 model Payment {
-  id            String        @id @default(uuid())
-  orderId       String        @unique
-  amount        Float
-  provider      String?
-  providerRef   String?
-  status        PaymentStatus @default(PENDING)
-  attempts      Int           @default(0)
+  id          String        @id @default(uuid())
+  orderId     String        @unique
+  amount      Float
+  provider    String?
+  providerRef String?
+  status      PaymentStatus @default(PENDING)
+  attempts    Int           @default(0)
 
-  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([status])
-} 
+}
 
 enum PaymentStatus {
   PENDING
@@ -1058,19 +1064,19 @@ enum PaymentStatus {
 }
 
 model VendorPayout {
-  id                  String        @id @default(uuid())
-  vendorSubOrderId    String        @unique
-  vendorId            Int
-  amount              Float
-  status              PayoutStatus  @default(NOT_DUE)
-  paidAt              DateTime?
-  payoutMethod        String?
-  payoutRef           String?
+  id               String       @id @default(uuid())
+  vendorSubOrderId String       @unique
+  vendorId         Int
+  amount           Float
+  status           PayoutStatus @default(NOT_DUE)
+  paidAt           DateTime?
+  payoutMethod     String?
+  payoutRef        String?
 
-  vendorSubOrder      VendorSubOrder @relation(fields: [vendorSubOrderId], references: [id], onDelete: Cascade)
-  vendor              Vendor         @relation(fields: [vendorId], references: [id])
+  vendorSubOrder VendorSubOrder @relation(fields: [vendorSubOrderId], references: [id], onDelete: Cascade)
+  vendor         Vendor         @relation(fields: [vendorId], references: [id])
 
-  createdAt           DateTime      @default(now())
+  createdAt DateTime @default(now())
 
   @@index([status])
   @@index([vendorId])

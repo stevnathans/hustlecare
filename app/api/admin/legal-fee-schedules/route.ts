@@ -2,6 +2,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requirePermission, createAuditLog } from '@/lib/admin-utils';
+import { resolveFeePricingFromBody } from '@/lib/legalFeeScheduleAdmin';
+
+export const dynamic = 'force-dynamic';
 
 // GET — list fee schedule rows for a requirement template
 export async function GET(request: Request) {
@@ -13,7 +16,7 @@ export async function GET(request: Request) {
 
     const rows = await prisma.legalFeeSchedule.findMany({
       where: { templateId: Number(templateId) },
-      include: { county: { select: { id: true, name: true } }, tradeClass: { select: { id: true, name: true } } },
+      include: { county: { select: { id: true, name: true } }, businessCategory: { select: { id: true, name: true } } },
       orderBy: [{ county: { name: 'asc' } }],
     });
 
@@ -28,21 +31,17 @@ export async function GET(request: Request) {
   }
 }
 
-// POST — create or update a single row (specific county, optional trade class/size override)
+// POST — create or update a single row (specific county, optional category/size override)
 export async function POST(request: Request) {
   try {
     const user = await requirePermission('products.create');
     const body = await request.json();
-    const {
-      templateId, countyId, tradeClassId = null, sizeBand = null,
-      employeeCountMax, floorAreaSqm,
-      price, validityValue, validityUnit, processingTimeMinDays, processingTimeMaxDays, notes,
-    } = body;
+    const { templateId, countyId, businessCategoryId = null, sizeBand = null, validityValue, validityUnit, processingTimeMinDays, processingTimeMaxDays, applyUrl, notes } = body;
 
     if (!templateId || !countyId) return NextResponse.json({ error: 'templateId and countyId are required.' }, { status: 400 });
-    if (price == null || Number.isNaN(Number(price)) || Number(price) < 0) {
-      return NextResponse.json({ error: 'Enter a valid price.' }, { status: 400 });
-    }
+
+    const pricing = resolveFeePricingFromBody(body);
+    if ('error' in pricing) return NextResponse.json({ error: pricing.error }, { status: 400 });
 
     const template = await prisma.requirementTemplate.findUnique({ where: { id: Number(templateId) } });
     if (!template || !template.isCountyFeeSchedule) {
@@ -53,19 +52,20 @@ export async function POST(request: Request) {
       where: {
         templateId: Number(templateId),
         countyId: Number(countyId),
-        tradeClassId: tradeClassId ? Number(tradeClassId) : null,
+        businessCategoryId: businessCategoryId ? Number(businessCategoryId) : null,
         sizeBand: sizeBand || null,
       },
     });
 
     const data = {
-      price: Number(price),
+      price: pricing.price,
+      priceMin: pricing.priceMin,
+      priceMax: pricing.priceMax,
       validityValue: validityValue != null ? Number(validityValue) : null,
       validityUnit: validityValue != null ? (validityUnit || null) : null,
       processingTimeMinDays: processingTimeMinDays != null ? Number(processingTimeMinDays) : null,
       processingTimeMaxDays: processingTimeMaxDays != null ? Number(processingTimeMaxDays) : null,
-      employeeCountMax: employeeCountMax != null ? Number(employeeCountMax) : null,
-      floorAreaSqm: floorAreaSqm != null ? Number(floorAreaSqm) : null,
+      applyUrl: applyUrl?.trim() || null,
       notes: notes?.trim() || null,
     };
 
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
           data: {
             templateId: Number(templateId),
             countyId: Number(countyId),
-            tradeClassId: tradeClassId ? Number(tradeClassId) : null,
+            businessCategoryId: businessCategoryId ? Number(businessCategoryId) : null,
             sizeBand: sizeBand || null,
             ...data,
           },
@@ -83,9 +83,9 @@ export async function POST(request: Request) {
 
     await createAuditLog({
       action: existing ? 'UPDATE' : 'CREATE',
-      entity: 'LegalFeeSchedule',
+      entity: 'Product',
       entityId: row.id.toString(),
-      changes: { templateId, countyId, price: data.price, updatedBy: user.id },
+      changes: { templateId, countyId, price: data.price, priceMin: data.priceMin, priceMax: data.priceMax, updatedBy: user.id },
     });
 
     return NextResponse.json(row, { status: existing ? 200 : 201 });

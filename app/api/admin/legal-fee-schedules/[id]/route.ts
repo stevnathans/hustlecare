@@ -2,6 +2,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requirePermission, createAuditLog } from '@/lib/admin-utils';
+import { resolveFeePricingFromBody } from '@/lib/legalFeeScheduleAdmin';
+
+export const dynamic = 'force-dynamic';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -14,21 +17,80 @@ export async function PATCH(request: Request, { params }: Params) {
     const existing = await prisma.legalFeeSchedule.findUnique({ where: { id: Number(id) } });
     if (!existing) return NextResponse.json({ error: 'Fee schedule row not found.' }, { status: 404 });
 
+    // Pricing: the admin UI always sends the full pricing block on edit
+    // (fixed OR range, never partial), so resolve it the same way as
+    // create. If neither `price` nor `usePriceRange`+min/max is present
+    // at all, leave pricing untouched (a pure non-price field edit).
+    const touchesPricing = body.price !== undefined || body.priceMin !== undefined || body.priceMax !== undefined || body.usePriceRange !== undefined;
+    let pricingUpdate: { price?: number | null; priceMin?: number | null; priceMax?: number | null } = {};
+    if (touchesPricing) {
+      const pricing = resolveFeePricingFromBody(body);
+      if ('error' in pricing) return NextResponse.json({ error: pricing.error }, { status: 400 });
+      pricingUpdate = pricing;
+    }
+
+    if (body.countyId !== undefined) {
+      const county = await prisma.county.findUnique({ where: { id: Number(body.countyId) }, select: { id: true } });
+      if (!county) return NextResponse.json({ error: 'County not found.' }, { status: 400 });
+    }
+    if (body.businessCategoryId !== undefined && body.businessCategoryId !== null) {
+      const category = await prisma.businessCategory.findUnique({ where: { id: Number(body.businessCategoryId) }, select: { id: true } });
+      if (!category) return NextResponse.json({ error: 'Business category not found.' }, { status: 400 });
+    }
+
+    const nextCountyId = body.countyId !== undefined ? Number(body.countyId) : existing.countyId;
+    const nextCategoryId = body.businessCategoryId !== undefined
+      ? (body.businessCategoryId === null ? null : Number(body.businessCategoryId))
+      : existing.businessCategoryId;
+    const nextSizeBand = body.sizeBand !== undefined ? (body.sizeBand || null) : existing.sizeBand;
+
+    const combinationChanged =
+      nextCountyId !== existing.countyId ||
+      nextCategoryId !== existing.businessCategoryId ||
+      nextSizeBand !== existing.sizeBand;
+
+    if (combinationChanged) {
+      const duplicate = await prisma.legalFeeSchedule.findFirst({
+        where: {
+          id: { not: Number(id) },
+          templateId: existing.templateId,
+          countyId: nextCountyId,
+          businessCategoryId: nextCategoryId,
+          sizeBand: nextSizeBand,
+        },
+        select: { id: true },
+      });
+      if (duplicate) {
+        return NextResponse.json(
+          { error: 'A pricing row for this county/business type/size already exists. Edit that row instead.' },
+          { status: 409 }
+        );
+      }
+    }
+
     const updated = await prisma.legalFeeSchedule.update({
       where: { id: Number(id) },
       data: {
-        price: body.price !== undefined ? Number(body.price) : undefined,
+        countyId: body.countyId !== undefined ? Number(body.countyId) : undefined,
+        businessCategoryId: body.businessCategoryId !== undefined
+          ? (body.businessCategoryId === null ? null : Number(body.businessCategoryId))
+          : undefined,
+        sizeBand: body.sizeBand !== undefined ? (body.sizeBand || null) : undefined,
+        ...(touchesPricing ? pricingUpdate : {}),
         validityValue: body.validityValue !== undefined ? (body.validityValue === null ? null : Number(body.validityValue)) : undefined,
         validityUnit: body.validityUnit !== undefined ? (body.validityUnit || null) : undefined,
         processingTimeMinDays: body.processingTimeMinDays !== undefined ? (body.processingTimeMinDays === null ? null : Number(body.processingTimeMinDays)) : undefined,
         processingTimeMaxDays: body.processingTimeMaxDays !== undefined ? (body.processingTimeMaxDays === null ? null : Number(body.processingTimeMaxDays)) : undefined,
-        employeeCountMax: body.employeeCountMax !== undefined ? (body.employeeCountMax === null ? null : Number(body.employeeCountMax)) : undefined,
-        floorAreaSqm: body.floorAreaSqm !== undefined ? (body.floorAreaSqm === null ? null : Number(body.floorAreaSqm)) : undefined,
+        applyUrl: body.applyUrl !== undefined ? (body.applyUrl?.trim() || null) : undefined,
         notes: body.notes !== undefined ? (body.notes?.trim() || null) : undefined,
+      },
+      include: {
+        county: { select: { id: true, name: true } },
+        businessCategory: { select: { id: true, name: true } },
       },
     });
 
-    await createAuditLog({ action: 'UPDATE', entity: 'LegalFeeSchedule', entityId: id, changes: { fields: Object.keys(body), updatedBy: user.id } });
+    await createAuditLog({ action: 'UPDATE', entity: 'Product', entityId: id, changes: { fields: Object.keys(body), updatedBy: user.id } });
     return NextResponse.json(updated);
   } catch (error) {
     if (error instanceof Error) {
@@ -49,7 +111,7 @@ export async function DELETE(_req: Request, { params }: Params) {
     if (!existing) return NextResponse.json({ error: 'Fee schedule row not found.' }, { status: 404 });
 
     await prisma.legalFeeSchedule.delete({ where: { id: Number(id) } });
-    await createAuditLog({ action: 'DELETE', entity: 'LegalFeeSchedule', entityId: id, changes: { deletedBy: user.id } });
+    await createAuditLog({ action: 'DELETE', entity: 'Product', entityId: id, changes: { deletedBy: user.id } });
 
     return NextResponse.json({ message: 'Fee schedule row deleted.' });
   } catch (error) {

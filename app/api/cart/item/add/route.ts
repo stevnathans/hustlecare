@@ -8,6 +8,8 @@ import { notify } from '@/lib/notify'
 import { trackEvent } from '@/lib/analytics'
 import { resolveFeeSchedule } from '@/lib/legalFeeSchedule'
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -56,26 +58,15 @@ export async function POST(request: NextRequest) {
       const schedules = await prisma.legalFeeSchedule.findMany({
         where: { templateId: productRecord.templateId, countyId },
         select: {
-          id: true, templateId: true, countyId: true, tradeClassId: true, sizeBand: true,
-          employeeCountMax: true, floorAreaSqm: true,
-          price: true, validityValue: true, validityUnit: true,
-          processingTimeMinDays: true, processingTimeMaxDays: true, notes: true,
+          id: true, templateId: true, countyId: true, businessCategoryId: true, sizeBand: true,
+          price: true, priceMin: true, priceMax: true,
+          validityValue: true, validityUnit: true,
+          processingTimeMinDays: true, processingTimeMaxDays: true,
+          applyUrl: true, notes: true,
         },
       })
 
-      // businessId here identifies the cart's business, not necessarily
-      // the same thing the requirements page resolved a trade class for —
-      // re-deriving it defensively (own override, else category default)
-      // rather than trusting anything the client sent, consistent with
-      // the "never trust client-sent price" pattern this route already
-      // follows for unitPrice itself.
-      const business = await prisma.business.findUnique({
-        where: { id: parseInt(businessId.toString()) },
-        select: { tradeClassId: true, category: { select: { defaultTradeClassId: true } } },
-      })
-      const tradeClassId = business?.tradeClassId ?? business?.category?.defaultTradeClassId ?? null
-
-      const resolution = resolveFeeSchedule(schedules as any, countyId, { tradeClassId })
+      const resolution = resolveFeeSchedule(schedules as any, countyId, {})
 
       if (resolution.status === 'unavailable') {
         return NextResponse.json(
@@ -85,7 +76,7 @@ export async function POST(request: NextRequest) {
       }
       if (resolution.status === 'range') {
         return NextResponse.json(
-          { error: 'Price varies by trade class/size — use the Permit Cost Calculator for an exact figure.' },
+          { error: 'Price varies by business type/size — use the Permit Cost Calculator for an exact figure.' },
           { status: 400 }
         )
       }
@@ -164,6 +155,8 @@ export async function POST(request: NextRequest) {
         })
       }
 
+      // This is what actually increments VendorAnalytics.cartAdds — that field
+      // existed on the schema already but nothing was writing to it before.
       await trackEvent({
         type: 'CART_ADD',
         userId,

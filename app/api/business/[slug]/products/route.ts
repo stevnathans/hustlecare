@@ -1,13 +1,21 @@
 // app/api/business/[slug]/products/route.ts
+// Returns all ACTIVE products for every active requirement of a business,
+// plus fee-schedule pricing and the editable shell-product details for
+// county-issued Legal requirements.
+//
+// Self-heals: any requirement flagged isCountyFeeSchedule that doesn't yet
+// have a shell product gets one created here automatically.
+//
+// export const dynamic = 'force-dynamic' + revalidate = 0 are required —
+// without them Next.js caches this GET route's response indefinitely (the
+// "Full Route Cache"), since it never touches cookies/headers/searchParams
+// that would normally opt it out automatically. That caching was why
+// fee-schedule price changes took a long time to show up on the front end.
+
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ensureFeeScheduleShellProduct } from '@/lib/legalFeeScheduleAdmin';
 
-// Without this, Next.js caches this GET route's response indefinitely (the
-// "Full Route Cache") since it never touches cookies/headers/searchParams
-// that would normally opt it out automatically. This is why fee-schedule
-// price changes took a long time to show up — the page was serving a
-// stale cached response, not fresh data from the database.
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
@@ -60,10 +68,11 @@ export async function GET(
                 },
                 feeSchedules: {
                   select: {
-                    id: true, templateId: true, countyId: true, tradeClassId: true, sizeBand: true,
-                    employeeCountMax: true, floorAreaSqm: true,
-                    price: true, validityValue: true, validityUnit: true,
-                    processingTimeMinDays: true, processingTimeMaxDays: true, notes: true,
+                    id: true, templateId: true, countyId: true, businessCategoryId: true, sizeBand: true,
+                    price: true, priceMin: true, priceMax: true,
+                    validityValue: true, validityUnit: true,
+                    processingTimeMinDays: true, processingTimeMaxDays: true,
+                    applyUrl: true, notes: true,
                   },
                 },
               },
@@ -80,10 +89,6 @@ export async function GET(
     const products: Record<number, unknown[]> = {};
     const feeSchedules: Record<number, unknown[]> = {};
     const feeScheduleShellProductIds: Record<number, number> = {};
-    // Editable fields the shell Product carries — this is what lets an
-    // admin's name/description/image/url changes actually show up on the
-    // requirements page instead of always falling back to the template's
-    // own generic name/description.
     const feeScheduleShellProductDetails: Record<
       number,
       { name: string; description: string | null; image: string | null; url: string | null }
@@ -94,23 +99,17 @@ export async function GET(
       .filter((t) => t.isCountyFeeSchedule);
 
     // Self-heal: create a shell product for any fee-schedule template
-    // that doesn't have one yet. Sequential to avoid concurrent-create
-    // races on the same template.
+    // that doesn't have one yet. Sequential (not Promise.all) to avoid
+    // concurrent-create races on the same template.
     for (const t of feeTemplates) {
       try {
-        const shellProductId = await ensureFeeScheduleShellProduct(t.id, t.name);
-        feeScheduleShellProductIds[t.id] = shellProductId;
-
-        const shell = await prisma.product.findUnique({
-          where: { id: shellProductId },
-          select: { name: true, description: true, image: true, url: true },
-        });
-
+        const shellProduct = await ensureFeeScheduleShellProduct(t.id, t.name);
+        feeScheduleShellProductIds[t.id] = shellProduct.id;
         feeScheduleShellProductDetails[t.id] = {
-          name: shell?.name ?? t.name,
-          description: shell?.description ?? null,
-          image: shell?.image ?? null,
-          url: shell?.url ?? null,
+          name: t.name,
+          description: null,
+          image: null,
+          url: null,
         };
       } catch (e) {
         console.error(`Failed to ensure shell product for template ${t.id}:`, e);

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import Menu from "@/components/header/menu";
 import { GlobalProvider } from "./GlobalProvider";
@@ -46,7 +47,7 @@ export const metadata: Metadata = {
     description:
       "Everything you need to launch your business in Kenya: Ideas, requirements, costs, and tools.",
     images: ["https://hustlecare.net/og-image.jpg"],
-    creator: "@hustlecare", // update if you have a Twitter handle
+    creator: "@hustlecare",
   },
   metadataBase: new URL("https://hustlecare.net"),
 };
@@ -68,6 +69,12 @@ export default function RootLayout({
         <meta charSet="UTF-8" />
         <link rel="manifest" href="/site.webmanifest" />
         <link rel="canonical" href="https://hustlecare.net/" />
+        <Script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9836756079336428"
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
+        />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}

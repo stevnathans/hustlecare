@@ -1,8 +1,22 @@
 "use client";
 // components/Requirements/CountyFeeCard.tsx
+//
+// Adds/removes go through the REAL cart API (via useCart's normal
+// addToCart/removeFromCart), using the requirement's real shell Product id.
+// This means a county-fee cart line is a genuine CartItem row — it
+// persists across refreshes exactly like any other product. The server
+// (app/api/cart/item/add/route.ts) re-resolves the authoritative price
+// from LegalFeeSchedule using the countyId sent here — the price shown
+// below is a preview, not what's ultimately trusted.
+//
+// A resolution's `matchedRow` is now available for BOTH exact prices and
+// single-row ranges (not just exact) — only absent when a range comes
+// from aggregating multiple disagreeing rows (an ambiguous business
+// type/size query). That's what lets validity/processing time/apply URL
+// still show even when the price itself is a range.
 
 import React, { useState } from "react";
-import Link from "next/link";
+import Image from "next/image";
 import {
   FiPlus,
   FiCheck,
@@ -14,7 +28,6 @@ import {
   FiInfo,
   FiShoppingBag,
 } from "react-icons/fi";
-import Image from "next/image";
 import { useCart } from "@/contexts/CartContext";
 import { useSession } from "next-auth/react";
 import LoginModal from "@/components/LoginModal";
@@ -54,22 +67,6 @@ function formatProcessingTime(min?: number | null, max?: number | null): string 
   if (min != null && max != null && min !== max) return `${min}–${max} Days`;
   const val = min ?? max;
   return `${val} Day${val === 1 ? "" : "s"}`;
-}
-
-function buildApplyHref(
-  productId: number,
-  businessId?: number,
-  requirementName?: string,
-  category?: string,
-  countyId?: number
-) {
-  const params = new URLSearchParams();
-  if (businessId) params.set("businessId", String(businessId));
-  if (requirementName) params.set("requirementName", requirementName);
-  if (category) params.set("category", category);
-  if (countyId) params.set("countyId", String(countyId));
-  const query = params.toString();
-  return `/redirect/${productId}${query ? `?${query}` : ""}`;
 }
 
 function Badge({
@@ -126,7 +123,16 @@ const CountyFeeCard: React.FC<CountyFeeCardProps> = ({
   const isExact = resolution.status === "exact";
   const isRange = resolution.status === "range";
   const price = isExact ? resolution.price : isRange ? resolution.lowPrice : 0;
-  const matchedRow = isExact ? resolution.matchedRow : null;
+
+  // matchedRow is present for exact resolutions and for single-row range
+  // resolutions (a row whose own priceMin/priceMax defines the range).
+  // It's absent only when the range comes from aggregating multiple
+  // disagreeing rows, since there's no single "the" row to point at.
+  const matchedRow = isExact
+    ? resolution.matchedRow
+    : isRange
+    ? (resolution.matchedRow ?? null)
+    : null;
 
   const validityLabel = matchedRow
     ? formatDuration(matchedRow.validityValue, matchedRow.validityUnit as DurationUnit | null)
@@ -139,9 +145,11 @@ const CountyFeeCard: React.FC<CountyFeeCardProps> = ({
   const displayName = shellProduct?.name || requirementName;
   const description = matchedRow?.notes || shellProduct?.description || requirementDescription;
   const buyLabel = getBuyActionLabel(category);
-  const applyHref = shellProductId && shellProduct?.url
-    ? buildApplyHref(shellProductId, businessId, requirementName, category, countyId)
-    : null;
+
+  // Apply link priority: this county's own official application URL
+  // (set per-row in the admin fee schedule) first, falling back to the
+  // shell product's generic URL if no county-specific one is set yet.
+  const applyHref = matchedRow?.applyUrl || shellProduct?.url || null;
 
   const handleAddToCart = async () => {
     if (!session) {
@@ -154,7 +162,7 @@ const CountyFeeCard: React.FC<CountyFeeCardProps> = ({
       await addToCart({
         productId: shellProductId,
         name: `${requirementName} (${countyName})`,
-        price,
+        price, // preview only — server re-resolves and stores the real price
         requirementName,
         category,
         countyId,
@@ -220,7 +228,7 @@ const CountyFeeCard: React.FC<CountyFeeCardProps> = ({
                     {resolution.status === "range" && ` – ${resolution.highPrice.toLocaleString()}`}
                   </span>
                 )}
-                {isRange && <Badge tone="amber">Varies by type/size</Badge>}
+                {isRange && <Badge tone="amber">Varies</Badge>}
               </div>
             </div>
 
@@ -285,24 +293,29 @@ const CountyFeeCard: React.FC<CountyFeeCardProps> = ({
             <div className="flex items-start gap-2 mb-3 p-2.5 bg-amber-50 border border-amber-100 rounded-lg text-xs text-amber-700">
               <FiInfo size={13} className="flex-shrink-0 mt-0.5" />
               <span>
-                Price depends on business type/size in {countyName}. Use the{" "}
+                {matchedRow
+                  ? `This fee ranges based on factors like business size or activity in ${countyName}.`
+                  : `Price depends on business type/size in ${countyName}.`}{" "}
+                Use the{" "}
                 <a href="/tools/permit-costs" className="underline font-medium">
                   Permit Cost Calculator
                 </a>{" "}
-                for an exact figure.
+                for guidance, or contact the county directly for an exact figure.
               </span>
             </div>
           )}
 
           <div className="flex items-center gap-2 flex-wrap">
             {applyHref && (
-              <Link
+              <a
                 href={applyHref}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition font-medium"
               >
                 <FiShoppingBag size={14} />
                 <span>{buyLabel}</span>
-              </Link>
+              </a>
             )}
 
             <ApplyForMeButton

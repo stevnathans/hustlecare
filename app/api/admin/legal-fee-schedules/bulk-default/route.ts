@@ -1,30 +1,21 @@
 // app/api/admin/legal-fee-schedules/bulk-default/route.ts
-//
-// Sets one flat, generic price for a requirement template across ALL
-// counties. Uses ONE delete + ONE bulk-insert instead of a 47-iteration
-// loop — the loop version could exceed the database's transaction
-// timeout on a remote DB (e.g. Supabase), silently rolling back with
-// nothing saved. This version is two round-trips total, regardless of
-// how many counties exist.
-//
-// Existing per-county or per-trade-class/size OVERRIDES (rows with a
-// non-null tradeClassId/sizeBand) are untouched — only the generic
-// (tradeClassId: null, sizeBand: null) rows are replaced.
-
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requirePermission, createAuditLog } from '@/lib/admin-utils';
+import { resolveFeePricingFromBody } from '@/lib/legalFeeScheduleAdmin';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
     const user = await requirePermission('products.create');
     const body = await request.json();
-    const { templateId, price, validityValue, validityUnit, processingTimeMinDays, processingTimeMaxDays, notes } = body;
+    const { templateId, validityValue, validityUnit, processingTimeMinDays, processingTimeMaxDays, applyUrl, notes } = body;
 
     if (!templateId) return NextResponse.json({ error: 'templateId is required.' }, { status: 400 });
-    if (price == null || Number.isNaN(Number(price)) || Number(price) < 0) {
-      return NextResponse.json({ error: 'Enter a valid price.' }, { status: 400 });
-    }
+
+    const pricing = resolveFeePricingFromBody(body);
+    if ('error' in pricing) return NextResponse.json({ error: pricing.error }, { status: 400 });
 
     const template = await prisma.requirementTemplate.findUnique({ where: { id: Number(templateId) } });
     if (!template || !template.isCountyFeeSchedule) {
@@ -37,42 +28,45 @@ export async function POST(request: Request) {
     }
 
     const data = {
-      price: Number(price),
+      price: pricing.price,
+      priceMin: pricing.priceMin,
+      priceMax: pricing.priceMax,
       validityValue: validityValue != null ? Number(validityValue) : null,
       validityUnit: validityValue != null ? (validityUnit || null) : null,
       processingTimeMinDays: processingTimeMinDays != null ? Number(processingTimeMinDays) : null,
       processingTimeMaxDays: processingTimeMaxDays != null ? Number(processingTimeMaxDays) : null,
+      applyUrl: applyUrl?.trim() || null,
       notes: notes?.trim() || null,
     };
 
-    // Wipe existing generic rows for this template, then recreate one per
-    // county in a single batch insert.
-    await prisma.legalFeeSchedule.deleteMany({
-      where: { templateId: Number(templateId), tradeClassId: null, sizeBand: null },
-    });
+    let created = 0;
+    let updated = 0;
 
-    await prisma.legalFeeSchedule.createMany({
-      data: counties.map((county) => ({
-        templateId: Number(templateId),
-        countyId: county.id,
-        tradeClassId: null,
-        sizeBand: null,
-        ...data,
-      })),
-      skipDuplicates: true,
+    await prisma.$transaction(async (tx) => {
+      for (const county of counties) {
+        const existing = await tx.legalFeeSchedule.findFirst({
+          where: { templateId: Number(templateId), countyId: county.id, businessCategoryId: null, sizeBand: null },
+        });
+        if (existing) {
+          await tx.legalFeeSchedule.update({ where: { id: existing.id }, data });
+          updated++;
+        } else {
+          await tx.legalFeeSchedule.create({
+            data: { templateId: Number(templateId), countyId: county.id, businessCategoryId: null, sizeBand: null, ...data },
+          });
+          created++;
+        }
+      }
     });
 
     await createAuditLog({
       action: 'UPDATE',
       entity: 'Product',
       entityId: templateId.toString(),
-      changes: { price: data.price, countiesAffected: counties.length, updatedBy: user.id },
+      changes: { price: data.price, priceMin: data.priceMin, priceMax: data.priceMax, countiesAffected: counties.length, created, updated, updatedBy: user.id },
     });
 
-    return NextResponse.json({
-      message: `Set flat rate for ${counties.length} counties.`,
-      countiesAffected: counties.length,
-    });
+    return NextResponse.json({ message: `Set rate for ${counties.length} counties.`, created, updated });
   } catch (error) {
     if (error instanceof Error) {
       if (error.message === 'Unauthorized') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

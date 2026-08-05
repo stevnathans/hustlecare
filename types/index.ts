@@ -20,16 +20,18 @@ export interface LegalFeeSchedule {
   id: number;
   templateId: number;
   countyId: number;
-  tradeClassId: number | null;
+  businessCategoryId: number | null;
   sizeBand: BusinessSizeBand | null;
-  employeeCountMax: number | null;
-  floorAreaSqm: number | null;
-  price: number;
+  price: number | null;
+  priceMin: number | null;
+  priceMax: number | null;
   validityValue: number | null;
   validityUnit: DurationUnit | null;
   processingTimeMinDays: number | null;
   processingTimeMaxDays: number | null;
+  applyUrl: string | null;
   notes: string | null;
+  tradeClassId?: number | null;
 }
 
 export interface Product {
