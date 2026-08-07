@@ -63,6 +63,21 @@ export async function GET(
                     negotiable: true,
                     bulkPricing: { select: { id: true, minQty: true, price: true }, orderBy: { minQty: 'asc' } },
                     validityValue: true, validityUnit: true, processingTimeMinDays: true, processingTimeMaxDays: true,
+                    // Software — simple flat-price cadence (billingPeriod)
+                    // plus package tiers, if any. price for a product WITH
+                    // packages is already the derived lowest-monthly-
+                    // equivalent (computed server-side on save — see
+                    // lib/product-validation.ts), so it needs no special
+                    // handling here beyond ordering the packages for
+                    // display.
+                    billingPeriod: true,
+                    packages: {
+                      select: {
+                        id: true, name: true, description: true, price: true,
+                        billingPeriod: true, features: true, isPopular: true, displayOrder: true,
+                      },
+                      orderBy: { displayOrder: 'asc' },
+                    },
                   },
                   orderBy: { price: 'asc' },
                 },

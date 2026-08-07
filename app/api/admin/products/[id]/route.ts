@@ -3,7 +3,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requirePermission, createAuditLog } from '@/lib/admin-utils';
-import { validateProductEnums, validateBulkPricing } from '@/lib/product-validation';
+import {
+  validateProductEnums, validateBulkPricing, validateSoftwarePackages, computeDerivedMonthlyPrice,
+} from '@/lib/product-validation';
 import { ProductStatus } from '@prisma/client';
 
 type Params = { params: Promise<{ id: string }> };
@@ -20,7 +22,10 @@ export async function PATCH(request: Request, { params }: Params) {
     const { id } = await params;
     const productId = parseInt(id);
 
-    const existing = await prisma.product.findUnique({ where: { id: productId } });
+    const existing = await prisma.product.findUnique({
+      where: { id: productId },
+      include: { packages: { select: { id: true } } },
+    });
     if (!existing) return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
 
     const body = await request.json();
@@ -30,8 +35,23 @@ export async function PATCH(request: Request, { params }: Params) {
     const { errors: bulkErrors, tiers } = validateBulkPricing(body.bulkPricing);
     if (bulkErrors.length) return NextResponse.json({ error: bulkErrors[0] }, { status: 400 });
 
+    // packages is only touched when the client explicitly sends the field
+    // (the admin form always sends it as an array — possibly empty — for
+    // any non-shell product, but this stays defensive for other callers).
+    const touchesPackages = body.packages !== undefined;
+    const { errors: packageErrors, packages: cleanPackages } = validateSoftwarePackages(body.packages);
+    if (packageErrors.length) return NextResponse.json({ error: packageErrors[0] }, { status: 400 });
+
+    // Whether the product will have packages AFTER this update — used to
+    // decide whether price is derived or client-supplied. If packages
+    // isn't part of this request, fall back to whatever's already there.
+    const hasPackagesAfterUpdate = touchesPackages ? cleanPackages.length > 0 : existing.packages.length > 0;
+
     const touchesPrice = body.price !== undefined || body.priceMin !== undefined || body.priceMax !== undefined;
-    if (touchesPrice) {
+    // Skip the manual price/range validation entirely once packages own
+    // the price — the admin form never sends price alongside packages,
+    // but stay defensive rather than reject a well-formed derived update.
+    if (touchesPrice && !hasPackagesAfterUpdate) {
       const usingPriceRange = !!(body.priceMin || body.priceMax);
       if (usingPriceRange) {
         const min = body.priceMin != null ? Number(body.priceMin) : null;
@@ -90,15 +110,35 @@ export async function PATCH(request: Request, { params }: Params) {
           await tx.bulkPriceTier.deleteMany({ where: { productId } });
         }
 
-        // Perform main update and create new bulk pricing tiers nested in a single query
+        // Same replace-in-place pattern for Software packages: if the
+        // client sent a packages array, the old rows are fully replaced
+        // (not merged) — matches how bulkPricing already behaves above.
+        if (touchesPackages) {
+          await tx.softwarePackage.deleteMany({ where: { productId } });
+        }
+
+        // Perform main update and create new bulk pricing tiers / packages
+        // nested in a single query.
         return tx.product.update({
           where: { id: productId },
           data: {
             name: body.name?.trim() || undefined,
             description: body.description !== undefined ? nullableString(body.description) : undefined,
-            price: body.price !== undefined ? (body.price === null ? null : Number(body.price)) : undefined,
-            priceMin: body.priceMin !== undefined ? (body.priceMin === null ? null : Number(body.priceMin)) : undefined,
-            priceMax: body.priceMax !== undefined ? (body.priceMax === null ? null : Number(body.priceMax)) : undefined,
+            // Never trust a client-supplied price once packages own it.
+            // Three cases:
+            //  - packages were just updated and still non-empty: recompute
+            //    from the new set.
+            //  - packages untouched this request but the product already
+            //    has some: leave price alone (undefined) — it's already
+            //    correct from the last time packages changed, and we only
+            //    selected `id` on existing.packages so we don't have their
+            //    price/billingPeriod to recompute from anyway.
+            //  - no packages involved at all: normal client-supplied value.
+            price: hasPackagesAfterUpdate
+              ? (touchesPackages ? computeDerivedMonthlyPrice(cleanPackages) : undefined)
+              : (body.price !== undefined ? (body.price === null ? null : Number(body.price)) : undefined),
+            priceMin: hasPackagesAfterUpdate ? null : (body.priceMin !== undefined ? (body.priceMin === null ? null : Number(body.priceMin)) : undefined),
+            priceMax: hasPackagesAfterUpdate ? null : (body.priceMax !== undefined ? (body.priceMax === null ? null : Number(body.priceMax)) : undefined),
             currency: body.currency || undefined,
             image: body.image !== undefined ? nullableString(body.image) : undefined,
             url: body.url !== undefined ? nullableString(body.url) : undefined,
@@ -139,14 +179,23 @@ export async function PATCH(request: Request, { params }: Params) {
             processingTimeMinDays: body.processingTimeMinDays !== undefined ? (body.processingTimeMinDays === null || body.processingTimeMinDays === '' ? null : Number(body.processingTimeMinDays)) : undefined,
             processingTimeMaxDays: body.processingTimeMaxDays !== undefined ? (body.processingTimeMaxDays === null || body.processingTimeMaxDays === '' ? null : Number(body.processingTimeMaxDays)) : undefined,
 
+            // Software — simple flat-price cadence. Meaningless once
+            // packages exist, so force it null in that case regardless of
+            // what the client sent (it should already be sending null).
+            billingPeriod: hasPackagesAfterUpdate ? null : (body.billingPeriod !== undefined ? (body.billingPeriod || null) : undefined),
+
             ...(body.bulkPricing !== undefined && tiers.length > 0
               ? { bulkPricing: { createMany: { data: tiers } } }
+              : {}),
+            ...(touchesPackages && cleanPackages.length > 0
+              ? { packages: { createMany: { data: cleanPackages } } }
               : {}),
           },
           include: {
             template: { select: { id: true, name: true, category: true } },
             vendor: true,
             bulkPricing: true,
+            packages: { orderBy: { displayOrder: 'asc' } },
           },
         });
       },

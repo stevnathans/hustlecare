@@ -5,7 +5,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Product, VendorTuple } from 'types/vendor';
 import { RequirementOption } from './shared/RequirementPicker';
-import ProductForm, { EMPTY_PRODUCT_FORM, ProductFormValues, BulkTier } from './shared/ProductForm';
+import ProductForm, {
+  EMPTY_PRODUCT_FORM, ProductFormValues, BulkTier, SoftwarePackageRow, BillingPeriodValue,
+} from './shared/ProductForm';
 
 type Props = {
   open: boolean;
@@ -18,6 +20,7 @@ type Props = {
 export default function ProductFormModal({ open, setOpen, fetchProducts, editingProduct, vendors }: Props) {
   const [form, setForm] = useState<ProductFormValues>(EMPTY_PRODUCT_FORM);
   const [bulkTiers, setBulkTiers] = useState<BulkTier[]>([]);
+  const [packages, setPackages] = useState<SoftwarePackageRow[]>([]);
   const [requirements, setRequirements] = useState<RequirementOption[]>([]);
   const [loadingRequirements, setLoadingRequirements] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -25,6 +28,20 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
   const firstInputRef = useRef<HTMLInputElement>(null);
 
   const isShellProduct = !!editingProduct?.isFeeScheduleShell;
+
+  // Same lookup ProductForm does internally — needed here too because
+  // validation and payload-building both need to know whether the
+  // selected requirement is Software, and ProductForm doesn't expose that
+  // back up to us.
+  const selectedRequirement = requirements.find((r) => r.id.toString() === form.templateId);
+  const isSoftwareRequirement = selectedRequirement?.category === 'Software';
+
+  // If the admin filled in package rows, then switched the requirement to
+  // something other than Software (or cleared it), those rows would
+  // silently be dropped on save — isSoftwareRequirement just becomes
+  // false and the payload stops sending them. Surface that instead of
+  // letting it happen quietly.
+  const hasOrphanedPackageData = !isSoftwareRequirement && packages.some((pkg) => pkg.name.trim() || pkg.price.trim());
 
   useEffect(() => {
     if (!open) return;
@@ -56,6 +73,9 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
         validityUnit: p.validityUnit || 'years',
         processingTimeMinDays: p.processingTimeMinDays?.toString() || '',
         processingTimeMaxDays: p.processingTimeMaxDays?.toString() || '',
+
+        softwarePackagesEnabled: Array.isArray(p.packages) && p.packages.length > 0,
+        billingPeriod: (p.billingPeriod as BillingPeriodValue) || 'MONTHLY',
       });
       setBulkTiers(
         Array.isArray(p.bulkPricing)
@@ -65,9 +85,25 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
             }))
           : []
       );
+      setPackages(
+        Array.isArray(p.packages)
+          ? p.packages
+              .slice()
+              .sort((a: any, b: any) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
+              .map((pkg: any) => ({
+                name: pkg.name || '',
+                description: pkg.description || '',
+                price: pkg.price != null ? String(pkg.price) : '',
+                billingPeriod: (pkg.billingPeriod as BillingPeriodValue) || 'MONTHLY',
+                features: Array.isArray(pkg.features) ? pkg.features.join('\n') : '',
+                isPopular: !!pkg.isPopular,
+              }))
+          : []
+      );
     } else {
       setForm(EMPTY_PRODUCT_FORM);
       setBulkTiers([]);
+      setPackages([]);
     }
     setErrors({});
     setTimeout(() => firstInputRef.current?.focus(), 80);
@@ -89,11 +125,22 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
     // and their vendor/requirement links are fixed at creation. Requiring
     // a price here is exactly what previously blocked editing them.
     if (!isShellProduct) {
-      if (!form.usePriceRange && (!form.price.trim() || isNaN(Number(form.price)) || Number(form.price) < 0)) {
+      const priceIsDerivedFromPackages = isSoftwareRequirement && form.softwarePackagesEnabled;
+
+      // Skip the flat-price check entirely when packages own the price —
+      // Product.price gets computed server-side from the packages below.
+      if (!priceIsDerivedFromPackages && !form.usePriceRange && (!form.price.trim() || isNaN(Number(form.price)) || Number(form.price) < 0)) {
         errs.price = 'Enter a valid price';
       }
       if (!form.vendorId) errs.vendorId = 'Select a vendor';
       if (!form.templateId) errs.templateId = 'Select a requirement';
+
+      if (priceIsDerivedFromPackages) {
+        const validPackages = packages.filter((pkg) => pkg.name.trim() && pkg.price.trim() && !isNaN(Number(pkg.price)));
+        if (validPackages.length === 0) {
+          errs.name = errs.name || 'Add at least one package with a name and price, or turn off "multiple packages"';
+        }
+      }
     }
 
     setErrors(errs);
@@ -104,6 +151,8 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
     if (!validate()) return;
     setSaving(true);
     try {
+      const priceIsDerivedFromPackages = isSoftwareRequirement && form.softwarePackagesEnabled;
+
       // Shell products: only send the fields that are actually editable
       // for them (name, description, image, url). Deliberately omit
       // price/priceMin/priceMax/vendorId/templateId/condition/warranty/
@@ -120,9 +169,13 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
           }
         : {
             ...form,
-            price: form.usePriceRange ? null : Number(form.price),
-            priceMin: form.usePriceRange && form.priceMin ? Number(form.priceMin) : null,
-            priceMax: form.usePriceRange && form.priceMax ? Number(form.priceMax) : null,
+            // Price is server-derived (lowest monthly-equivalent) when
+            // packages are enabled — omit it so the API's own
+            // calculation is what actually gets stored, never a stale
+            // client value.
+            price: priceIsDerivedFromPackages ? undefined : (form.usePriceRange ? null : Number(form.price)),
+            priceMin: !priceIsDerivedFromPackages && form.usePriceRange && form.priceMin ? Number(form.priceMin) : null,
+            priceMax: !priceIsDerivedFromPackages && form.usePriceRange && form.priceMax ? Number(form.priceMax) : null,
             sku: form.sku || null,
             stock: form.stock ? parseInt(form.stock) : null,
             vendorId: Number(form.vendorId),
@@ -137,6 +190,27 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
             validityUnit: form.validityValue ? form.validityUnit : null,
             processingTimeMinDays: form.processingTimeMinDays ? parseInt(form.processingTimeMinDays) : null,
             processingTimeMaxDays: form.processingTimeMaxDays ? parseInt(form.processingTimeMaxDays) : null,
+
+            // Simple-case billing cadence only applies when there are no
+            // packages — clear it otherwise so it can't linger as stale
+            // data from before packages were turned on.
+            billingPeriod: priceIsDerivedFromPackages ? null : form.billingPeriod,
+            packages: priceIsDerivedFromPackages
+              ? packages
+                  .filter((pkg) => pkg.name.trim() && pkg.price.trim() && !isNaN(Number(pkg.price)))
+                  .map((pkg, i) => ({
+                    name: pkg.name.trim(),
+                    description: pkg.description.trim() || null,
+                    price: Number(pkg.price),
+                    billingPeriod: pkg.billingPeriod,
+                    features: pkg.features
+                      .split('\n')
+                      .map((line) => line.trim())
+                      .filter(Boolean),
+                    isPopular: pkg.isPopular,
+                    displayOrder: i,
+                  }))
+              : [],
           };
 
       const url = editingProduct ? `/api/admin/products/${editingProduct.id}` : '/api/admin/products';
@@ -172,6 +246,15 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
         </div>
         <div className="modal-divider" />
         <div className="modal-body">
+          {hasOrphanedPackageData && (
+            <div
+              className="mb-3 rounded-lg border px-3 py-2 text-xs"
+              style={{ borderColor: 'rgba(245, 158, 11, 0.4)', backgroundColor: 'rgba(245, 158, 11, 0.08)', color: '#f59e0b' }}
+            >
+              This product has software package data entered, but the selected requirement isn&apos;t Software —
+              those packages won&apos;t be saved. Switch the requirement back to a Software one to keep them.
+            </div>
+          )}
           <ProductForm
             mode="admin"
             theme="dark"
@@ -183,6 +266,8 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
             vendors={vendors}
             bulkTiers={bulkTiers}
             setBulkTiers={setBulkTiers}
+            packages={packages}
+            setPackages={setPackages}
             isFeeScheduleShell={isShellProduct}
           />
         </div>

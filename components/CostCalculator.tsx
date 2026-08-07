@@ -332,7 +332,11 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
             const tableData = products
               .filter((item) => !item.isProductless)
               .map(item => [
-                item.name,
+                // Software items carry a snapshotted billing cadence (e.g.
+                // "Monthly") alongside the chosen package's price — surface
+                // it here so the PDF export doesn't quietly lose the fact
+                // that this is a recurring line, not a one-off purchase.
+                item.billingPeriodLabel ? `${item.name} (${item.billingPeriodLabel})` : item.name,
                 item.quantity.toString(),
                 `KSh ${formatCurrency(item.price)}`,
                 `KSh ${formatCurrency(item.price * item.quantity)}`
@@ -668,7 +672,10 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
                                       <h5 className="font-medium text-xs sm:text-sm text-gray-800 truncate group-hover:text-emerald-600 group-hover:underline">
                                         {item.name}
                                       </h5>
-                                      <p className="text-xs text-gray-500 mt-0.5">KSh {formatCurrency(item.price)}</p>
+                                      <p className="text-xs text-gray-500 mt-0.5">
+                                        KSh {formatCurrency(item.price)}
+                                        {item.billingPeriodLabel && ` / ${item.billingPeriodLabel}`}
+                                      </p>
                                     </div>
                                   </Link>
                                   

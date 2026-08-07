@@ -114,8 +114,19 @@ model CartItem {
   cart            Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
   product         Product  @relation(fields: [productId], references: [id])
 
+  // Chosen SoftwarePackage for a software product, if any. Nullable
+  // because most products (and simple-pricing software products) don't
+  // have packages. onDelete: SetNull rather than Cascade — if an admin
+  // deletes a package that's already in someone's cart, we keep the cart
+  // line (with its snapshotted unitPrice/label) rather than silently
+  // dropping it.
+  packageId          Int?
+  billingPeriodLabel String?
+  package            SoftwarePackage? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+
   @@unique([cartId, productId])
   @@index([cartId])
+  @@index([packageId])
 }
 
 model Business {
@@ -357,6 +368,19 @@ model Product {
   // other product instead of living only in browser memory.
   isFeeScheduleShell Boolean @default(false)
 
+  // Software — for a simple flat-price product with ONE price and no
+  // packages: which cadence that price bills on. Only meaningful when
+  // `packages` is empty — a product WITH packages ignores this (kept
+  // null server-side once packages exist; see lib/product-validation.ts).
+  billingPeriod BillingPeriod?
+
+  // Software — package/subscription tiers (Starter/Pro/Enterprise-style).
+  // When non-empty, `price` above is kept in sync server-side as the
+  // lowest monthly-equivalent price across these packages, computed by
+  // computeDerivedMonthlyPrice() in lib/product-validation.ts — never
+  // edited directly once packages exist.
+  packages SoftwarePackage[]
+
   cartItems  CartItem[]
   template   RequirementTemplate? @relation(fields: [templateId], references: [id])
   vendor     Vendor?              @relation(fields: [vendorId], references: [id])
@@ -381,6 +405,36 @@ model BulkPriceTier {
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
+}
+
+// A purchasable package/tier for a Software-category product (e.g.
+// Starter/Pro/Enterprise), each with its own price and billing period.
+// Same child-of-Product pattern as BulkPriceTier, but for capability
+// tiers instead of quantity tiers.
+model SoftwarePackage {
+  id            Int           @id @default(autoincrement())
+  productId     Int
+  name          String
+  description   String?
+  price         Float
+  billingPeriod BillingPeriod
+  features      String[]
+  isPopular     Boolean       @default(false)
+  displayOrder  Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  product   Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  cartItems CartItem[]
+
+  @@index([productId])
+}
+
+enum BillingPeriod {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+  ONE_TIME
 }
 
 model Review {

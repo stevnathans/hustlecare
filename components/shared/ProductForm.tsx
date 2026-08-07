@@ -17,11 +17,23 @@
 // (Vendor.servesAllCounties / Vendor.counties), not from the product
 // itself, so admins just pick the right vendor and validity/processing
 // time here.
+//
+// Software Packages section: admin-only, and only shown when the selected
+// requirement's category is "Software". Off by default (simple flat price +
+// billing period, using the existing Price field in Pricing + the new
+// billingPeriod dropdown here). Toggled on, it switches to a list of
+// packages (Starter/Pro/Enterprise-style), same add/remove row pattern as
+// the existing bulk-pricing-tier UI below. When packages are enabled, the
+// Price field in the Pricing section becomes read-only — it's recalculated
+// server-side on save as the lowest monthly-equivalent price across
+// packages (QUARTERLY / 3, YEARLY / 12, MONTHLY as-is; ONE_TIME packages
+// are excluded from that comparison unless they're the only packages a
+// product has) — so nothing typed there would stick anyway.
 
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import {
-  Tag, Package, DollarSign, Layers, ShieldCheck, Truck, Cpu, Percent, Plus, Trash2, MapPin, Clock, Search, FileText
+  Tag, Package, DollarSign, Layers, ShieldCheck, Truck, Cpu, Percent, Plus, Trash2, MapPin, Clock, Search, FileText, Boxes, Star
 } from 'lucide-react';
 import RequirementPicker, { RequirementOption } from './RequirementPicker';
 
@@ -29,6 +41,18 @@ export type ProductFormTheme = 'light' | 'dark';
 export type ProductFormMode = 'vendor' | 'admin';
 
 export type BulkTier = { minQty: string; price: string };
+
+export type BillingPeriodValue = 'MONTHLY' | 'QUARTERLY' | 'YEARLY' | 'ONE_TIME';
+
+export type SoftwarePackageRow = {
+  name: string;
+  description: string;
+  price: string;
+  billingPeriod: BillingPeriodValue;
+  /** One feature per line in the textarea; parent splits on save. */
+  features: string;
+  isPopular: boolean;
+};
 
 export type ProductFormValues = {
   name: string;
@@ -75,6 +99,11 @@ export type ProductFormValues = {
   validityUnit: 'days' | 'months' | 'years';
   processingTimeMinDays: string;
   processingTimeMaxDays: string;
+
+  // Software (admin only, Software-category requirements only)
+  softwarePackagesEnabled: boolean;
+  /** Simple-case billing cadence — only meaningful when softwarePackagesEnabled is false. */
+  billingPeriod: BillingPeriodValue;
 };
 
 /** Spread this into your initial state on both sides so every field always has a value. */
@@ -87,6 +116,7 @@ export const EMPTY_PRODUCT_FORM: ProductFormValues = {
   deliveryAvailable: false, pickupLocation: '', leadTime: 'IN_STOCK',
   negotiable: false, bulkPricingEnabled: false, publishImmediately: false,
   validityValue: '', validityUnit: 'years', processingTimeMinDays: '', processingTimeMaxDays: '',
+  softwarePackagesEnabled: false, billingPeriod: 'MONTHLY',
 };
 
 type Props = {
@@ -100,13 +130,16 @@ type Props = {
   vendors?: [string, string][];
   bulkTiers?: BulkTier[];
   setBulkTiers?: (updater: (t: BulkTier[]) => BulkTier[]) => void;
+  /** Software packages (Starter/Pro/Enterprise-style) — admin + Software requirement only. */
+  packages?: SoftwarePackageRow[];
+  setPackages?: (updater: (p: SoftwarePackageRow[]) => SoftwarePackageRow[]) => void;
   /** True for a system-generated county-fee shell product — hides price/vendor/legal fields that don't apply to it. */
   isFeeScheduleShell?: boolean;
 };
 
 export default function ProductForm({
   mode, theme, form, setForm, errors, requirements, loadingRequirements = false,
-  vendors = [], bulkTiers = [], setBulkTiers, isFeeScheduleShell,
+  vendors = [], bulkTiers = [], setBulkTiers, packages = [], setPackages, isFeeScheduleShell,
 }: Props) {
   const t = tokens(theme);
   const isShellProduct = mode === 'admin' && isFeeScheduleShell;
@@ -114,19 +147,42 @@ export default function ProductForm({
   const [vendorSearch, setVendorSearch] = useState('');
   const [isVendorDropdownOpen, setIsVendorDropdownOpen] = useState(false);
 
-  // Which requirement is selected, and is it Legal? Drives the Legal
-  // Details section below — admin-only, so vendors never see it.
+  // Which requirement is selected, and is it Legal / Software? Drives the
+  // Legal Details / Software Packages sections below — admin-only, so
+  // vendors never see either.
   const selectedRequirement = requirements.find((r) => r.id.toString() === form.templateId);
   const isLegalRequirement = mode === 'admin' && selectedRequirement?.category === 'Legal';
+  const isSoftwareRequirement = mode === 'admin' && selectedRequirement?.category === 'Software';
+
+  // Once packages are enabled, Product.price is recalculated server-side
+  // from them on every save — nothing typed into the Price field in the
+  // Pricing section below would stick, so it's shown disabled with a note.
+  const priceIsDerivedFromPackages = isSoftwareRequirement && form.softwarePackagesEnabled;
 
   const addBulkTier    = () => setBulkTiers?.(rows => [...rows, { minQty: '', price: '' }]);
   const updateBulkTier = (i: number, key: keyof BulkTier, value: string) =>
     setBulkTiers?.(rows => rows.map((row, idx) => (idx === i ? { ...row, [key]: value } : row)));
   const removeBulkTier = (i: number) => setBulkTiers?.(rows => rows.filter((_, idx) => idx !== i));
 
+  const addPackage = () =>
+    setPackages?.(rows => [
+      ...rows,
+      { name: '', description: '', price: '', billingPeriod: 'MONTHLY', features: '', isPopular: false },
+    ]);
+  const updatePackage = (i: number, key: keyof SoftwarePackageRow, value: string | boolean) =>
+    setPackages?.(rows => rows.map((row, idx) => (idx === i ? { ...row, [key]: value } : row)));
+  const removePackage = (i: number) => setPackages?.(rows => rows.filter((_, idx) => idx !== i));
+
   const filteredVendors = vendors.filter(([, name]) =>
     name.toLowerCase().includes(vendorSearch.toLowerCase())
   );
+
+  const billingPeriodLabel: Record<BillingPeriodValue, string> = {
+    MONTHLY: 'Monthly',
+    QUARTERLY: 'Quarterly',
+    YEARLY: 'Yearly',
+    ONE_TIME: 'One-time',
+  };
 
   return (
     <div className="flex flex-col gap-4" style={theme === 'dark' ? { colorScheme: 'dark' } : undefined}>
@@ -299,6 +355,127 @@ export default function ProductForm({
         </Section>
       )}
 
+      {/* Software Packages — admin only, only when the selected requirement is Software.
+          Off by default: simple flat Price (Pricing section) + a billing cadence here.
+          On: a list of packages, same add/remove-row pattern as bulk pricing tiers below. */}
+      {isSoftwareRequirement && (
+        <Section
+          theme={theme}
+          title="Software Packages"
+          icon={<Boxes size={14} />}
+          subtitle="Does this software have multiple pricing tiers (Starter/Pro/Enterprise), or one flat price?"
+        >
+          <label className={t.inlineCheckbox}>
+            <input
+              type="checkbox"
+              checked={form.softwarePackagesEnabled}
+              onChange={(e) => setForm((f) => ({ ...f, softwarePackagesEnabled: e.target.checked }))}
+            />
+            This software has multiple packages
+          </label>
+
+          {!form.softwarePackagesEnabled ? (
+            <div className="max-w-xs">
+              <label className={t.label}>Billing period</label>
+              <select
+                className={t.input}
+                value={form.billingPeriod}
+                onChange={(e) => setForm((f) => ({ ...f, billingPeriod: e.target.value as BillingPeriodValue }))}
+              >
+                {(Object.keys(billingPeriodLabel) as BillingPeriodValue[]).map((bp) => (
+                  <option key={bp} value={bp}>{billingPeriodLabel[bp]}</option>
+                ))}
+              </select>
+              <p className="mt-2 text-xs text-gray-400">
+                Uses the Price field in the Pricing section below as the flat subscription price.
+              </p>
+            </div>
+          ) : (
+            <div className={t.tierBox}>
+              {packages.length === 0 && (
+                <p className="mb-2 text-xs text-gray-400">Add each package your customers can choose between.</p>
+              )}
+              <div className="flex flex-col gap-3">
+                {packages.map((pkg, i) => (
+                  <div
+                    key={i}
+                    className="rounded-lg border p-3"
+                    style={{
+                      borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : '#e5e7eb',
+                      backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.02)' : '#ffffff',
+                    }}
+                  >
+                    <div className={`${t.twoCol} mb-2`}>
+                      <input
+                        className={t.input}
+                        placeholder="Package name (e.g. Pro)"
+                        value={pkg.name}
+                        onChange={(e) => updatePackage(i, 'name', e.target.value)}
+                      />
+                      <div className="flex gap-2">
+                        <input
+                          className={t.input}
+                          type="number" min="0"
+                          placeholder={`Price (${form.currency})`}
+                          value={pkg.price}
+                          onChange={(e) => updatePackage(i, 'price', e.target.value)}
+                        />
+                        <select
+                          className={`${t.input} max-w-[130px]`}
+                          value={pkg.billingPeriod}
+                          onChange={(e) => updatePackage(i, 'billingPeriod', e.target.value as BillingPeriodValue)}
+                        >
+                          {(Object.keys(billingPeriodLabel) as BillingPeriodValue[]).map((bp) => (
+                            <option key={bp} value={bp}>{billingPeriodLabel[bp]}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <input
+                      className={`${t.input} mb-2`}
+                      placeholder="Short description (optional)"
+                      value={pkg.description}
+                      onChange={(e) => updatePackage(i, 'description', e.target.value)}
+                    />
+
+                    <textarea
+                      className={`${t.input} mb-2 resize-y leading-relaxed`}
+                      rows={3}
+                      placeholder={'Features, one per line\ne.g. Up to 5 users\nPriority support'}
+                      value={pkg.features}
+                      onChange={(e) => updatePackage(i, 'features', e.target.value)}
+                    />
+
+                    <div className="flex items-center justify-between">
+                      <label className={`${t.inlineCheckboxSmall} mb-0`}>
+                        <input
+                          type="checkbox"
+                          checked={pkg.isPopular}
+                          onChange={(e) => updatePackage(i, 'isPopular', e.target.checked)}
+                        />
+                        <Star size={12} className={pkg.isPopular ? 'text-amber-500' : t.mutedIcon} />
+                        Mark as popular
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => removePackage(i)}
+                        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button type="button" onClick={addPackage} className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-emerald-600 hover:text-emerald-700">
+                <Plus size={13} /> Add package
+              </button>
+            </div>
+          )}
+        </Section>
+      )}
+
       {isShellProduct && (
   <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4 text-sm text-gray-600">
     This is a system-managed product representing a county-issued requirement.
@@ -448,14 +625,28 @@ export default function ProductForm({
 
           <div>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <label className={`${t.label} mb-0`}>Price {!form.usePriceRange && <span className={t.required}>*</span>}</label>
-              <label className={t.inlineCheckboxSmall}>
-                <input type="checkbox" checked={form.usePriceRange} onChange={(e) => setForm((f) => ({ ...f, usePriceRange: e.target.checked }))} />
-                Use range
-              </label>
+              <label className={`${t.label} mb-0`}>Price {!form.usePriceRange && !priceIsDerivedFromPackages && <span className={t.required}>*</span>}</label>
+              {!priceIsDerivedFromPackages && (
+                <label className={t.inlineCheckboxSmall}>
+                  <input type="checkbox" checked={form.usePriceRange} onChange={(e) => setForm((f) => ({ ...f, usePriceRange: e.target.checked }))} />
+                  Use range
+                </label>
+              )}
             </div>
             <div className="mt-1.5">
-              {!form.usePriceRange ? (
+              {priceIsDerivedFromPackages ? (
+                <>
+                  <input
+                    className={t.input}
+                    value={form.price ? `${form.currency} ${form.price} / mo` : 'Calculated on save'}
+                    disabled
+                    style={{ opacity: 0.6, cursor: 'not-allowed' }}
+                  />
+                  <p className="mt-1 text-xs text-gray-400">
+                    Auto-calculated from packages (lowest monthly-equivalent price) — not editable here.
+                  </p>
+                </>
+              ) : !form.usePriceRange ? (
                 <>
                   <input
                     type="number" className={`${t.input} ${errors.price ? t.inputError : ''}`} placeholder="0.00"

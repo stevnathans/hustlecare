@@ -1,5 +1,5 @@
 // types/vendor.ts
-import { County } from './index';
+import { County, BillingPeriod, SoftwarePackage } from './index';
 
 export type Vendor = {
   id: number;
@@ -87,6 +87,16 @@ export type Product = {
   processingTimeMinDays?: number | null;
   processingTimeMaxDays?: number | null;
   isFeeScheduleShell?: boolean;
+
+  // Software — simple flat-price cadence, and/or package tiers. Sourced
+  // from types/index.ts rather than redeclared here so the admin-facing
+  // (this file) and storefront-facing (index.ts) Product types can't drift
+  // apart on what a "package" or "billing period" actually looks like.
+  // Package creation is admin-only (see ProductForm.tsx's mode === 'admin'
+  // gate) — a vendor never writes these fields, only reads them, e.g. to
+  // see packages an admin has already assigned to their listing.
+  billingPeriod?: BillingPeriod | null;
+  packages?: SoftwarePackage[];
 };
 
 export type SortField = 'name' | 'price' | 'vendor' | 'id' | 'status';

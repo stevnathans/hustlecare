@@ -39,6 +39,14 @@ export async function GET(request: Request) {
       include: {
         template: { select: { id: true, name: true, category: true } },
         bulkPricing: true,
+        // Read-only for a vendor — package creation is admin-only (see
+        // ProductForm.tsx's mode === 'admin' gate) — but a vendor should
+        // still be able to see tiers an admin has already assigned to
+        // their listing rather than the dashboard silently omitting them.
+        // billingPeriod is a plain scalar column on Product, so it's
+        // already returned by default with `include` and needs no
+        // explicit selection here.
+        packages: { orderBy: { displayOrder: 'asc' } },
         _count: { select: { reviews: true, cartItems: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -51,6 +59,13 @@ export async function GET(request: Request) {
   }
 }
 
+// POST — vendor-authored product. Deliberately has no knowledge of
+// Software packages/billingPeriod: package creation is admin-only (see
+// ProductForm.tsx's mode === 'admin' gate on the Software Packages
+// section), so a vendor never submits either field here. This is safe
+// even against a malicious request body, since `data` below is built
+// field-by-field rather than spread from `body` — an extra
+// `packages`/`billingPeriod` key in the JSON payload is simply never read.
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);

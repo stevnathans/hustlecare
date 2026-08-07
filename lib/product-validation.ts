@@ -7,10 +7,21 @@ export const VALID_RECEIPT_STATUSES = ['YES', 'NO', 'UNKNOWN'];
 export const VALID_WARRANTY_TYPES = ['NONE', 'MANUFACTURER', 'VENDOR'];
 export const VALID_CONDITIONS = ['NEW', 'USED'];
 export const VALID_PRODUCT_STATUSES = ['DRAFT', 'PENDING_REVIEW', 'ACTIVE', 'REJECTED', 'ARCHIVED'];
+export const VALID_BILLING_PERIODS = ['MONTHLY', 'QUARTERLY', 'YEARLY', 'ONE_TIME'];
 export const MAX_CSV_IMPORT_ROWS = 100;
 export const MAX_PENDING_PRODUCTS_PER_VENDOR = 150;
 
 export interface BulkTierInput { minQty: number | string; price: number | string }
+
+export interface SoftwarePackageInput {
+  name: string;
+  description?: string | null;
+  price: number | string;
+  billingPeriod: string;
+  features?: unknown;
+  isPopular?: unknown;
+  displayOrder?: number | string;
+}
 
 /**
  * Validates every enum-ish field on a product payload. Used by both the
@@ -22,7 +33,7 @@ export function validateProductEnums(body: Record<string, unknown>): string[] {
   const errors: string[] = [];
   const {
     condition, usedDurationUnit, hasReceipt, weightUnit, warrantyType,
-    warrantyDurationUnit, leadTime, status, validityUnit,
+    warrantyDurationUnit, leadTime, status, validityUnit, billingPeriod,
   } = body as any;
 
   if (condition !== undefined && condition !== null && !VALID_CONDITIONS.includes(condition)) {
@@ -51,6 +62,12 @@ export function validateProductEnums(body: Record<string, unknown>): string[] {
   }
   if (validityUnit !== undefined && validityUnit !== null && !VALID_DURATION_UNITS.includes(validityUnit)) {
     errors.push('Invalid validity unit.');
+  }
+  // Simple-case (no packages) software billing cadence. When packages are
+  // present the route clears this to null before it gets here in practice,
+  // but validate it defensively regardless of who's calling.
+  if (billingPeriod !== undefined && billingPeriod !== null && !VALID_BILLING_PERIODS.includes(billingPeriod)) {
+    errors.push('Invalid billing period.');
   }
   return errors;
 }
@@ -83,6 +100,86 @@ export function validateBulkPricing(bulkPricing: unknown): { errors: string[]; t
   };
 }
 
+/**
+ * Validates and normalizes Software package rows (Starter/Pro/Enterprise-
+ * style tiers). Same shape convention as validateBulkPricing — returns
+ * either errors or clean rows ready for Prisma's nested `create`.
+ *
+ * Never trust the client's `price` beyond "is this a valid number" — the
+ * actual Product.price the rest of the app reads gets computed from these
+ * rows server-side by computeDerivedMonthlyPrice, not passed through.
+ */
+export function validateSoftwarePackages(
+  packages: unknown
+): { errors: string[]; packages: { name: string; description: string | null; price: number; billingPeriod: string; features: string[]; isPopular: boolean; displayOrder: number }[] } {
+  if (packages === undefined || packages === null) return { errors: [], packages: [] };
+  if (!Array.isArray(packages)) return { errors: ['packages must be an array.'], packages: [] };
+
+  const cleaned: { name: string; description: string | null; price: number; billingPeriod: string; features: string[]; isPopular: boolean; displayOrder: number }[] = [];
+
+  for (let i = 0; i < packages.length; i++) {
+    const pkg = (packages as SoftwarePackageInput[])[i];
+    if (pkg == null || typeof pkg.name !== 'string' || !pkg.name.trim()) {
+      return { errors: ['Each software package needs a name.'], packages: [] };
+    }
+    if (Number.isNaN(Number(pkg.price)) || Number(pkg.price) < 0) {
+      return { errors: [`Package "${pkg.name}" needs a non-negative price.`], packages: [] };
+    }
+    if (!pkg.billingPeriod || !VALID_BILLING_PERIODS.includes(pkg.billingPeriod)) {
+      return { errors: [`Package "${pkg.name}" has an invalid billing period.`], packages: [] };
+    }
+    const features = Array.isArray(pkg.features)
+      ? pkg.features.filter((f): f is string => typeof f === 'string' && f.trim() !== '').map((f) => f.trim())
+      : [];
+
+    cleaned.push({
+      name: pkg.name.trim(),
+      description: typeof pkg.description === 'string' && pkg.description.trim() ? pkg.description.trim() : null,
+      price: Number(pkg.price),
+      billingPeriod: pkg.billingPeriod,
+      features,
+      isPopular: !!pkg.isPopular,
+      displayOrder: pkg.displayOrder != null && !Number.isNaN(Number(pkg.displayOrder)) ? Number(pkg.displayOrder) : i,
+    });
+  }
+
+  return { errors: [], packages: cleaned };
+}
+
+/**
+ * Product.price for a Software product with packages is always derived
+ * server-side, never trusted from the client — this is the single source
+ * of truth for that formula, called from both the create and update
+ * routes so they can't drift apart.
+ *
+ * Normalizes QUARTERLY (÷3) and YEARLY (÷12) against MONTHLY to find the
+ * lowest monthly-equivalent price. ONE_TIME packages are excluded from
+ * that comparison — a one-off cost isn't a fair "per month" figure — UNLESS
+ * every package is ONE_TIME, in which case falls back to the lowest raw
+ * ONE_TIME price so the product still gets a sensible "starting from".
+ *
+ * Returns null only when `packages` is empty (nothing to derive from).
+ */
+export function computeDerivedMonthlyPrice(packages: { price: number; billingPeriod: string }[]): number | null {
+  if (!packages || packages.length === 0) return null;
+
+  const monthlyEquivalents = packages
+    .filter((p) => p.billingPeriod !== 'ONE_TIME')
+    .map((p) => {
+      if (p.billingPeriod === 'QUARTERLY') return p.price / 3;
+      if (p.billingPeriod === 'YEARLY') return p.price / 12;
+      return p.price; // MONTHLY
+    });
+
+  if (monthlyEquivalents.length > 0) {
+    return Math.min(...monthlyEquivalents);
+  }
+
+  // Every package is ONE_TIME — fall back to the lowest raw price.
+  const oneTimePrices = packages.map((p) => p.price);
+  return Math.min(...oneTimePrices);
+}
+
 /** True if `v` is present and not an empty string (but 0 and false both count as present). */
 export function hasValue(v: unknown): boolean {
   return v !== undefined && v !== null && v !== '';
@@ -99,6 +196,14 @@ export function hasValue(v: unknown): boolean {
  *  "used for 0 months" instead of leaving it unset). weight, validityValue,
  *  and processingTimeMinDays/MaxDays were already guarded correctly — this
  *  just brings the rest of the function in line with that same pattern.
+ *
+ *  NOTE on billingPeriod/price for Software products with packages: this
+ *  function has no knowledge of packages (it's a pure field mapper), so it
+ *  maps price/billingPeriod exactly as given. The route is responsible for
+ *  overriding `price` with computeDerivedMonthlyPrice(...) and forcing
+ *  `billingPeriod: null` whenever packages.length > 0 — the client already
+ *  sends billingPeriod: null in that case, but the route should not rely
+ *  on that alone.
  */
 export function mapProductCreateFields(body: Record<string, any>) {
   const isUsed = body.condition === 'USED';
@@ -145,5 +250,10 @@ export function mapProductCreateFields(body: Record<string, any>) {
     validityUnit: hasValidity ? (body.validityUnit || null) : null,
     processingTimeMinDays: hasValue(body.processingTimeMinDays) ? Number(body.processingTimeMinDays) : null,
     processingTimeMaxDays: hasValue(body.processingTimeMaxDays) ? Number(body.processingTimeMaxDays) : null,
+
+    // Software — simple flat-price cadence. Only meaningful when the
+    // product has no packages; see NOTE above for how the route overrides
+    // this when it does.
+    billingPeriod: hasValue(body.billingPeriod) ? body.billingPeriod : null,
   };
 }

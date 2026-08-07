@@ -43,12 +43,37 @@ export interface LegalFeeSchedule {
   notes: string | null;
 }
 
+// Software subscription cadence — shared by Product.billingPeriod (the
+// simple flat-price case) and SoftwarePackage.billingPeriod (each tier's
+// own cadence).
+export type BillingPeriod = 'MONTHLY' | 'QUARTERLY' | 'YEARLY' | 'ONE_TIME';
+
+// A purchasable tier for a Software-category product (Starter/Pro/
+// Enterprise-style). Only present when Product.packages is non-empty —
+// see the comment on Product.price below for how the two interact.
+export interface SoftwarePackage {
+  id: number;
+  name: string;
+  description: string | null;
+  price: number;
+  billingPeriod: BillingPeriod;
+  features: string[];
+  isPopular: boolean;
+  displayOrder: number;
+}
+
 export interface Product {
   unit: number;
   inCart: boolean;
   id: number;
   name: string;
   image?: string;
+  // For a Software product WITH packages, this is the pre-computed lowest
+  // monthly-equivalent price across `packages` ("starting from") — kept in
+  // sync server-side on every save, never edited directly. Everywhere else
+  // (sorting, filtering, "starting from" displays outside ProductCard)
+  // keeps reading this field exactly as before; only ProductCard needs to
+  // know about `packages` itself.
   price: number;
   description: string;
   rating: number;
@@ -92,6 +117,13 @@ export interface Product {
   validityUnit?: DurationUnit | null;
   processingTimeMinDays?: number | null;
   processingTimeMaxDays?: number | null;
+
+  // Software — simple flat-price cadence. Only meaningful when `packages`
+  // is empty/absent; a product with packages ignores this (it's cleared
+  // to null server-side once packages exist — see
+  // lib/product-validation.ts).
+  billingPeriod?: BillingPeriod | null;
+  packages?: SoftwarePackage[];
 }
 
 export type ProductFormValues = {

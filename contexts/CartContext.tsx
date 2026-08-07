@@ -20,6 +20,16 @@ export type CartItem = {
   // that county. Never persisted, never present on items read back from
   // the server.
   countyId?: number;
+  // Chosen SoftwarePackage for a Software product with packages. Sent on
+  // the add-to-cart request (server re-verifies the price from it, same
+  // "never trust the client" pattern as countyId above) and also present
+  // on items read back from the server, since — unlike countyId — this
+  // one IS persisted on CartItem.
+  packageId?: number | null;
+  // Snapshotted display label for the chosen package's cadence (e.g.
+  // "Monthly") — persisted alongside packageId so the cart/checkout UI
+  // doesn't need to re-join against SoftwarePackage just to show it.
+  billingPeriodLabel?: string | null;
 };
 
 type CartContextType = {
@@ -148,8 +158,9 @@ export const CartProvider = ({ children, initialBusinessId }: CartProviderProps)
       return;
     }
 
-    // Everything else — including fee-schedule shell products — goes
-    // through the real server call, so it persists as a genuine CartItem.
+    // Everything else — including fee-schedule shell products and
+    // package-priced software products — goes through the real server
+    // call, so it persists as a genuine CartItem.
     try {
       setLoading(true);
       setError(null);

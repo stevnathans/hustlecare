@@ -205,6 +205,12 @@ export const useBusinessData = (
             validityUnit: product.validityUnit,
             processingTimeMinDays: product.processingTimeMinDays,
             processingTimeMaxDays: product.processingTimeMaxDays,
+
+            // Software — simple flat-price cadence, and/or package tiers.
+            // See types/index.ts (Product.billingPeriod / Product.packages)
+            // for how the two interact with `price` above.
+            billingPeriod: product.billingPeriod ?? null,
+            packages:      Array.isArray(product.packages) ? product.packages : [],
           })
         );
 

@@ -10,6 +10,16 @@ import { resolveFeeSchedule } from '@/lib/legalFeeSchedule'
 
 export const dynamic = 'force-dynamic';
 
+function billingPeriodLabelFor(billingPeriod: string): string {
+  switch (billingPeriod) {
+    case 'MONTHLY': return 'Monthly'
+    case 'QUARTERLY': return 'Quarterly'
+    case 'YEARLY': return 'Yearly'
+    case 'ONE_TIME': return 'One-time'
+    default: return billingPeriod
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -30,11 +40,13 @@ export async function POST(request: NextRequest) {
     const userId = session.user.id as string
 
     // Look up the real product row being added. For a fee-schedule shell
-    // product, the client-sent price is only a hint — the authoritative
-    // price is re-resolved here from LegalFeeSchedule using the county the
-    // client says it's adding for. This mirrors the project's existing
-    // "never trust a client-sent price, snapshot the real one" pattern
-    // (see OrderItem.unitPrice).
+    // product or a Software package selection, the client-sent price is
+    // only a hint — the authoritative price is re-resolved here, either
+    // from LegalFeeSchedule (using the county the client says it's adding
+    // for) or from SoftwarePackage (using the packageId the client says
+    // was picked). This mirrors the project's existing "never trust a
+    // client-sent price, snapshot the real one" pattern (see
+    // OrderItem.unitPrice).
     const productRecord = await prisma.product.findUnique({
       where: { id: Number(product.productId) },
       select: { id: true, isFeeScheduleShell: true, templateId: true },
@@ -45,6 +57,8 @@ export async function POST(request: NextRequest) {
     }
 
     let unitPrice = product.price
+    let packageId: number | null = null
+    let billingPeriodLabel: string | null = null
 
     if (productRecord.isFeeScheduleShell) {
       const countyId = product.countyId ? Number(product.countyId) : null
@@ -105,6 +119,25 @@ export async function POST(request: NextRequest) {
       }
 
       unitPrice = resolution.price
+    } else if (product.packageId) {
+      // Software package selection — same "re-resolve, never trust the
+      // client" treatment as the county-fee branch above, just against
+      // SoftwarePackage instead of LegalFeeSchedule.
+      const pkg = await prisma.softwarePackage.findUnique({
+        where: { id: Number(product.packageId) },
+        select: { id: true, productId: true, price: true, billingPeriod: true },
+      })
+
+      if (!pkg || pkg.productId !== productRecord.id) {
+        return NextResponse.json(
+          { error: 'Selected package was not found for this product.' },
+          { status: 400 }
+        )
+      }
+
+      unitPrice = pkg.price
+      packageId = pkg.id
+      billingPeriodLabel = billingPeriodLabelFor(pkg.billingPeriod)
     }
 
     // Find or create cart for this user and business
@@ -133,15 +166,19 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    // A fee-schedule shell re-add (after switching county) or a package
+    // switch on an already-cart-added Software product both REPLACE the
+    // existing line's snapshotted price/package rather than incrementing
+    // quantity like a normal product — in both cases the person only
+    // needs one of this requirement, priced/tiered for their latest
+    // choice.
+    const replacesExistingLine = productRecord.isFeeScheduleShell || packageId !== null
+
     if (existingItem) {
-      if (productRecord.isFeeScheduleShell) {
-        // For a fee-schedule shell, re-adding (e.g. after switching county)
-        // should REPLACE the snapshotted price, not blindly increment
-        // quantity like a normal product — a business only needs one
-        // Business Permit, priced for wherever it's actually located.
+      if (replacesExistingLine) {
         await prisma.cartItem.update({
           where: { id: existingItem.id },
-          data:  { unitPrice },
+          data:  { unitPrice, packageId, billingPeriodLabel },
         })
       } else {
         await prisma.cartItem.update({
@@ -152,12 +189,14 @@ export async function POST(request: NextRequest) {
     } else {
       await prisma.cartItem.create({
         data: {
-          cartId:          cart.id,
-          productId:       product.productId,
-          quantity:        1,
+          cartId:             cart.id,
+          productId:          product.productId,
+          quantity:           1,
           unitPrice,
-          category:        product.category        || 'Uncategorized',
-          requirementName: product.requirementName || 'Unspecified Requirement',
+          packageId,
+          billingPeriodLabel,
+          category:           product.category        || 'Uncategorized',
+          requirementName:    product.requirementName || 'Unspecified Requirement',
         },
       })
     }
@@ -199,14 +238,16 @@ export async function POST(request: NextRequest) {
     })
 
     const items = updatedCart?.items.map(item => ({
-      id:              item.id,
-      productId:       item.productId,
-      name:            item.product.name,
-      price:           item.unitPrice,
-      quantity:        item.quantity,
-      image:           item.product.image || undefined,
-      category:        item.category        || 'Uncategorized',
-      requirementName: item.requirementName || 'Unspecified Requirement',
+      id:                 item.id,
+      productId:          item.productId,
+      name:               item.product.name,
+      price:              item.unitPrice,
+      quantity:           item.quantity,
+      image:              item.product.image || undefined,
+      category:           item.category        || 'Uncategorized',
+      requirementName:    item.requirementName || 'Unspecified Requirement',
+      packageId:          item.packageId ?? undefined,
+      billingPeriodLabel: item.billingPeriodLabel ?? undefined,
     })) || []
 
     return NextResponse.json({ items })

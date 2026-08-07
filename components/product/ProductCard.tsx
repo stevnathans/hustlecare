@@ -28,10 +28,22 @@ import { getBuyActionLabel } from "@/lib/buyAction";
 import ApplyForMeButton from "@/components/shared/ApplyForMeButton";
 
 type DurationUnit = "days" | "months" | "years";
+type BillingPeriod = "MONTHLY" | "QUARTERLY" | "YEARLY" | "ONE_TIME";
 
 interface BulkPriceTier {
   minQty: number;
   price: number;
+}
+
+interface SoftwarePackage {
+  id: number;
+  name: string;
+  description?: string | null;
+  price: number;
+  billingPeriod: BillingPeriod;
+  features: string[];
+  isPopular: boolean;
+  displayOrder: number;
 }
 
 interface ProductCardProps {
@@ -84,6 +96,13 @@ interface ProductCardProps {
     validityUnit?: DurationUnit | null;
     processingTimeMinDays?: number | null;
     processingTimeMaxDays?: number | null;
+
+    // Software — either a simple flat price + cadence, or multiple
+    // packages. When packages is non-empty, `price` is the pre-computed
+    // lowest monthly-equivalent price across them ("starting from") —
+    // never read billingPeriod in that case, it's only for the flat case.
+    billingPeriod?: BillingPeriod | null;
+    packages?: SoftwarePackage[];
   };
   requirementName: string;
   category: string;
@@ -148,16 +167,45 @@ function formatProcessingTime(
   return `${val} Day${val === 1 ? "" : "s"}`;
 }
 
+// "/mo", "/qtr", "/yr", or "" for a one-time price.
+function billingSuffix(billingPeriod?: BillingPeriod | null): string {
+  switch (billingPeriod) {
+    case "MONTHLY":
+      return "/mo";
+    case "QUARTERLY":
+      return "/qtr";
+    case "YEARLY":
+      return "/yr";
+    default:
+      return "";
+  }
+}
+
+function billingPeriodLabel(billingPeriod: BillingPeriod): string {
+  switch (billingPeriod) {
+    case "MONTHLY":
+      return "Monthly";
+    case "QUARTERLY":
+      return "Quarterly";
+    case "YEARLY":
+      return "Yearly";
+    case "ONE_TIME":
+      return "One-time";
+  }
+}
+
 function buildRedirectHref(
   productId: string | number,
   businessId?: number,
   requirementName?: string,
   category?: string,
+  packageId?: number | null,
 ) {
   const params = new URLSearchParams();
   if (businessId) params.set("businessId", String(businessId));
   if (requirementName) params.set("requirementName", requirementName);
   if (category) params.set("category", category);
+  if (packageId) params.set("packageId", String(packageId));
   const query = params.toString();
   return `/redirect/${productId}${query ? `?${query}` : ""}`;
 }
@@ -345,6 +393,61 @@ function PortaledLoginModal({
   );
 }
 
+// ── Package picker card, used inside the expanded Details panel ────────────────
+function PackageOption({
+  pkg,
+  active,
+  onSelect,
+}: {
+  pkg: SoftwarePackage;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect();
+      }}
+      className={`relative flex flex-col text-left rounded-lg border p-2.5 transition-colors ${
+        active
+          ? "border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500"
+          : "border-gray-200 bg-white hover:border-gray-300"
+      }`}
+    >
+      {pkg.isPopular && (
+        <span className="absolute -top-2 right-2">
+          <Badge tone="amber">Popular</Badge>
+        </span>
+      )}
+      <p className="text-xs font-semibold text-gray-900">{pkg.name}</p>
+      <p className="text-sm font-bold text-gray-900 mt-0.5">
+        KSh {pkg.price.toLocaleString()}
+        <span className="text-[0.65rem] font-normal text-gray-500">
+          {billingSuffix(pkg.billingPeriod)}
+        </span>
+      </p>
+      {pkg.description && (
+        <p className="text-[0.68rem] text-gray-500 mt-1">{pkg.description}</p>
+      )}
+      {pkg.features.length > 0 && (
+        <ul className="mt-1.5 space-y-0.5">
+          {pkg.features.slice(0, 5).map((feature, i) => (
+            <li
+              key={i}
+              className="text-[0.68rem] text-gray-600 flex items-start gap-1"
+            >
+              <FiCheck size={10} className="mt-0.5 text-emerald-500 flex-shrink-0" />
+              <span>{feature}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </button>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 const ProductCard: React.FC<ProductCardProps> = ({
   product,
@@ -356,17 +459,40 @@ const ProductCard: React.FC<ProductCardProps> = ({
   const [showDetails, setShowDetails] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isImageOpen, setIsImageOpen] = useState(false);
+  // Only set once the person actively picks a package in the picker — until
+  // then the default (whatever's already in their cart, else the popular
+  // package, else the first one) is used. Keeping this separate from the
+  // derived default avoids fighting effect timing/races on product refetch.
+  const [manualPackageId, setManualPackageId] = useState<number | null>(null);
   const { data: session } = useSession();
 
   const cartItem = items.find((item) => item.productId === product.id);
   const isInCart = !!cartItem;
   const cartQuantity = cartItem?.quantity || 0;
 
+  const hasPackages = Array.isArray(product.packages) && product.packages.length > 0;
+  const sortedPackages = hasPackages
+    ? [...product.packages!].sort((a, b) => a.displayOrder - b.displayOrder)
+    : [];
+  const allPackagesOneTime = hasPackages && sortedPackages.every((p) => p.billingPeriod === "ONE_TIME");
+
+  const defaultPackage = hasPackages
+    ? sortedPackages.find((p) => p.id === cartItem?.packageId)
+      ?? sortedPackages.find((p) => p.isPopular)
+      ?? sortedPackages[0]
+    : null;
+  const selectedPackage = hasPackages
+    ? sortedPackages.find((p) => p.id === manualPackageId) ?? defaultPackage
+    : null;
+
+  const isSimpleSoftwarePricing = !hasPackages && !!product.billingPeriod;
+
   const redirectHref = buildRedirectHref(
     product.id,
     businessId,
     requirementName,
     category,
+    hasPackages ? (selectedPackage?.id ?? null) : null,
   );
   const buyLabel = getBuyActionLabel(category);
 
@@ -375,18 +501,53 @@ const ProductCard: React.FC<ProductCardProps> = ({
       setShowLoginModal(true);
       return;
     }
+    if (hasPackages && !selectedPackage) return; // nothing to add yet
     try {
       await addToCart({
         productId: product.id,
         name: product.name,
-        price: product.price,
+        price: hasPackages ? selectedPackage!.price : product.price,
         image: product.image,
         requirementName,
         category,
         __index: 0,
+        ...(hasPackages
+          ? {
+              packageId: selectedPackage!.id,
+              billingPeriodLabel: billingPeriodLabel(selectedPackage!.billingPeriod),
+            }
+          : {}),
       });
     } catch (error) {
       console.error("Error adding to cart:", error);
+    }
+  };
+
+  // Switching packages while the product is already in the cart replaces
+  // the cart line's price/package immediately, rather than waiting for a
+  // separate "Add to cart" click — same behavior as re-adding a county fee
+  // after switching counties.
+  const handlePackageSelect = async (pkg: SoftwarePackage) => {
+    setManualPackageId(pkg.id);
+    if (!isInCart) return;
+    if (!session) {
+      setShowLoginModal(true);
+      return;
+    }
+    try {
+      await addToCart({
+        productId: product.id,
+        name: product.name,
+        price: pkg.price,
+        image: product.image,
+        requirementName,
+        category,
+        __index: 0,
+        packageId: pkg.id,
+        billingPeriodLabel: billingPeriodLabel(pkg.billingPeriod),
+      });
+    } catch (error) {
+      console.error("Error switching package:", error);
     }
   };
 
@@ -519,16 +680,33 @@ const ProductCard: React.FC<ProductCardProps> = ({
                 </p>
               )}
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-base sm:text-lg font-bold text-gray-900">
-                  KSh {product.price.toLocaleString()}
-                </span>
-                {product.negotiable && <Badge tone="indigo">Negotiable</Badge>}
+                {hasPackages ? (
+                  <span className="text-base sm:text-lg font-bold text-gray-900">
+                    Starting from KSh {product.price.toLocaleString()}
+                    {!allPackagesOneTime && (
+                      <span className="text-xs font-normal text-gray-500">/mo</span>
+                    )}
+                  </span>
+                ) : (
+                  <>
+                    <span className="text-base sm:text-lg font-bold text-gray-900">
+                      KSh {product.price.toLocaleString()}
+                      {isSimpleSoftwarePricing && (
+                        <span className="text-xs font-normal text-gray-500">
+                          {billingSuffix(product.billingPeriod)}
+                        </span>
+                      )}
+                    </span>
+                    {product.negotiable && <Badge tone="indigo">Negotiable</Badge>}
+                  </>
+                )}
               </div>
             </div>
 
             <button
               onClick={isInCart ? handleRemoveFromCart : handleAddToCart}
-              className={`flex-shrink-0 flex items-center justify-center w-9 h-9 sm:w-auto sm:h-auto sm:gap-1.5 sm:px-3 sm:py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${
+              disabled={hasPackages && !selectedPackage}
+              className={`flex-shrink-0 flex items-center justify-center w-9 h-9 sm:w-auto sm:h-auto sm:gap-1.5 sm:px-3 sm:py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                 isInCart
                   ? "bg-green-500 text-white hover:bg-green-600"
                   : "bg-emerald-500 text-white hover:bg-emerald-600"
@@ -574,7 +752,10 @@ const ProductCard: React.FC<ProductCardProps> = ({
           {isInCart && (
             <div className="flex items-center gap-1.5 text-xs text-green-600 mb-3">
               <FiCheck size={12} />
-              <span className="font-medium">{cartQuantity} in your list</span>
+              <span className="font-medium">
+                {cartQuantity} in your list
+                {hasPackages && selectedPackage && ` · ${selectedPackage.name}`}
+              </span>
             </div>
           )}
 
@@ -617,6 +798,21 @@ const ProductCard: React.FC<ProductCardProps> = ({
         {showDetails && (
           <div className="px-3 pb-3 pt-2 border-t bg-gray-50">
             <div className="space-y-3 text-sm">
+              {hasPackages && (
+                <DetailBlock label="Choose a package">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
+                    {sortedPackages.map((pkg) => (
+                      <PackageOption
+                        key={pkg.id}
+                        pkg={pkg}
+                        active={selectedPackage?.id === pkg.id}
+                        onSelect={() => handlePackageSelect(pkg)}
+                      />
+                    ))}
+                  </div>
+                </DetailBlock>
+              )}
+
               {product.description && (
                 <DetailBlock label="Description">
                   <p className="leading-relaxed">{product.description}</p>

@@ -3,7 +3,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requirePermission, createAuditLog } from '@/lib/admin-utils';
-import { validateProductEnums, validateBulkPricing, mapProductCreateFields } from '@/lib/product-validation';
+import {
+  validateProductEnums, validateBulkPricing, validateSoftwarePackages,
+  computeDerivedMonthlyPrice, mapProductCreateFields,
+} from '@/lib/product-validation';
 
 const VALID_STATUSES = new Set(['DRAFT', 'PENDING_REVIEW', 'ACTIVE', 'REJECTED', 'ARCHIVED']);
 
@@ -27,6 +30,7 @@ export async function GET(request: Request) {
         vendor: true,
         template: { select: { id: true, name: true, category: true } },
         bulkPricing: true,
+        packages: { orderBy: { displayOrder: 'asc' } },
       },
       orderBy: { createdAt: 'desc' },
       take: 200,
@@ -50,26 +54,34 @@ export async function POST(request: Request) {
     const user = await requirePermission('products.create');
 
     const body = await request.json();
-    const { templateId, vendorId, businessTags, bulkPricing, publishImmediately } = body;
+    const { templateId, vendorId, businessTags, bulkPricing, packages: packagesInput, publishImmediately } = body;
 
     if (!body.name?.trim()) return NextResponse.json({ error: 'Product name is required.' }, { status: 400 });
     if (!templateId) return NextResponse.json({ error: 'Please select a requirement this product fulfils.' }, { status: 400 });
     if (!vendorId) return NextResponse.json({ error: 'Please select a vendor. Use the house vendor if this is a platform-managed product.' }, { status: 400 });
 
+    const { errors: packageErrors, packages: cleanPackages } = validateSoftwarePackages(packagesInput);
+    if (packageErrors.length) return NextResponse.json({ error: packageErrors[0] }, { status: 400 });
+    const hasPackages = cleanPackages.length > 0;
+
     // Admin form now offers the same price-or-range toggle as the vendor form —
     // enforce it server-side too, since the frontend check alone can be bypassed.
-    const usingPriceRange = !!(body.priceMin || body.priceMax);
-    if (usingPriceRange) {
-      const min = body.priceMin != null ? Number(body.priceMin) : null;
-      const max = body.priceMax != null ? Number(body.priceMax) : null;
-      if (min == null || max == null || Number.isNaN(min) || Number.isNaN(max) || min < 0 || max < 0) {
-        return NextResponse.json({ error: 'Enter a valid price range.' }, { status: 400 });
+    // Skipped entirely for a Software product with packages: its price is
+    // always derived below, never taken from the client.
+    if (!hasPackages) {
+      const usingPriceRange = !!(body.priceMin || body.priceMax);
+      if (usingPriceRange) {
+        const min = body.priceMin != null ? Number(body.priceMin) : null;
+        const max = body.priceMax != null ? Number(body.priceMax) : null;
+        if (min == null || max == null || Number.isNaN(min) || Number.isNaN(max) || min < 0 || max < 0) {
+          return NextResponse.json({ error: 'Enter a valid price range.' }, { status: 400 });
+        }
+        if (min > max) {
+          return NextResponse.json({ error: 'Minimum price cannot be greater than maximum price.' }, { status: 400 });
+        }
+      } else if (body.price == null || body.price === '' || Number.isNaN(Number(body.price)) || Number(body.price) < 0) {
+        return NextResponse.json({ error: 'Enter a valid price, or switch to a price range.' }, { status: 400 });
       }
-      if (min > max) {
-        return NextResponse.json({ error: 'Minimum price cannot be greater than maximum price.' }, { status: 400 });
-      }
-    } else if (body.price == null || body.price === '' || Number.isNaN(Number(body.price)) || Number(body.price) < 0) {
-      return NextResponse.json({ error: 'Enter a valid price, or switch to a price range.' }, { status: 400 });
     }
 
     const enumErrors = validateProductEnums(body);
@@ -96,20 +108,31 @@ export async function POST(request: Request) {
     // Admins can publish straight to ACTIVE — no need to review your own content.
     const status = publishImmediately ? 'ACTIVE' : (body.status && VALID_STATUSES.has(body.status) ? body.status : 'DRAFT');
 
+    const mappedFields = mapProductCreateFields(body);
+
     const product = await prisma.product.create({
       data: {
-        ...mapProductCreateFields(body),
+        ...mappedFields,
+        // Never trust the client's price for a packaged Software product —
+        // it's always the lowest monthly-equivalent across packages, and
+        // billingPeriod (the simple-case field) is meaningless once
+        // packages exist.
+        ...(hasPackages
+          ? { price: computeDerivedMonthlyPrice(cleanPackages), billingPeriod: null }
+          : {}),
         vendorId: Number(vendorId),
         templateId: Number(templateId),
         businessTags: finalTags,
         status,
         publishedAt: status === 'ACTIVE' ? new Date() : null,
         ...(tiers.length > 0 ? { bulkPricing: { create: tiers } } : {}),
+        ...(hasPackages ? { packages: { create: cleanPackages } } : {}),
       },
       include: {
         template: { select: { id: true, name: true, category: true } },
         vendor: { select: { id: true, name: true, slug: true, logo: true } },
         bulkPricing: true,
+        packages: { orderBy: { displayOrder: 'asc' } },
       },
     });
 
