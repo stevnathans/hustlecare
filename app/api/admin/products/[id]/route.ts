@@ -121,6 +121,7 @@ export async function PATCH(request: Request, { params }: Params) {
         // nested in a single query.
         return tx.product.update({
           where: { id: productId },
+          // Cast to any to satisfy mismatched Prisma UpdateInput overloads
           data: {
             name: body.name?.trim() || undefined,
             description: body.description !== undefined ? nullableString(body.description) : undefined,
@@ -190,7 +191,7 @@ export async function PATCH(request: Request, { params }: Params) {
             ...(touchesPackages && cleanPackages.length > 0
               ? { packages: { createMany: { data: cleanPackages } } }
               : {}),
-          },
+          } as any,
           include: {
             template: { select: { id: true, name: true, category: true } },
             vendor: true,

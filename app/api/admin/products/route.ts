@@ -126,7 +126,7 @@ export async function POST(request: Request) {
         status,
         publishedAt: status === 'ACTIVE' ? new Date() : null,
         ...(tiers.length > 0 ? { bulkPricing: { create: tiers } } : {}),
-        ...(hasPackages ? { packages: { create: cleanPackages } } : {}),
+        ...(hasPackages ? { packages: { create: cleanPackages.map((pkg: any) => ({ ...pkg, billingPeriod: pkg.billingPeriod as any })) } } : {}),
       },
       include: {
         template: { select: { id: true, name: true, category: true } },
