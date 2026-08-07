@@ -17,6 +17,8 @@ type FeeRow = {
   tradeClassId: number | null;
   tradeClass: { id: number; name: string } | null;
   sizeBand: SizeBand | null;
+  employeeCountMax: number | null;
+  floorAreaSqm: number | null;
   price: number | null;
   priceMin: number | null;
   priceMax: number | null;
@@ -32,6 +34,8 @@ type RowDraft = {
   countyId: string;
   tradeClassId: string;
   sizeBand: SizeBand | '';
+  employeeCountMax: string;
+  floorAreaSqm: string;
   usePriceRange: boolean;
   price: string;
   priceMin: string;
@@ -46,6 +50,7 @@ type RowDraft = {
 
 const EMPTY_NEW_ROW: RowDraft = {
   countyId: '', tradeClassId: '', sizeBand: '',
+  employeeCountMax: '', floorAreaSqm: '',
   usePriceRange: false, price: '', priceMin: '', priceMax: '',
   validityValue: '', validityUnit: 'years',
   processingTimeMinDays: '', processingTimeMaxDays: '',
@@ -57,6 +62,8 @@ function rowToDraft(row: FeeRow): RowDraft {
     countyId: String(row.countyId),
     tradeClassId: row.tradeClassId != null ? String(row.tradeClassId) : '',
     sizeBand: row.sizeBand ?? '',
+    employeeCountMax: row.employeeCountMax != null ? String(row.employeeCountMax) : '',
+    floorAreaSqm: row.floorAreaSqm != null ? String(row.floorAreaSqm) : '',
     usePriceRange: row.price == null,
     price: row.price != null ? String(row.price) : '',
     priceMin: row.priceMin != null ? String(row.priceMin) : '',
@@ -288,6 +295,8 @@ export default function LegalFeeSchedulesAdminPage() {
           countyId: Number(newRow.countyId),
           tradeClassId: newRow.tradeClassId ? Number(newRow.tradeClassId) : null,
           sizeBand: newRow.sizeBand || null,
+          employeeCountMax: newRow.employeeCountMax ? Number(newRow.employeeCountMax) : null,
+          floorAreaSqm: newRow.floorAreaSqm ? Number(newRow.floorAreaSqm) : null,
           ...draftToPricingBody(newRow),
           validityValue: newRow.validityValue ? Number(newRow.validityValue) : null,
           validityUnit: newRow.validityValue ? newRow.validityUnit : null,
@@ -357,6 +366,8 @@ export default function LegalFeeSchedulesAdminPage() {
           countyId: Number(editDraft.countyId),
           tradeClassId: editDraft.tradeClassId ? Number(editDraft.tradeClassId) : null,
           sizeBand: editDraft.sizeBand || null,
+          employeeCountMax: editDraft.employeeCountMax ? Number(editDraft.employeeCountMax) : null,
+          floorAreaSqm: editDraft.floorAreaSqm ? Number(editDraft.floorAreaSqm) : null,
           ...draftToPricingBody(editDraft),
           validityValue: editDraft.validityValue ? Number(editDraft.validityValue) : null,
           validityUnit: editDraft.validityValue ? editDraft.validityUnit : null,
@@ -521,6 +532,14 @@ export default function LegalFeeSchedulesAdminPage() {
                 />
               </div>
               <div>
+                <div className="f-label">Max Employees</div>
+                <input type="number" placeholder="e.g. 10" className="u-input" value={newRow.employeeCountMax} onChange={(e) => setNewRow((f) => ({ ...f, employeeCountMax: e.target.value }))} />
+              </div>
+              <div>
+                <div className="f-label">Floor Area (sqm)</div>
+                <input type="number" placeholder="e.g. 500" className="u-input" value={newRow.floorAreaSqm} onChange={(e) => setNewRow((f) => ({ ...f, floorAreaSqm: e.target.value }))} />
+              </div>
+              <div>
                 <div className="f-label">Validity</div>
                 <div style={{ display: 'flex', gap: '0.4rem' }}>
                   <input type="number" placeholder="1" className="u-input" style={{ width: 64, flexShrink: 0 }} value={newRow.validityValue} onChange={(e) => setNewRow((f) => ({ ...f, validityValue: e.target.value }))} />
@@ -542,6 +561,11 @@ export default function LegalFeeSchedulesAdminPage() {
                 <div className="f-label">Apply URL (this county's official application link)</div>
                 <input type="text" placeholder="https://…" className="u-input" value={newRow.applyUrl} onChange={(e) => setNewRow((f) => ({ ...f, applyUrl: e.target.value }))} />
               </div>
+            </div>
+            <div style={{ fontSize: '0.72rem', color: '#55556e', marginBottom: '0.85rem', lineHeight: 1.5 }}>
+              Max Employees and Floor Area are informational — shown to admins and on the county-fee display,
+              but not used for automatic matching yet (that requires collecting the same data from businesses
+              first). Automatic matching uses Trade Class + Size only.
             </div>
             <button onClick={handleAddOverride} disabled={rowSaving} className="btn btn-primary">
               {rowSaving ? 'Saving…' : 'Save this price'}
@@ -566,6 +590,8 @@ export default function LegalFeeSchedulesAdminPage() {
                       <th style={{ paddingLeft: '1.25rem' }}>County</th>
                       <th>Trade Class</th>
                       <th>Size</th>
+                      <th>Max Emp.</th>
+                      <th>Floor Area</th>
                       <th>Validity</th>
                       <th>Processing</th>
                       <th style={{ textAlign: 'right' }}>Price</th>
@@ -576,7 +602,7 @@ export default function LegalFeeSchedulesAdminPage() {
                     {rows.map((row) =>
                       editingRowId === row.id && editDraft ? (
                         <tr key={row.id} className="editing">
-                          <td colSpan={7} style={{ padding: '1rem 1.25rem' }}>
+                          <td colSpan={9} style={{ padding: '1rem 1.25rem' }}>
                             <div className="edit-grid" style={{ marginBottom: '0.65rem' }}>
                               <div>
                                 <div className="f-label">County *</div>
@@ -604,6 +630,14 @@ export default function LegalFeeSchedulesAdminPage() {
                                   <option value="MEDIUM">Medium</option>
                                   <option value="LARGE">Large</option>
                                 </select>
+                              </div>
+                              <div>
+                                <div className="f-label">Max Employees</div>
+                                <input type="number" placeholder="e.g. 10" className="u-input u-input-sm" value={editDraft.employeeCountMax} onChange={(e) => updateDraft({ employeeCountMax: e.target.value })} />
+                              </div>
+                              <div>
+                                <div className="f-label">Floor Area (sqm)</div>
+                                <input type="number" placeholder="e.g. 500" className="u-input u-input-sm" value={editDraft.floorAreaSqm} onChange={(e) => updateDraft({ floorAreaSqm: e.target.value })} />
                               </div>
                               <div>
                                 <div className="f-label">Validity</div>
@@ -669,6 +703,8 @@ export default function LegalFeeSchedulesAdminPage() {
                               <span style={{ color: '#55556e', fontSize: '0.8rem' }}>Any</span>
                             )}
                           </td>
+                          <td style={{ fontSize: '0.8rem', color: '#9494b0' }}>{row.employeeCountMax ?? '—'}</td>
+                          <td style={{ fontSize: '0.8rem', color: '#9494b0' }}>{row.floorAreaSqm != null ? `${row.floorAreaSqm} sqm` : '—'}</td>
                           <td style={{ fontSize: '0.8rem', color: '#9494b0' }}>{formatValidity(row)}</td>
                           <td style={{ fontSize: '0.8rem', color: '#9494b0' }}>{formatProcessing(row)}</td>
                           <td className="adm-mono" style={{ textAlign: 'right', fontWeight: 700, color: '#34d399' }}>

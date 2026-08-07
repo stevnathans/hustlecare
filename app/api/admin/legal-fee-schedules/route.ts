@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   try {
     const user = await requirePermission('products.create');
     const body = await request.json();
-    const { templateId, countyId, tradeClassId = null, sizeBand = null, validityValue, validityUnit, processingTimeMinDays, processingTimeMaxDays, applyUrl, notes } = body;
+    const { templateId, countyId, tradeClassId = null, sizeBand = null, employeeCountMax, floorAreaSqm, validityValue, validityUnit, processingTimeMinDays, processingTimeMaxDays, applyUrl, notes } = body;
 
     if (!templateId || !countyId) return NextResponse.json({ error: 'templateId and countyId are required.' }, { status: 400 });
 
@@ -61,6 +61,8 @@ export async function POST(request: Request) {
       price: pricing.price,
       priceMin: pricing.priceMin,
       priceMax: pricing.priceMax,
+      employeeCountMax: employeeCountMax != null ? Number(employeeCountMax) : null,
+      floorAreaSqm: floorAreaSqm != null ? Number(floorAreaSqm) : null,
       validityValue: validityValue != null ? Number(validityValue) : null,
       validityUnit: validityValue != null ? (validityUnit || null) : null,
       processingTimeMinDays: processingTimeMinDays != null ? Number(processingTimeMinDays) : null,

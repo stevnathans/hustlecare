@@ -76,6 +76,8 @@ export async function PATCH(request: Request, { params }: Params) {
           ? (body.tradeClassId === null ? null : Number(body.tradeClassId))
           : undefined,
         sizeBand: body.sizeBand !== undefined ? (body.sizeBand || null) : undefined,
+        employeeCountMax: body.employeeCountMax !== undefined ? (body.employeeCountMax === null ? null : Number(body.employeeCountMax)) : undefined,
+        floorAreaSqm: body.floorAreaSqm !== undefined ? (body.floorAreaSqm === null ? null : Number(body.floorAreaSqm)) : undefined,
         ...(touchesPricing ? pricingUpdate : {}),
         validityValue: body.validityValue !== undefined ? (body.validityValue === null ? null : Number(body.validityValue)) : undefined,
         validityUnit: body.validityUnit !== undefined ? (body.validityUnit || null) : undefined,
