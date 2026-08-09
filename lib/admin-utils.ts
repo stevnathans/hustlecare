@@ -34,6 +34,7 @@ export const PERMISSIONS = {
   'users.view': ['admin'],
   'users.update': ['admin'],
   'users.delete': ['admin'],
+  'carts.view': ['admin'],
   'comments.moderate': ['reviewer', 'editor', 'admin'],
   'reviews.moderate': ['reviewer', 'editor', 'admin'],
   'audit.view': ['admin'],
