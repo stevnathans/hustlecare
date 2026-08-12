@@ -10,13 +10,6 @@ const ALLOWED_UPDATE_FIELDS = new Set([
   'costMin', 'costMax', 'timeToLaunchMin', 'timeToLaunchMax',
 ])
 
-// Safety cap for the admin list — this route intentionally returns the
-// full table (unpaginated) so the admin UI can search/filter/sort
-// client-side over the whole catalog, which is fine at moderate scale.
-// This cap just prevents an unbounded query if the business table grows
-// far beyond what the admin table view can usefully display anyway. If
-// you're hitting this cap, it's time to add real server-side pagination
-// to both this route and app/admin/businesses/page.tsx.
 const ADMIN_LIST_CAP = 500
 
 function isValidSlug(slug: string): boolean {
@@ -111,6 +104,7 @@ export async function POST(req: NextRequest) {
     }
 
     const categoryId = await resolveCategoryId(categoryName)
+    const isPublished = Boolean(published)
 
     const business = await prisma.business.create({
       data: {
@@ -118,7 +112,11 @@ export async function POST(req: NextRequest) {
         slug,
         description: description ? String(description).slice(0, 5000) : null,
         image:       image       ? String(image)                       : null,
-        published:   Boolean(published),
+        published:   isPublished,
+        // NEW: stamp publishedAt on creation too, so a business created
+        // already-published counts toward today's execution-tracker ring
+        // immediately, not just on a later explicit publish action.
+        publishedAt: isPublished ? new Date() : null,
         userId:      user.id,
         ...(categoryId ? { categoryId } : {}),
         costMin:         toPositiveInt(costMin),
@@ -275,6 +273,21 @@ export async function PATCH(req: NextRequest) {
         : typeof bestLocations === 'string'
           ? bestLocations.split(',').map((s: string) => s.trim()).filter(Boolean).slice(0, 50)
           : []
+    }
+
+    // NEW: keep publishedAt in lockstep with published. Only touches it when
+    // the caller actually sent a `published` value, and only writes when the
+    // state is genuinely changing — so re-saving an already-published
+    // business with published:true doesn't reset its publishedAt and steal
+    // credit for a day it wasn't actually (re)published on. Toggling to
+    // false clears it, so an unpublish immediately drops out of the
+    // execution tracker's live count for today.
+    if (updateData.published !== undefined) {
+      const nextPublished = Boolean(updateData.published)
+      updateData.published = nextPublished
+      if (nextPublished !== oldBusiness.published) {
+        updateData.publishedAt = nextPublished ? new Date() : null
+      }
     }
 
     const business = await prisma.business.update({

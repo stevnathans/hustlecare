@@ -45,6 +45,8 @@ model User {
   notifications          InternalNotification[]
   vendorClaimRequests    Vendor[]                @relation("VendorClaimRequests")
   orders                 Order[]
+  activityCompletions ActivityCompletion[]
+  assignedTasks       Task[]
 
   @@index([email])
   @@index([role])
@@ -139,6 +141,7 @@ model Business {
   slug             String                @unique
   userId           String?
   published        Boolean               @default(true)
+  publishedAt      DateTime?
   categoryId       Int?
   bestLocations    String[]
   costMax          Int?
@@ -1186,4 +1189,131 @@ model ApplyAssistanceRequest {
 
   @@index([status])
   @@index([createdAt])
+}
+
+enum ActivitySourceType {
+  AUTO_BUSINESS
+  AUTO_GUIDE
+  AUTO_PRODUCT
+  AUTO_LEGAL_SCHEDULE
+  MANUAL
+}
+
+enum ActivityCadence {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum ProjectStatus {
+  PLANNED
+  ACTIVE
+  ON_HOLD
+  DONE
+}
+
+// A trackable target — either read live from existing Hustlecare tables
+// (AUTO_*) or logged manually (MANUAL, e.g. social posts). AUTO activities
+// never write completion rows; MANUAL activities always do.
+model Activity {
+  id            Int                @id @default(autoincrement())
+  name          String
+  sourceType    ActivitySourceType
+  cadence       ActivityCadence    @default(DAILY)
+  weekdaysOnly  Boolean            @default(false) // e.g. "post on LinkedIn" = every weekday only
+  defaultTarget Int                @default(1)
+  isActive      Boolean            @default(true)
+  color         String?            // optional accent hex for the dashboard bar
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  snapshots   ActivityPeriodSnapshot[]
+  completions ActivityCompletion[]
+
+  @@index([sourceType])
+  @@index([isActive])
+}
+
+// Target value locked in per period so later edits to Activity.defaultTarget
+// don't rewrite history. Created lazily the first time a period is touched.
+model ActivityPeriodSnapshot {
+  id          Int      @id @default(autoincrement())
+  activityId  Int
+  periodStart DateTime @db.Date
+  periodEnd   DateTime @db.Date
+  targetValue Int
+  createdAt   DateTime @default(now())
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, periodStart])
+  @@index([activityId])
+}
+
+// Per-user completion log — MANUAL activities only.
+model ActivityCompletion {
+  id          Int      @id @default(autoincrement())
+  activityId  Int
+  userId      String
+  count       Int      @default(1)
+  note        String?
+  completedAt DateTime @default(now())
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([activityId, completedAt])
+  @@index([userId, completedAt])
+}
+
+model Project {
+  id          Int           @id @default(autoincrement())
+  name        String
+  description String?
+  priority    TaskPriority  @default(MEDIUM)
+  deadline    DateTime?
+  status      ProjectStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  tasks Task[]
+
+  @@index([status])
+}
+
+// Standalone pending work AND project tasks (projectId null = standalone).
+// "Needs Attention" items (orders, applications, etc.) are NEVER stored
+// here — those stay live queries against their real tables.
+model Task {
+  id           Int          @id @default(autoincrement())
+  title        String
+  description  String?
+  priority     TaskPriority @default(MEDIUM)
+  status       TaskStatus   @default(TODO)
+  dueDate      DateTime?
+  assignedToId String?
+  projectId    Int?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  completedAt  DateTime?
+
+  assignedTo User?    @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+  project    Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([status, priority])
+  @@index([assignedToId])
+  @@index([projectId])
+  @@index([dueDate])
 }

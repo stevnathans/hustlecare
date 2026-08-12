@@ -24,6 +24,7 @@ import {
   Mail,
   Layers,
   BarChart,
+  Target,
 } from "lucide-react";
 
 interface NavItem {
@@ -112,6 +113,12 @@ const navItems: NavItem[] = [
     icon: BarChart,
     requiredRoles: ["editor", "admin"],
   },
+  {
+  name: "Execution",
+  href: "/admin/execution",
+  icon: Target, 
+  requiredRoles: ["editor", "admin"],
+},
   {
     name: "Comments",
     href: "/admin/comments",
