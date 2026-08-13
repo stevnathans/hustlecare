@@ -201,15 +201,47 @@ export async function getDraftItems(): Promise<AttentionItem[]> {
   ].filter((i) => i.count > 0);
 }
 
+// Shows open tasks, plus anything completed in the last 24h (struck-through,
+// still clickable to undo). After 24h a DONE task quietly drops out of this
+// list — it's not deleted, just no longer part of "today."
 export async function getTodayTasks() {
-  return prisma.task.findMany({
-    where: { status: { in: ['TODO', 'IN_PROGRESS'] } },
-    orderBy: [{ priority: 'desc' }, { dueDate: 'asc' }],
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  const tasks = await prisma.task.findMany({
+    where: {
+      OR: [
+        { status: { in: ['TODO', 'IN_PROGRESS'] } },
+        { status: 'DONE', completedAt: { gte: since } },
+      ],
+    },
     include: {
       assignedTo: { select: { id: true, name: true } },
       project: { select: { id: true, name: true } },
     },
   });
+
+  const priorityRank: Record<string, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+
+  // Open tasks first (priority, then soonest due date), completed tasks
+  // last (most recently completed first) — done sorted separately since
+  // Prisma can't express "status group, then different sort per group" in
+  // a single orderBy.
+  const open = tasks
+    .filter((t) => t.status !== 'DONE')
+    .sort((a, b) => {
+      const p = priorityRank[a.priority] - priorityRank[b.priority];
+      if (p !== 0) return p;
+      if (!a.dueDate && !b.dueDate) return 0;
+      if (!a.dueDate) return 1;
+      if (!b.dueDate) return -1;
+      return a.dueDate.getTime() - b.dueDate.getTime();
+    });
+
+  const done = tasks
+    .filter((t) => t.status === 'DONE')
+    .sort((a, b) => (b.completedAt?.getTime() ?? 0) - (a.completedAt?.getTime() ?? 0));
+
+  return [...open, ...done];
 }
 
 // ── History ──────────────────────────────────────────────────────────
