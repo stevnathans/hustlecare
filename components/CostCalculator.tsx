@@ -5,7 +5,6 @@ import React, { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCart, CartItem } from '@/contexts/CartContext'; 
-import { Business } from '@prisma/client';
 import { FiShoppingCart, FiPlus, FiMinus, FiTrash2, FiChevronDown, FiChevronRight, FiSave, FiCopy, FiShare2, FiX, FiEdit2, FiCheck, FiDownload, FiInfo, FiShoppingBag } from 'react-icons/fi';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -23,7 +22,7 @@ const CATEGORY_ORDER = [
 ];
 
 interface CostCalculatorProps {
-  business: Business;
+  business: { name: string };
 }
 
 type GroupedCartItems = {
