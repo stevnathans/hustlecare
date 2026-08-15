@@ -101,6 +101,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Selected requirement does not exist or has been deprecated.' }, { status: 400 });
     }
 
+    // Software-only concern: `billingPeriod` (the simple flat-price
+    // cadence field) must never be persisted for a non-Software product.
+    // mapProductCreateFields() maps billingPeriod straight from the
+    // client body with no category awareness, and the `hasPackages`
+    // override further below only clears it when packages are present —
+    // neither of those guards against a non-Software, no-packages
+    // product (e.g. Equipment) whose form submitted a stray/defaulted
+    // billingPeriod value (the admin form defaults this field to
+    // 'MONTHLY' even when it isn't shown/editable for non-Software
+    // requirements). That combination previously let newly-created
+    // Equipment products save with billingPeriod: 'MONTHLY' and made
+    // ProductCard render a bogus "KSh X/mo" price. Resolving category
+    // here and forcing null below is the server-side backstop — do not
+    // remove it even if the client is believed to send correct values.
+    const isSoftwareRequirement = template.category === 'Software';
+
     const autoTags = template.businesses.map((b) => b.businessId);
     const manualTags: number[] = Array.isArray(businessTags) ? businessTags : [];
     const finalTags = [...new Set([...autoTags, ...manualTags])];
@@ -114,12 +130,18 @@ export async function POST(request: Request) {
       data: {
         ...mappedFields,
         // Never trust the client's price for a packaged Software product —
-        // it's always the lowest monthly-equivalent across packages, and
-        // billingPeriod (the simple-case field) is meaningless once
-        // packages exist.
+        // it's always the lowest monthly-equivalent across packages.
         ...(hasPackages
-          ? { price: computeDerivedMonthlyPrice(cleanPackages), billingPeriod: null }
+          ? { price: computeDerivedMonthlyPrice(cleanPackages) }
           : {}),
+        // billingPeriod (the simple flat-price cadence) is only ever
+        // meaningful for a Software product with no packages. Force it
+        // null in every other case — packaged Software, and any
+        // non-Software category — overriding whatever mappedFields
+        // picked up from the client body.
+        billingPeriod: (isSoftwareRequirement && !hasPackages)
+          ? mappedFields.billingPeriod
+          : null,
         vendorId: Number(vendorId),
         templateId: Number(templateId),
         businessTags: finalTags,

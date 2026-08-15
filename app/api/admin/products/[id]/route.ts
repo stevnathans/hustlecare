@@ -47,6 +47,29 @@ export async function PATCH(request: Request, { params }: Params) {
     // isn't part of this request, fall back to whatever's already there.
     const hasPackagesAfterUpdate = touchesPackages ? cleanPackages.length > 0 : existing.packages.length > 0;
 
+    // Resolve the requirement category this product will belong to AFTER
+    // this update — needed so billingPeriod can be gated on category
+    // server-side rather than trusting the client. Only meaningful for
+    // Software: previously billingPeriod was only cleared when
+    // hasPackagesAfterUpdate was true, which let a non-Software product
+    // (e.g. Equipment) persist a stray/defaulted billingPeriod value
+    // (typically 'MONTHLY' from the admin form's default state) and
+    // caused ProductCard to render a bogus "/mo" price suffix. Do not
+    // remove this check even if the client is believed to send correct
+    // values — this is the last line of defense against that data
+    // getting written again, from this route or any future caller.
+    const effectiveTemplateId: number | undefined = body.templateId
+      ? Number(body.templateId)
+      : existing.templateId ?? undefined;
+    let isSoftwareRequirement = false;
+    if (effectiveTemplateId) {
+      const effectiveTemplate = await prisma.requirementTemplate.findUnique({
+        where: { id: effectiveTemplateId },
+        select: { category: true },
+      });
+      isSoftwareRequirement = effectiveTemplate?.category === 'Software';
+    }
+
     const touchesPrice = body.price !== undefined || body.priceMin !== undefined || body.priceMax !== undefined;
     // Skip the manual price/range validation entirely once packages own
     // the price — the admin form never sends price alongside packages,
@@ -180,10 +203,17 @@ export async function PATCH(request: Request, { params }: Params) {
             processingTimeMinDays: body.processingTimeMinDays !== undefined ? (body.processingTimeMinDays === null || body.processingTimeMinDays === '' ? null : Number(body.processingTimeMinDays)) : undefined,
             processingTimeMaxDays: body.processingTimeMaxDays !== undefined ? (body.processingTimeMaxDays === null || body.processingTimeMaxDays === '' ? null : Number(body.processingTimeMaxDays)) : undefined,
 
-            // Software — simple flat-price cadence. Meaningless once
-            // packages exist, so force it null in that case regardless of
-            // what the client sent (it should already be sending null).
-            billingPeriod: hasPackagesAfterUpdate ? null : (body.billingPeriod !== undefined ? (body.billingPeriod || null) : undefined),
+            // Software — simple flat-price cadence. Meaningless outside of
+            // Software products, and meaningless once packages exist even
+            // for Software products — force it null in either case
+            // regardless of what the client sent. This is a server-side
+            // backstop (see isSoftwareRequirement resolution above): a
+            // non-Software product (e.g. Equipment) must never end up
+            // with a non-null billingPeriod, since ProductCard uses its
+            // presence to decide whether to render a "/mo" price suffix.
+            billingPeriod: (!isSoftwareRequirement || hasPackagesAfterUpdate)
+              ? null
+              : (body.billingPeriod !== undefined ? (body.billingPeriod || null) : undefined),
 
             ...(body.bulkPricing !== undefined && tiers.length > 0
               ? { bulkPricing: { createMany: { data: tiers } } }

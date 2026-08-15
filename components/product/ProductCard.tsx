@@ -101,6 +101,18 @@ interface ProductCardProps {
     // packages. When packages is non-empty, `price` is the pre-computed
     // lowest monthly-equivalent price across them ("starting from") —
     // never read billingPeriod in that case, it's only for the flat case.
+    //
+    // NOTE: billingPeriod should only ever be non-null when `category ===
+    // "Software"` — that invariant is meant to be enforced server-side
+    // (see product-validation.ts / the admin product routes), but this
+    // component does NOT rely on that alone. See isSimpleSoftwarePricing
+    // below, which explicitly re-checks category before ever appending a
+    // "/mo" style suffix to the price. This was the root cause of a bug
+    // where stale/defaulted billingPeriod values on non-Software products
+    // (e.g. Equipment) caused "KSh 322/month" to render incorrectly —
+    // fixing the data alone wasn't considered sufficient, since bad data
+    // could reappear the same way. Do not remove the category check here
+    // even if the upstream data is believed to be clean.
     billingPeriod?: BillingPeriod | null;
     packages?: SoftwarePackage[];
   };
@@ -485,7 +497,15 @@ const ProductCard: React.FC<ProductCardProps> = ({
     ? sortedPackages.find((p) => p.id === manualPackageId) ?? defaultPackage
     : null;
 
-  const isSimpleSoftwarePricing = !hasPackages && !!product.billingPeriod;
+  // Software-only display concern: a flat-priced Software product shows
+  // "KSh X/mo" (or /qtr, /yr) next to its price. Gated on BOTH the
+  // absence of packages AND category === "Software" — checking
+  // billingPeriod truthiness alone is not sufficient, since a non-Software
+  // product (e.g. Equipment) could have a stray/defaulted billingPeriod
+  // value persisted on it. See the note on ProductCardProps.product.billingPeriod
+  // above for the incident this guards against.
+  const isSimpleSoftwarePricing =
+    !hasPackages && category === "Software" && !!product.billingPeriod;
 
   const redirectHref = buildRedirectHref(
     product.id,

@@ -191,10 +191,19 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
             processingTimeMinDays: form.processingTimeMinDays ? parseInt(form.processingTimeMinDays) : null,
             processingTimeMaxDays: form.processingTimeMaxDays ? parseInt(form.processingTimeMaxDays) : null,
 
-            // Simple-case billing cadence only applies when there are no
-            // packages — clear it otherwise so it can't linger as stale
-            // data from before packages were turned on.
-            billingPeriod: priceIsDerivedFromPackages ? null : form.billingPeriod,
+            // Simple-case billing cadence ONLY ever applies to Software
+            // products with no packages. Deliberately gated on
+            // isSoftwareRequirement here, not just priceIsDerivedFromPackages —
+            // form.billingPeriod defaults to 'MONTHLY' in EMPTY_PRODUCT_FORM
+            // and that field is never shown/editable for non-Software
+            // requirements, so falling through to form.billingPeriod for
+            // e.g. an Equipment product would silently persist a stale
+            // "MONTHLY" value and make the product card render a bogus
+            // "/mo" suffix. This was the root cause of that bug — do not
+            // relax this back to `priceIsDerivedFromPackages ? null : form.billingPeriod`.
+            billingPeriod: isSoftwareRequirement
+              ? (priceIsDerivedFromPackages ? null : form.billingPeriod)
+              : null,
             packages: priceIsDerivedFromPackages
               ? packages
                   .filter((pkg) => pkg.name.trim() && pkg.price.trim() && !isNaN(Number(pkg.price)))
