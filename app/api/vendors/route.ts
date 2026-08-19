@@ -5,6 +5,8 @@ import { requirePermission, createAuditLog } from '@/lib/admin-utils';
 import { toTitleCase, generateUniqueVendorSlug } from '@/lib/vendor-utils';
 import { isMarketCode, DEFAULT_MARKET } from '@/lib/markets';
 
+export const dynamic = 'force-dynamic';
+
 // GET all vendors — used by admin product forms/dropdowns too, so this
 // intentionally returns every vendor regardless of claim status.
 export async function GET() {

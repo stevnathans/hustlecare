@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { revalidateBusinessPages } from "@/lib/revalidate";
 import { isMarketCode } from "@/lib/markets";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const templates = await prisma.requirementTemplate.findMany({
