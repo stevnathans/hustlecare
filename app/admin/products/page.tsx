@@ -278,9 +278,9 @@ export default function ProductsPage() {
   }, [modalOpen]);
 
    const vendors = useMemo<VendorTuple[]>(
-    () => allVendors.map(v => [String(v.id), v.name, v.website || '']),
-    [allVendors]
-  );
+  () => allVendors.map(v => [String(v.id), v.name, v.website || '', v.country || '']),
+  [allVendors]
+);
 
   const vendorsInProducts = useMemo<VendorTuple[]>(() => {
     const seen = new Map<string, string>();

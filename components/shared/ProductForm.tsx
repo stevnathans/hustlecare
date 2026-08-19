@@ -38,6 +38,13 @@ import {
 import RequirementPicker, { RequirementOption } from './RequirementPicker';
 import type { VendorTuple } from 'types/vendor';
 
+// Vendor.country → marketplace currency. Extend alongside lib/markets.ts's
+// market codes if more markets are added.
+export const MARKET_CURRENCY: Record<string, string> = {
+  KE: 'KES',
+  US: 'USD',
+};
+
 export type ProductFormTheme = 'light' | 'dark';
 export type ProductFormMode = 'vendor' | 'admin';
 
@@ -259,15 +266,19 @@ export default function ProductForm({
                       Clear selection
                     </button>
 
-                    {filteredVendors.length === 0 ? (
+                                       {filteredVendors.length === 0 ? (
                       <div className="px-3 py-2 text-xs text-gray-500 italic">No vendors found</div>
                     ) : (
-                      filteredVendors.map(([id, name]) => (
+                      filteredVendors.map(([id, name, , country]) => (
                         <button
                           key={id}
                           type="button"
                           onClick={() => {
-                            setForm((f) => ({ ...f, vendorId: id }));
+                            setForm((f) => ({
+                              ...f,
+                              vendorId: id,
+                              currency: country && MARKET_CURRENCY[country] ? MARKET_CURRENCY[country] : f.currency,
+                            }));
                             setIsVendorDropdownOpen(false);
                             setVendorSearch('');
                           }}
@@ -283,6 +294,7 @@ export default function ProductForm({
                         </button>
                       ))
                     )}
+                    
                   </div>
                 </div>
               )}

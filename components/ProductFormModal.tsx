@@ -1,12 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // components/ProductFormModal.tsx (admin)
+// NOTE: components/shared/ProductForm.tsx also needs a one-line type fix —
+// see the accompanying message for the exact change.
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import { Product, VendorTuple } from 'types/vendor';
 import { RequirementOption } from './shared/RequirementPicker';
 import ProductForm, {
-  EMPTY_PRODUCT_FORM, ProductFormValues, BulkTier, SoftwarePackageRow, BillingPeriodValue,
+  EMPTY_PRODUCT_FORM, ProductFormValues, BulkTier, SoftwarePackageRow, BillingPeriodValue, MARKET_CURRENCY,
 } from './shared/ProductForm';
 
 type Props = {
@@ -288,27 +290,37 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
       // shortened/tracking link's raw hostname won't match the vendor's
       // real domain, but where it actually lands will.
       const productHost = normalizeHost(data.finalUrl || form.url);
-      console.log('DEBUG productHost:', productHost);
-      console.log('DEBUG vendors:', vendors.map(([, name, website]) => ({
-        name, website, normalized: website ? normalizeHost(website) : null,
-      })));
       const matchedVendor = productHost
         ? vendors.find(([, , website]) => website && normalizeHost(website) === productHost)
         : undefined;
-      console.log('DEBUG matchedVendor:', matchedVendor);
 
       setForm((f) => {
+        // Only treat this as "we're assigning the vendor" if the admin
+        // hadn't already picked one — never silently reassign an existing
+        // selection, same rule as every other autofilled field here.
+        const willAssignVendor = !f.vendorId && !!matchedVendor;
         const shouldFillPrice = !f.price.trim() && !f.usePriceRange && !!data.price;
+
+        // Vendor market beats scraped page currency when we're the ones
+        // assigning the vendor — a vendor's own market (KE/US) is a more
+        // reliable signal for which currency this listing should use than
+        // whatever currency happened to be on the source page (e.g. a KE
+        // vendor's site might still show USD in its metadata).
+        const marketCurrency =
+          willAssignVendor && matchedVendor?.[3] ? MARKET_CURRENCY[matchedVendor[3]] : undefined;
+
         return {
           ...f,
           name: f.name.trim() ? f.name : data.name || f.name,
           description: f.description.trim() ? f.description : data.description || f.description,
           image: f.image.trim() ? f.image : data.image || f.image,
           price: shouldFillPrice ? data.price : f.price,
-          currency: shouldFillPrice && SUPPORTED_CURRENCIES.includes(data.currency) ? data.currency : f.currency,
-          // Never override a vendor the admin already picked — auto-select
-          // only fills a blank field, same rule as every other autofilled value.
-          vendorId: !f.vendorId && matchedVendor ? matchedVendor[0] : f.vendorId,
+          currency: marketCurrency
+            ? marketCurrency
+            : shouldFillPrice && SUPPORTED_CURRENCIES.includes(data.currency)
+              ? data.currency
+              : f.currency,
+          vendorId: willAssignVendor ? matchedVendor![0] : f.vendorId,
         };
       });
 

@@ -7,6 +7,7 @@ export type Vendor = {
   website: string;
   logo: string;
   slug?: string;
+  country?: string;
 
   // County coverage — defaults to "serves everywhere" (see schema comment
   // on Vendor.servesAllCounties). `counties` is only meaningful when
@@ -103,4 +104,4 @@ export type SortField = 'name' | 'price' | 'vendor' | 'id' | 'status';
 export type SortDir = 'asc' | 'desc';
 export type ViewMode = 'table' | 'grid';
 
-export type VendorTuple = [string, string, string?]; // [id, name, website?]
+export type VendorTuple = [string, string, string?, string?]; // [id, name, website?, country?]
