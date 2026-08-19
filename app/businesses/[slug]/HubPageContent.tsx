@@ -18,7 +18,7 @@ import {
 import BusinessInsights from './BusinessInsights';
 import BusinessFaqSection from './BusinessFaqSection';
 import BusinessCostBadge from './BusinessCostBadge';
-
+import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -56,14 +56,20 @@ interface HubPageContentProps {
   skillLevel: string | null;
   bestLocations: string[];
   faqs: Faq[];
+  market?: MarketCode;
 }
 
 // ── Sub-page definitions ──────────────────────────────────────────────────────
+// All hrefs are now market-prefixed via `base` (either '' for Kenya or
+// '/us' for the US) — this component is shared between
+// app/businesses/[slug]/page.tsx (Kenya) and app/us/businesses/[slug]/page.tsx,
+// so every internal link needs to resolve under whichever market rendered
+// this page, not always the Kenya path.
 
-function getSubPages(slug: string) {
+function getSubPages(slug: string, base: string, market: MarketCode) {
   return [
     {
-      href: `/businesses/${slug}/requirements`,
+      href: `${base}/businesses/${slug}/requirements`,
       icon: FileText,
       label: 'Requirements Checklist',
       description: 'Full list of everything you need — documents, equipment, software, licences, and more.',
@@ -72,7 +78,7 @@ function getSubPages(slug: string) {
       available: true,
     },
     {
-      href: `/businesses/${slug}/how-to-start`,
+      href: `${base}/businesses/${slug}/how-to-start`,
       icon: BookOpen,
       label: 'How to Start Guide',
       description: 'Step-by-step walkthrough — registration, sourcing, hiring, and first customers.',
@@ -81,19 +87,21 @@ function getSubPages(slug: string) {
       available: true,
     },
     {
-      href: `/businesses/${slug}/costs`,
+      href: `${base}/businesses/${slug}/costs`,
       icon: DollarSign,
       label: 'Startup Cost Calculator',
-      description: 'Detailed cost breakdown per requirement with low / medium / high estimates in KES.',
+      description: `Detailed cost breakdown per requirement with low / medium / high estimates in ${market === 'KE' ? 'KES' : 'USD'}.`,
       badge: 'Coming soon',
       color: 'blue',
       available: false,
     },
     {
-      href: `/businesses/${slug}/success-stories`,
+      href: `${base}/businesses/${slug}/success-stories`,
       icon: Star,
       label: 'Success Stories',
-      description: 'Real Kenyan entrepreneurs share how they built their business from scratch.',
+      description: market === 'KE'
+        ? 'Real Kenyan entrepreneurs share how they built their business from scratch.'
+        : 'Real entrepreneurs share how they built their business from scratch.',
       badge: 'Coming soon',
       color: 'amber',
       available: false,
@@ -159,8 +167,14 @@ export default function HubPageContent({
   skillLevel,
   bestLocations,
   faqs,
+  market = DEFAULT_MARKET,
 }: HubPageContentProps) {
-  const subPages = getSubPages(slug);
+  // Every internal link in this file is built from `base` so the same
+  // component correctly stays inside whichever market rendered it —
+  // Kenya's routes have no prefix, US routes live under /us.
+  const base = market === 'US' ? '/us' : '';
+  const subPages = getSubPages(slug, base, market);
+  const countryPhrase = market === 'KE' ? 'Kenya' : 'the US';
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -194,7 +208,7 @@ export default function HubPageContent({
   className="flex items-center gap-2 text-sm text-white/70 mb-6"
 >
   <Link
-    href="/businesses"
+    href={`${base}/businesses`}
     className="inline-flex items-center gap-1 hover:text-white transition-colors group"
   >
     <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
@@ -206,7 +220,7 @@ export default function HubPageContent({
       <ChevronRight className="w-3.5 h-3.5 text-white/40" />
 
       <Link
-        href="/businesses/categories"
+        href={`${base}/businesses/categories`}
         className="hover:text-white transition-colors"
       >
         Categories
@@ -215,7 +229,7 @@ export default function HubPageContent({
       <ChevronRight className="w-3.5 h-3.5 text-white/40" />
 
       <Link
-        href={`/businesses/categories/${encodeURIComponent(
+        href={`${base}/businesses/categories/${encodeURIComponent(
           category.toLowerCase().replace(/\s+/g, "-")
         )}`}
         className="hover:text-white transition-colors"
@@ -232,7 +246,7 @@ export default function HubPageContent({
 
           {/* Title */}
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white tracking-tight leading-tight mb-6 max-w-3xl">
-            {name} Business in Kenya
+            {name} Business in {countryPhrase}
           </h1>
 
           {/* Stat pills */}
@@ -243,9 +257,9 @@ export default function HubPageContent({
               <span className="text-white/70">requirements</span>
             </div>
             
-            <BusinessCostBadge slug={slug} />
+            <BusinessCostBadge slug={slug} market={market} />
             <Link
-              href={`/businesses/${slug}/requirements`}
+              href={`${base}/businesses/${slug}/requirements`}
               className="inline-flex items-center gap-2 px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold rounded-xl transition-colors shadow-lg"
             >
               View Full Requirements
@@ -275,6 +289,7 @@ export default function HubPageContent({
         profitPotential={profitPotential}
         skillLevel={skillLevel}
         bestLocations={bestLocations}
+        market={market}
       />
 
       {/* ── Body ── */}
@@ -352,7 +367,7 @@ export default function HubPageContent({
                     Popular Requirements
                   </h2>
                   <Link
-                    href={`/businesses/${slug}/requirements`}
+                    href={`${base}/businesses/${slug}/requirements`}
                     className="text-xs text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-1"
                   >
                     View all {requirementCount}
@@ -387,7 +402,7 @@ export default function HubPageContent({
                 </ul>
                 <div className="px-6 py-4 bg-gray-50 border-t border-gray-100">
                   <Link
-                    href={`/businesses/${slug}/requirements`}
+                    href={`${base}/businesses/${slug}/requirements`}
                     className="flex items-center justify-center gap-2 w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors"
                   >
                     View Full Requirements Checklist
@@ -447,7 +462,7 @@ export default function HubPageContent({
             View the full requirements checklist, calculate your startup costs, and get everything in order before you launch.
           </p>
           <Link
-            href={`/businesses/${slug}/requirements`}
+            href={`${base}/businesses/${slug}/requirements`}
             className="inline-flex items-center gap-2 px-8 py-3 bg-white text-emerald-700 font-bold rounded-xl hover:bg-emerald-50 transition-colors shadow-md"
           >
             View All {requirementCount} Requirements

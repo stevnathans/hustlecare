@@ -25,6 +25,7 @@ const VENDOR_SELECT = {
   suspendedAt: true,
   isVerified: true,
   createdAt: true,
+  country: true,
   _count: { select: { products: true } },
   products: { where: { status: 'ACTIVE' as const }, select: { id: true } },
 
@@ -141,8 +142,8 @@ export async function GET(request: Request) {
     }));
 
     const merged = [...shapedApplications, ...shapedUnclaimed, ...shapedClaimed].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+  (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+);
 
     return NextResponse.json(merged);
   } catch (error) {

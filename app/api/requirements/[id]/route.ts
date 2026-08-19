@@ -1,5 +1,7 @@
+// app/api/requirements/[id]/route.ts
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { isMarketCode } from "@/lib/markets";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -44,6 +46,7 @@ export async function GET(_: NextRequest, { params }: Params) {
       isDeprecated: template.isDeprecated,
       isGlobal: template.isGlobal,
       isCountyFeeSchedule: template.isCountyFeeSchedule,
+      restrictedToCountry: template.restrictedToCountry,
       deprecatedAt: template.deprecatedAt,
       productCount: template._count.products,
       businessCount: template._count.businesses,
@@ -72,7 +75,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
     const body = await req.json();
-    const { name, description, image, category, necessity, isGlobal, isCountyFeeSchedule } = body;
+    const { name, description, image, category, necessity, isGlobal, isCountyFeeSchedule, restrictedToCountry } = body;
+
+    // restrictedToCountry must be a known market code, or null (meaning
+    // "available in every market"). An invalid value here would silently
+    // make a requirement disappear from every market's requirements page,
+    // so we reject it outright rather than letting Prisma write it through.
+    if (restrictedToCountry !== undefined && restrictedToCountry !== null && !isMarketCode(restrictedToCountry)) {
+      return NextResponse.json({ error: "Invalid market value for restrictedToCountry" }, { status: 400 });
+    }
 
     const template = await prisma.requirementTemplate.findUnique({
       where: { id: Number(id) },
@@ -99,6 +110,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         ...(necessity   !== undefined && { necessity }),
         ...(isGlobal    !== undefined && { isGlobal }),
         ...(isCountyFeeSchedule !== undefined && { isCountyFeeSchedule }),
+        ...(restrictedToCountry !== undefined && { restrictedToCountry }),
       },
       include: { _count: { select: { businesses: true, products: true } } },
     });
@@ -134,6 +146,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       necessity: updated.necessity,
       isGlobal: updated.isGlobal,
       isCountyFeeSchedule: updated.isCountyFeeSchedule,
+      restrictedToCountry: updated.restrictedToCountry,
       productCount: updated._count.products,
       businessCount: updatedCount,
       updatedAt: updated.updatedAt,

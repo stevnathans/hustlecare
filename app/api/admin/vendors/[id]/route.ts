@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requirePermission, createAuditLog } from '@/lib/admin-utils';
 import { toTitleCase, generateUniqueVendorSlug } from '@/lib/vendor-utils';
+import { isMarketCode } from '@/lib/markets';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -19,6 +20,14 @@ export async function PATCH(request: Request, { params }: Params) {
 
     if (body.name !== undefined && !body.name.trim()) {
       return NextResponse.json({ error: 'Vendor name cannot be empty.' }, { status: 400 });
+    }
+
+    // country must be a known market code when provided — an invalid
+    // value would silently make this vendor's products disappear from
+    // every market's product recommendations (see the vendor filter in
+    // app/api/business/[slug]/products/route.ts).
+    if (body.country !== undefined && !isMarketCode(body.country)) {
+      return NextResponse.json({ error: 'Invalid market value for country.' }, { status: 400 });
     }
 
     let slug = existing.slug;
@@ -44,6 +53,7 @@ export async function PATCH(request: Request, { params }: Params) {
         instagramUrl: body.instagramUrl !== undefined ? (body.instagramUrl?.trim() || null) : undefined,
         facebookUrl: body.facebookUrl !== undefined ? (body.facebookUrl?.trim() || null) : undefined,
         linkedinUrl: body.linkedinUrl !== undefined ? (body.linkedinUrl?.trim() || null) : undefined,
+        country: body.country !== undefined ? body.country : undefined,
       },
     });
 

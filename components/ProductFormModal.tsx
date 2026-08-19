@@ -17,6 +17,29 @@ type Props = {
   vendors: VendorTuple[];
 };
 
+// Currencies offered in the Pricing section's currency dropdown — kept in
+// sync with the <select> in ProductForm.tsx. Used to sanity-check a
+// currency pulled from a fetched product page before we auto-fill it;
+// an unrecognized value (e.g. a site using a currency code we don't
+// support) is dropped rather than silently setting an invalid currency.
+const SUPPORTED_CURRENCIES = ['KES', 'USD', 'UGX', 'TZS', 'NGN', 'ZAR', 'GHS'];
+
+// Strips protocol/www/path so a vendor's stored website and a product
+// link can be compared on hostname alone (e.g. "https://www.acme.com/"
+// vs "https://acme.com/shop/widget?ref=123" should both normalize to
+// "acme.com"). Returns null for anything unparseable rather than
+// throwing — a bad vendor.website value should just fail to match, not
+// break the fetch.
+function normalizeHost(raw: string): string | null {
+  if (!raw) return null;
+  try {
+    const url = new URL(raw.match(/^https?:\/\//i) ? raw : `https://${raw}`);
+    return url.hostname.replace(/^www\./i, '').toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
 export default function ProductFormModal({ open, setOpen, fetchProducts, editingProduct, vendors }: Props) {
   const [form, setForm] = useState<ProductFormValues>(EMPTY_PRODUCT_FORM);
   const [bulkTiers, setBulkTiers] = useState<BulkTier[]>([]);
@@ -26,6 +49,12 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const firstInputRef = useRef<HTMLInputElement>(null);
+
+  // "Fetch details" (generic OG / schema.org scraper) state — admin-only,
+  // wired into ProductForm's Buy Link field.
+  const [fetchingMetadata, setFetchingMetadata] = useState(false);
+  const [fetchMetadataError, setFetchMetadataError] = useState<string | null>(null);
+  const [fetchMetadataNotice, setFetchMetadataNotice] = useState<string | null>(null);
 
   const isShellProduct = !!editingProduct?.isFeeScheduleShell;
 
@@ -106,6 +135,8 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
       setPackages([]);
     }
     setErrors({});
+    setFetchMetadataError(null);
+    setFetchMetadataNotice(null);
     setTimeout(() => firstInputRef.current?.focus(), 80);
   }, [open, editingProduct]);
 
@@ -236,6 +267,61 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
     }
   };
 
+  // Generic "Fetch details" — hits /api/admin/products/fetch-metadata,
+  // which scrapes OG tags / schema.org JSON-LD from the pasted product
+  // link. Only ever fills fields the admin hasn't already typed into
+  // (never clobbers existing/edited data), and separately tries to
+  // auto-select a vendor by matching the resolved product URL's hostname
+  // against each vendor's stored website — also only when vendorId is
+  // still blank.
+  const handleFetchMetadata = async () => {
+    if (!form.url.trim()) return;
+    setFetchingMetadata(true);
+    setFetchMetadataError(null);
+    setFetchMetadataNotice(null);
+    try {
+      const res = await fetch(`/api/admin/products/fetch-metadata?url=${encodeURIComponent(form.url.trim())}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch product details.');
+
+      // Match on the *resolved* URL (post-redirect) where available — a
+      // shortened/tracking link's raw hostname won't match the vendor's
+      // real domain, but where it actually lands will.
+      const productHost = normalizeHost(data.finalUrl || form.url);
+      console.log('DEBUG productHost:', productHost);
+      console.log('DEBUG vendors:', vendors.map(([, name, website]) => ({
+        name, website, normalized: website ? normalizeHost(website) : null,
+      })));
+      const matchedVendor = productHost
+        ? vendors.find(([, , website]) => website && normalizeHost(website) === productHost)
+        : undefined;
+      console.log('DEBUG matchedVendor:', matchedVendor);
+
+      setForm((f) => {
+        const shouldFillPrice = !f.price.trim() && !f.usePriceRange && !!data.price;
+        return {
+          ...f,
+          name: f.name.trim() ? f.name : data.name || f.name,
+          description: f.description.trim() ? f.description : data.description || f.description,
+          image: f.image.trim() ? f.image : data.image || f.image,
+          price: shouldFillPrice ? data.price : f.price,
+          currency: shouldFillPrice && SUPPORTED_CURRENCIES.includes(data.currency) ? data.currency : f.currency,
+          // Never override a vendor the admin already picked — auto-select
+          // only fills a blank field, same rule as every other autofilled value.
+          vendorId: !f.vendorId && matchedVendor ? matchedVendor[0] : f.vendorId,
+        };
+      });
+
+      if (matchedVendor) {
+        setFetchMetadataNotice(`Vendor auto-selected: ${matchedVendor[1]} (matched by link domain)`);
+      }
+    } catch (e) {
+      setFetchMetadataError(e instanceof Error ? e.message : 'Failed to fetch product details.');
+    } finally {
+      setFetchingMetadata(false);
+    }
+  };
+
   if (!open) return null;
   const isEdit = !!editingProduct;
 
@@ -264,6 +350,14 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
               those packages won&apos;t be saved. Switch the requirement back to a Software one to keep them.
             </div>
           )}
+          {fetchMetadataNotice && (
+            <div
+              className="mb-3 rounded-lg border px-3 py-2 text-xs"
+              style={{ borderColor: 'rgba(52, 211, 153, 0.4)', backgroundColor: 'rgba(52, 211, 153, 0.08)', color: '#34d399' }}
+            >
+              {fetchMetadataNotice}
+            </div>
+          )}
           <ProductForm
             mode="admin"
             theme="dark"
@@ -278,6 +372,9 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
             packages={packages}
             setPackages={setPackages}
             isFeeScheduleShell={isShellProduct}
+            onFetchMetadata={handleFetchMetadata}
+            fetchingMetadata={fetchingMetadata}
+            fetchMetadataError={fetchMetadataError}
           />
         </div>
         <div className="modal-footer">

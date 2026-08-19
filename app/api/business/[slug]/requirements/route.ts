@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { DEFAULT_MARKET } from '@/lib/markets';
 
 export async function GET(
   request: NextRequest,
@@ -21,11 +22,24 @@ export async function GET(
       return NextResponse.json({ error: 'Business not found' }, { status: 404 });
     }
 
+    // market defaults to Kenya — this endpoint only ever serves the Kenya
+    // site today. Same restrictedToCountry filter as the two page-level
+    // queries (app/businesses/[slug]/page.tsx and .../requirements/page.tsx)
+    // — this is the third data path (client-side re-fetch on business
+    // switch, via useBusinessData.ts) that needed the same guard.
+    const market = DEFAULT_MARKET;
+
     const links = await prisma.businessRequirement.findMany({
       where: {
         businessId: business.id,
         isActive: true,
-        template: { isDeprecated: false },
+        template: {
+          isDeprecated: false,
+          OR: [
+            { restrictedToCountry: null },
+            { restrictedToCountry: market },
+          ],
+        },
       },
       include: {
         template: {

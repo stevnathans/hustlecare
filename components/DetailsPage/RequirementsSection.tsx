@@ -8,6 +8,7 @@ import BusinessCard from "../business/BusinessCards";
 import { Product } from "@/types";
 import { FeeScheduleResolution } from '@/lib/legalFeeSchedule';
 import { FeeScheduleShellProductDetails } from 'hooks/useBusinessData';
+import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
 
 interface RequirementLocal {
   id: number;
@@ -50,6 +51,7 @@ interface RequirementsSectionProps {
   getFilteredRequirements: (category: string) => RequirementLocal[];
   isLoading?: boolean;
   onProductAssigned?: () => void;
+  market?: MarketCode;
 }
 
 type Business = {
@@ -86,6 +88,7 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
   isLoading = false,
   onProductAssigned,
   availableNecessities,
+  market = DEFAULT_MARKET,
 }) => {
   const [similarBusinesses, setSimilarBusinesses] = useState<Business[]>([]);
   const [loadingBusinesses, setLoadingBusinesses] = useState(true);
@@ -93,10 +96,15 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
   useEffect(() => {
     const fetchSimilarBusinesses = async () => {
       try {
-        const res = await fetch("/api/businesses");
+        // market included for consistency with the rest of the market-aware
+        // endpoints — Business rows themselves are shared across markets,
+        // so this mainly affects the requirement counts shown, not which
+        // businesses appear.
+        const res = await fetch(`/api/businesses?market=${market}`);
         if (!res.ok) throw new Error("Failed to fetch businesses");
         const data = await res.json();
-        setSimilarBusinesses(data.slice(0, 3));
+        const list = Array.isArray(data) ? data : (data.businesses ?? []);
+        setSimilarBusinesses(list.slice(0, 3));
       } catch (error) {
         console.error("Error fetching similar businesses:", error);
       } finally {
@@ -105,7 +113,7 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
     };
 
     fetchSimilarBusinesses();
-  }, []);
+  }, [market]);
 
   const hasGlobalFilters = globalSearchQuery || globalFilter !== "all";
 
@@ -251,6 +259,7 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
                 groupedRequirements={business.groupedRequirements}
                 sortedCategories={business.sortedCategories}
                 slug={business.slug}
+                market={market}
               />
             </div>
           ))}
@@ -402,6 +411,7 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
                   onProductAssigned={onProductAssigned}
                   businessId={businessId}
                   availableNecessities={availableNecessities}
+                  market={market}
                 />
               );
             })}

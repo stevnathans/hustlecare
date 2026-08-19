@@ -46,10 +46,11 @@ export async function POST(request: NextRequest) {
     // for) or from SoftwarePackage (using the packageId the client says
     // was picked). This mirrors the project's existing "never trust a
     // client-sent price, snapshot the real one" pattern (see
-    // OrderItem.unitPrice).
+    // OrderItem.unitPrice). currency gets the same treatment: it's read
+    // from the product row itself, never trusted from the client.
     const productRecord = await prisma.product.findUnique({
       where: { id: Number(product.productId) },
-      select: { id: true, isFeeScheduleShell: true, templateId: true },
+      select: { id: true, isFeeScheduleShell: true, templateId: true, currency: true },
     })
 
     if (!productRecord) {
@@ -59,6 +60,10 @@ export async function POST(request: NextRequest) {
     let unitPrice = product.price
     let packageId: number | null = null
     let billingPeriodLabel: string | null = null
+    // Falls back to KES if the product row somehow has a null currency —
+    // matches the Product.currency schema default, so this only ever
+    // triggers on pre-migration data.
+    const currency = productRecord.currency ?? 'KES'
 
     if (productRecord.isFeeScheduleShell) {
       const countyId = product.countyId ? Number(product.countyId) : null
@@ -119,6 +124,10 @@ export async function POST(request: NextRequest) {
       }
 
       unitPrice = resolution.price
+      // County fee schedules are Kenya-only (see LegalFeeSchedule/County
+      // in schema.prisma) — currency here is always KES regardless of the
+      // shell product's own currency field, since the resolved price
+      // itself only ever comes from a Kenyan county's fee schedule.
     } else if (product.packageId) {
       // Software package selection — same "re-resolve, never trust the
       // client" treatment as the county-fee branch above, just against
@@ -138,6 +147,8 @@ export async function POST(request: NextRequest) {
       unitPrice = pkg.price
       packageId = pkg.id
       billingPeriodLabel = billingPeriodLabelFor(pkg.billingPeriod)
+      // SoftwarePackage has no currency of its own — it inherits the
+      // parent product's currency, already captured above.
     }
 
     // Find or create cart for this user and business
@@ -178,7 +189,7 @@ export async function POST(request: NextRequest) {
       if (replacesExistingLine) {
         await prisma.cartItem.update({
           where: { id: existingItem.id },
-          data:  { unitPrice, packageId, billingPeriodLabel },
+          data:  { unitPrice, currency, packageId, billingPeriodLabel },
         })
       } else {
         await prisma.cartItem.update({
@@ -193,6 +204,7 @@ export async function POST(request: NextRequest) {
           productId:          product.productId,
           quantity:           1,
           unitPrice,
+          currency,
           packageId,
           billingPeriodLabel,
           category:           product.category        || 'Uncategorized',
@@ -242,6 +254,7 @@ export async function POST(request: NextRequest) {
       productId:          item.productId,
       name:               item.product.name,
       price:              item.unitPrice,
+      currency:           item.currency,
       quantity:           item.quantity,
       image:              item.product.image || undefined,
       category:           item.category        || 'Uncategorized',

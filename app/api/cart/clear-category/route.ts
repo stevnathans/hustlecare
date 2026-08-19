@@ -68,10 +68,13 @@ export async function POST(request: NextRequest) {
       productId: item.productId,
       name: item.product.name,
       price: item.unitPrice,
+      currency: item.currency,
       quantity: item.quantity,
       image: item.product.image || undefined,
       category: item.category || "Uncategorized",
       requirementName: item.requirementName || "Unspecified Requirement",
+      packageId: item.packageId ?? undefined,
+      billingPeriodLabel: item.billingPeriodLabel ?? undefined,
     })) || [];
 
     return NextResponse.json({ items });

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { revalidateBusinessPages } from "@/lib/revalidate";
+import { isMarketCode } from "@/lib/markets";
 
 export async function GET() {
   try {
@@ -25,6 +26,7 @@ export async function GET() {
         isDeprecated: t.isDeprecated,
         isGlobal: t.isGlobal,
         isCountyFeeSchedule: t.isCountyFeeSchedule,
+        restrictedToCountry: t.restrictedToCountry,
         productCount: t._count.products,
         businessCount: t._count.businesses,
         createdAt: t.createdAt,
@@ -52,6 +54,7 @@ export async function POST(req: Request) {
       businessId,
       isGlobal = false,
       isCountyFeeSchedule = false,
+      restrictedToCountry,
     } = body;
 
     if (!name || !category || !necessity) {
@@ -61,8 +64,30 @@ export async function POST(req: Request) {
       );
     }
 
+    // restrictedToCountry must be a known market code, or explicitly null
+    // (meaning "available in every market"). Left undefined, Prisma applies
+    // the schema default ("KE") — so omitting it from the request keeps the
+    // existing "closed by default" behavior. An invalid value here would
+    // silently make a new requirement disappear from every market's
+    // requirements page, so we reject it outright.
+    if (restrictedToCountry !== undefined && restrictedToCountry !== null && !isMarketCode(restrictedToCountry)) {
+      return NextResponse.json(
+        { error: "Invalid market value for restrictedToCountry" },
+        { status: 400 }
+      );
+    }
+
     const template = await prisma.requirementTemplate.create({
-      data: { name, description, image, category, necessity, isGlobal, isCountyFeeSchedule },
+      data: {
+        name,
+        description,
+        image,
+        category,
+        necessity,
+        isGlobal,
+        isCountyFeeSchedule,
+        ...(restrictedToCountry !== undefined && { restrictedToCountry }),
+      },
       include: { _count: { select: { products: true, businesses: true } } },
     });
 
@@ -139,6 +164,7 @@ export async function POST(req: Request) {
         necessity: template.necessity,
         isGlobal: template.isGlobal,
         isCountyFeeSchedule: template.isCountyFeeSchedule,
+        restrictedToCountry: template.restrictedToCountry,
         productCount: template._count.products,
         businessCount: updatedCount,
         createdAt: template.createdAt,

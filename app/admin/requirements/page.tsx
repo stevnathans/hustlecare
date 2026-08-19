@@ -16,6 +16,7 @@ type Template = {
   isDeprecated: boolean;
   isGlobal: boolean;
   isCountyFeeSchedule: boolean;
+  restrictedToCountry: string | null;
   productCount: number;
   businessCount: number;
   createdAt: string;
@@ -62,11 +63,13 @@ const defaultForm: {
   necessity: string;
   isGlobal: boolean;
   isCountyFeeSchedule: boolean;
+  restrictedToCountry: string | null;
 } = {
   name: '', description: '', image: '', category: '',
   necessity: 'Required',
   isGlobal: false,
   isCountyFeeSchedule: false,
+  restrictedToCountry: 'KE',
 };
 
 const S = `
@@ -138,6 +141,7 @@ const S = `
   .linked-biz-row { display:flex; align-items:center; padding:0.65rem 0.85rem; gap:0.5rem; cursor:pointer; flex-wrap:nowrap; min-height:52px; }
   .dep-badge { display:inline-flex; align-items:center; gap:0.3rem; padding:0.2rem 0.6rem; border-radius:100px; font-size:0.68rem; font-weight:700; background:rgba(239,68,68,0.1); color:#f87171; border:1px solid rgba(239,68,68,0.2); }
   .global-badge { display:inline-flex; align-items:center; gap:0.25rem; padding:0.15rem 0.5rem; border-radius:100px; font-size:0.65rem; font-weight:700; background:rgba(99,102,241,0.12); color:#818cf8; border:1px solid rgba(99,102,241,0.2); }
+  .market-badge { display:inline-flex; align-items:center; gap:0.25rem; padding:0.15rem 0.5rem; border-radius:100px; font-size:0.65rem; font-weight:700; background:rgba(148,148,176,0.1); color:#9494b0; border:1px solid rgba(148,148,176,0.2); }
   .modal-search { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.09); border-radius:8px; padding:0.5rem 2rem 0.5rem 2.1rem; color:#f0f0f5; font-family:'Sora',sans-serif; font-size:0.82rem; outline:none; width:100%; box-sizing:border-box; }
   .modal-search::placeholder { color:#3a3a56; }
   .modal-search:focus { border-color:rgba(99,102,241,0.5); }
@@ -432,6 +436,7 @@ export default function RequirementsPage() {
       necessity: t.necessity,
       isGlobal: t.isGlobal,
       isCountyFeeSchedule: t.isCountyFeeSchedule,
+      restrictedToCountry: t.restrictedToCountry,
     });
     setEditingId(t.id); setFormLinkToBiz(false); setFormBizId(null); setFormOpen(true);
   }
@@ -763,6 +768,11 @@ export default function RequirementsPage() {
                                     county fee
                                   </span>
                                 )}
+                                {t.restrictedToCountry && (
+                                  <span className="market-badge" title="Only shown to visitors in this market">
+                                    {t.restrictedToCountry}
+                                  </span>
+                                )}
                               </div>
                               {t.description && <div style={{ fontSize: '0.74rem', color: '#55556e', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '0.1rem' }}>{t.description}</div>}
                             </div>
@@ -828,6 +838,11 @@ export default function RequirementsPage() {
                           title="Price varies by county — managed via the Legal Fee Schedule"
                         >
                           county fee
+                        </span>
+                      )}
+                      {t.restrictedToCountry && (
+                        <span className="market-badge" title="Only shown to visitors in this market">
+                          {t.restrictedToCountry}
                         </span>
                       )}
                     </div>
@@ -995,6 +1010,30 @@ export default function RequirementsPage() {
                     )}
                   </div>
                 )}
+
+                {/* Market availability */}
+                <div>
+                  <label className="f-label">Market Availability</label>
+                  <select
+                    className="f-select"
+                    value={formData.restrictedToCountry ?? ''}
+                    onChange={e =>
+                      setFormData(f => ({
+                        ...f,
+                        restrictedToCountry: e.target.value === '' ? null : e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="KE">Kenya only</option>
+                    <option value="US">US only</option>
+                    <option value="">All markets</option>
+                  </select>
+                  <div className="f-hint">
+                    {formData.restrictedToCountry === null
+                      ? 'Shows in every market, including any added later.'
+                      : `Only shows to visitors in ${formData.restrictedToCountry === 'KE' ? 'Kenya' : 'the US'}.`}
+                  </div>
+                </div>
 
                 {/* Link to specific biz — only shown when NOT global and NOT editing */}
                 {!editingId && !formData.isGlobal && (

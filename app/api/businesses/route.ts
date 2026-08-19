@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { EXCLUDED_FROM_TOTALS_CATEGORIES } from "@/lib/necessity";
+import { DEFAULT_MARKET, isMarketCode } from "@/lib/markets";
 
 // Fetch published businesses.
 //
@@ -25,6 +26,13 @@ export async function GET(req: NextRequest) {
     );
     const skip = (page - 1) * limit;
 
+    // market defaults to Kenya — same pattern as every other market-aware
+    // route (requirements, products, cost). Filters the requirement count
+    // so a US-rendered business card doesn't count Kenya-only requirements
+    // (e.g. county-fee Legal items) that will never appear on that page.
+    const marketParam = searchParams.get("market");
+    const market = isMarketCode(marketParam) ? marketParam : DEFAULT_MARKET;
+
     const [businesses, total] = await Promise.all([
       prisma.business.findMany({
         where: { published: true },
@@ -45,6 +53,10 @@ export async function GET(req: NextRequest) {
                     // EXCLUDED_FROM_TOTALS_CATEGORIES is a Set (see lib/necessity.ts) —
                     // Prisma's `notIn` needs a plain array.
                     category: { notIn: Array.from(EXCLUDED_FROM_TOTALS_CATEGORIES) },
+                    OR: [
+                      { restrictedToCountry: null },
+                      { restrictedToCountry: market },
+                    ],
                   },
                 },
               },

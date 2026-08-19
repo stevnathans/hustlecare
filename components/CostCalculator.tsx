@@ -1,4 +1,3 @@
-/* eslint-disable react/no-unescaped-entities */
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -8,6 +7,8 @@ import { useCart, CartItem } from '@/contexts/CartContext';
 import { FiShoppingCart, FiPlus, FiMinus, FiTrash2, FiChevronDown, FiChevronRight, FiSave, FiCopy, FiShare2, FiX, FiEdit2, FiCheck, FiDownload, FiInfo, FiShoppingBag } from 'react-icons/fi';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { formatCurrency as formatMoney, MARKET_CURRENCY } from '@/lib/currency';
+import { DEFAULT_MARKET, type MarketCode, isMarketCode } from '@/lib/markets';
 
 // Define the order of categories for consistent display
 const CATEGORY_ORDER = [
@@ -23,6 +24,7 @@ const CATEGORY_ORDER = [
 
 interface CostCalculatorProps {
   business: { name: string };
+  market?: MarketCode;
 }
 
 type GroupedCartItems = {
@@ -35,7 +37,16 @@ type GroupedCartItems = {
   };
 };
 
-const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
+// Currency code (e.g. "KES") -> MarketCode (e.g. "KE") lookup, built from
+// the same MARKET_CURRENCY map lib/currency.ts already defines, so a new
+// market added there is automatically picked up here too.
+const CURRENCY_TO_MARKET: Record<string, MarketCode> = Object.fromEntries(
+  (Object.entries(MARKET_CURRENCY) as [MarketCode, { code: string }][]).map(
+    ([mkt, { code }]) => [code, mkt]
+  )
+);
+
+const CostCalculator: React.FC<CostCalculatorProps> = ({ business, market = DEFAULT_MARKET }) => {
   const { items, totalCost, totalItems: overallTotalItems, updateQuantity, removeFromCart, saveCart, businessId, clearCategory, clearRequirement } = useCart();
   const [cartName, setCartName] = useState('');
   const [saveStatus, setSaveStatus] = useState<{ success: boolean; message: string } | null>(null);
@@ -48,6 +59,26 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
 
   const [isMobile, setIsMobile] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // The cart itself is the source of truth for currency, not the page's
+  // `market` prop — a cart line's price was snapshotted server-side at
+  // add-time from the product's real currency (see /api/cart/item/add),
+  // so reading it back here means the calculator displays correctly even
+  // if it were ever rendered somewhere the `market` prop didn't match
+  // (e.g. a saved/shared cart viewed later, or a future cross-market
+  // edge case). Falls back to the `market` prop only when the cart is
+  // empty, since there's nothing to read a currency from yet.
+  const effectiveMarket: MarketCode = useMemo(() => {
+    const firstWithCurrency = items.find((item) => !item.isProductless && item.currency);
+    const code = firstWithCurrency?.currency;
+    if (code && isMarketCode(CURRENCY_TO_MARKET[code])) {
+      return CURRENCY_TO_MARKET[code];
+    }
+    return market;
+  }, [items, market]);
+
+  const money = (amount: number) => formatMoney(amount, effectiveMarket);
+  const dateLocale = effectiveMarket === 'KE' ? 'en-KE' : 'en-US';
 
   // Check if any productless items are in the cart
   const hasProductlessItems = useMemo(() => items.some((item) => item.isProductless), [items]);
@@ -83,11 +114,6 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
       document.body.style.overflow = '';
     };
   }, [isMobile, isExpanded]);
-  
-  // Format currency with commas
-  const formatCurrency = (amount: number) => {
-    return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  };
 
   // Helper function for singular/plural items
   const formatItemCount = (count: number) => {
@@ -235,7 +261,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
       const listName = cartName.trim() || `My ${business.name} List`;
       doc.text(listName, margin, 25);
       
-      const currentDate = new Date().toLocaleDateString('en-KE', { 
+      const currentDate = new Date().toLocaleDateString(dateLocale, { 
         year: 'numeric', 
         month: 'long', 
         day: 'numeric' 
@@ -259,7 +285,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(16, 185, 129);
-      doc.text(`Total Cost Estimate: KSh ${formatCurrency(totalCost)}`, margin, yPosition);
+      doc.text(`Total Cost Estimate: ${money(totalCost)}`, margin, yPosition);
 
       // Note if there are productless items
       if (hasProductlessItems) {
@@ -295,7 +321,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
         doc.setFontSize(9);
         doc.setTextColor(107, 114, 128); // gray-500
         doc.text(
-          `${formatItemCount(category.categoryTotalItems)} | KSh ${formatCurrency(category.categorySubtotal)}`,
+          `${formatItemCount(category.categoryTotalItems)} | ${money(category.categorySubtotal)}`,
           pageWidth - margin - 2,
           yPosition,
           { align: 'right' }
@@ -337,8 +363,8 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
                 // that this is a recurring line, not a one-off purchase.
                 item.billingPeriodLabel ? `${item.name} (${item.billingPeriodLabel})` : item.name,
                 item.quantity.toString(),
-                `KSh ${formatCurrency(item.price)}`,
-                `KSh ${formatCurrency(item.price * item.quantity)}`
+                money(item.price),
+                money(item.price * item.quantity)
               ]);
 
             autoTable(doc, {
@@ -498,7 +524,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
                 </div>
               </div>
               <div className="text-right">
-                <span className="text-white font-bold text-xl block">KSh {formatCurrency(totalCost)}</span>
+                <span className="text-white font-bold text-xl block">{money(totalCost)}</span>
                 <p className="text-white text-opacity-80 text-xs">Total Estimated Cost</p>
               </div>
             </div>
@@ -585,7 +611,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="text-lg font-bold text-emerald-600 block">KSh {formatCurrency(category.categorySubtotal)}</span>
+                    <span className="text-lg font-bold text-emerald-600 block">{money(category.categorySubtotal)}</span>
                   </div>
                 </div>
 
@@ -672,7 +698,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
                                         {item.name}
                                       </h5>
                                       <p className="text-xs text-gray-500 mt-0.5">
-                                        KSh {formatCurrency(item.price)}
+                                        {money(item.price)}
                                         {item.billingPeriodLabel && ` / ${item.billingPeriodLabel}`}
                                       </p>
                                     </div>
@@ -764,7 +790,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
             <div className="flex items-start gap-2 mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
               <FiInfo size={14} className="flex-shrink-0 mt-0.5" />
               <span>
-                Requirements marked <strong>"No products"</strong> are included in your list but not counted in the total cost estimate below. You'll need to research their costs separately.
+                Requirements marked <strong>&quot;No products&quot;</strong> are included in your list but not counted in the total cost estimate below. You&apos;ll need to research their costs separately.
               </span>
             </div>
           )}
@@ -773,7 +799,7 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
   <div className="flex justify-between items-center">
     <div>
       <span className="text-sm text-gray-600 block mb-1">Total Estimated Cost</span>
-      <span className="text-3xl sm:text-2xl font-bold text-emerald-700">KSh {formatCurrency(totalCost)}</span>
+      <span className="text-3xl sm:text-2xl font-bold text-emerald-700">{money(totalCost)}</span>
       {hasProductlessItems && (
         <span className="text-xs text-gray-500 mt-1 block">
           Based on {requirementCounts.costing} out of {requirementCounts.total} requirements
@@ -883,10 +909,6 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ business }) => {
           }
           .custom-scrollbar::-webkit-scrollbar-track {
             background: #f3f4f6;
-            border-radius: 10px;
-          }
-          .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #d1d5db;
             border-radius: 10px;
           }
           .custom-scrollbar::-webkit-scrollbar-thumb:hover {

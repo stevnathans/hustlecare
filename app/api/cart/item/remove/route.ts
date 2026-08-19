@@ -78,16 +78,18 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // 🔧 FIX: Added category and requirementName fields
     const items = updatedCart?.items.map(item => ({
       id: item.id,
       productId: item.productId,
       name: item.product.name,
       price: item.unitPrice,
+      currency: item.currency,
       quantity: item.quantity,
       image: item.product.image || undefined,
-      category: item.category || "Uncategorized",                    // ✅ Added
-      requirementName: item.requirementName || "Unspecified Requirement", // ✅ Added
+      category: item.category || "Uncategorized",
+      requirementName: item.requirementName || "Unspecified Requirement",
+      packageId: item.packageId ?? undefined,
+      billingPeriodLabel: item.billingPeriodLabel ?? undefined,
     })) || [];
 
     return NextResponse.json({ items });

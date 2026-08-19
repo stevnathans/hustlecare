@@ -1,6 +1,7 @@
 // app/api/businesses/search/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { DEFAULT_MARKET, isMarketCode } from '@/lib/markets'
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,6 +11,13 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '12')
     const skip = (page - 1) * limit
+
+    // market defaults to Kenya — same pattern as every other market-aware
+    // route. Filters which requirements count toward a keyword match (so a
+    // Kenya-only requirement's name/category can't surface a business in a
+    // US search) and which ones populate groupedRequirements in the response.
+    const marketParam = searchParams.get('market')
+    const market = isMarketCode(marketParam) ? marketParam : DEFAULT_MARKET
 
     // Typeahead/live-search widgets (e.g. the header search bar) pass
     // suggest=1 so every keystroke pause doesn't write a SearchLog row —
@@ -63,6 +71,10 @@ export async function GET(request: NextRequest) {
                   contains: keyword,
                   mode: 'insensitive' as const,
                 },
+                OR: [
+                  { restrictedToCountry: null },
+                  { restrictedToCountry: market },
+                ],
               },
             },
           },
@@ -78,6 +90,10 @@ export async function GET(request: NextRequest) {
                   contains: keyword,
                   mode: 'insensitive' as const,
                 },
+                OR: [
+                  { restrictedToCountry: null },
+                  { restrictedToCountry: market },
+                ],
               },
             },
           },
@@ -124,7 +140,13 @@ export async function GET(request: NextRequest) {
           requirements: {
             where: {
               isActive: true,
-              template: { isDeprecated: false },
+              template: {
+                isDeprecated: false,
+                OR: [
+                  { restrictedToCountry: null },
+                  { restrictedToCountry: market },
+                ],
+              },
             },
             include: {
               template: {

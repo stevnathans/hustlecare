@@ -26,6 +26,8 @@ import { useSession } from "next-auth/react";
 import LoginModal from "../LoginModal";
 import { getBuyActionLabel } from "@/lib/buyAction";
 import ApplyForMeButton from "@/components/shared/ApplyForMeButton";
+import { formatCurrency } from "@/lib/currency";
+import { DEFAULT_MARKET, type MarketCode } from "@/lib/markets";
 
 type DurationUnit = "days" | "months" | "years";
 type BillingPeriod = "MONTHLY" | "QUARTERLY" | "YEARLY" | "ONE_TIME";
@@ -119,6 +121,7 @@ interface ProductCardProps {
   requirementName: string;
   category: string;
   businessId?: number;
+  market?: MarketCode;
 }
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
@@ -410,10 +413,12 @@ function PackageOption({
   pkg,
   active,
   onSelect,
+  market,
 }: {
   pkg: SoftwarePackage;
   active: boolean;
   onSelect: () => void;
+  market: MarketCode;
 }) {
   return (
     <button
@@ -435,7 +440,7 @@ function PackageOption({
       )}
       <p className="text-xs font-semibold text-gray-900">{pkg.name}</p>
       <p className="text-sm font-bold text-gray-900 mt-0.5">
-        KSh {pkg.price.toLocaleString()}
+        {formatCurrency(pkg.price, market)}
         <span className="text-[0.65rem] font-normal text-gray-500">
           {billingSuffix(pkg.billingPeriod)}
         </span>
@@ -466,6 +471,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
   requirementName,
   category,
   businessId,
+  market = DEFAULT_MARKET,
 }) => {
   const { addToCart, items, removeFromCart } = useCart();
   const [showDetails, setShowDetails] = useState(false);
@@ -498,7 +504,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
     : null;
 
   // Software-only display concern: a flat-priced Software product shows
-  // "KSh X/mo" (or /qtr, /yr) next to its price. Gated on BOTH the
+  // "{price}/mo" (or /qtr, /yr) next to its price. Gated on BOTH the
   // absence of packages AND category === "Software" — checking
   // billingPeriod truthiness alone is not sufficient, since a non-Software
   // product (e.g. Equipment) could have a stray/defaulted billingPeriod
@@ -531,11 +537,23 @@ const ProductCard: React.FC<ProductCardProps> = ({
         requirementName,
         category,
         __index: 0,
+        // Packaged Software: snapshot the chosen package's cadence.
+        // Simple flat-price Software (no packages, just billingPeriod +
+        // price): snapshot that cadence too — previously this branch was
+        // skipped entirely whenever hasPackages was false, so a flat-rate
+        // subscription showed correctly on the product card but silently
+        // lost its cadence label once added to the cart, calculator, and
+        // PDF export (all of which read item.billingPeriodLabel, never
+        // product.billingPeriod directly). Gated on isSimpleSoftwarePricing,
+        // which already checks both category === "Software" and
+        // !hasPackages, so non-Software products are unaffected.
         ...(hasPackages
           ? {
               packageId: selectedPackage!.id,
               billingPeriodLabel: billingPeriodLabel(selectedPackage!.billingPeriod),
             }
+          : isSimpleSoftwarePricing
+          ? { billingPeriodLabel: billingPeriodLabel(product.billingPeriod!) }
           : {}),
       });
     } catch (error) {
@@ -585,6 +603,11 @@ const ProductCard: React.FC<ProductCardProps> = ({
   };
 
   const isUsed = product.condition === "USED";
+  // Condition badge only makes sense for physical goods — mirrors the
+  // ProductForm gating (Equipment/Stock requirements only), so it doesn't
+  // show "Brand New"/"Used" on Software, Legal, etc. where condition was
+  // never meaningfully set.
+  const showCondition = !!product.condition && (category === "Equipment" || category === "Stock");
   const hasWarranty = !!product.warrantyType && product.warrantyType !== "NONE";
   const usedDuration = formatDuration(
     product.usedDurationValue,
@@ -702,7 +725,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
               <div className="flex items-center gap-1.5 flex-wrap">
                 {hasPackages ? (
                   <span className="text-base sm:text-lg font-bold text-gray-900">
-                    Starting from KSh {product.price.toLocaleString()}
+                    Starting from {formatCurrency(product.price, market)}
                     {!allPackagesOneTime && (
                       <span className="text-xs font-normal text-gray-500">/mo</span>
                     )}
@@ -710,7 +733,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
                 ) : (
                   <>
                     <span className="text-base sm:text-lg font-bold text-gray-900">
-                      KSh {product.price.toLocaleString()}
+                      {formatCurrency(product.price, market)}
                       {isSimpleSoftwarePricing && (
                         <span className="text-xs font-normal text-gray-500">
                           {billingSuffix(product.billingPeriod)}
@@ -747,9 +770,9 @@ const ProductCard: React.FC<ProductCardProps> = ({
             </button>
           </div>
 
-          {(product.condition || hasWarranty || product.deliveryAvailable) && (
+            {(showCondition || hasWarranty || product.deliveryAvailable) && (
             <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
-              {product.condition && (
+              {showCondition && (
                 <Badge tone={isUsed ? "amber" : "emerald"}>
                   {isUsed
                     ? `Used${usedDuration ? ` · ${usedDuration}` : ""}`
@@ -827,6 +850,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
                         pkg={pkg}
                         active={selectedPackage?.id === pkg.id}
                         onSelect={() => handlePackageSelect(pkg)}
+                        market={market}
                       />
                     ))}
                   </div>
@@ -855,7 +879,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
                 </DetailBlock>
               )}
 
-              {product.condition && (
+                {showCondition && (
                 <DetailBlock label="Condition">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <Badge tone={isUsed ? "amber" : "emerald"}>
@@ -956,7 +980,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
                             {tier.minQty}+ units
                           </span>
                           <span className="font-semibold text-gray-900">
-                            KSh {tier.price.toLocaleString()} / unit
+                            {formatCurrency(tier.price, market)} / unit
                           </span>
                         </div>
                       ))}

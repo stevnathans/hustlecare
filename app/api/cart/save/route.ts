@@ -52,7 +52,11 @@ export async function POST(request: NextRequest) {
       },
       data: {
         name: name || `Business ${businessId} Cart`,
-        totalCost: totalCost || null,
+        // Was `totalCost || null` — a genuinely $0 total (e.g. an
+        // all-free/productless cart) would fail the truthiness check and
+        // get silently stored as null instead of 0. Explicit null/undefined
+        // check preserves a real zero.
+        totalCost: totalCost === null || totalCost === undefined ? null : totalCost,
       },
     });
 

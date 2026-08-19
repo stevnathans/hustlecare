@@ -50,16 +50,22 @@ export async function GET(request: NextRequest) {
     }
 
     // Transform cart items to the format expected by the client
-    // 🔧 FIX: Added category and requirementName fields
     const items = cart.items.map(item => ({
       id: item.id,
       productId: item.productId,
       name: item.product.name,
       price: item.unitPrice,
+      // Currency this line's price is in — snapshotted at add-time (see
+      // /api/cart/item/add). Was missing here entirely, meaning a page
+      // refresh silently dropped it even though it was persisted correctly.
+      currency: item.currency,
       quantity: item.quantity,
       image: item.product.image || undefined,
-      category: item.category || "Uncategorized",                    // ✅ Added
-      requirementName: item.requirementName || "Unspecified Requirement", // ✅ Added
+      category: item.category || "Uncategorized",
+      requirementName: item.requirementName || "Unspecified Requirement",
+      // Same gap as currency — persisted on CartItem but not selected here.
+      packageId: item.packageId ?? undefined,
+      billingPeriodLabel: item.billingPeriodLabel ?? undefined,
     }));
 
     return NextResponse.json({ items });

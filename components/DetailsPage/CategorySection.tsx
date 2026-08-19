@@ -8,6 +8,7 @@ import { Product } from '@/types';
 import { necessityOptions } from '@/lib/necessity';
 import { FeeScheduleResolution } from '@/lib/legalFeeSchedule';
 import { FeeScheduleShellProductDetails } from 'hooks/useBusinessData';
+import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
 
 interface Requirement {
   id: number;
@@ -47,6 +48,7 @@ interface CategorySectionProps {
   onFilterChange: (filter: string) => void;
   availableNecessities: string[];
   onProductAssigned?: () => void;
+  market?: MarketCode;
 }
 
 const CategorySection: React.FC<CategorySectionProps> = ({
@@ -69,6 +71,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
   onSearchChange,
   onFilterChange,
   onProductAssigned,
+  market = DEFAULT_MARKET,
 }) => {
   const categoryId = category.toLowerCase().replace(/\s+/g, '-');
 
@@ -103,6 +106,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
         onProductAssigned={onProductAssigned}
         businessName={businessName}
         businessId={typeof businessId === 'string' ? parseInt(businessId, 10) : businessId}
+        market={market}
       />
     </div>
   );
@@ -206,7 +210,6 @@ const CategorySection: React.FC<CategorySectionProps> = ({
 
       <div className="bg-gray-100 px-4 py-3 sm:px-6 sm:py-4 border-t">
         <div className="flex flex-col xs:flex-row xs:items-center xs:justify-between text-sm text-gray-600 gap-2 xs:gap-0">
-          
           <a
             href={`#${categoryId}`}
             className="text-blue-600 hover:text-blue-800 hover:underline text-center"

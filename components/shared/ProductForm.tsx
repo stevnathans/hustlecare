@@ -36,6 +36,7 @@ import {
   Tag, Package, DollarSign, Layers, ShieldCheck, Truck, Cpu, Percent, Plus, Trash2, MapPin, Clock, Search, FileText, Boxes, Star
 } from 'lucide-react';
 import RequirementPicker, { RequirementOption } from './RequirementPicker';
+import type { VendorTuple } from 'types/vendor';
 
 export type ProductFormTheme = 'light' | 'dark';
 export type ProductFormMode = 'vendor' | 'admin';
@@ -113,8 +114,8 @@ export const EMPTY_PRODUCT_FORM: ProductFormValues = {
   condition: 'NEW', usedDurationValue: '', usedDurationUnit: 'months', hasReceipt: '',
   brand: '', model: '', voltage: '', wattage: '', dimensions: '', weight: '', weightUnit: 'kg',
   warrantyType: 'NONE', warrantyDurationValue: '', warrantyDurationUnit: 'months',
-  deliveryAvailable: false, pickupLocation: '', leadTime: 'IN_STOCK',
-  negotiable: false, bulkPricingEnabled: false, publishImmediately: false,
+  deliveryAvailable: true, pickupLocation: '', leadTime: 'IN_STOCK',
+  negotiable: false, bulkPricingEnabled: false, publishImmediately: true,
   validityValue: '', validityUnit: 'years', processingTimeMinDays: '', processingTimeMaxDays: '',
   softwarePackagesEnabled: false, billingPeriod: 'MONTHLY',
 };
@@ -127,7 +128,7 @@ type Props = {
   errors: Record<string, string>;
   requirements: RequirementOption[];
   loadingRequirements?: boolean;
-  vendors?: [string, string][];
+  vendors?: VendorTuple[];
   bulkTiers?: BulkTier[];
   setBulkTiers?: (updater: (t: BulkTier[]) => BulkTier[]) => void;
   /** Software packages (Starter/Pro/Enterprise-style) — admin + Software requirement only. */
@@ -135,11 +136,14 @@ type Props = {
   setPackages?: (updater: (p: SoftwarePackageRow[]) => SoftwarePackageRow[]) => void;
   /** True for a system-generated county-fee shell product — hides price/vendor/legal fields that don't apply to it. */
   isFeeScheduleShell?: boolean;
+  onFetchMetadata?: () => void;
+  fetchingMetadata?: boolean;
+  fetchMetadataError?: string | null;
 };
 
 export default function ProductForm({
   mode, theme, form, setForm, errors, requirements, loadingRequirements = false,
-  vendors = [], bulkTiers = [], setBulkTiers, packages = [], setPackages, isFeeScheduleShell,
+  vendors = [], bulkTiers = [], setBulkTiers, packages = [], setPackages, isFeeScheduleShell, onFetchMetadata, fetchingMetadata, fetchMetadataError,
 }: Props) {
   const t = tokens(theme);
   const isShellProduct = mode === 'admin' && isFeeScheduleShell;
@@ -158,6 +162,12 @@ export default function ProductForm({
   // from them on every save — nothing typed into the Price field in the
   // Pricing section below would stick, so it's shown disabled with a note.
   const priceIsDerivedFromPackages = isSoftwareRequirement && form.softwarePackagesEnabled;
+
+  // Condition (New/Used) only makes sense for physical goods. Not gated on
+  // mode — both admin and vendor forms should hide it for Software/Legal/
+  // any other non-physical category, not just admin.
+  const isPhysicalGoodsRequirement =
+    selectedRequirement?.category === 'Equipment' || selectedRequirement?.category === 'Stock';
 
   const addBulkTier    = () => setBulkTiers?.(rows => [...rows, { minQty: '', price: '' }]);
   const updateBulkTier = (i: number, key: keyof BulkTier, value: string) =>
@@ -515,65 +525,95 @@ export default function ProductForm({
               <label className={t.label}>Product Image URL</label>
               <input className={t.input} value={form.image} onChange={(e) => setForm((f) => ({ ...f, image: e.target.value }))} placeholder="https://…" />
             </div>
-            <div>
+                        <div>
               <label className={t.label}>Product / Buy Link</label>
-              <input className={t.input} value={form.url} onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))} placeholder="https://…" />
+              <div className="flex gap-2">
+                <input
+                  className={t.input}
+                  value={form.url}
+                  onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
+                  placeholder="https://…"
+                />
+                {mode === 'admin' && onFetchMetadata && !isShellProduct && (
+                  <button
+                    type="button"
+                    onClick={onFetchMetadata}
+                    disabled={fetchingMetadata || !form.url.trim()}
+                    className="flex-shrink-0 rounded-lg border px-3 text-xs font-semibold transition-colors disabled:opacity-50"
+                    style={
+                      theme === 'dark'
+                        ? { borderColor: 'rgba(255,255,255,0.15)', color: '#a89cf7' }
+                        : { borderColor: '#d1d5db', color: '#059669' }
+                    }
+                  >
+                    {fetchingMetadata ? 'Fetching…' : 'Fetch details'}
+                  </button>
+                )}
+              </div>
+              {mode === 'admin' && fetchMetadataError && <div className={t.error}>{fetchMetadataError}</div>}
+              {mode === 'admin' && !isShellProduct && (
+                <p className="mt-1 text-xs text-gray-400">
+                  Paste the product page link, then click Fetch details to pull name, description, image, and price where the site supports it. Won&apos;t work for Amazon — add those manually.
+                </p>
+              )}
             </div>
           </div>
         </div>
       </Section>
 
-      {/* Condition */}
-      <Section theme={theme} title="Condition" icon={<ShieldCheck size={14} />}>
-        <label className={t.label}>Condition</label>
-        <div className="mb-4 grid grid-cols-2 gap-2">
-          {(['NEW', 'USED'] as const).map((c) => (
-            <button
-              key={c} type="button"
-              onClick={() => setForm((f) => ({ ...f, condition: c }))}
-              className={t.toggleBtn(form.condition === c)}
-            >
-              {c === 'NEW' ? 'Brand New' : 'Used'}
-            </button>
-          ))}
-        </div>
-        {form.condition === 'USED' && (
-          <div className={t.twoCol}>
-            <div>
-              <label className={t.label}>How long has it been used?</label>
-              <div className="flex gap-2">
-                <input
-                  type="number" min="0" className={t.input} placeholder="e.g. 8"
-                  value={form.usedDurationValue}
-                  onChange={(e) => setForm((f) => ({ ...f, usedDurationValue: e.target.value }))}
-                />
+      {/* Condition — only relevant for physical goods (Equipment/Stock requirements) */}
+      {isPhysicalGoodsRequirement && (
+        <Section theme={theme} title="Condition" icon={<ShieldCheck size={14} />}>
+          <label className={t.label}>Condition</label>
+          <div className="mb-4 grid grid-cols-2 gap-2">
+            {(['NEW', 'USED'] as const).map((c) => (
+              <button
+                key={c} type="button"
+                onClick={() => setForm((f) => ({ ...f, condition: c }))}
+                className={t.toggleBtn(form.condition === c)}
+              >
+                {c === 'NEW' ? 'Brand New' : 'Used'}
+              </button>
+            ))}
+          </div>
+          {form.condition === 'USED' && (
+            <div className={t.twoCol}>
+              <div>
+                <label className={t.label}>How long has it been used?</label>
+                <div className="flex gap-2">
+                  <input
+                    type="number" min="0" className={t.input} placeholder="e.g. 8"
+                    value={form.usedDurationValue}
+                    onChange={(e) => setForm((f) => ({ ...f, usedDurationValue: e.target.value }))}
+                  />
+                  <select
+                    className={`${t.input} max-w-[110px]`}
+                    value={form.usedDurationUnit}
+                    onChange={(e) => setForm((f) => ({ ...f, usedDurationUnit: e.target.value as any }))}
+                  >
+                    <option value="days">Days</option>
+                    <option value="months">Months</option>
+                    <option value="years">Years</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className={t.label}>Receipt available?</label>
                 <select
-                  className={`${t.input} max-w-[110px]`}
-                  value={form.usedDurationUnit}
-                  onChange={(e) => setForm((f) => ({ ...f, usedDurationUnit: e.target.value as any }))}
+                  className={t.input}
+                  value={form.hasReceipt}
+                  onChange={(e) => setForm((f) => ({ ...f, hasReceipt: e.target.value as any }))}
                 >
-                  <option value="days">Days</option>
-                  <option value="months">Months</option>
-                  <option value="years">Years</option>
+                  <option value="">Select…</option>
+                  <option value="YES">Yes, original receipt available</option>
+                  <option value="NO">No receipt</option>
+                  <option value="UNKNOWN">Not sure</option>
                 </select>
               </div>
             </div>
-            <div>
-              <label className={t.label}>Receipt available?</label>
-              <select
-                className={t.input}
-                value={form.hasReceipt}
-                onChange={(e) => setForm((f) => ({ ...f, hasReceipt: e.target.value as any }))}
-              >
-                <option value="">Select…</option>
-                <option value="YES">Yes, original receipt available</option>
-                <option value="NO">No receipt</option>
-                <option value="UNKNOWN">Not sure</option>
-              </select>
-            </div>
-          </div>
-        )}
-      </Section>
+          )}
+        </Section>
+      )}
 
       {/* Specifications */}
       <Section theme={theme} title="Specifications" icon={<Cpu size={14} />}>

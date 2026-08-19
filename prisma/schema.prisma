@@ -116,15 +116,16 @@ model CartItem {
   cart            Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
   product         Product  @relation(fields: [productId], references: [id])
 
-  // Chosen SoftwarePackage for a software product, if any. Nullable
-  // because most products (and simple-pricing software products) don't
-  // have packages. onDelete: SetNull rather than Cascade — if an admin
-  // deletes a package that's already in someone's cart, we keep the cart
-  // line (with its snapshotted unitPrice/label) rather than silently
-  // dropping it.
   packageId          Int?
   billingPeriodLabel String?
   package            SoftwarePackage? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+
+  // Currency this line's unitPrice is denominated in — snapshotted from
+  // Product.currency at add-time, the same "never trust a stale join,
+  // snapshot the real value" pattern already used for unitPrice itself.
+  // Defaults to "KES" to match every existing row and Product's own
+  // schema default, so this is a safe additive migration.
+  currency String @default("KES")
 
   @@unique([cartId, productId])
   @@index([cartId])
@@ -264,10 +265,23 @@ model RequirementTemplate {
   isCountyFeeSchedule Boolean            @default(false)
   feeSchedules        LegalFeeSchedule[]
 
+  // Which market this requirement is cleared to show in. NULL means
+  // "available in every market" — the eventual state for most
+  // non-legal templates (equipment, software) once reviewed. Defaults
+  // to "KE" on every existing row so nothing new appears under /us
+  // until it's been explicitly reviewed and opened up (see backfill
+  // step). Legal-category templates generally stay restricted forever,
+  // since county fee schedules and US state requirements are entirely
+  // different underlying data (isCountyFeeSchedule / LegalFeeSchedule
+  // is Kenya-only; a US equivalent, when built, would be its own
+  // separate template rather than reusing this one).
+  restrictedToCountry String? @default("KE")
+
   @@index([category])
   @@index([necessity])
   @@index([isDeprecated])
   @@index([name])
+  @@index([restrictedToCountry])
 }
 
 model BusinessRequirement {
@@ -600,12 +614,20 @@ model Vendor {
   counties          VendorCounty[]
   isCountyGovernmentAuthority Boolean @default(false)
 
+  // Market this vendor operates in — determines which of their Product
+  // rows are eligible to be recommended on a given market's
+  // requirements pages. One vendor per market for now (Jumia → KE,
+  // Amazon → US); revisit as a String[] only if a single vendor
+  // genuinely needs to serve products into more than one market.
+  country String @default("KE")
+
   @@unique([name, website])
   @@index([claimStatus])
   @@index([slug])
   @@index([status])
   @@index([userId])
   @@index([name])
+  @@index([country])
 }
 
 model VendorApplication {

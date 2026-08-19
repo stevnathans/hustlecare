@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useCart } from '@/contexts/CartContext';
 import { Product as ProductType, LegalFeeSchedule } from '@/types';
+import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
 
 export interface Requirement {
   id: number;
@@ -93,6 +94,13 @@ function sortCategoryKeys(grouped: Record<string, Requirement[]>): string[] {
 export const useBusinessData = (
   slug: string,
   initialData?: UseBusinessDataInitial,
+  // Which market this page is rendering for — KE or US. Defaults to KE.
+  // Threaded into every client-side fetch (initial load and any
+  // refresh/re-fetch) so requirements and products stay scoped to the
+  // correct market even after hydration. See
+  // app/api/business/[slug]/requirements/route.ts and .../products/route.ts,
+  // which both read this from ?market=.
+  market: MarketCode = DEFAULT_MARKET,
 ) => {
   const { switchBusiness } = useCart();
 
@@ -125,7 +133,7 @@ export const useBusinessData = (
     businessSlug: string,
   ) => {
     try {
-      const response = await fetch(`/api/business/${businessSlug}/products`, { cache: 'no-store' });
+      const response = await fetch(`/api/business/${businessSlug}/products?market=${market}`, { cache: 'no-store' });
       if (!response.ok) {
         setProducts({});
         setFeeSchedules({});
@@ -242,7 +250,8 @@ export const useBusinessData = (
       setCountyFeeShellProductIds({});
       setCountyFeeShellProductDetails({});
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [market]);
 
   const refreshProducts = useCallback(() => {
     if (requirements.length > 0 && business) {
@@ -266,7 +275,7 @@ export const useBusinessData = (
 
           const [businessResponse, requirementsResponse] = await Promise.all([
             fetch(`/api/business/${slug}`),
-            fetch(`/api/business/${slug}/requirements`),
+            fetch(`/api/business/${slug}/requirements?market=${market}`),
           ]);
 
           if (businessResponse.status === 404) {
@@ -337,7 +346,7 @@ export const useBusinessData = (
 
     loadBusinessData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug, switchBusiness, fetchProducts]);
+  }, [slug, switchBusiness, fetchProducts, market]);
 
   return {
     business,

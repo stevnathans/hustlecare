@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react';
 import {
   DollarSign, Clock, TrendingUp, Wrench, MapPin,
 } from 'lucide-react';
+import { currencyCode } from '@/lib/currency';
+import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -26,14 +28,15 @@ interface BusinessInsightsProps {
   profitPotential: string | null;
   skillLevel: string | null;
   bestLocations: string[];
+  market?: MarketCode;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function formatKES(n: number) {
-  if (n >= 1_000_000) return `KES ${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
-  if (n >= 1_000)     return `KES ${(n / 1_000).toFixed(0)}K`;
-  return `KES ${n}`;
+function formatCompact(n: number, code: string) {
+  if (n >= 1_000_000) return `${code} ${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
+  if (n >= 1_000)     return `${code} ${(n / 1_000).toFixed(0)}K`;
+  return `${code} ${n}`;
 }
 
 function formatDays(days: number) {
@@ -91,21 +94,24 @@ export default function BusinessInsights({
   profitPotential,
   skillLevel,
   bestLocations,
+  market = DEFAULT_MARKET,
 }: BusinessInsightsProps) {
   const [cost, setCost]             = useState<CostData | null>(null);
   const [costLoading, setCostLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/businesses/${slug}/cost`)
+    setCostLoading(true);
+    fetch(`/api/businesses/${slug}/cost?market=${market}`)
       .then((r) => r.ok ? r.json() : null)
       .then((data) => { setCost(data); setCostLoading(false); })
       .catch(() => setCostLoading(false));
-  }, [slug]);
+  }, [slug, market]);
 
   const hasTime      = timeToLaunchMin !== null && timeToLaunchMax !== null;
   const profitCfg    = profitPotential ? PROFIT_CONFIG[profitPotential] : null;
   const skillCfg     = skillLevel      ? SKILL_CONFIG[skillLevel]       : null;
   const hasLocations = bestLocations.length > 0;
+  const code = currencyCode(market);
 
   // Hide entire section if there's nothing to show (cost still loading counts as something)
   const hasAnyManual = hasTime || profitCfg || skillCfg || hasLocations;
@@ -133,9 +139,9 @@ export default function BusinessInsights({
               </div>
               <p className="text-xs text-gray-500 font-medium">Startup Cost</p>
               <p className="text-sm font-bold text-gray-900 leading-tight">
-                {formatKES(cost.low)}
+                {formatCompact(cost.low, code)}
                 <span className="text-gray-400 font-normal"> – </span>
-                {formatKES(cost.high)}
+                {formatCompact(cost.high, code)}
               </p>
               {cost.requirementsWithProducts < cost.totalRequirements && (
                 <p className="text-xs text-gray-400 leading-tight">

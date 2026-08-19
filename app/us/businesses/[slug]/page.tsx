@@ -1,11 +1,11 @@
-// app/businesses/[slug]/page.tsx
+// app/us/businesses/[slug]/page.tsx
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { fetchBusiness } from '@/lib/business-data';
-import HubPageContent from './HubPageContent';
-import RelatedBusinesses from './RelatedBusinesses';
-import { isExcludedFromTotals } from '@/lib/necessity';
 import { prisma } from '@/lib/prisma';
+import HubPageContent from '../../../businesses/[slug]/HubPageContent';
+import RelatedBusinesses from '../../../businesses/[slug]/RelatedBusinesses';
+import { isExcludedFromTotals } from '@/lib/necessity';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -23,10 +23,11 @@ interface CostData {
   totalRequirements: number;
   hasPricing: boolean;
 }
-function formatKES(amount: number) {
-  return new Intl.NumberFormat('en-KE', {
+
+function formatUSD(amount: number) {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'KES',
+    currency: 'USD',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
@@ -40,10 +41,10 @@ function formatDays(days: number) {
   return `${months} month${months !== 1 ? 's' : ''}`;
 }
 
-/** Build auto-generated FAQs from business data. */
+/** Build auto-generated FAQs from business data — US copy. */
 function buildAutoFaqs(
   name: string,
-  cost: CostData | null,  
+  cost: CostData | null,
   timeMin: number | null,
   timeMax: number | null,
   profitPotential: string | null,
@@ -53,32 +54,32 @@ function buildAutoFaqs(
 ): AutoFaq[] {
   const faqs: AutoFaq[] = [];
 
-   if (cost?.hasPricing) {
+  if (cost?.hasPricing) {
     faqs.push({
-      question: `How much does it cost to start a ${name} business in Kenya?`,
-      answer: `Starting a ${name} business in Kenya costs between ${formatKES(cost.low)} and ${formatKES(cost.high)} depending on your scale and location. This is based on ${cost.requirementsWithProducts} out of ${cost.totalRequirements} requirements that have products assigned.${cost.requirementsWithProducts < cost.totalRequirements ? ' The actual cost may be higher as some requirements are still being priced.' : ''}`,
+      question: `How much does it cost to start a ${name} business in the US?`,
+      answer: `Starting a ${name} business in the US costs between ${formatUSD(cost.low)} and ${formatUSD(cost.high)} depending on your scale and location. This is based on ${cost.requirementsWithProducts} out of ${cost.totalRequirements} requirements that have products assigned.${cost.requirementsWithProducts < cost.totalRequirements ? ' The actual cost may be higher as some requirements are still being priced.' : ''}`,
     });
   }
 
   if (timeMin && timeMax) {
     faqs.push({
-      question: `How long does it take to launch a ${name} business in Kenya?`,
-      answer: `You can expect to launch your ${name} business within ${formatDays(timeMin)} to ${formatDays(timeMax)}. This includes registration, sourcing requirements, and getting your first customers.`,
+      question: `How long does it take to launch a ${name} business in the US?`,
+      answer: `You can expect to launch your ${name} business within ${formatDays(timeMin)} to ${formatDays(timeMax)}. This includes sourcing equipment and software, and getting your first customers.`,
     });
   }
 
   if (requirementCount > 0) {
     faqs.push({
-      question: `What are the requirements to start a ${name} business in Kenya?`,
-      answer: `A ${name} business in Kenya has ${requirementCount} requirements covering documents, equipment, licences, and operational needs. Some are mandatory while others are optional depending on your business scale.`,
+      question: `What are the requirements to start a ${name} business in the US?`,
+      answer: `A ${name} business in the US has ${requirementCount} requirements covering equipment, software, and operational needs. Some are essential while others are optional depending on your business scale.`,
     });
   }
 
   if (profitPotential) {
     const label = profitPotential.replace(/_/g, ' ');
     faqs.push({
-      question: `Is a ${name} business profitable in Kenya?`,
-      answer: `A ${name} business has ${label} profit potential in Kenya. Profitability depends on your location, scale of operation, and how well you manage costs and customer acquisition.`,
+      question: `Is a ${name} business profitable in the US?`,
+      answer: `A ${name} business has ${label} profit potential in the US. Profitability depends on your location, scale of operation, and how well you manage costs and customer acquisition.`,
     });
   }
 
@@ -98,8 +99,8 @@ function buildAutoFaqs(
   if (bestLocations.length > 0) {
     const locationList = bestLocations.join(', ');
     faqs.push({
-      question: `Where is the best place to start a ${name} business in Kenya?`,
-      answer: `The best locations for a ${name} business in Kenya include ${locationList}. These areas offer strong customer demand, good infrastructure, or proximity to key suppliers.`,
+      question: `Where is the best place to start a ${name} business in the US?`,
+      answer: `The best locations for a ${name} business in the US include ${locationList}. These areas offer strong customer demand, good infrastructure, or proximity to key suppliers.`,
     });
   }
 
@@ -115,7 +116,7 @@ interface AutoFaq {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const business = await fetchBusiness(slug);
+  const business = await fetchBusiness(slug, 'US');
 
   if (!business) {
     return {
@@ -126,22 +127,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const year = new Date().getFullYear();
   const name = business.name;
-  const title = `${name} Business in Kenya [${year}] - Everything You Need to Know | HustleCare`;
+  const title = `${name} Business in the US [${year}] - Everything You Need to Know | HustleCare`;
   const description =
     business.description ||
-    `Complete guide to starting a ${name} business in Kenya. Explore requirements, startup costs, licences, and everything you need to launch.`;
+    `Complete guide to starting a ${name} business in the US. Explore requirements, startup costs, and everything you need to launch.`;
 
-  const pageUrl = `${SITE_URL}/businesses/${slug}`;
+  const pageUrl = `${SITE_URL}/us/businesses/${slug}`;
   const ogImage = business.image || `${SITE_URL}/images/default-business.jpg`;
 
   return {
     title,
     description,
     keywords: [
-      `how to start a ${name} business in Kenya`,
-      `${name} business guide Kenya`,
-      `${name} business requirements Kenya`,
-      `${name} startup cost Kenya`,
+      `how to start a ${name} business in the US`,
+      `${name} business guide US`,
+      `${name} business requirements US`,
+      `${name} startup cost US`,
       `start ${name} business`,
     ].join(', '),
     authors: [{ name: 'HustleCare' }],
@@ -151,8 +152,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       url: pageUrl,
       siteName: 'HustleCare',
       type: 'article',
-      locale: 'en_KE',
-      images: [{ url: ogImage, width: 1200, height: 630, alt: `Start a ${name} business in Kenya` }],
+      locale: 'en_US',
+      images: [{ url: ogImage, width: 1200, height: 630, alt: `Start a ${name} business in the US` }],
     },
     twitter: {
       card: 'summary_large_image',
@@ -173,10 +174,27 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 // ── Static Params ─────────────────────────────────────────────────────────────
+// Only pre-render businesses that actually have at least one US-visible
+// requirement, so we don't statically build empty US pages for businesses
+// that haven't been reviewed for the US market yet. See step 8 for the
+// fuller design of this query.
 
 export async function generateStaticParams() {
   try {
-    const businesses = await prisma.business.findMany({ select: { slug: true } });
+    const businesses = await prisma.business.findMany({
+      where: {
+        requirements: {
+          some: {
+            isActive: true,
+            template: {
+              isDeprecated: false,
+              OR: [{ restrictedToCountry: null }, { restrictedToCountry: 'US' }],
+            },
+          },
+        },
+      },
+      select: { slug: true },
+    });
     return businesses.map((b) => ({ slug: b.slug }));
   } catch {
     return [];
@@ -185,38 +203,25 @@ export async function generateStaticParams() {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default async function BusinessHubPage({ params }: Props) {
+export default async function USBusinessHubPage({ params }: Props) {
   const { slug } = await params;
-  const business = await fetchBusiness(slug);
+  const business = await fetchBusiness(slug, 'US');
 
   if (!business) notFound();
 
   const year = new Date().getFullYear();
   const name = business.name;
-  const pageUrl = `${SITE_URL}/businesses/${slug}`;
+  const pageUrl = `${SITE_URL}/us/businesses/${slug}`;
 
-  // ── Core/Stock split ──────────────────────────────────────────────────────
-  // Stock requirements are products a business can sell (e.g. spare parts),
-  // not fixed one-time startup requirements. They're excluded from the
-  // headline requirement count, category breakdown, requirements preview,
-  // and the server-side cost calculation below — same reasoning already
-  // applied on the requirements detail page. See lib/necessity.ts.
   const coreRequirements = business.requirements.filter(
     (r) => !isExcludedFromTotals(r.template.category ?? '')
   );
 
   const requirementCount = coreRequirements.length;
-  const title = `${name} Business in Kenya [${year}] - Everything You Need to Know | HustleCare`;
+  const title = `${name} Business in the US [${year}] - Everything You Need to Know | HustleCare`;
   const description =
     business.description ||
-    `Complete guide to starting a ${name} business in Kenya with ${requirementCount} requirements and cost estimates.`;
-
-  // ── Requirement grouping ──────────────────────────────────────────────────
-  // Grouped from coreRequirements only, so the "Requirement Categories"
-  // breakdown (and its required/optional split) doesn't include Stock,
-  // whose necessity values ("High Demand" etc.) don't mean "required" or
-  // "optional" in the same sense and would otherwise show a misleading
-  // "0 required" row for the Stock category.
+    `Complete guide to starting a ${name} business in the US with ${requirementCount} requirements and cost estimates.`;
 
   const grouped = coreRequirements.reduce<Record<string, typeof coreRequirements>>(
     (acc, req) => {
@@ -241,14 +246,6 @@ export default async function BusinessHubPage({ params }: Props) {
     count: reqs.length,
     requiredCount: reqs.filter((r) => r.template.necessity === 'Required').length,
   }));
-
-  // ── Fetch auto-calculated cost server-side for FAQs and JSON-LD ──────────
-  // We call our own cost API directly via prisma rather than an HTTP fetch
-  // to avoid a network round-trip within the server component.
-  //
-  // Iterates coreRequirements only — Stock product prices are excluded from
-  // "cost to start" for the same reason as the requirement count above:
-  // inventory is a scalable choice, not a fixed startup cost.
 
   let cost: CostData | null = null;
   try {
@@ -280,8 +277,6 @@ export default async function BusinessHubPage({ params }: Props) {
     cost = null;
   }
 
-  // ── FAQs: merge DB overrides on top of auto-generated ────────────────────
-
   const autoFaqs = buildAutoFaqs(
     name,
     cost,
@@ -293,11 +288,13 @@ export default async function BusinessHubPage({ params }: Props) {
     business.bestLocations,
   );
 
-  // DB FAQs completely replace auto ones when present
-   const dbFaqs = business.faqs.map((f) => ({ question: f.question, answer: f.answer }));
-  const finalFaqs = dbFaqs.length > 0 ? dbFaqs : autoFaqs;
-
-  // ── Structured Data ───────────────────────────────────────────────────────
+  // NOTE: unlike the Kenya hub page, we deliberately do NOT fall back to
+  // business.faqs here. Those FAQ rows were authored for the Kenya market
+  // (e.g. reference county permits, KES figures) and would be wrong if
+  // reused verbatim on the US page. Until US-specific FAQ overrides exist
+  // (a future country-scoped FAQ table/field), this page always uses the
+  // auto-generated US copy above.
+  const finalFaqs = autoFaqs;
 
   const structuredData = {
     '@context': 'https://schema.org',
@@ -306,8 +303,8 @@ export default async function BusinessHubPage({ params }: Props) {
         '@type': 'BreadcrumbList',
         '@id': `${pageUrl}#breadcrumb`,
         itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
-          { '@type': 'ListItem', position: 2, name: 'Businesses', item: `${SITE_URL}/businesses` },
+          { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE_URL}/us` },
+          { '@type': 'ListItem', position: 2, name: 'Businesses', item: `${SITE_URL}/us/businesses` },
           { '@type': 'ListItem', position: 3, name: name, item: pageUrl },
         ],
       },
@@ -336,9 +333,8 @@ export default async function BusinessHubPage({ params }: Props) {
         dateModified: new Date().toISOString(),
         mainEntityOfPage: { '@type': 'WebPage', '@id': pageUrl },
         breadcrumb: { '@id': `${pageUrl}#breadcrumb` },
-        inLanguage: 'en-KE',
+        inLanguage: 'en-US',
       },
-      // FAQPage schema — only emit when we have FAQs
       ...(finalFaqs.length > 0
         ? [
             {
@@ -374,13 +370,13 @@ export default async function BusinessHubPage({ params }: Props) {
         requirementCount={requirementCount}
         categoryBreakdown={categoryBreakdown}
         previewRequirements={previewRequirements}
-
         timeToLaunchMin={business.timeToLaunchMin}
         timeToLaunchMax={business.timeToLaunchMax}
         profitPotential={business.profitPotential}
         skillLevel={business.skillLevel}
         bestLocations={business.bestLocations}
         faqs={finalFaqs}
+        market="US"
       />
 
       {business.category && (

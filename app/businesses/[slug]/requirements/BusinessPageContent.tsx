@@ -13,6 +13,7 @@ import {
 import { useFilterState } from 'hooks/useFilterState';
 import { Product as ProductType } from '@/types';
 import { resolveFeeSchedule, FeeScheduleResolution } from '@/lib/legalFeeSchedule';
+import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
 import Link from 'next/link';
 
 interface Faq {
@@ -25,6 +26,13 @@ interface BusinessPageContentProps {
   initialBusiness?: BusinessData;
   initialRequirements?: RequirementData[];
   faqs?: Faq[];
+  // Which market this page is rendering for. Defaults to Kenya to match
+  // every other file's pre-existing default — but every caller (the KE
+  // and US requirements/hub page routes) should pass this explicitly.
+  // Drives: which market's requirements/products useBusinessData fetches
+  // on any client-side re-fetch, whether the county selector renders at
+  // all (Kenya-only concept), and which currency the cost calculator uses.
+  market?: MarketCode;
 }
 
 function vendorServesCounty(vendor: any, countyId: number): boolean {
@@ -45,10 +53,19 @@ function BusinessPageContentInner({
   initialBusiness,
   initialRequirements,
   faqs,
-}: BusinessPageContentProps) {
+  market = DEFAULT_MARKET,
+}: Required<Pick<BusinessPageContentProps, 'market'>> & Omit<BusinessPageContentProps, 'market'>) {
+  const isKenya = market === 'KE';
+
+  // County selection only exists as a concept in Kenya (county-fee permits,
+  // vendor county coverage). On any other market, selectedCounty is always
+  // null — CountyProvider is never mounted for those markets (see the
+  // outer BusinessPageContent below), and useCounty() safely returns a
+  // null-county default outside its provider (confirm this against
+  // CountyContext's implementation — see flag below).
   const { selectedCounty } = useCounty();
 
-  const {
+    const {
     business,
     requirements,
     products,
@@ -64,7 +81,8 @@ function BusinessPageContentInner({
     slug,
     initialBusiness && initialRequirements
       ? { business: initialBusiness, requirements: initialRequirements }
-      : undefined
+      : undefined,
+    market
   );
 
   const requirementCategoryByName = useMemo(() => {
@@ -77,8 +95,14 @@ function BusinessPageContentInner({
   // Everything else: soft sort only. Fee-schedule requirements are handled
   // separately below and untouched here (their "products" array is empty
   // by design — they have no real Product rows).
+  //
+  // isKenya guard: county-based filtering/sorting is a Kenya-only concept.
+  // On any other market, selectedCounty is always null anyway (see above),
+  // so this already falls through to the unfiltered branch — the explicit
+  // isKenya check here is just documentation-by-code of that invariant,
+  // not a behavior change from the null check alone.
   const { countyAdjustedProducts, legalUnavailableInCounty } = useMemo(() => {
-    if (!selectedCounty) {
+    if (!isKenya || !selectedCounty) {
       return { countyAdjustedProducts: products, legalUnavailableInCounty: {} as Record<string, boolean> };
     }
 
@@ -100,7 +124,7 @@ function BusinessPageContentInner({
     }
 
     return { countyAdjustedProducts: out, legalUnavailableInCounty: unavailable };
-  }, [products, selectedCounty, requirementCategoryByName, countyFeeScheduleNames]);
+  }, [isKenya, products, selectedCounty, requirementCategoryByName, countyFeeScheduleNames]);
 
   // County-issued permits (Business Permit, Health Certificate, etc.) —
   // resolved from LegalFeeSchedule. Only computed once a county is picked;
@@ -115,8 +139,11 @@ function BusinessPageContentInner({
   // county rate. If effectiveTradeClassId isn't populated yet (API not
   // updated, or business/category has no trade class assigned), this
   // degrades gracefully to the same flat-rate behavior as before.
+  //
+  // isKenya guard: same reasoning as above — county fee schedules are a
+  // Kenya-only mechanism (see LegalFeeSchedule/County in schema.prisma).
   const feeScheduleResolutions = useMemo(() => {
-    if (!selectedCounty) return {} as Record<string, FeeScheduleResolution>;
+    if (!isKenya || !selectedCounty) return {} as Record<string, FeeScheduleResolution>;
     const out: Record<string, FeeScheduleResolution> = {};
     const tradeClassId = business?.effectiveTradeClassId ?? null;
     for (const [reqName, schedules] of Object.entries(feeSchedules)) {
@@ -124,7 +151,7 @@ function BusinessPageContentInner({
       out[reqName] = resolveFeeSchedule(schedules, selectedCounty.id, { tradeClassId });
     }
     return out;
-  }, [feeSchedules, selectedCounty, countyFeeScheduleNames, business]);
+  }, [isKenya, feeSchedules, selectedCounty, countyFeeScheduleNames, business]);
 
   const {
     categoryStates,
@@ -217,6 +244,7 @@ function BusinessPageContentInner({
             unfilteredStockLowPrice={unfilteredStockLowPrice}
             unfilteredStockMedianPrice={unfilteredStockMedianPrice}
             unfilteredStockHighPrice={unfilteredStockHighPrice}
+            market={market}
           />
 
           <section aria-label="Business requirements">
@@ -243,6 +271,7 @@ function BusinessPageContentInner({
               availableNecessities={availableNecessities}
               getFilteredRequirements={getFilteredRequirements}
               onProductAssigned={refreshProducts}
+              market={market}
             />
           </section>
 
@@ -277,7 +306,7 @@ function BusinessPageContentInner({
         </main>
 
         <aside className="sticky top-8 self-start" aria-label="Cost calculator">
-          <CostCalculator business={business} />
+          <CostCalculator business={business} market={market} />
         </aside>
       </div>
     </div>
@@ -285,9 +314,20 @@ function BusinessPageContentInner({
 }
 
 export default function BusinessPageContent(props: BusinessPageContentProps) {
+  const market = props.market ?? DEFAULT_MARKET;
+  const isKenya = market === 'KE';
+
+  // CountyProvider only mounts for Kenya — county selection has no meaning
+  // outside it. For every other market, BusinessPageContentInner never
+  // sees a CountyProvider above it; see the flag below about what
+  // useCounty() needs to return in that case.
+  if (!isKenya) {
+    return <BusinessPageContentInner {...props} market={market} />;
+  }
+
   return (
     <CountyProvider businessSlug={props.slug}>
-      <BusinessPageContentInner {...props} />
+      <BusinessPageContentInner {...props} market={market} />
     </CountyProvider>
   );
 }

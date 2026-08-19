@@ -5,6 +5,8 @@ import { useMemo, useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { isExcludedFromTotals } from '@/lib/necessity';
+import { currencyCode } from '@/lib/currency';
+import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
 
 type Requirement = {
   id: number;
@@ -32,6 +34,7 @@ type BusinessCardProps = {
   requirements?: Requirement[];
   sortedCategories?: string[];
   groupedRequirements?: Record<string, Requirement[]>;
+  market?: MarketCode;
 };
 
 interface CostData {
@@ -40,7 +43,7 @@ interface CostData {
   hasPricing: boolean;
 }
 
-function formatKES(n: number) {
+function formatCompact(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000)     return `${(n / 1_000).toFixed(0)}K`;
   return `${n}`;
@@ -53,16 +56,18 @@ export default function BusinessCard({
   category,
   requirementsCount,
   groupedRequirements = {},
+  market = DEFAULT_MARKET,
 }: BusinessCardProps) {
   const [cost, setCost]           = useState<CostData | null>(null);
   const [costLoading, setCostLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/businesses/${slug}/cost`)
+    setCostLoading(true);
+    fetch(`/api/businesses/${slug}/cost?market=${market}`)
       .then((r) => r.ok ? r.json() : null)
       .then((data) => { setCost(data); setCostLoading(false); })
       .catch(() => setCostLoading(false));
-  }, [slug]);
+  }, [slug, market]);
 
   // Legacy fallback: derive the count from a full groupedRequirements
   // breakdown, excluding Stock (and any other EXCLUDED_FROM_TOTALS_CATEGORIES)
@@ -79,14 +84,15 @@ export default function BusinessCard({
 
   const totalRequirements = requirementsCount ?? legacyCount;
 
-  const overviewHref     = `/businesses/${slug}`;
-  const requirementsHref = `/businesses/${slug}/requirements`;
+  const overviewHref     = market === 'KE' ? `/businesses/${slug}` : `/us/businesses/${slug}`;
+  const requirementsHref = market === 'KE' ? `/businesses/${slug}/requirements` : `/us/businesses/${slug}/requirements`;
 
   // Cost display value
+  const code = currencyCode(market);
   const costDisplay = (() => {
     if (costLoading) return null;              // show skeleton
     if (!cost?.hasPricing) return '—';
-    return `KES ${formatKES(cost.low)} – ${formatKES(cost.high)}`;
+    return `${code} ${formatCompact(cost.low)} – ${formatCompact(cost.high)}`;
   })();
 
   return (
@@ -165,7 +171,7 @@ export default function BusinessCard({
             ) : (
               <div
                 className="text-xs font-semibold text-gray-900 leading-tight"
-                title={cost?.hasPricing ? `KES ${cost.low.toLocaleString()} – ${cost.high.toLocaleString()}` : undefined}
+                title={cost?.hasPricing ? `${code} ${cost.low.toLocaleString()} – ${cost.high.toLocaleString()}` : undefined}
               >
                 {costDisplay}
               </div>

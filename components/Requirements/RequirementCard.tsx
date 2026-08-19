@@ -22,6 +22,8 @@ import NoCountyProductState from "./NoCountyProductState";
 import CountyFeeCard from "./CountyFeeCard";
 import { FeeScheduleResolution } from "@/lib/legalFeeSchedule";
 import ApplyForMeButton from "@/components/shared/ApplyForMeButton";
+import { formatCurrency } from "@/lib/currency";
+import { DEFAULT_MARKET, type MarketCode } from "@/lib/markets";
 
 interface RequirementCardProps {
   requirement: {
@@ -44,6 +46,7 @@ interface RequirementCardProps {
   businessId: number;
   feeScheduleShellProductId?: number;
   feeScheduleShellProductDetails?: { name: string; description: string | null; image: string | null; url: string | null };
+  market?: MarketCode;
 }
 
 function personalizeDescription(text: string, businessName?: string): string {
@@ -59,6 +62,7 @@ interface AddProductModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAssigned: () => void;
+  market: MarketCode;
 }
 
 function AddProductToRequirementModal({
@@ -67,6 +71,7 @@ function AddProductToRequirementModal({
   isOpen,
   onClose,
   onAssigned,
+  market,
 }: AddProductModalProps) {
   const [allProducts, setAllProducts] = useState<
     {
@@ -270,7 +275,7 @@ function AddProductToRequirementModal({
                       {product.name}
                     </p>
                     <p className="text-xs text-gray-500">
-                      KSh {product.price?.toLocaleString() ?? "—"}
+                      {product.price != null ? formatCurrency(product.price, market) : "—"}
                     </p>
                   </div>
 
@@ -348,6 +353,7 @@ export default function RequirementCard({
   onProductAssigned,
   businessName,
   businessId,
+  market = DEFAULT_MARKET,
 }: RequirementCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isImageOpen, setIsImageOpen] = useState(false);
@@ -387,13 +393,13 @@ export default function RequirementCard({
   if (isCountyFeeRequirement) {
     if (feeScheduleResolution?.status === "exact") {
       priceLabel = "Price";
-      priceValue = `KSh ${feeScheduleResolution.price.toLocaleString()}`;
+      priceValue = formatCurrency(feeScheduleResolution.price, market);
     } else if (feeScheduleResolution?.status === "range") {
       priceLabel = "Estimated";
-      priceValue = `KSh ${feeScheduleResolution.lowPrice.toLocaleString()} – ${feeScheduleResolution.highPrice.toLocaleString()}`;
+      priceValue = `${formatCurrency(feeScheduleResolution.lowPrice, market)} – ${formatCurrency(feeScheduleResolution.highPrice, market)}`;
     }
   } else if (productCount > 0) {
-    priceValue = `KSh ${lowestPrice.toLocaleString()}`;
+    priceValue = formatCurrency(lowestPrice, market);
   }
 
   const productlessId = `req_${requirement.id}`;
@@ -440,6 +446,7 @@ export default function RequirementCard({
           isOpen={showAddProductModal}
           onClose={() => setShowAddProductModal(false)}
           onAssigned={() => onProductAssigned?.()}
+          market={market}
         />
       )}
 
@@ -784,6 +791,7 @@ export default function RequirementCard({
                         requirementName={requirement.name}
                         category={requirement.category}
                         businessId={businessId}
+                        market={market}
                       />
                     </div>
                   ))

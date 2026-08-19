@@ -20,9 +20,16 @@
 // (required-only and required+optional) are passed in as separate props
 // computed by useFilterState, rather than computed here, so there's a
 // single source of truth for the split.
+//
+// Market note: currency and the "in Kenya"/"in the US" phrasing are both
+// driven by the `market` prop (default Kenya, matching every other
+// component's pre-existing default) — see lib/currency.ts for the shared
+// formatter.
 
 "use client";
 import React, { useState } from "react";
+import { formatCurrency } from "@/lib/currency";
+import { DEFAULT_MARKET, type MarketCode } from "@/lib/markets";
 
 interface BusinessHeaderProps {
   businessName: string;
@@ -49,6 +56,8 @@ interface BusinessHeaderProps {
   unfilteredStockLowPrice?: number;
   unfilteredStockMedianPrice?: number;
   unfilteredStockHighPrice?: number;
+
+  market?: MarketCode;
 }
 
 const BusinessHeader: React.FC<BusinessHeaderProps> = ({
@@ -65,7 +74,7 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
   requiredRequirementsWithProducts,
   requirementsWithProducts,
   unfilteredStockCount = 0,
-  
+  market = DEFAULT_MARKET,
 }) => {
   const [budgetScale, setBudgetScale] = useState<"small" | "medium" | "large">(
     "medium",
@@ -75,13 +84,8 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
   // minimum unless the person explicitly asks to see optional extras too.
   const [includeOptional, setIncludeOptional] = useState(false);
 
-  const formatPrice = (price: number) =>
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "KES",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(price);
+  const formatPrice = (price: number) => formatCurrency(price, market);
+  const countryPhrase = market === "KE" ? "Kenya" : "the US";
 
   // Active price range + coverage figures, switched by the toggle.
   const activeLowPrice = includeOptional ? unfilteredLowPrice : unfilteredRequiredLowPrice;
@@ -116,7 +120,7 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
             <span className="bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
               {businessName}
             </span>{" "}
-            Business in Kenya
+            Business in {countryPhrase}
           </h1>
           <p className="text-base sm:text-lg text-slate-600 leading-relaxed">
             Complete requirements, cost estimates, and essential resources to

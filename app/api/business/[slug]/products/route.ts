@@ -15,16 +15,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ensureFeeScheduleShellProduct } from '@/lib/legalFeeScheduleAdmin';
+import { DEFAULT_MARKET, isMarketCode } from '@/lib/markets';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
     const { slug } = await params;
+
+    // market comes from the client's ?market= query param — set by
+    // useBusinessData based on which route rendered the page (KE or US).
+    // Falls back to Kenya if missing/invalid. Filters recommended
+    // products down to vendors operating in this market (e.g. Jumia for
+    // KE, Amazon for US) — see Vendor.country in schema.prisma.
+    // County-fee shell products aren't affected: they're returned
+    // separately via feeSchedules below, not through this products.where
+    // filter.
+    const marketParam = req.nextUrl.searchParams.get('market');
+    const market = isMarketCode(marketParam) ? marketParam : DEFAULT_MARKET;
 
     const business = await prisma.business.findUnique({
       where: { slug },
@@ -44,6 +56,7 @@ export async function GET(
                   where: {
                     status: 'ACTIVE',
                     price: { not: null },
+                    vendor: { country: market },
                   },
                   select: {
                     id: true, name: true, description: true, price: true, image: true, url: true,

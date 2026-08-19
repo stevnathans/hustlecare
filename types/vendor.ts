@@ -103,4 +103,4 @@ export type SortField = 'name' | 'price' | 'vendor' | 'id' | 'status';
 export type SortDir = 'asc' | 'desc';
 export type ViewMode = 'table' | 'grid';
 
-export type VendorTuple = [string, string]; // [id, name]
+export type VendorTuple = [string, string, string?]; // [id, name, website?]

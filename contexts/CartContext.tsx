@@ -15,6 +15,14 @@ export type CartItem = {
   requirementName: string;  // Add requirement name
   category: string;         // Add category
   isProductless?: boolean;  // True when requirement has no products
+  // Currency `price` is denominated in — snapshotted from Product.currency
+  // server-side (see /api/cart/item/add), never computed or assumed
+  // client-side. Optional because locally-created productless items (see
+  // below) don't go through that server round trip; their price is
+  // always 0 regardless of currency, so the field is harmless there —
+  // never read for display since isProductless items show a fixed
+  // "no products" state, not a formatted price.
+  currency?: string;
   // Only used transiently on the add-to-cart request for a fee-schedule
   // shell product, so the server can resolve the authoritative price for
   // that county. Never persisted, never present on items read back from
