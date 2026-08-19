@@ -26,6 +26,54 @@ type Props = {
 // support) is dropped rather than silently setting an invalid currency.
 const SUPPORTED_CURRENCIES = ['KES', 'USD', 'UGX', 'TZS', 'NGN', 'ZAR', 'GHS'];
 
+// Recently-used vendor/requirement — persisted client-side only (a per-
+// browser convenience default, not a real setting), so admins batch-adding
+// several products from the same vendor/requirement don't re-pick every
+// time. Only ever applied when opening the blank form for a brand-new
+// product — never touches an existing product being edited.
+const LAST_VENDOR_KEY = 'admin_products_last_vendor_id';
+const LAST_REQUIREMENT_KEY = 'admin_products_last_requirement_id';
+
+// Common words that carry no signal for matching a product name/description
+// against a requirement name — excluding them keeps a shared "the"/"for"
+// from counting as a match.
+const STOPWORDS = new Set(['the', 'for', 'and', 'of', 'a', 'an', 'in', 'to', 'with', 'on', 'by', 'or']);
+
+function significantWords(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOPWORDS.has(w));
+}
+
+// Suggests the best-matching requirement for a fetched product's name +
+// description, by significant-word overlap against each requirement's name.
+// Deliberately conservative: requires at least half of the REQUIREMENT's
+// own significant words to appear in the product text, so a single generic
+// shared word (e.g. "certificate") can't trigger a wrong pick on its own.
+// Returns null rather than a low-confidence guess when nothing clears that
+// bar — this only ever pre-fills a blank field, so a missed suggestion just
+// leaves the admin to pick manually, same as today.
+function suggestRequirement(requirements: RequirementOption[], text: string): RequirementOption | null {
+  const textWords = new Set(significantWords(text));
+  if (textWords.size === 0) return null;
+
+  let best: RequirementOption | null = null;
+  let bestScore = 0;
+  for (const req of requirements) {
+    const reqWords = significantWords(req.name);
+    if (reqWords.length === 0) continue;
+    const matches = reqWords.filter((w) => textWords.has(w)).length;
+    const score = matches / reqWords.length;
+    if (matches > 0 && score > bestScore) {
+      bestScore = score;
+      best = req;
+    }
+  }
+  return bestScore >= 0.5 ? best : null;
+}
+
 // Strips protocol/www/path so a vendor's stored website and a product
 // link can be compared on hostname alone (e.g. "https://www.acme.com/"
 // vs "https://acme.com/shop/widget?ref=123" should both normalize to
@@ -79,7 +127,22 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
     setLoadingRequirements(true);
     fetch('/api/requirements')
       .then((r) => r.ok && r.json())
-      .then((d) => setRequirements(Array.isArray(d) ? d : []))
+      .then((d) => {
+        const list: RequirementOption[] = Array.isArray(d) ? d : [];
+        setRequirements(list);
+
+        // Recently-used requirement default — new product only, and only
+        // if that requirement still exists (it may have been deprecated
+        // since the last time it was picked) and the form hasn't already
+        // gotten a templateId from somewhere else (e.g. the admin already
+        // clicked into the picker before this fetch resolved).
+        if (!editingProduct) {
+          const lastTemplateId = localStorage.getItem(LAST_REQUIREMENT_KEY);
+          if (lastTemplateId && list.some((r) => String(r.id) === lastTemplateId)) {
+            setForm((f) => (f.templateId ? f : { ...f, templateId: lastTemplateId }));
+          }
+        }
+      })
       .finally(() => setLoadingRequirements(false));
 
     if (editingProduct) {
@@ -132,7 +195,11 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
           : []
       );
     } else {
-      setForm(EMPTY_PRODUCT_FORM);
+      // Recently-used vendor default — only if that vendor is still in the
+      // active list (it may have been deleted/suspended since last pick).
+      const lastVendorId = localStorage.getItem(LAST_VENDOR_KEY);
+      const vendorStillExists = !!lastVendorId && vendors.some(([id]) => id === lastVendorId);
+      setForm({ ...EMPTY_PRODUCT_FORM, vendorId: vendorStillExists ? lastVendorId! : '' });
       setBulkTiers([]);
       setPackages([]);
     }
@@ -140,7 +207,7 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
     setFetchMetadataError(null);
     setFetchMetadataNotice(null);
     setTimeout(() => firstInputRef.current?.focus(), 80);
-  }, [open, editingProduct]);
+  }, [open, editingProduct, vendors]);
 
   useEffect(() => {
     if (!open) return;
@@ -260,6 +327,18 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
       const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to save');
+
+      // Remember this vendor/requirement as the default for the next
+      // brand-new product — shell products have no real vendor/requirement
+      // to remember. localStorage failures (private browsing, quota) are
+      // non-fatal — the save itself already succeeded.
+      if (!isShellProduct) {
+        try {
+          if (form.vendorId) localStorage.setItem(LAST_VENDOR_KEY, form.vendorId);
+          if (form.templateId) localStorage.setItem(LAST_REQUIREMENT_KEY, form.templateId);
+        } catch { /* non-fatal */ }
+      }
+
       setOpen(false);
       fetchProducts();
     } catch (e) {
@@ -294,11 +373,23 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
         ? vendors.find(([, , website]) => website && normalizeHost(website) === productHost)
         : undefined;
 
+      // Requirement suggestion runs off the fetched name + description —
+      // whichever the form doesn't already have filled wins out as the
+      // best text signal (matches the same "prefer existing, fall back to
+      // fetched" logic used when actually filling those fields below).
+      const suggestionText = [form.name.trim() || data.name, form.description.trim() || data.description]
+        .filter(Boolean)
+        .join(' ');
+      const suggestedRequirement = suggestionText
+        ? suggestRequirement(requirements, suggestionText)
+        : null;
+
       setForm((f) => {
-        // Only treat this as "we're assigning the vendor" if the admin
-        // hadn't already picked one — never silently reassign an existing
-        // selection, same rule as every other autofilled field here.
+        // Only treat this as "we're assigning the vendor/requirement" if
+        // the admin hadn't already picked one — never silently reassign an
+        // existing selection, same rule as every other autofilled field.
         const willAssignVendor = !f.vendorId && !!matchedVendor;
+        const willAssignRequirement = !f.templateId && !!suggestedRequirement;
         const shouldFillPrice = !f.price.trim() && !f.usePriceRange && !!data.price;
 
         // Vendor market beats scraped page currency when we're the ones
@@ -321,12 +412,16 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
               ? data.currency
               : f.currency,
           vendorId: willAssignVendor ? matchedVendor![0] : f.vendorId,
+          templateId: willAssignRequirement ? String(suggestedRequirement!.id) : f.templateId,
         };
       });
 
-      if (matchedVendor) {
-        setFetchMetadataNotice(`Vendor auto-selected: ${matchedVendor[1]} (matched by link domain)`);
+      const notices: string[] = [];
+      if (matchedVendor) notices.push(`Vendor auto-selected: ${matchedVendor[1]} (matched by link domain)`);
+      if (suggestedRequirement && !form.templateId) {
+        notices.push(`Requirement suggested: ${suggestedRequirement.name} — please confirm this is correct`);
       }
+      if (notices.length) setFetchMetadataNotice(notices.join(' · '));
     } catch (e) {
       setFetchMetadataError(e instanceof Error ? e.message : 'Failed to fetch product details.');
     } finally {
