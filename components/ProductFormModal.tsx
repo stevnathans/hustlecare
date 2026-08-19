@@ -17,6 +17,8 @@ type Props = {
   fetchProducts: () => void;
   editingProduct: Product | null;
   vendors: VendorTuple[];
+  /** Set only by the bookmarklet entry point — prefills the Buy Link field for a brand-new product. */
+  initialUrl?: string | null;
 };
 
 // Currencies offered in the Pricing section's currency dropdown — kept in
@@ -90,7 +92,7 @@ function normalizeHost(raw: string): string | null {
   }
 }
 
-export default function ProductFormModal({ open, setOpen, fetchProducts, editingProduct, vendors }: Props) {
+export default function ProductFormModal({ open, setOpen, fetchProducts, editingProduct, vendors, initialUrl }: Props) {
   const [form, setForm] = useState<ProductFormValues>(EMPTY_PRODUCT_FORM);
   const [bulkTiers, setBulkTiers] = useState<BulkTier[]>([]);
   const [packages, setPackages] = useState<SoftwarePackageRow[]>([]);
@@ -199,15 +201,25 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
       // active list (it may have been deleted/suspended since last pick).
       const lastVendorId = localStorage.getItem(LAST_VENDOR_KEY);
       const vendorStillExists = !!lastVendorId && vendors.some(([id]) => id === lastVendorId);
-      setForm({ ...EMPTY_PRODUCT_FORM, vendorId: vendorStillExists ? lastVendorId! : '' });
+      setForm({
+        ...EMPTY_PRODUCT_FORM,
+        vendorId: vendorStillExists ? lastVendorId! : '',
+        url: initialUrl || '',
+      });
       setBulkTiers([]);
       setPackages([]);
     }
     setErrors({});
     setFetchMetadataError(null);
-    setFetchMetadataNotice(null);
+    // Bookmarklet hand-off gets a one-time hint instead of the usual blank
+    // slate — nudges toward the one click that does the rest of the work.
+    setFetchMetadataNotice(
+      !editingProduct && initialUrl
+        ? 'Link pre-filled from your bookmarklet — click "Fetch details" to auto-fill the rest.'
+        : null
+    );
     setTimeout(() => firstInputRef.current?.focus(), 80);
-  }, [open, editingProduct, vendors]);
+  }, [open, editingProduct, vendors, initialUrl]);
 
   useEffect(() => {
     if (!open) return;
@@ -492,3 +504,4 @@ export default function ProductFormModal({ open, setOpen, fetchProducts, editing
     </div>
   );
 }
+

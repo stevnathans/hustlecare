@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Pencil, Trash2 } from 'lucide-react';
 import AssignRequirementModal from '@/components/admin/AssignRequirementModal';
@@ -200,7 +201,13 @@ function StatusBadge({ status }: { status: ProductStatus }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-export default function ProductsPage() {
+// useSearchParams() requires a Suspense boundary above it — the actual page
+// content lives in ProductsPageInner, wrapped by the default-exported
+// ProductsPage below.
+function ProductsPageInner() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
   const [products,           setProducts]           = useState<Product[]>([]);
   const [modalOpen,          setModalOpen]          = useState(false);
   const [editingProduct,     setEditingProduct]     = useState<Product | null>(null);
@@ -222,6 +229,12 @@ export default function ProductsPage() {
   const [allVendors,         setAllVendors]         = useState<Vendor[]>([]);
   const [assignModalProduct, setAssignModalProduct] = useState<Product | null>(null);
   const [activeTab,          setActiveTab]          = useState<PageTab>('catalog');
+
+  // Set only via the bookmarklet entry point (?newFromUrl=...) — pre-fills
+  // the "New Product" modal's Buy Link field so the admin doesn't have to
+  // copy/paste it themselves. Cleared whenever the modal closes, so a
+  // manually opened "New Product" afterwards starts genuinely blank.
+  const [initialUrl,         setInitialUrl]         = useState<string | null>(null);
 
   // Always-visible horizontal scrollbar for the catalog table — a proxy bar
   // pinned near the top of the panel (instead of the browser's native
@@ -265,6 +278,23 @@ export default function ProductsPage() {
   useEffect(() => { fetchProducts(); fetchVendors(); }, [fetchProducts, fetchVendors]);
   useEffect(() => { setPage(1); }, [searchTerm, vendorFilter, requirementFilter, statusFilter, priceRangeIdx, sortField, sortDir, activeTab]);
 
+  // Bookmarklet entry point — a link like /admin/products?newFromUrl=<encoded
+  // product url> opens straight into a prefilled "New Product" modal instead
+  // of requiring the admin to open the modal and paste the link in manually.
+  // The query param is stripped immediately after being read so refreshing
+  // the page, or opening "New Product" again later, doesn't reuse a stale
+  // bookmarklet URL.
+  useEffect(() => {
+    const newFromUrl = searchParams.get('newFromUrl');
+    if (newFromUrl) {
+      setInitialUrl(newFromUrl);
+      setEditingProduct(null);
+      setModalOpen(true);
+      router.replace('/admin/products');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'n' && !modalOpen && !e.ctrlKey && !e.metaKey &&
@@ -278,9 +308,9 @@ export default function ProductsPage() {
   }, [modalOpen]);
 
    const vendors = useMemo<VendorTuple[]>(
-  () => allVendors.map(v => [String(v.id), v.name, v.website || '', v.country || '']),
-  [allVendors]
-);
+    () => allVendors.map(v => [String(v.id), v.name, v.website || '', v.country || '']),
+    [allVendors]
+  );
 
   const vendorsInProducts = useMemo<VendorTuple[]>(() => {
     const seen = new Map<string, string>();
@@ -410,6 +440,15 @@ export default function ProductsPage() {
       }
       return n;
     });
+  };
+
+  // Wraps setModalOpen so closing the modal for any reason — Cancel, Escape,
+  // overlay click, or a successful save — also clears any bookmarklet-
+  // supplied URL, so the next manually opened "New Product" starts blank
+  // rather than reusing a stale link.
+  const handleModalOpenChange = (v: boolean) => {
+    setModalOpen(v);
+    if (!v) setInitialUrl(null);
   };
 
   const clearFilters = () => { setSearchTerm(''); setVendorFilter(''); setRequirementFilter(''); setStatusFilter(''); setPriceRangeIdx(0); };
@@ -908,10 +947,11 @@ export default function ProductsPage() {
 
       <ProductFormModal
         open={modalOpen}
-        setOpen={setModalOpen}
+        setOpen={handleModalOpenChange}
         fetchProducts={fetchProducts}
         editingProduct={editingProduct}
         vendors={vendors}
+        initialUrl={initialUrl}
       />
 
       {assignModalProduct && (
@@ -939,5 +979,13 @@ export default function ProductsPage() {
         />
       )}
     </>
+  );
+}
+
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: '2rem', color: '#55556e' }}>Loading…</div>}>
+      <ProductsPageInner />
+    </Suspense>
   );
 }
