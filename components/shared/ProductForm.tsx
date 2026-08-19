@@ -38,13 +38,6 @@ import {
 import RequirementPicker, { RequirementOption } from './RequirementPicker';
 import type { VendorTuple } from 'types/vendor';
 
-// Vendor.country → marketplace currency. Extend alongside lib/markets.ts's
-// market codes if more markets are added.
-export const MARKET_CURRENCY: Record<string, string> = {
-  KE: 'KES',
-  US: 'USD',
-};
-
 export type ProductFormTheme = 'light' | 'dark';
 export type ProductFormMode = 'vendor' | 'admin';
 
@@ -127,6 +120,13 @@ export const EMPTY_PRODUCT_FORM: ProductFormValues = {
   softwarePackagesEnabled: false, billingPeriod: 'MONTHLY',
 };
 
+// Vendor.country → marketplace currency. Extend alongside lib/markets.ts's
+// market codes if more markets are added.
+export const MARKET_CURRENCY: Record<string, string> = {
+  KE: 'KES',
+  US: 'USD',
+};
+
 type Props = {
   mode: ProductFormMode;
   theme: ProductFormTheme;
@@ -143,6 +143,7 @@ type Props = {
   setPackages?: (updater: (p: SoftwarePackageRow[]) => SoftwarePackageRow[]) => void;
   /** True for a system-generated county-fee shell product — hides price/vendor/legal fields that don't apply to it. */
   isFeeScheduleShell?: boolean;
+  /** Admin-only "Fetch from URL" affordance — pulls name/description/image/price via a generic scraper. */
   onFetchMetadata?: () => void;
   fetchingMetadata?: boolean;
   fetchMetadataError?: string | null;
@@ -150,7 +151,8 @@ type Props = {
 
 export default function ProductForm({
   mode, theme, form, setForm, errors, requirements, loadingRequirements = false,
-  vendors = [], bulkTiers = [], setBulkTiers, packages = [], setPackages, isFeeScheduleShell, onFetchMetadata, fetchingMetadata, fetchMetadataError,
+  vendors = [], bulkTiers = [], setBulkTiers, packages = [], setPackages, isFeeScheduleShell,
+  onFetchMetadata, fetchingMetadata, fetchMetadataError,
 }: Props) {
   const t = tokens(theme);
   const isShellProduct = mode === 'admin' && isFeeScheduleShell;
@@ -165,16 +167,16 @@ export default function ProductForm({
   const isLegalRequirement = mode === 'admin' && selectedRequirement?.category === 'Legal';
   const isSoftwareRequirement = mode === 'admin' && selectedRequirement?.category === 'Software';
 
-  // Once packages are enabled, Product.price is recalculated server-side
-  // from them on every save — nothing typed into the Price field in the
-  // Pricing section below would stick, so it's shown disabled with a note.
-  const priceIsDerivedFromPackages = isSoftwareRequirement && form.softwarePackagesEnabled;
-
   // Condition (New/Used) only makes sense for physical goods. Not gated on
   // mode — both admin and vendor forms should hide it for Software/Legal/
   // any other non-physical category, not just admin.
   const isPhysicalGoodsRequirement =
     selectedRequirement?.category === 'Equipment' || selectedRequirement?.category === 'Stock';
+
+  // Once packages are enabled, Product.price is recalculated server-side
+  // from them on every save — nothing typed into the Price field in the
+  // Pricing section below would stick, so it's shown disabled with a note.
+  const priceIsDerivedFromPackages = isSoftwareRequirement && form.softwarePackagesEnabled;
 
   const addBulkTier    = () => setBulkTiers?.(rows => [...rows, { minQty: '', price: '' }]);
   const updateBulkTier = (i: number, key: keyof BulkTier, value: string) =>
@@ -206,7 +208,23 @@ export default function ProductForm({
 
       {/* Vendor + Requirement — admin only (vendor already knows who they are) */}
       {mode === 'admin' && (
-        <Section theme={theme} title="Vendor & Requirement" icon={<Tag size={14} />}>
+        <Section
+          theme={theme}
+          title="Vendor & Requirement"
+          icon={<Tag size={14} />}
+          actions={
+            (form.vendorId || form.templateId) ? (
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, vendorId: '', templateId: '' }))}
+                className="text-xs font-semibold text-gray-400 transition-colors hover:text-red-500"
+                title="Clear the selected vendor and requirement"
+              >
+                Clear
+              </button>
+            ) : undefined
+          }
+        >
           <div className={t.twoCol}>
             <div className="relative">
               <label className={t.label}>Vendor <span className={t.required}>*</span></label>
@@ -266,7 +284,7 @@ export default function ProductForm({
                       Clear selection
                     </button>
 
-                                       {filteredVendors.length === 0 ? (
+                    {filteredVendors.length === 0 ? (
                       <div className="px-3 py-2 text-xs text-gray-500 italic">No vendors found</div>
                     ) : (
                       filteredVendors.map(([id, name, , country]) => (
@@ -294,7 +312,6 @@ export default function ProductForm({
                         </button>
                       ))
                     )}
-                    
                   </div>
                 </div>
               )}
@@ -537,7 +554,7 @@ export default function ProductForm({
               <label className={t.label}>Product Image URL</label>
               <input className={t.input} value={form.image} onChange={(e) => setForm((f) => ({ ...f, image: e.target.value }))} placeholder="https://…" />
             </div>
-                        <div>
+            <div>
               <label className={t.label}>Product / Buy Link</label>
               <div className="flex gap-2">
                 <input
@@ -840,15 +857,18 @@ export default function ProductForm({
 
 /* ── Section wrapper — white card for the vendor (light) form, dark panel for admin ── */
 function Section({
-  theme, title, icon, subtitle, children,
-}: { theme: ProductFormTheme; title: string; icon: ReactNode; subtitle?: string; children: ReactNode }) {
+  theme, title, icon, subtitle, actions, children,
+}: { theme: ProductFormTheme; title: string; icon: ReactNode; subtitle?: string; actions?: ReactNode; children: ReactNode }) {
   if (theme === 'light') {
     return (
       <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="mb-4">
-          <div className="flex items-center gap-2">
-            <span className="text-emerald-600">{icon}</span>
-            <h2 className="text-sm font-bold text-gray-900">{title}</h2>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-emerald-600">{icon}</span>
+              <h2 className="text-sm font-bold text-gray-900">{title}</h2>
+            </div>
+            {actions}
           </div>
           {subtitle && <p className="mt-1 text-xs leading-relaxed text-gray-500">{subtitle}</p>}
         </div>
@@ -865,9 +885,12 @@ function Section({
         padding: '1rem 1.1rem',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.85rem' }}>
-        <span style={{ color: '#a89cf7', display: 'flex' }}>{icon}</span>
-        <h3 style={{ fontFamily: "'Sora', sans-serif", fontSize: '0.85rem', fontWeight: 700, color: '#e2e2ef', margin: 0 }}>{title}</h3>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.85rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span style={{ color: '#a89cf7', display: 'flex' }}>{icon}</span>
+          <h3 style={{ fontFamily: "'Sora', sans-serif", fontSize: '0.85rem', fontWeight: 700, color: '#e2e2ef', margin: 0 }}>{title}</h3>
+        </div>
+        {actions}
       </div>
       {subtitle && <p style={{ fontSize: '0.75rem', color: '#6b6b8a', marginTop: '-0.4rem', marginBottom: '0.75rem' }}>{subtitle}</p>}
       {children}
