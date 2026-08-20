@@ -41,10 +41,11 @@ import { getMarketFromPath } from "@/lib/markets";
 // get made.
 const MARKET_AWARE_LINKS = [
   { path: "/businesses", label: "Businesses", icon: Briefcase },
+  { path: "/marketplace", label: "Marketplace", icon: Store },
 ];
 
 const SHARED_LINKS = [
-  { href: "/marketplace", label: "Marketplace", icon: Store },
+  
   { href: "/guides", label: "Guides", icon: BookOpen },
   { href: "/services", label: "Services", icon: Handshake },
   { href: "/about", label: "About", icon: Info },

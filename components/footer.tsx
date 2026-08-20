@@ -1,6 +1,14 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { getMarketFromPath } from "@/lib/markets";
 
 export default function Footer() {
+  const pathname = usePathname();
+  const market = getMarketFromPath(pathname ?? "/");
+  const base = market === "US" ? "/us" : "";
+
   return (
     <footer className="relative bg-gray-900 text-white py-12 overflow-hidden">
       {/* Paige background pattern */}
@@ -29,7 +37,7 @@ export default function Footer() {
             <div>
               <h4 className="text-lg font-semibold mb-4 text-emerald-500">About</h4>
               <ul className="space-y-3">
-                <li><Link href="/our-story" className="text-gray-400 hover:text-white transition">Our Story</Link></li>
+                <li><Link href={`${base}/our-story`} className="text-gray-400 hover:text-white transition">Our Story</Link></li>
                 <li><Link href="#" className="text-gray-400 hover:text-white transition">Team</Link></li>
                 <li><Link href="#" className="text-gray-400 hover:text-white transition">Careers</Link></li>
                 <li><Link href="#" className="text-gray-400 hover:text-white transition">Press</Link></li>
@@ -40,10 +48,10 @@ export default function Footer() {
             <div>
               <h4 className="text-lg font-semibold mb-4 text-emerald-500">Help</h4>
               <ul className="space-y-3">
-                <li><Link href="/faqs" className="text-gray-400 hover:text-white transition">FAQ</Link></li>
-                <li><Link href="/contact" className="text-gray-400 hover:text-white transition">Contact Us</Link></li>
-                <li><Link href="/support" className="text-gray-400 hover:text-white transition">Support</Link></li>
-                <li><Link href="/community" className="text-gray-400 hover:text-white transition">Community</Link></li>
+                <li><Link href={`${base}/faqs`} className="text-gray-400 hover:text-white transition">FAQ</Link></li>
+                <li><Link href={`${base}/contact`} className="text-gray-400 hover:text-white transition">Contact Us</Link></li>
+                <li><Link href={`${base}/support`} className="text-gray-400 hover:text-white transition">Support</Link></li>
+                <li><Link href={`${base}/community`} className="text-gray-400 hover:text-white transition">Community</Link></li>
               </ul>
             </div>
 
@@ -51,10 +59,10 @@ export default function Footer() {
             <div>
               <h4 className="text-lg font-semibold mb-4 text-emerald-500">Legal</h4>
               <ul className="space-y-3">
-                <li><Link href="/privacy" className="text-gray-400 hover:text-white transition">Privacy Policy</Link></li>
-                <li><Link href="/terms" className="text-gray-400 hover:text-white transition">Terms of Service</Link></li>
-                <li><Link href="/cookie" className="text-gray-400 hover:text-white transition">Cookie Policy</Link></li>
-                <li><Link href="/gdpr" className="text-gray-400 hover:text-white transition">GDPR</Link></li>
+                <li><Link href={`${base}/privacy`} className="text-gray-400 hover:text-white transition">Privacy Policy</Link></li>
+                <li><Link href={`${base}/terms`} className="text-gray-400 hover:text-white transition">Terms of Service</Link></li>
+                <li><Link href={`${base}/cookie`} className="text-gray-400 hover:text-white transition">Cookie Policy</Link></li>
+                <li><Link href={`${base}/gdpr`} className="text-gray-400 hover:text-white transition">GDPR</Link></li>
               </ul>
             </div>
           </div>
