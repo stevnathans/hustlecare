@@ -7,6 +7,8 @@ import RelatedBusinesses from './RelatedBusinesses';
 import { isExcludedFromTotals } from '@/lib/necessity';
 import { prisma } from '@/lib/prisma';
 
+export const revalidate = 300; // regenerate at most every 5 minutes
+
 interface Props {
   params: Promise<{ slug: string }>;
 }

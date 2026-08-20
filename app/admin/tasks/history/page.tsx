@@ -68,7 +68,7 @@ export default function ExecutionHistoryPage() {
     <>
       <style>{S}</style>
       <div className="adm" style={{ minHeight: '100vh' }}>
-        <Link href="/admin/execution" className="nav-link">
+        <Link href="/admin/tasks" className="nav-link">
           <ArrowLeft size={14} /> Back to Today
         </Link>
         <h1 style={{ fontSize: '1.75rem', fontWeight: 700, letterSpacing: '-0.03em', marginBottom: '0.25rem' }}>History</h1>

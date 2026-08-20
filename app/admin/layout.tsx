@@ -25,13 +25,22 @@ import {
   Layers,
   BarChart,
   Target,
+  History,
 } from "lucide-react";
+
+interface SubNavItem {
+  name: string;
+  href: string;
+  icon: React.ElementType;
+  requiredRoles?: string[];
+}
 
 interface NavItem {
   name: string;
   href: string;
   icon: React.ElementType;
   requiredRoles: string[];
+  children?: SubNavItem[];
 }
 
 const navItems: NavItem[] = [
@@ -114,11 +123,25 @@ const navItems: NavItem[] = [
     requiredRoles: ["editor", "admin"],
   },
   {
-  name: "Execution",
-  href: "/admin/execution",
-  icon: Target, 
-  requiredRoles: ["editor", "admin"],
-},
+    name: "Tasks",
+    href: "/admin/tasks",
+    icon: Target,
+    requiredRoles: ["editor", "admin"],
+    children: [
+      {
+        name: "History",
+        href: "/admin/tasks/history",
+        icon: History,
+        requiredRoles: ["editor", "admin"],
+      },
+    ],
+  },
+  {
+    name: "Carts",
+    href: "/admin/carts",
+    icon: ShoppingCart,
+    requiredRoles: ["editor", "admin"],
+  },
   {
     name: "Comments",
     href: "/admin/comments",
@@ -221,29 +244,64 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         {visibleNavItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
+          const hasChildren = Boolean(item.children?.length);
+
+          const filteredChildren =
+            item.children?.filter(
+              (child) =>
+                !child.requiredRoles || child.requiredRoles.includes(userRole),
+            ) || [];
+
           return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={`
-                flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-                transition-all duration-150 group relative
-                ${
-                  isActive
-                    ? "bg-indigo-600/15 text-indigo-400 shadow-sm"
-                    : "text-admin-nav-fg hover:bg-admin-hover hover:text-admin-fg"
-                }
-              `}
-            >
-              {/* Active indicator bar */}
-              {isActive && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-indigo-500 rounded-r-full" />
+            <div key={item.name} className="group/nav relative">
+              <Link
+                href={item.href}
+                className={`
+                  flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+                  transition-all duration-150 group relative
+                  ${
+                    isActive
+                      ? "bg-indigo-600/15 text-indigo-400 shadow-sm"
+                      : "text-admin-nav-fg hover:bg-admin-hover hover:text-admin-fg"
+                  }
+                `}
+              >
+                {/* Active indicator bar */}
+                {isActive && (
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-indigo-500 rounded-r-full" />
+                )}
+                <Icon
+                  className={`h-4 w-4 flex-shrink-0 transition-colors ${
+                    isActive
+                      ? "text-indigo-400"
+                      : "text-admin-muted-fg group-hover:text-admin-fg"
+                  }`}
+                />
+                <span>{item.name}</span>
+              </Link>
+
+              {/* Hover Dropdown Sub-menu */}
+              {hasChildren && filteredChildren.length > 0 && (
+                <div className="hidden group-hover/nav:flex flex-col gap-0.5 pl-9 pr-2 py-1 mt-0.5 rounded-lg bg-admin-surface-2/60 transition-all">
+                  {filteredChildren.map((child) => {
+                    const isChildActive = pathname === child.href;
+                    return (
+                      <Link
+                        key={child.name}
+                        href={child.href}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                          isChildActive
+                            ? "text-indigo-400 bg-indigo-600/10"
+                            : "text-admin-nav-fg hover:text-admin-fg hover:bg-admin-hover"
+                        }`}
+                      >
+                        {child.name}
+                      </Link>
+                    );
+                  })}
+                </div>
               )}
-              <Icon
-                className={`h-4 w-4 flex-shrink-0 transition-colors ${isActive ? "text-indigo-400" : "text-admin-muted-fg group-hover:text-admin-fg"}`}
-              />
-              <span>{item.name}</span>
-            </Link>
+            </div>
           );
         })}
       </nav>

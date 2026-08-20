@@ -48,17 +48,33 @@ export async function GET(
       name: cart.name || `${cart.business.name} Cart`,
       businessName: cart.business.name,
       businessId: cart.businessId,
-      totalCost: cart.totalCost || cart.items.reduce(
-        (sum, item) => sum + (item.unitPrice * item.quantity),
-        0
-      ),
+      // Was `cart.totalCost || ...`, which falls through to recomputing
+      // from items whenever totalCost is a genuine 0 (e.g. an
+      // all-free/productless cart), not just when it's null/undefined —
+      // same class of truthiness bug fixed earlier in
+      // /api/cart/save/route.ts. Explicit null/undefined check preserves
+      // a real saved zero.
+      totalCost: cart.totalCost !== null && cart.totalCost !== undefined
+        ? cart.totalCost
+        : cart.items.reduce(
+            (sum, item) => sum + (item.unitPrice * item.quantity),
+            0
+          ),
       items: cart.items.map(item => ({
         id: item.id,
         productId: item.productId,
         name: item.product.name,
         price: item.unitPrice,
+        // Currency this line's price is denominated in — was missing
+        // entirely, so SharedCartPage always fell back to its KES
+        // default regardless of the actual product's market.
+        currency: item.currency,
         quantity: item.quantity,
         image: item.product.image || undefined,
+        // Also previously dropped despite being on CartItem and used by
+        // SharedCartPage's category grouping/badges.
+        category: item.category || undefined,
+        requirementName: item.requirementName || undefined,
       })),
     };
 

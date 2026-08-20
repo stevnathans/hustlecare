@@ -7,6 +7,8 @@ import { prisma } from '@/lib/prisma';
 import { isExcludedFromTotals } from '@/lib/necessity';
 import type { Business as BusinessData, Requirement as RequirementData } from 'hooks/useBusinessData';
 
+export const revalidate = 300; // regenerate at most every 5 minutes
+
 interface BusinessPageProps {
   params: Promise<{ slug: string }>;
 }

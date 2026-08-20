@@ -4,6 +4,8 @@ import { Metadata } from "next";
 import USBusinessesContent from "./BusinessesContent";
 import { prisma } from "@/lib/prisma";
 
+export const revalidate = 300; // regenerate at most every 5 minutes
+
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://hustlecare.net";
 const PAGE_URL = `${SITE_URL}/us/businesses`;
 const OG_IMAGE = `${SITE_URL}/images/business-ideas-hustlecare.jpg`;

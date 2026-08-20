@@ -133,7 +133,7 @@ export default function ExecutionTrackerPage() {
       <>
         <style>{S}</style>
         <div className="adm" style={{ padding: '2rem 0', color: '#55556e' }}>
-          Loading today's execution…
+          Loading today's tasks…
         </div>
       </>
     );
@@ -159,7 +159,7 @@ export default function ExecutionTrackerPage() {
               {data.summary.metDaily}/{data.summary.totalDaily} daily targets met
             </p>
           </div>
-          <Link href="/admin/execution/history" className="nav-link">
+          <Link href="/admin/tasks/history" className="nav-link">
             <History size={14} /> View History
           </Link>
         </div>

@@ -10,7 +10,7 @@ import { DEFAULT_MARKET, isMarketCode, type MarketCode } from '@/lib/markets';
 // from scratch. unstable_cache means the actual DB work only runs once per
 // revalidate window (here: 1 hour) per (slug, market) pair; every request
 // in between is served from Next's data cache with no DB round trip at all.
-const REVALIDATE_SECONDS = 60 * 60; // 1 hour — adjust if pricing changes more/less often
+const REVALIDATE_SECONDS = 60 * 30; // 30 minutes
 
 const getBusinessCost = unstable_cache(
   async (slug: string, market: MarketCode) => {

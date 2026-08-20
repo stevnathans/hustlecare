@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Share2, ShoppingCart, Building, ArrowLeft, Plus, Minus, Download, FileText, Calendar, Package } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { formatCurrencyByCode, localeForCurrencyCode } from '@/lib/currency';
 
 interface CartItemType {
   id: string;
@@ -16,6 +17,11 @@ interface CartItemType {
   image?: string;
   category?: string;
   requirementName?: string;
+  // Currency this item's price is denominated in — see CartItem.currency
+  // in schema.prisma. Optional/defaulted here for backward compatibility
+  // with any API response that hasn't been updated to include it yet;
+  // falls back to KES to match the pre-market-aware behavior.
+  currency?: string;
 }
 
 interface SharedCartProps {
@@ -23,10 +29,6 @@ interface SharedCartProps {
     cartId: string;
   }>;
 }
-
-const formatCurrency = (amount: number) => {
-  return amount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
 
 const formatItemCount = (count: number) => {
   return count === 1 ? `${count} item` : `${count} items`;
@@ -93,6 +95,15 @@ export default function SharedCartPage(props: SharedCartProps) {
     };
   }, [cart]);
 
+  // The cart's effective currency — derived from its own items rather
+  // than any page-level market prop, same approach as CostCalculator.
+  // Falls back to KES (matching the pre-market-aware default) if items
+  // have no currency set.
+  const cartCurrency = cart?.items[0]?.currency ?? 'KES';
+  const dateLocale = localeForCurrencyCode(cartCurrency);
+  const money = (amount: number, currency?: string) =>
+    formatCurrencyByCode(amount, currency ?? cartCurrency);
+
   const handleShare = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
@@ -147,7 +158,7 @@ export default function SharedCartPage(props: SharedCartProps) {
       doc.setFont('helvetica', 'normal');
       doc.text(`Business: ${cart.businessName}`, margin, 25);
 
-      const currentDate = new Date().toLocaleDateString('en-KE', {
+      const currentDate = new Date().toLocaleDateString(dateLocale, {
         year: 'numeric',
         month: 'long',
         day: 'numeric'
@@ -170,7 +181,7 @@ export default function SharedCartPage(props: SharedCartProps) {
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(16, 185, 129);
-      doc.text(`Total Cost: KSh ${formatCurrency(cart.totalCost)}`, margin, yPosition);
+      doc.text(`Total Cost: ${money(cart.totalCost)}`, margin, yPosition);
 
       yPosition += 15;
 
@@ -205,7 +216,7 @@ export default function SharedCartPage(props: SharedCartProps) {
           doc.setFontSize(10);
           doc.setTextColor(107, 114, 128);
           doc.text(
-            `${items.length} items | KSh ${formatCurrency(categoryTotal)}`,
+            `${items.length} items | ${money(categoryTotal)}`,
             pageWidth - margin - 2,
             yPosition,
             { align: 'right' }
@@ -216,8 +227,8 @@ export default function SharedCartPage(props: SharedCartProps) {
           const tableData = items.map(item => [
             item.name,
             item.quantity.toString(),
-            `KSh ${formatCurrency(item.price)}`,
-            `KSh ${formatCurrency(item.price * item.quantity)}`
+            money(item.price, item.currency),
+            money(item.price * item.quantity, item.currency)
           ]);
 
           autoTable(doc, {
@@ -254,8 +265,8 @@ export default function SharedCartPage(props: SharedCartProps) {
         const tableData = cart.items.map(item => [
           item.name,
           item.quantity.toString(),
-          `KSh ${formatCurrency(item.price)}`,
-          `KSh ${formatCurrency(item.price * item.quantity)}`
+          money(item.price, item.currency),
+          money(item.price * item.quantity, item.currency)
         ]);
 
         autoTable(doc, {
@@ -423,7 +434,7 @@ export default function SharedCartPage(props: SharedCartProps) {
                     </div>
                     <div className="flex items-center">
                       <Calendar className="w-4 h-4 mr-2" />
-                      <span>{new Date().toLocaleDateString('en-KE', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                      <span>{new Date().toLocaleDateString(dateLocale, { year: 'numeric', month: 'long', day: 'numeric' })}</span>
                     </div>
                   </div>
                 </div>
@@ -460,7 +471,7 @@ export default function SharedCartPage(props: SharedCartProps) {
               <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200 flex items-center justify-between">
                 <div>
                   <p className="text-sm text-emerald-700 mb-1 font-medium">Total Cost</p>
-                  <p className="text-xl font-bold text-emerald-700">KSh {formatCurrency(cart.totalCost)}</p>
+                  <p className="text-xl font-bold text-emerald-700">{money(cart.totalCost)}</p>
                 </div>
                 <div className="bg-emerald-100 p-2.5 rounded-lg">
                   <Download className="w-5 h-5 text-emerald-700" />
@@ -514,7 +525,7 @@ export default function SharedCartPage(props: SharedCartProps) {
                             {item.category}
                           </span>
                         )}
-                        <p className="text-base font-bold text-emerald-600 mt-1">KSh {formatCurrency(item.price)}</p>
+                        <p className="text-base font-bold text-emerald-600 mt-1">{money(item.price, item.currency)}</p>
                       </div>
 
                       <div className="flex items-center space-x-3">
@@ -546,7 +557,7 @@ export default function SharedCartPage(props: SharedCartProps) {
                         <div className="text-right min-w-[110px] bg-gray-50 rounded-lg px-3 py-2 border border-gray-200">
                           <p className="text-xs text-gray-400 mb-0.5">Subtotal</p>
                           <p className="text-base font-bold text-gray-900">
-                            KSh {formatCurrency(item.price * item.quantity)}
+                            {money(item.price * item.quantity, item.currency)}
                           </p>
                         </div>
                       </div>
@@ -563,7 +574,7 @@ export default function SharedCartPage(props: SharedCartProps) {
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Total Estimated Cost</p>
                     <p className="text-3xl font-bold text-emerald-700">
-                      KSh {formatCurrency(cart.totalCost)}
+                      {money(cart.totalCost)}
                     </p>
                   </div>
                   <div className="flex items-center space-x-2 bg-white px-5 py-2.5 rounded-full border border-emerald-200">
