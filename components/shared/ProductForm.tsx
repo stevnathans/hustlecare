@@ -590,98 +590,6 @@ export default function ProductForm({
         </div>
       </Section>
 
-      {/* Condition — only relevant for physical goods (Equipment/Stock requirements) */}
-      {isPhysicalGoodsRequirement && (
-        <Section theme={theme} title="Condition" icon={<ShieldCheck size={14} />}>
-          <label className={t.label}>Condition</label>
-          <div className="mb-4 grid grid-cols-2 gap-2">
-            {(['NEW', 'USED'] as const).map((c) => (
-              <button
-                key={c} type="button"
-                onClick={() => setForm((f) => ({ ...f, condition: c }))}
-                className={t.toggleBtn(form.condition === c)}
-              >
-                {c === 'NEW' ? 'Brand New' : 'Used'}
-              </button>
-            ))}
-          </div>
-          {form.condition === 'USED' && (
-            <div className={t.twoCol}>
-              <div>
-                <label className={t.label}>How long has it been used?</label>
-                <div className="flex gap-2">
-                  <input
-                    type="number" min="0" className={t.input} placeholder="e.g. 8"
-                    value={form.usedDurationValue}
-                    onChange={(e) => setForm((f) => ({ ...f, usedDurationValue: e.target.value }))}
-                  />
-                  <select
-                    className={`${t.input} max-w-[110px]`}
-                    value={form.usedDurationUnit}
-                    onChange={(e) => setForm((f) => ({ ...f, usedDurationUnit: e.target.value as any }))}
-                  >
-                    <option value="days">Days</option>
-                    <option value="months">Months</option>
-                    <option value="years">Years</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className={t.label}>Receipt available?</label>
-                <select
-                  className={t.input}
-                  value={form.hasReceipt}
-                  onChange={(e) => setForm((f) => ({ ...f, hasReceipt: e.target.value as any }))}
-                >
-                  <option value="">Select…</option>
-                  <option value="YES">Yes, original receipt available</option>
-                  <option value="NO">No receipt</option>
-                  <option value="UNKNOWN">Not sure</option>
-                </select>
-              </div>
-            </div>
-          )}
-        </Section>
-      )}
-
-      {/* Specifications */}
-      <Section theme={theme} title="Specifications" icon={<Cpu size={14} />}>
-        <div className={`${t.twoCol} mb-3`}>
-          <div>
-            <label className={t.label}>Brand / Manufacturer</label>
-            <input className={t.input} placeholder="Optional" value={form.brand} onChange={(e) => setForm((f) => ({ ...f, brand: e.target.value }))} />
-          </div>
-          <div>
-            <label className={t.label}>Model</label>
-            <input className={t.input} placeholder="Optional" value={form.model} onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))} />
-          </div>
-        </div>
-        <div className={`${t.twoCol} mb-3`}>
-          <div>
-            <label className={t.label}>Power requirements</label>
-            <div className="flex gap-2">
-              <input className={t.input} placeholder="Voltage (e.g. 220V)" value={form.voltage} onChange={(e) => setForm((f) => ({ ...f, voltage: e.target.value }))} />
-              <input className={t.input} placeholder="Wattage (e.g. 1500W)" value={form.wattage} onChange={(e) => setForm((f) => ({ ...f, wattage: e.target.value }))} />
-            </div>
-          </div>
-          <div>
-            <label className={t.label}>Dimensions (L x W x H)</label>
-            <input className={t.input} placeholder="e.g. 60 x 45 x 90 cm" value={form.dimensions} onChange={(e) => setForm((f) => ({ ...f, dimensions: e.target.value }))} />
-          </div>
-        </div>
-        <div>
-          <label className={t.label}>Weight</label>
-          <div className="flex max-w-xs gap-2">
-            <input type="number" min="0" className={t.input} placeholder="Optional" value={form.weight} onChange={(e) => setForm((f) => ({ ...f, weight: e.target.value }))} />
-            <select className={`${t.input} max-w-[90px]`} value={form.weightUnit} onChange={(e) => setForm((f) => ({ ...f, weightUnit: e.target.value as any }))}>
-              <option value="kg">kg</option>
-              <option value="g">g</option>
-              <option value="lb">lb</option>
-            </select>
-          </div>
-        </div>
-      </Section>
-
       {/* Pricing */}
       <Section theme={theme} title="Pricing" icon={<DollarSign size={14} />}>
         <div className={t.twoCol}>
@@ -780,6 +688,98 @@ export default function ProductForm({
               </button>
             </div>
           )}
+        </div>
+      </Section>
+
+      {/* Condition — only relevant for physical goods (Equipment/Stock requirements) */}
+      {isPhysicalGoodsRequirement && (
+        <Section theme={theme} title="Condition" icon={<ShieldCheck size={14} />}>
+          <label className={t.label}>Condition</label>
+          <div className="mb-4 grid grid-cols-2 gap-2">
+            {(['NEW', 'USED'] as const).map((c) => (
+              <button
+                key={c} type="button"
+                onClick={() => setForm((f) => ({ ...f, condition: c }))}
+                className={t.toggleBtn(form.condition === c)}
+              >
+                {c === 'NEW' ? 'Brand New' : 'Used'}
+              </button>
+            ))}
+          </div>
+          {form.condition === 'USED' && (
+            <div className={t.twoCol}>
+              <div>
+                <label className={t.label}>How long has it been used?</label>
+                <div className="flex gap-2">
+                  <input
+                    type="number" min="0" className={t.input} placeholder="e.g. 8"
+                    value={form.usedDurationValue}
+                    onChange={(e) => setForm((f) => ({ ...f, usedDurationValue: e.target.value }))}
+                  />
+                  <select
+                    className={`${t.input} max-w-[110px]`}
+                    value={form.usedDurationUnit}
+                    onChange={(e) => setForm((f) => ({ ...f, usedDurationUnit: e.target.value as any }))}
+                  >
+                    <option value="days">Days</option>
+                    <option value="months">Months</option>
+                    <option value="years">Years</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className={t.label}>Receipt available?</label>
+                <select
+                  className={t.input}
+                  value={form.hasReceipt}
+                  onChange={(e) => setForm((f) => ({ ...f, hasReceipt: e.target.value as any }))}
+                >
+                  <option value="">Select…</option>
+                  <option value="YES">Yes, original receipt available</option>
+                  <option value="NO">No receipt</option>
+                  <option value="UNKNOWN">Not sure</option>
+                </select>
+              </div>
+            </div>
+          )}
+        </Section>
+      )}
+
+      {/* Specifications */}
+      <Section theme={theme} title="Specifications" icon={<Cpu size={14} />}>
+        <div className={`${t.twoCol} mb-3`}>
+          <div>
+            <label className={t.label}>Brand / Manufacturer</label>
+            <input className={t.input} placeholder="Optional" value={form.brand} onChange={(e) => setForm((f) => ({ ...f, brand: e.target.value }))} />
+          </div>
+          <div>
+            <label className={t.label}>Model</label>
+            <input className={t.input} placeholder="Optional" value={form.model} onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))} />
+          </div>
+        </div>
+        <div className={`${t.twoCol} mb-3`}>
+          <div>
+            <label className={t.label}>Power requirements</label>
+            <div className="flex gap-2">
+              <input className={t.input} placeholder="Voltage (e.g. 220V)" value={form.voltage} onChange={(e) => setForm((f) => ({ ...f, voltage: e.target.value }))} />
+              <input className={t.input} placeholder="Wattage (e.g. 1500W)" value={form.wattage} onChange={(e) => setForm((f) => ({ ...f, wattage: e.target.value }))} />
+            </div>
+          </div>
+          <div>
+            <label className={t.label}>Dimensions (L x W x H)</label>
+            <input className={t.input} placeholder="e.g. 60 x 45 x 90 cm" value={form.dimensions} onChange={(e) => setForm((f) => ({ ...f, dimensions: e.target.value }))} />
+          </div>
+        </div>
+        <div>
+          <label className={t.label}>Weight</label>
+          <div className="flex max-w-xs gap-2">
+            <input type="number" min="0" className={t.input} placeholder="Optional" value={form.weight} onChange={(e) => setForm((f) => ({ ...f, weight: e.target.value }))} />
+            <select className={`${t.input} max-w-[90px]`} value={form.weightUnit} onChange={(e) => setForm((f) => ({ ...f, weightUnit: e.target.value as any }))}>
+              <option value="kg">kg</option>
+              <option value="g">g</option>
+              <option value="lb">lb</option>
+            </select>
+          </div>
         </div>
       </Section>
 
