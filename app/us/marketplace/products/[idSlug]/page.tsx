@@ -1,8 +1,8 @@
-// app/marketplace/products/[idSlug]/page.tsx
+// app/us/marketplace/products/[idSlug]/page.tsx
 import { notFound, redirect } from 'next/navigation';
 import { Metadata } from 'next';
 import { prisma } from '@/lib/prisma';
-import ProductDetailContent from './ProductDetailContent';
+import ProductDetailContent from '../../../../marketplace/products/[idSlug]/ProductDetailContent';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
 
@@ -17,7 +17,10 @@ function slugify(name: string) {
 
 async function fetchProduct(id: number) {
   const product = await prisma.product.findFirst({
-    where: { id, status: 'ACTIVE' },
+    // vendor.country: 'US' is the market boundary — a Kenyan product's id
+    // simply won't match here, so this route 404s instead of rendering a
+    // KES product under a /us URL.
+    where: { id, status: 'ACTIVE', vendor: { country: 'US' } },
     include: {
       vendor: { select: { id: true, name: true, slug: true, logo: true, isVerified: true, description: true, location: true } },
       template: { select: { id: true, name: true, category: true, necessity: true } },
@@ -25,7 +28,7 @@ async function fetchProduct(id: number) {
     },
   });
 
-  return product ? { ...product, currency: product.currency ?? 'KES' } : null;
+  return product ? { ...product, currency: product.currency ?? 'USD' } : null;
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ idSlug: string }> }): Promise<Metadata> {
@@ -37,7 +40,7 @@ export async function generateMetadata({ params }: { params: Promise<{ idSlug: s
   if (!product) return { title: 'Product Not Found | HustleCare', robots: { index: false, follow: true } };
 
   const canonicalSlug = slugify(product.name);
-  const canonicalUrl = `${SITE_URL}/marketplace/products/${product.id}-${canonicalSlug}`;
+  const canonicalUrl = `${SITE_URL}/us/marketplace/products/${product.id}-${canonicalSlug}`;
 
   return {
     title: `${product.name} | HustleCare Marketplace`,
@@ -52,7 +55,7 @@ export async function generateMetadata({ params }: { params: Promise<{ idSlug: s
   };
 }
 
-export default async function ProductDetailPage({ params }: { params: Promise<{ idSlug: string }> }) {
+export default async function USProductDetailPage({ params }: { params: Promise<{ idSlug: string }> }) {
   const { idSlug } = await params;
   const parsed = parseIdSlug(idSlug);
   if (!parsed) notFound();
@@ -60,22 +63,20 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const product = await fetchProduct(parsed.id);
   if (!product) notFound();
 
-  // Redirect stale slugs (product renamed since last crawl) to the
-  // current canonical URL — never 404 on a valid id with an old slug.
   const canonicalSlug = slugify(product.name);
   if (parsed.slug !== canonicalSlug) {
-    redirect(`/marketplace/products/${product.id}-${canonicalSlug}`);
+    redirect(`/us/marketplace/products/${product.id}-${canonicalSlug}`);
   }
 
-    const relatedRaw = product.templateId
+  const relatedRaw = product.templateId
     ? await prisma.product.findMany({
-        where: { templateId: product.templateId, status: 'ACTIVE', id: { not: product.id } },
+        where: { templateId: product.templateId, status: 'ACTIVE', id: { not: product.id }, vendor: { country: 'US' } },
         select: { id: true, name: true, price: true, currency: true, image: true, condition: true, vendor: { select: { name: true } } },
         take: 4,
         orderBy: { price: 'asc' },
       })
     : [];
-  const related = relatedRaw.map((r) => ({ ...r, currency: r.currency ?? 'KES' }));
+  const related = relatedRaw.map((r) => ({ ...r, currency: r.currency ?? 'USD' }));
 
   const structuredData = {
     '@context': 'https://schema.org',
@@ -84,14 +85,14 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
     description: product.description || undefined,
     image: product.image || undefined,
     ...(product.price != null
-      ? { offers: { '@type': 'Offer', price: product.price, priceCurrency: product.currency || 'KES', availability: 'https://schema.org/InStock', url: `${SITE_URL}/marketplace/products/${product.id}-${canonicalSlug}` } }
+      ? { offers: { '@type': 'Offer', price: product.price, priceCurrency: product.currency || 'USD', availability: 'https://schema.org/InStock', url: `${SITE_URL}/us/marketplace/products/${product.id}-${canonicalSlug}` } }
       : {}),
   };
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />
-      <ProductDetailContent product={product} related={related} />
+      <ProductDetailContent product={product} related={related} market="US" />
     </>
   );
 }

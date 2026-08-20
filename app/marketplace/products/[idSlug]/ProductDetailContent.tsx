@@ -5,6 +5,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ShieldCheck, Truck, Clock, MapPin, Tag, ExternalLink, FileText } from 'lucide-react';
+import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
 
 type Product = {
   id: number; name: string; description: string | null; price: number | null; priceMin: number | null; priceMax: number | null;
@@ -19,7 +20,20 @@ type Product = {
   bulkPricing: { minQty: number; price: number }[];
 };
 
-type Related = { id: number; name: string; price: number | null; image: string | null; condition: string; vendor: { name: string } | null };
+type Related = {
+  id: number; name: string; price: number | null;
+  // Was missing entirely — the related-items list below hardcoded "KSh"
+  // regardless of the main product's actual currency. Now selected
+  // upstream and used directly per item.
+  currency: string;
+  image: string | null; condition: string; vendor: { name: string } | null;
+};
+
+interface ProductDetailContentProps {
+  product: Product;
+  related: Related[];
+  market?: MarketCode;
+}
 
 function slugify(name: string) {
   return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -35,17 +49,21 @@ function formatLeadTime(lt: string | null) {
   }
 }
 
-export default function ProductDetailContent({ product, related }: { product: Product; related: Related[] }) {
+export default function ProductDetailContent({ product, related, market = DEFAULT_MARKET }: ProductDetailContentProps) {
   const [imageOpen, setImageOpen] = useState(false);
   const isUsed = product.condition === 'USED';
   const hasWarranty = product.warrantyType !== 'NONE';
   const leadTimeLabel = formatLeadTime(product.leadTime);
 
+  // Every internal link in this file goes through `base` so it correctly
+  // stays inside whichever market rendered it — see /us/marketplace/products/[idSlug]/page.tsx.
+  const base = market === 'US' ? '/us' : '';
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
         <nav className="mb-6 flex items-center gap-1.5 text-xs text-gray-400">
-          <Link href="/marketplace" className="hover:text-emerald-600">Marketplace</Link>
+          <Link href={`${base}/marketplace`} className="hover:text-emerald-600">Marketplace</Link>
           <span>/</span>
           {product.template && <><span>{product.template.category}</span><span>/</span></>}
           <span className="text-gray-600">{product.name}</span>
@@ -86,7 +104,7 @@ export default function ProductDetailContent({ product, related }: { product: Pr
           {/* Details */}
           <div>
             {product.template && (
-              <Link href={`/marketplace?category=${product.template.category}`} className="mb-2 inline-block rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-bold text-indigo-600">
+              <Link href={`${base}/marketplace?category=${product.template.category}`} className="mb-2 inline-block rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-bold text-indigo-600">
                 Fulfils: {product.template.name}
               </Link>
             )}
@@ -145,10 +163,10 @@ export default function ProductDetailContent({ product, related }: { product: Pr
             <h2 className="mb-4 text-lg font-bold text-gray-900">Also fulfils this requirement</h2>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               {related.map((r) => (
-                <Link key={r.id} href={`/marketplace/products/${r.id}-${slugify(r.name)}`} className="rounded-xl border border-gray-100 bg-white p-3 hover:border-emerald-300">
+                <Link key={r.id} href={`${base}/marketplace/products/${r.id}-${slugify(r.name)}`} className="rounded-xl border border-gray-100 bg-white p-3 hover:border-emerald-300">
                   {r.image ? <Image src={r.image} alt={r.name} width={100} height={100} className="mx-auto mb-2 h-20 w-20 object-contain" /> : <div className="mb-2 h-20 w-full rounded-lg bg-gray-50" />}
                   <p className="line-clamp-2 text-xs font-semibold text-gray-800">{r.name}</p>
-                  {r.price != null && <p className="mt-1 text-sm font-bold text-gray-900">KSh {r.price.toLocaleString()}</p>}
+                  {r.price != null && <p className="mt-1 text-sm font-bold text-gray-900">{r.currency} {r.price.toLocaleString()}</p>}
                 </Link>
               ))}
             </div>

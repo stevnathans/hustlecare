@@ -17,14 +17,33 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import MenuSearchBar from "./MenuSearchBar";
 import NotificationBell from "@/components/Dashboard/NotificationBell";
 import { NotificationsProvider } from "@/components/Dashboard/NotificationsContext";
+import { getMarketFromPath } from "@/lib/markets";
 
-const NAV_LINKS = [
-  { href: "/businesses", label: "Businesses", icon: Briefcase },
+// Nav destinations, in two groups:
+//
+// MARKET_AWARE_LINKS — routes that have a confirmed US counterpart (e.g.
+// /us/businesses) and should therefore be prefixed with the current
+// market's base path. Add an entry here only once its /us equivalent
+// actually exists — adding one prematurely will send US visitors to a
+// route that 404s.
+//
+// SHARED_LINKS — routes that only exist under the Kenya path today. A US
+// visitor clicking these will still land on the Kenya site — that's a
+// known, deliberate gap until each of these gets a US-specific version
+// (or is confirmed intentionally shared across markets, e.g. About/Contact
+// might reasonably stay one page). Revisit this list as those decisions
+// get made.
+const MARKET_AWARE_LINKS = [
+  { path: "/businesses", label: "Businesses", icon: Briefcase },
+];
+
+const SHARED_LINKS = [
   { href: "/marketplace", label: "Marketplace", icon: Store },
   { href: "/guides", label: "Guides", icon: BookOpen },
   { href: "/services", label: "Services", icon: Handshake },
@@ -38,7 +57,20 @@ export default function Menu() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const { data: session, status, update } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
   const isAuthenticated = status === "authenticated";
+
+  // Derived from the URL, not a prop — Menu is mounted once in the root
+  // layout and shared by every route, so it has no other way to know
+  // which market the visitor is currently browsing.
+  const market = getMarketFromPath(pathname ?? "/");
+  const base = market === "US" ? "/us" : "";
+  const homeHref = market === "US" ? "/us" : "/";
+
+  const navLinks = [
+    ...MARKET_AWARE_LINKS.map((l) => ({ href: `${base}${l.path}`, label: l.label, icon: l.icon })),
+    ...SHARED_LINKS,
+  ];
 
   // Matches the check used in app/vendor/apply/page.tsx
   const isVendor = (session?.user?.role as string | undefined) === "vendor";
@@ -111,7 +143,7 @@ export default function Menu() {
           <div className="flex justify-between h-16 items-center gap-4">
             {/* Logo */}
             <div className="flex-shrink-0 flex items-center">
-              <Link href="/" className="flex items-center space-x-2 group">
+              <Link href={homeHref} className="flex items-center space-x-2 group">
                 <div className="h-8 w-8 flex items-center justify-center group-hover:scale-105 transition-all duration-200">
                   <Image
                     src="/images/Favicon.png"
@@ -129,7 +161,7 @@ export default function Menu() {
 
             {/* Desktop Nav Links */}
             <div className="hidden lg:flex items-center gap-1 flex-shrink-0">
-              {NAV_LINKS.map(({ href, label }) => (
+              {navLinks.map(({ href, label }) => (
                 <Link
                   key={href}
                   href={href}
@@ -324,7 +356,7 @@ export default function Menu() {
                 </div>
 
                 <div className="space-y-1">
-                  {NAV_LINKS.map(({ href, label, icon: Icon }) => (
+                  {navLinks.map(({ href, label, icon: Icon }) => (
                     <Link
                       key={href}
                       href={href}

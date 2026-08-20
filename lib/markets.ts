@@ -21,3 +21,9 @@ export function isMarketCode(value: unknown): value is MarketCode {
 export function marketLabel(code: MarketCode): string {
   return MARKETS[code].label;
 }
+
+// Add this alongside the existing exports in lib/markets.ts
+
+export function getMarketFromPath(pathname: string): MarketCode {
+  return pathname === '/us' || pathname.startsWith('/us/') ? 'US' : 'KE';
+}

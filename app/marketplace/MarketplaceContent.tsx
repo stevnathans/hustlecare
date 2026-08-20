@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { SlidersHorizontal, ShieldCheck, Truck, X, ArrowRight, FileText } from 'lucide-react';
+import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
 
 type CategoryFacet = { name: string; count: number };
 type BusinessSuggestion = { id: number; name: string; slug: string };
@@ -20,11 +21,15 @@ type Product = {
   bulkPricing: { minQty: number; price: number }[];
 };
 
+interface MarketplaceContentProps {
+  market?: MarketCode;
+}
+
 function slugify(name: string) {
   return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
-export default function MarketplaceContent() {
+export default function MarketplaceContent({ market = DEFAULT_MARKET }: MarketplaceContentProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
@@ -34,6 +39,11 @@ export default function MarketplaceContent() {
   const [activeBusiness, setActiveBusiness] = useState<ActiveBusiness | null>(null);
   const [loading, setLoading] = useState(true);
   const [inputValue, setInputValue] = useState(searchParams.get('q') || '');
+
+  // Every internal link/route push in this file goes through `base`, so
+  // the same component correctly stays inside whichever market rendered
+  // it — Kenya's routes have no prefix, US routes live under /us.
+  const base = market === 'US' ? '/us' : '';
 
   const q = searchParams.get('q') || '';
   const businessSlug = searchParams.get('business') || '';
@@ -52,6 +62,7 @@ export default function MarketplaceContent() {
     if (condition) params.set('condition', condition);
     params.set('sort', sort);
     params.set('page', String(page));
+    params.set('market', market);
     try {
       const res = await fetch(`/api/marketplace/products?${params}`);
       const data = await res.json();
@@ -63,7 +74,7 @@ export default function MarketplaceContent() {
     } finally {
       setLoading(false);
     }
-  }, [q, businessSlug, category, condition, sort, page]);
+  }, [q, businessSlug, category, condition, sort, page, market]);
 
   useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
@@ -86,7 +97,7 @@ export default function MarketplaceContent() {
       if (value) params.set(key, value); else params.delete(key);
     });
     if (resetPage) params.delete('page');
-    router.push(`/marketplace?${params}`);
+    router.push(`${base}/marketplace?${params}`);
   };
 
   const selectBusiness = (b: BusinessSuggestion) => {
@@ -153,10 +164,10 @@ export default function MarketplaceContent() {
                 Showing {total} product{total !== 1 ? 's' : ''} for starting a {activeBusiness.name} business
               </p>
               <div className="mt-1 flex flex-wrap gap-3 text-xs">
-                <Link href={`/businesses/${activeBusiness.slug}/how-to-start`} className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:underline">
+                <Link href={`${base}/businesses/${activeBusiness.slug}/how-to-start`} className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:underline">
                   How to start a {activeBusiness.name} business <ArrowRight className="h-3 w-3" />
                 </Link>
-                <Link href={`/businesses/${activeBusiness.slug}/requirements`} className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:underline">
+                <Link href={`${base}/businesses/${activeBusiness.slug}/requirements`} className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:underline">
                   <FileText className="h-3 w-3" /> Full requirements checklist
                 </Link>
               </div>
@@ -219,7 +230,7 @@ export default function MarketplaceContent() {
         ) : products.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-10 text-center text-sm text-gray-400">
             {activeBusiness
-              ? <>No products tagged to {activeBusiness.name} yet. <Link href={`/businesses/${activeBusiness.slug}/requirements`} className="font-semibold text-emerald-600 hover:underline">View the full requirements checklist</Link> for what&apos;s needed.</>
+              ? <>No products tagged to {activeBusiness.name} yet. <Link href={`${base}/businesses/${activeBusiness.slug}/requirements`} className="font-semibold text-emerald-600 hover:underline">View the full requirements checklist</Link> for what&apos;s needed.</>
               : 'No products match your search.'}
           </div>
         ) : (
@@ -229,7 +240,7 @@ export default function MarketplaceContent() {
               {products.map((p) => (
                 <Link
                   key={p.id}
-                  href={`/marketplace/products/${p.id}-${slugify(p.name)}`}
+                  href={`${base}/marketplace/products/${p.id}-${slugify(p.name)}`}
                   className="group overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-all hover:border-emerald-300 hover:shadow-md"
                 >
                   <div className="relative aspect-square bg-gray-50">

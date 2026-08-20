@@ -2,6 +2,7 @@
 // app/api/marketplace/products/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { DEFAULT_MARKET, isMarketCode } from '@/lib/markets';
 
 const PAGE_SIZE = 20;
 const MAX_BUSINESS_SUGGESTIONS = 6;
@@ -22,11 +23,19 @@ export async function GET(request: NextRequest) {
   const sort = searchParams.get('sort') || 'newest';
   const page = Math.max(Number(searchParams.get('page')) || 1, 1);
 
+  // market defaults to Kenya — same pattern as every other market-aware
+  // route. Filters the marketplace catalog to vendors operating in this
+  // market, same as the business-requirements product feed.
+  const marketParam = searchParams.get('market');
+  const market = isMarketCode(marketParam) ? marketParam : DEFAULT_MARKET;
+
   try {
     // ── Explicit business scope ────────────────────────────────────────────
     // Set when the user clicked a business suggestion, or arrived via a
     // "shop for this business" link elsewhere in the app (?business=slug).
     // This is authoritative — it overrides free-text matching entirely.
+    // Businesses themselves are shared across markets (not filtered here),
+    // only the products tagged to them get market-filtered below.
     let activeBusiness: { id: number; name: string; slug: string } | null = null;
     if (businessSlug) {
       activeBusiness = await prisma.business.findUnique({
@@ -50,7 +59,7 @@ export async function GET(request: NextRequest) {
     }
 
     // ── Base product filter ─────────────────────────────────────────────────
-    const baseWhere: any = { status: 'ACTIVE' };
+    const baseWhere: any = { status: 'ACTIVE', vendor: { country: market } };
 
     if (activeBusiness) {
       // Scoped: only products tagged to this exact business.
