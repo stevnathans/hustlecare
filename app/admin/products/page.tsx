@@ -110,7 +110,7 @@ function ReviewModal({ product, onClose, onDone, showToast }: ReviewModalProps) 
               )}
             </div>
             <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.9rem', color: '#a4f4b0', fontWeight: 500, flexShrink: 0 }}>
-              {product.price != null ? `KSh ${product.price.toLocaleString()}` : '—'}
+              {product.price != null ? `${product.currency || 'KES'} ${product.price.toLocaleString()}` : '—'}
             </div>
           </div>
 
@@ -473,7 +473,6 @@ function ProductsPageInner() {
       <td><div className="skel" style={{ width: 16, height: 16, borderRadius: 4 }} /></td>
       <td><div className="skel skel-avatar" /></td>
       <td><div className="skel" style={{ width: '70%' }} /></td>
-      <td><div className="skel" style={{ width: '50%' }} /></td>
       <td><div className="skel" style={{ width: '60%' }} /></td>
       <td><div className="skel" style={{ width: 60 }} /></td>
       <td><div className="skel" style={{ width: 70 }} /></td>
@@ -539,10 +538,7 @@ function ProductsPageInner() {
                   Pending Review <strong style={{ color: '#e2e2ef' }}>{pendingProducts.length}</strong>
                 </div>
               )}
-              <div className="stat-pill">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
-                Avg price <strong className="mono">KSh {products.filter(p => p.price != null).length ? Math.round(products.filter(p => p.price != null).reduce((s, p) => s + (p.price || 0), 0) / products.filter(p => p.price != null).length).toLocaleString() : 0}</strong>
-              </div>
+              
               {hasActiveFilters && <div className="stat-pill">Filtered to <strong>{filteredAndSorted.length}</strong></div>}
             </div>
           )}
@@ -713,7 +709,7 @@ function ProductsPageInner() {
                               </span>
                             ) : <span style={{ color: '#3a3a56' }}>—</span>}
                           </td>
-                          <td><span className="price-tag">{product.price != null ? `KSh ${product.price.toLocaleString()}` : '—'}</span></td>
+                          <td><span className="price-tag">{product.price != null ? `${product.currency || 'KES'} ${product.price.toLocaleString()}` : '—'}</span></td>
                           <td>
                             <span style={{ fontSize: '0.78rem', color: '#4a4a66', fontFamily: "'DM Mono', monospace" }}>
                               {new Date(product.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -769,7 +765,6 @@ function ProductsPageInner() {
                         </th>
                         <th style={{ width: 60 }}>Image</th>
                         <th className="sortable" onClick={() => handleSort('name')}>Name <SortIcon field="name" sortField={sortField} sortDir={sortDir} /></th>
-                        <th>Description</th>
                         <th className="sortable" onClick={() => handleSort('vendor')}>Vendor <SortIcon field="vendor" sortField={sortField} sortDir={sortDir} /></th>
                         <th className="sortable" onClick={() => handleSort('price')}>Price <SortIcon field="price" sortField={sortField} sortDir={sortDir} /></th>
                         <th className="sortable" onClick={() => handleSort('status')}>Status <SortIcon field="status" sortField={sortField} sortDir={sortDir} /></th>
@@ -781,7 +776,7 @@ function ProductsPageInner() {
                     <tbody>
                       {isLoading ? skeletonRows : paginated.length === 0 ? (
                         <tr>
-                          <td colSpan={10}>
+                          <td colSpan={9}>
                             <div className="empty-state">
                               <div className="empty-icon">📦</div>
                               <div style={{ fontSize: '1rem', fontWeight: 600, color: '#6b6b8a' }}>No products found</div>
@@ -812,11 +807,6 @@ function ProductsPageInner() {
                             )}
                           </td>
                           <td>
-                            <span style={{ color: '#5a5a7a', fontSize: '0.8rem', display: 'block', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {product.description || '—'}
-                            </span>
-                          </td>
-                          <td>
                             {product.vendor ? (
                               product.vendor.website ? (
                                 <a href={product.vendor.website} target="_blank" rel="noopener noreferrer" className="vendor-badge">
@@ -831,7 +821,7 @@ function ProductsPageInner() {
                               )
                             ) : <span style={{ color: '#3a3a56' }}>—</span>}
                           </td>
-                          <td><span className="price-tag">{product.price != null ? `KSh ${product.price.toLocaleString()}` : '—'}</span></td>
+                          <td><span className="price-tag">{product.price != null ? `${product.currency || 'KES'} ${product.price.toLocaleString()}` : '—'}</span></td>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                               <StatusBadge status={product.status} />

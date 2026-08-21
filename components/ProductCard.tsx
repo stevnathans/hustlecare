@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import { Product } from 'types/vendor';
+import { Product, ProductStatus } from 'types/vendor';
 
 type Props = {
   product: Product;
@@ -10,7 +10,20 @@ type Props = {
   onAssign: (product: Product) => void;
 };
 
+// Mirrors the STATUS_META lookup on the products page — kept local to this
+// file since ProductCard doesn't otherwise share code with the page (same
+// pattern as RequirementBadge, etc.).
+const STATUS_META: Record<ProductStatus, { label: string; color: string; bg: string }> = {
+  ACTIVE:         { label: 'Live',       color: '#34d399', bg: 'rgba(16,185,129,0.1)'  },
+  PENDING_REVIEW: { label: 'In Review',  color: '#fbbf24', bg: 'rgba(245,158,11,0.1)'  },
+  DRAFT:          { label: 'Draft',      color: '#9494b0', bg: 'rgba(148,148,176,0.1)' },
+  REJECTED:       { label: 'Rejected',   color: '#f87171', bg: 'rgba(239,68,68,0.1)'   },
+  ARCHIVED:       { label: 'Archived',   color: '#55556e', bg: 'rgba(85,85,110,0.1)'   },
+};
+
 export default function ProductCard({ product, selected, onSelect, onEdit, onDelete, onAssign }: Props) {
+  const statusMeta = STATUS_META[product.status] ?? STATUS_META.DRAFT;
+
   return (
     <div className={`product-card ${selected ? 'selected' : ''}`}>
       <div className="card-cb">
@@ -57,25 +70,52 @@ export default function ProductCard({ product, selected, onSelect, onEdit, onDel
 
       <div className="card-body">
         <div className="card-name">{product.name}</div>
+        {product.vendor?.name && (
+          <div
+            style={{
+              fontSize: '0.72rem',
+              color: '#5a5a7a',
+              marginBottom: '0.3rem',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            by {product.vendor.name}
+          </div>
+        )}
         <div className="card-desc">{product.description || <span style={{ color: '#3a3a56' }}>No description</span>}</div>
       </div>
 
       <div className="card-footer">
-        <span className="price-tag">${product.price?.toLocaleString() ?? '—'}</span>
-        {product.template ? (
-          <span style={{
-            fontSize: '0.68rem', fontWeight: 600, color: '#a89cf7',
-            background: 'rgba(124,106,247,0.1)', border: '1px solid rgba(124,106,247,0.2)',
-            borderRadius: 100, padding: '0.1rem 0.5rem',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 110,
-          }}>
-            {product.template.name}
+        <span className="price-tag">
+          {product.price != null ? `${product.currency || 'KES'} ${product.price.toLocaleString()}` : '—'}
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <span
+            style={{
+              fontSize: '0.68rem',
+              fontWeight: 700,
+              color: statusMeta.color,
+              background: statusMeta.bg,
+              borderRadius: 100,
+              padding: '0.1rem 0.5rem',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {statusMeta.label}
           </span>
-        ) : product.vendor ? (
-          <span style={{ fontSize: '0.73rem', color: '#5a5a7a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 100 }}>
-            {product.vendor.name}
-          </span>
-        ) : null}
+          {product.template && (
+            <span style={{
+              fontSize: '0.68rem', fontWeight: 600, color: '#a89cf7',
+              background: 'rgba(124,106,247,0.1)', border: '1px solid rgba(124,106,247,0.2)',
+              borderRadius: 100, padding: '0.1rem 0.5rem',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 110,
+            }}>
+              {product.template.name}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
