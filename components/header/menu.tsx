@@ -25,31 +25,38 @@ import NotificationBell from "@/components/Dashboard/NotificationBell";
 import { NotificationsProvider } from "@/components/Dashboard/NotificationsContext";
 import { getMarketFromPath } from "@/lib/markets";
 
-// Nav destinations, in two groups:
+// Nav destinations, in three groups:
 //
-// MARKET_AWARE_LINKS — routes that have a confirmed US counterpart (e.g.
-// /us/businesses) and should therefore be prefixed with the current
-// market's base path. Add an entry here only once its /us equivalent
-// actually exists — adding one prematurely will send US visitors to a
-// route that 404s.
+// MARKET_AWARE_LINKS — routes with a real, separate /us page (different
+// data/content per market, not just a rewrite). Prefixed with `base`.
 //
-// SHARED_LINKS — routes that only exist under the Kenya path today. A US
-// visitor clicking these will still land on the Kenya site — that's a
-// known, deliberate gap until each of these gets a US-specific version
-// (or is confirmed intentionally shared across markets, e.g. About/Contact
-// might reasonably stay one page). Revisit this list as those decisions
-// get made.
+// REWRITE_SHARED_LINKS — routes that are genuinely identical across
+// markets and served via the next.config.ts rewrite (see
+// marketMirroredPaths there) — the SAME page component renders under
+// both / and /us. Still prefixed with `base` so the URL bar stays under
+// /us for a US visitor, even though the rendered content is identical.
+// Only add a link here once its path is actually in marketMirroredPaths —
+// otherwise the prefixed link 404s.
+//
+// NOT_YET_MARKET_AWARE_LINKS — routes with no /us equivalent yet, neither
+// a dedicated page nor a rewrite. Left unprefixed on purpose: a /us
+// visitor clicking these still lands on the Kenya-path page. Move an
+// entry out of this list once it either gets a dedicated /us page
+// (→ MARKET_AWARE_LINKS) or is added to marketMirroredPaths
+// (→ REWRITE_SHARED_LINKS).
 const MARKET_AWARE_LINKS = [
   { path: "/businesses", label: "Businesses", icon: Briefcase },
   { path: "/marketplace", label: "Marketplace", icon: Store },
 ];
 
-const SHARED_LINKS = [
-  
+const REWRITE_SHARED_LINKS = [
+  { path: "/about", label: "About", icon: Info },
+  { path: "/contact", label: "Contact", icon: Mail },
+];
+
+const NOT_YET_MARKET_AWARE_LINKS = [
   { href: "/guides", label: "Guides", icon: BookOpen },
   { href: "/services", label: "Services", icon: Handshake },
-  { href: "/about", label: "About", icon: Info },
-  { href: "/contact", label: "Contact", icon: Mail },
 ];
 
 export default function Menu() {
@@ -70,7 +77,8 @@ export default function Menu() {
 
   const navLinks = [
     ...MARKET_AWARE_LINKS.map((l) => ({ href: `${base}${l.path}`, label: l.label, icon: l.icon })),
-    ...SHARED_LINKS,
+    ...REWRITE_SHARED_LINKS.map((l) => ({ href: `${base}${l.path}`, label: l.label, icon: l.icon })),
+    ...NOT_YET_MARKET_AWARE_LINKS,
   ];
 
   // Matches the check used in app/vendor/apply/page.tsx
