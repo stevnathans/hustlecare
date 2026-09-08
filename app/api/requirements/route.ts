@@ -3,8 +3,6 @@ import { NextResponse } from "next/server";
 import { revalidateBusinessPages } from "@/lib/revalidate";
 import { isMarketCode } from "@/lib/markets";
 
-export const dynamic = 'force-dynamic';
-
 export async function GET() {
   try {
     const templates = await prisma.requirementTemplate.findMany({
@@ -22,6 +20,7 @@ export async function GET() {
         id: t.id,
         name: t.name,
         description: t.description,
+        descriptionUS: t.descriptionUS,
         image: t.image,
         category: t.category,
         necessity: t.necessity,
@@ -50,6 +49,7 @@ export async function POST(req: Request) {
     const {
       name,
       description,
+      descriptionUS,
       image,
       category,
       necessity,
@@ -83,6 +83,12 @@ export async function POST(req: Request) {
       data: {
         name,
         description,
+        // Optional US-specific override of `description` — see
+        // lib/requirement-description.ts for the resolution order. Only
+        // meaningful when this template is shared across markets
+        // (restrictedToCountry: null); harmless to store otherwise, just
+        // never read in that case.
+        ...(descriptionUS !== undefined && { descriptionUS }),
         image,
         category,
         necessity,
@@ -161,6 +167,7 @@ export async function POST(req: Request) {
         id: template.id,
         name: template.name,
         description: template.description,
+        descriptionUS: template.descriptionUS,
         image: template.image,
         category: template.category,
         necessity: template.necessity,

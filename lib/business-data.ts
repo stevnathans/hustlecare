@@ -90,6 +90,7 @@ export async function fetchBusinessWithRequirements(slug: string, market: Market
             select: {
               name: true,
               description: true,
+              descriptionUS: true,   // ADD
               category: true,
               necessity: true,
               image: true,

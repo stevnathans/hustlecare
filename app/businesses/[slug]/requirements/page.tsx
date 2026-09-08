@@ -5,8 +5,11 @@ import BusinessPageContent from './BusinessPageContent';
 import { fetchBusinessWithRequirements } from '@/lib/business-data';
 import { isExcludedFromTotals } from '@/lib/necessity';
 import type { Business as BusinessData, Requirement as RequirementData } from 'hooks/useBusinessData';
+import { selectTemplateDescription } from '@/lib/requirement-description';
+import { type MarketCode } from '@/lib/markets';
 
 export const revalidate = 300; // regenerate at most every 5 minutes
+const market: MarketCode = 'KE';
 
 interface BusinessPageProps {
   params: Promise<{ slug: string }>;
@@ -529,14 +532,14 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   };
 
   const initialRequirements: RequirementData[] = requirements.map((req) => ({
-    id: req.id,
-    templateId: req.templateId,
-    name: req.template.name,
-    description: req.descriptionOverride ?? req.template.description ?? null,
-    category: req.template.category ?? null,
-    necessity: req.necessityOverride ?? req.template.necessity,
-    image: req.template.image ?? null,
-  }));
+  id: req.id,
+  templateId: req.templateId,
+  name: req.template.name,
+  description: req.descriptionOverride ?? selectTemplateDescription(req.template, market) ?? null,   // CHANGED
+  category: req.template.category ?? null,
+  necessity: req.necessityOverride ?? req.template.necessity,
+  image: req.template.image ?? null,
+}));
 
   return (
     <>

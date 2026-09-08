@@ -1,10 +1,8 @@
 // app/api/business/[slug]/requirements/route.ts
-// Public-facing endpoint that returns requirements for a business page.
-// Merges template fields with link-level overrides and resolves [businessName] token.
-
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { DEFAULT_MARKET } from '@/lib/markets';
+import { DEFAULT_MARKET, isMarketCode } from '@/lib/markets';
+import { selectTemplateDescription } from '@/lib/requirement-description';
 
 export async function GET(
   request: NextRequest,
@@ -12,6 +10,9 @@ export async function GET(
 ) {
   try {
     const { slug } = await params;
+
+    const marketParam = request.nextUrl.searchParams.get('market');
+    const market = isMarketCode(marketParam) ? marketParam : DEFAULT_MARKET;
 
     const business = await prisma.business.findUnique({
       where: { slug },
@@ -21,13 +22,6 @@ export async function GET(
     if (!business) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 });
     }
-
-    // market defaults to Kenya — this endpoint only ever serves the Kenya
-    // site today. Same restrictedToCountry filter as the two page-level
-    // queries (app/businesses/[slug]/page.tsx and .../requirements/page.tsx)
-    // — this is the third data path (client-side re-fetch on business
-    // switch, via useBusinessData.ts) that needed the same guard.
-    const market = DEFAULT_MARKET;
 
     const links = await prisma.businessRequirement.findMany({
       where: {
@@ -51,20 +45,19 @@ export async function GET(
       orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
     });
 
-    // Resolve each requirement for the public-facing response
     const requirements = links.map((link) => {
-      const templateDesc = link.template.description ?? '';
+      const templateDesc = selectTemplateDescription(link.template, market) ?? '';
       const resolvedTemplateDesc = templateDesc.replace(/\[businessName\]/gi, business.name);
       const effectiveDescription = link.descriptionOverride ?? resolvedTemplateDesc;
 
       return {
-        id: link.id,           // This is the BusinessRequirement id (link id)
+        id: link.id,
         templateId: link.template.id,
         name: link.template.name,
         description: effectiveDescription,
         image: link.template.image,
         category: link.template.category,
-         necessity: link.necessityOverride ?? link.template.necessity,
+        necessity: link.necessityOverride ?? link.template.necessity,
         productCount: link.template._count.products,
       };
     });

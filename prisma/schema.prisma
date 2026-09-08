@@ -247,6 +247,19 @@ model RequirementTemplate {
   id           Int                   @id @default(autoincrement())
   name         String
   description  String?
+
+  // Optional US-specific override of `description`, for the narrow case
+  // where a template is shared across markets (restrictedToCountry: null)
+  // but the underlying mechanism genuinely differs by country — e.g. tax
+  // software (KRA/iTax vs IRS/1099s). Only meaningful when
+  // restrictedToCountry is null; a template already restricted to one
+  // market has no ambiguity to resolve, so just use `description`.
+  // Left null for the vast majority of templates, where the generic
+  // description is accurate everywhere. Resolution order (see
+  // lib/requirement-description.ts): BusinessRequirement.descriptionOverride
+  // > descriptionUS (if market is US and set) > description.
+  descriptionUS String?
+  
   image        String?
   category     String
   necessity    String

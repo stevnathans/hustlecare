@@ -40,6 +40,7 @@ export async function GET(_: NextRequest, { params }: Params) {
       id: template.id,
       name: template.name,
       description: template.description,
+      descriptionUS: template.descriptionUS,
       image: template.image,
       category: template.category,
       necessity: template.necessity,
@@ -75,7 +76,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
     const body = await req.json();
-    const { name, description, image, category, necessity, isGlobal, isCountyFeeSchedule, restrictedToCountry } = body;
+    const { name, description, descriptionUS, image, category, necessity, isGlobal, isCountyFeeSchedule, restrictedToCountry } = body;
 
     // restrictedToCountry must be a known market code, or null (meaning
     // "available in every market"). An invalid value here would silently
@@ -105,6 +106,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data: {
         ...(name        !== undefined && { name }),
         ...(description !== undefined && { description }),
+        // Optional US-specific override of `description` — see
+        // lib/requirement-description.ts for the resolution order.
+        ...(descriptionUS !== undefined && { descriptionUS }),
         ...(image       !== undefined && { image }),
         ...(category    !== undefined && { category }),
         ...(necessity   !== undefined && { necessity }),
@@ -141,6 +145,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       id: updated.id,
       name: updated.name,
       description: updated.description,
+      descriptionUS: updated.descriptionUS,
       image: updated.image,
       category: updated.category,
       necessity: updated.necessity,
