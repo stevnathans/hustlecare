@@ -1,6 +1,19 @@
 import { Search, BarChart2, ShoppingBag, Download, Group, Rocket } from "lucide-react";
+import { DEFAULT_MARKET, type MarketCode } from "@/lib/markets";
 
-export function WhatWeDoSection() {
+interface WhatWeDoSectionProps {
+  market?: MarketCode;
+}
+
+export function WhatWeDoSection({ market = DEFAULT_MARKET }: WhatWeDoSectionProps) {
+  const vendorNetworkDesc = market === "US"
+    ? "Access to a wide range of trusted vendors and suppliers."
+    : "Access to a wide range of trusted vendors.";
+
+  const marketsStat = market === "US"
+    ? { value: "50", label: "US States" }
+    : { value: "15", label: "African Markets" };
+
   return (
     <section className="py-20 bg-emerald-50"> {/* Subtle light emerald tint */}
   <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -29,7 +42,7 @@ export function WhatWeDoSection() {
         { 
           icon: <ShoppingBag className="w-6 h-6 text-emerald-600" />, 
           title: "Vendor Network", 
-          description: "Access to a wide range of trusted vendors." 
+          description: vendorNetworkDesc
         },
         { 
           icon: <Download className="w-6 h-6 text-emerald-600" />, 
@@ -66,7 +79,7 @@ export function WhatWeDoSection() {
     <div className="mt-16 bg-white/80 backdrop-blur-sm rounded-xl p-8 grid grid-cols-2 md:grid-cols-4 gap-8 border border-gray-200">
       {[
         { value: "200+", label: "Business Types" },
-        { value: "15", label: "African Markets" },
+        marketsStat,
         { value: "5K+", label: "Verified Vendors" },
         { value: "85%", label: "Time Saved" }
       ].map((stat, index) => (

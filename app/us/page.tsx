@@ -1,0 +1,131 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+import HomeSearch from "@/components/ui/homeSearch";
+import BusinessCard from "@/components/business/BusinessCards";
+import Skeleton from "react-loading-skeleton";
+import { motion } from "framer-motion";
+import { WhatWeDoSection } from "@/components/WhatWeDo";
+import { HomepageServicesSection } from "@/components/Homepageservicessection";
+import { HowItWorksSectionUS } from "@/components/HowItWorksSectionUS";
+
+type Business = {
+  id: string;
+  name: string;
+  image: string;
+  slug: string;
+  category?: string;
+  requirementsCount: number;
+};
+
+export default function USHome() {
+  const [businesses, setBusinesses] = useState<Business[]>([]);
+
+  const fetchBusinesses = async () => {
+    try {
+      // Homepage only ever renders 3 cards — ask the API for exactly that
+      // instead of pulling the whole published catalog. market=US so the
+      // requirement counts shown match what a US visitor will actually see
+      // on the linked pages (see /api/businesses/route.ts).
+      const res = await fetch("/api/businesses?limit=3&market=US");
+      if (!res.ok) throw new Error("Failed to fetch businesses");
+      const data = await res.json();
+      setBusinesses(data.businesses ?? []);
+    } catch (error) {
+      console.error("Error fetching businesses:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchBusinesses();
+  }, []);
+
+  return (
+    <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+      {/* Search Section */}
+      <section className="w-full">
+        <HomeSearch market="US" />
+      </section>
+
+      {/* How it Works Section - Seamlessly connected */}
+      <HowItWorksSectionUS />
+
+      <WhatWeDoSection market="US" />
+
+      {/* Business Cards Section with enhanced styling */}
+      <section className="bg-gradient-to-b from-white to-slate-50 py-20" aria-label="Popular Businesses">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center mb-12">
+            <motion.h2
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6 }}
+              viewport={{ once: true }}
+              className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-700 to-emerald-600"
+            >
+              Popular Now
+            </motion.h2>
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6 }}
+              viewport={{ once: true }}
+            >
+              <Link
+                href="/us/businesses"
+                className="inline-flex items-center text-emerald-600 hover:text-emerald-700 font-semibold text-lg group transition-colors duration-300"
+              >
+                All Businesses
+                <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform duration-300" />
+              </Link>
+            </motion.div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            {businesses.length > 0 ? (
+              businesses.map((business, index) => (
+                <motion.div
+                  key={business.id}
+                  initial={{ y: 30, opacity: 0 }}
+                  whileInView={{ y: 0, opacity: 1 }}
+                  transition={{ duration: 0.6, delay: index * 0.1 }}
+                  viewport={{ once: true }}
+                >
+                  <BusinessCard
+                    id={business.id}
+                    name={business.name}
+                    image={business.image}
+                    category={business.category}
+                    requirementsCount={business.requirementsCount}
+                    slug={business.slug}
+                    market="US"
+                  />
+                </motion.div>
+              ))
+            ) : (
+              [...Array(3)].map((_, index) => (
+                <motion.div
+                  key={index}
+                  className="w-full"
+                  initial={{ y: 30, opacity: 0 }}
+                  whileInView={{ y: 0, opacity: 1 }}
+                  transition={{ duration: 0.6, delay: index * 0.1 }}
+                  viewport={{ once: true }}
+                >
+                  <div className="bg-white rounded-2xl p-6 shadow-lg">
+                    <Skeleton height={200} className="rounded-xl" />
+                    <Skeleton width="70%" height={24} className="mt-6" />
+                    <Skeleton width="50%" height={20} className="mt-3" />
+                  </div>
+                </motion.div>
+              ))
+            )}
+          </div>
+        </div>
+      </section>
+      <HomepageServicesSection />
+    </main>
+  );
+}

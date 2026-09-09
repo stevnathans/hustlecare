@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { TrendingUp } from "lucide-react";
+import { DEFAULT_MARKET, type MarketCode } from "@/lib/markets";
 
 type Business = {
   id: number;
@@ -11,7 +12,11 @@ type Business = {
   slug: string;
 };
 
-const PLACEHOLDER_BUSINESSES = [
+interface HomeSearchProps {
+  market?: MarketCode;
+}
+
+const PLACEHOLDER_BUSINESSES_KE = [
   "car wash business",
   "salon business",
   "restaurant business",
@@ -21,7 +26,17 @@ const PLACEHOLDER_BUSINESSES = [
   "gym business",
 ];
 
-export default function HomeSearch() {
+const PLACEHOLDER_BUSINESSES_US = [
+  "coffee shop",
+  "landscaping business",
+  "cleaning business",
+  "lawn care business",
+  "auto repair shop",
+  "consulting business",
+  "gym business",
+];
+
+export default function HomeSearch({ market = DEFAULT_MARKET }: HomeSearchProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [searchSuggestions, setSearchSuggestions] = useState<Business[]>([]);
@@ -32,10 +47,15 @@ export default function HomeSearch() {
   const [displayedPlaceholder, setDisplayedPlaceholder] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Every internal navigation in this component goes through `base`, so it
+  // correctly stays inside whichever market rendered it.
+  const base = market === "US" ? "/us" : "";
+  const placeholderBusinesses = market === "US" ? PLACEHOLDER_BUSINESSES_US : PLACEHOLDER_BUSINESSES_KE;
+
   // Typewriter effect for placeholder
   useEffect(() => {
     const baseText = "Requirements for ";
-    const businessName = PLACEHOLDER_BUSINESSES[placeholderIndex];
+    const businessName = placeholderBusinesses[placeholderIndex];
     const fullText = baseText + businessName;
 
     let timeout: ReturnType<typeof setTimeout>;
@@ -55,19 +75,23 @@ export default function HomeSearch() {
         }, 35);
       } else {
         setIsDeleting(false);
-        setPlaceholderIndex((i) => (i + 1) % PLACEHOLDER_BUSINESSES.length);
+        setPlaceholderIndex((i) => (i + 1) % placeholderBusinesses.length);
       }
     }
 
     return () => clearTimeout(timeout);
-  }, [displayedPlaceholder, isDeleting, placeholderIndex]);
+  }, [displayedPlaceholder, isDeleting, placeholderIndex, placeholderBusinesses]);
 
   useEffect(() => {
     const fetchSuggestions = async () => {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch("/api/businesses/popular");
+        // NOTE: this endpoint isn't confirmed market-aware yet — passing
+        // ?market= here so it's ready the moment the route supports it,
+        // but until then it may still return Kenya-ranked suggestions on
+        // the US site. See /api/businesses/popular.
+        const response = await fetch(`/api/businesses/popular?market=${market}`);
         const data = await response.json();
         if (response.ok && data.success) {
           setSearchSuggestions(data.results || []);
@@ -84,11 +108,15 @@ export default function HomeSearch() {
       }
     };
     fetchSuggestions();
-  }, []);
+  }, [market]);
 
   const handleSearch = (keyword: string) => {
     if (!keyword.trim()) return;
-    router.push(`/search?keyword=${encodeURIComponent(keyword.trim())}`);
+    // NOTE: /us/search doesn't exist yet — this will 404 until that page
+    // is built. Routing through `base` now so the link is correct the
+    // moment it does, rather than silently sending US visitors back to
+    // the Kenya search page.
+    router.push(`${base}/search?keyword=${encodeURIComponent(keyword.trim())}`);
   };
 
   // Show 3 on mobile (handled via CSS), 5 on desktop
