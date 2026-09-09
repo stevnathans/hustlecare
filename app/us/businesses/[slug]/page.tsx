@@ -112,13 +112,30 @@ interface AutoFaq {
   answer: string;
 }
 
+// ── Shared eligibility calc ──────────────────────────────────────────────────
+// Same anti-orphan bar as generateStaticParams below: a business with zero
+// active, non-deprecated, US-visible requirements has nothing genuinely
+// US-specific to show. Rendering it anyway (Next's default dynamicParams
+// lets any slug outside generateStaticParams still render on demand) would
+// produce an indexable near-duplicate of the Kenya page. Computed inline
+// wherever needed below rather than as a shared helper, since both
+// generateMetadata and the page component already fetch the full business
+// object and can filter its requirements array directly with no extra query.
+function countCoreRequirements(business: NonNullable<Awaited<ReturnType<typeof fetchBusiness>>>) {
+  return business.requirements.filter((r) => !isExcludedFromTotals(r.template.category ?? '')).length;
+}
+
 // ── SEO Metadata ──────────────────────────────────────────────────────────────
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const business = await fetchBusiness(slug, 'US');
 
-  if (!business) {
+  const requirementCount = business ? countCoreRequirements(business) : 0;
+
+  // Guards against both a genuinely missing business AND a business with
+  // no US-visible requirements — see countCoreRequirements() above.
+  if (!business || requirementCount === 0) {
     return {
       title: 'Business Not Found | HustleCare',
       robots: { index: false, follow: true },
@@ -168,7 +185,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       follow: true,
       googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 },
     },
-    alternates: { canonical: pageUrl },
+    alternates: {
+      canonical: pageUrl,
+      // The Kenya page for this slug is guaranteed to exist — it isn't
+      // gated by requirement count, only the US side is — so no
+      // eligibility check is needed in this direction.
+      languages: {
+        'en-US': pageUrl,
+        'en-KE': `${SITE_URL}/businesses/${slug}`,
+      },
+    },
     verification: { google: process.env.GOOGLE_SITE_VERIFICATION },
   };
 }
@@ -176,8 +202,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 // ── Static Params ─────────────────────────────────────────────────────────────
 // Only pre-render businesses that actually have at least one US-visible
 // requirement, so we don't statically build empty US pages for businesses
-// that haven't been reviewed for the US market yet. See step 8 for the
-// fuller design of this query.
+// that haven't been reviewed for the US market yet.
 
 export async function generateStaticParams() {
   try {
@@ -218,6 +243,13 @@ export default async function USBusinessHubPage({ params }: Props) {
   );
 
   const requirementCount = coreRequirements.length;
+
+  // Same bar as generateStaticParams and generateMetadata above — a
+  // business that slipped through to this on-demand render (because
+  // dynamicParams defaults to true) but has zero qualifying requirements
+  // gets a real 404 instead of an empty, indexable page.
+  if (requirementCount === 0) notFound();
+
   const title = `${name} Business in the US [${year}] - Everything You Need to Know | HustleCare`;
   const description =
     business.description ||

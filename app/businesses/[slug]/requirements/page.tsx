@@ -2,7 +2,7 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import BusinessPageContent from './BusinessPageContent';
-import { fetchBusinessWithRequirements } from '@/lib/business-data';
+import { fetchBusinessWithRequirements, isUSMarketEligible } from '@/lib/business-data';
 import { isExcludedFromTotals } from '@/lib/necessity';
 import type { Business as BusinessData, Requirement as RequirementData } from 'hooks/useBusinessData';
 import { selectTemplateDescription } from '@/lib/requirement-description';
@@ -131,6 +131,10 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
   const pageUrl = `${siteUrl}/businesses/${slug}/requirements`;
   const ogImage = business.image || `${siteUrl}/images/default-business.jpg`;
 
+  // Only advertise a US alternate if this business actually has a live US
+  // requirements page — see isUSMarketEligible() in lib/business-data.ts.
+  const usEligible = await isUSMarketEligible(business.id);
+
   return {
     title,
     description,
@@ -193,6 +197,10 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
 
     alternates: {
       canonical: pageUrl,
+      languages: {
+        'en-KE': pageUrl,
+        ...(usEligible ? { 'en-US': `${siteUrl}/us/businesses/${slug}/requirements` } : {}),
+      },
     },
 
     category: 'Business',
@@ -248,10 +256,6 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
     `Complete guide to starting a ${business.name} business in Kenya with ${requirementCount} requirements and cost calculator.`;
 
   // ── Requirement counts (for FAQs and general use) ───────────────────────
-  // Computed over coreRequirements only — Stock items don't have a
-  // meaningful "required"/"optional" status in this sense (they use their
-  // own demand scale — see lib/necessity.ts), and including them here would
-  // both double-count against the core total and mix two different scales.
   const requiredCount = coreRequirements.filter(
     (req) => (req.necessityOverride ?? req.template.necessity) === 'Required'
   ).length;
@@ -269,11 +273,8 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   // Requirements are typed as "Thing" (not "Product") — they are prerequisites
   // for starting a business, not purchasable items. Using "Product" here caused
   // Google Search Console to flag missing required Product fields (offers, price).
-  // Stock items below use the same "Thing" typing for the same reason — the
-  // template itself carries no price/offer data (that lives on the linked
-  // Product records), so "Product" schema would risk the same flag.
+  // Stock items below use the same "Thing" typing for the same reason.
 
-  // Group requirements by category for reference, preserving insertion order.
   const categoryMap = new Map<string, typeof requirements>();
   for (const req of coreRequirements) {
     const cat = req.template.category ?? 'General';
@@ -281,8 +282,6 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
     categoryMap.get(cat)!.push(req);
   }
 
-  // Build a flat, sequentially-numbered list of CORE requirements only
-  // (excludes Stock — see note above).
   let position = 1;
   const requirementListItems = coreRequirements.map((req) => ({
     '@type': 'ListItem',
@@ -309,10 +308,6 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
     },
   }));
 
-  // Build a separate, sequentially-numbered list of Stock items — products
-  // this business can sell. Kept as its own ItemList (not merged into
-  // requirementListItems above) so it's clearly distinguished from startup
-  // requirements, both to crawlers and to anyone inspecting the schema.
   let stockPosition = 1;
   const stockListItems = stockRequirements.map((req) => ({
     '@type': 'ListItem',
@@ -352,10 +347,6 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
     '@context': 'https://schema.org',
     '@graph': [
       // 1. BreadcrumbList — enables breadcrumb rich results
-      //    Fixed: the business-name node now points at the hub page URL
-      //    (previously it incorrectly pointed at this page's own URL, which
-      //    conflicted with the hub page's breadcrumb claiming that same node).
-      //    Added a 4th "Requirements" node for this page itself.
       {
         '@type': 'BreadcrumbList',
         '@id': `${pageUrl}#breadcrumb`,
@@ -394,9 +385,6 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
             url: `${siteUrl}/images/logo.png`,
           },
         },
-        // Real createdAt/updatedAt from the Business model — previously this
-        // used a type-cast fallback because createdAt wasn't reliably present
-        // on the fetched object, and dateModified was always "now."
         datePublished: business.createdAt.toISOString(),
         dateModified: business.updatedAt.toISOString(),
         mainEntityOfPage: {
@@ -450,7 +438,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
           ]
         : []),
 
-      // 5. FAQPage — new. Gives this page its own FAQ rich-result eligibility
+      // 5. FAQPage — gives this page its own FAQ rich-result eligibility
       //    instead of ceding all FAQ presence to the hub page.
       ...(requirementFaqs.length > 0
         ? [
@@ -492,21 +480,6 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   };
 
   // ── Data shaped for the client hook's initial state ──────────────────────
-  // Passed into BusinessPageContent so the requirements list is present in
-  // the server-rendered HTML instead of only appearing after a client-side
-  // fetch resolves post-hydration.
-  //
-  // NOTE: uses the full, unfiltered `requirements` list (including Stock) —
-  // Stock items still need to render on the page itself (in their own
-  // section via CategorySection). Only the SEO-facing counts/schema above
-  // are Stock-excluded from the main Requirements surfaces, not the actual
-  // page content.
-  //
-  // effectiveTradeClassId mirrors the same computation as
-  // /api/business/[slug]/route.ts — this business's own override, else its
-  // category's default — so the county-fee resolution a visitor sees on
-  // first server-rendered load matches what they'd get from a client-side
-  // re-fetch (e.g. after switching businesses via the cart context).
   const effectiveTradeClassId = business.tradeClassId ?? business.category?.defaultTradeClassId ?? null;
 
   const initialBusiness: BusinessData = {
@@ -535,7 +508,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   id: req.id,
   templateId: req.templateId,
   name: req.template.name,
-  description: req.descriptionOverride ?? selectTemplateDescription(req.template, market) ?? null,   // CHANGED
+  description: req.descriptionOverride ?? selectTemplateDescription(req.template, market) ?? null,
   category: req.template.category ?? null,
   necessity: req.necessityOverride ?? req.template.necessity,
   image: req.template.image ?? null,

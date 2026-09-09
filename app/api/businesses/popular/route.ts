@@ -1,8 +1,23 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { DEFAULT_MARKET, isMarketCode } from "@/lib/markets";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // market is accepted (HomeSearch already sends it) but not currently
+    // used to filter results: Business rows are shared across markets
+    // (per the platform's design — see /people/... wait, see the
+    // schema comments on Business), and SearchLog has no market column
+    // yet, so "most searched" is inherently a shared/global signal today.
+    // Kept here so the query string is stable and this route is ready to
+    // filter the moment there's something meaningful to filter on (e.g.
+    // if SearchLog ever gains a market column, or the fallback list below
+    // should be limited to businesses with market-visible requirements).
+    const { searchParams } = new URL(request.url);
+    const marketParam = searchParams.get("market");
+    const market = isMarketCode(marketParam) ? marketParam : DEFAULT_MARKET;
+    void market; // acknowledged, not yet used — see comment above
+
     // Step 1: Get the most searched keywords in the last 30 days
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);

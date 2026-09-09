@@ -1,7 +1,7 @@
 // app/businesses/[slug]/page.tsx
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { fetchBusiness } from '@/lib/business-data';
+import { fetchBusiness, isUSMarketEligible } from '@/lib/business-data';
 import HubPageContent from './HubPageContent';
 import RelatedBusinesses from './RelatedBusinesses';
 import { isExcludedFromTotals } from '@/lib/necessity';
@@ -40,6 +40,17 @@ function formatDays(days: number) {
   if (weeks < 4) return `${weeks} week${weeks !== 1 ? 's' : ''}`;
   const months = Math.round(days / 30);
   return `${months} month${months !== 1 ? 's' : ''}`;
+}
+
+/** Same slugify pattern used everywhere else category names are turned
+ * into URL segments (see categorySlug() in BusinessesContent.tsx) —
+ * duplicated here rather than imported to avoid a client/server import
+ * across a 'use client' boundary; keep both in sync if either changes. */
+function categorySlug(name: string) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
 }
 
 /** Build auto-generated FAQs from business data. */
@@ -136,6 +147,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const pageUrl = `${SITE_URL}/businesses/${slug}`;
   const ogImage = business.image || `${SITE_URL}/images/default-business.jpg`;
 
+  // Only advertise a US alternate if this business actually has a live US
+  // page — see isUSMarketEligible() in lib/business-data.ts. Without this
+  // check, hreflang could point Google at a slug the US route's own
+  // thin-content guard would 404.
+  const usEligible = await isUSMarketEligible(business.id);
+
   return {
     title,
     description,
@@ -169,7 +186,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       follow: true,
       googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 },
     },
-    alternates: { canonical: pageUrl },
+    alternates: {
+      canonical: pageUrl,
+      languages: {
+        'en-KE': pageUrl,
+        ...(usEligible ? { 'en-US': `${SITE_URL}/us/businesses/${slug}` } : {}),
+      },
+    },
     verification: { google: process.env.GOOGLE_SITE_VERIFICATION },
   };
 }
@@ -214,12 +237,6 @@ export default async function BusinessHubPage({ params }: Props) {
     `Complete guide to starting a ${name} business in Kenya with ${requirementCount} requirements and cost estimates.`;
 
   // ── Requirement grouping ──────────────────────────────────────────────────
-  // Grouped from coreRequirements only, so the "Requirement Categories"
-  // breakdown (and its required/optional split) doesn't include Stock,
-  // whose necessity values ("High Demand" etc.) don't mean "required" or
-  // "optional" in the same sense and would otherwise show a misleading
-  // "0 required" row for the Stock category.
-
   const grouped = coreRequirements.reduce<Record<string, typeof coreRequirements>>(
     (acc, req) => {
       const cat = req.template.category || 'General';
@@ -245,13 +262,6 @@ export default async function BusinessHubPage({ params }: Props) {
   }));
 
   // ── Fetch auto-calculated cost server-side for FAQs and JSON-LD ──────────
-  // We call our own cost API directly via prisma rather than an HTTP fetch
-  // to avoid a network round-trip within the server component.
-  //
-  // Iterates coreRequirements only — Stock product prices are excluded from
-  // "cost to start" for the same reason as the requirement count above:
-  // inventory is a scalable choice, not a fixed startup cost.
-
   let cost: CostData | null = null;
   try {
     let low = 0, medium = 0, high = 0, requirementsWithProducts = 0;
@@ -300,6 +310,37 @@ export default async function BusinessHubPage({ params }: Props) {
   const finalFaqs = dbFaqs.length > 0 ? dbFaqs : autoFaqs;
 
   // ── Structured Data ───────────────────────────────────────────────────────
+  //
+  // BreadcrumbList now mirrors the visible breadcrumb in HubPageContent.tsx
+  // exactly: Home > Businesses > Categories > {Category} > {Business} when
+  // the business has a category, or Home > Businesses > {Business} when it
+  // doesn't. Previously this always emitted the 3-node version regardless
+  // of category, one level shallower than what visitors actually see.
+  const breadcrumbItems: Array<{ '@type': string; position: number; name: string; item: string }> = [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
+    { '@type': 'ListItem', position: 2, name: 'Businesses', item: `${SITE_URL}/businesses` },
+  ];
+  let breadcrumbPosition = 3;
+  if (business.category) {
+    breadcrumbItems.push({
+      '@type': 'ListItem',
+      position: breadcrumbPosition++,
+      name: 'Categories',
+      item: `${SITE_URL}/businesses/categories`,
+    });
+    breadcrumbItems.push({
+      '@type': 'ListItem',
+      position: breadcrumbPosition++,
+      name: business.category.name,
+      item: `${SITE_URL}/businesses/categories/${categorySlug(business.category.name)}`,
+    });
+  }
+  breadcrumbItems.push({
+    '@type': 'ListItem',
+    position: breadcrumbPosition++,
+    name,
+    item: pageUrl,
+  });
 
   const structuredData = {
     '@context': 'https://schema.org',
@@ -307,11 +348,7 @@ export default async function BusinessHubPage({ params }: Props) {
       {
         '@type': 'BreadcrumbList',
         '@id': `${pageUrl}#breadcrumb`,
-        itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
-          { '@type': 'ListItem', position: 2, name: 'Businesses', item: `${SITE_URL}/businesses` },
-          { '@type': 'ListItem', position: 3, name: name, item: pageUrl },
-        ],
+        itemListElement: breadcrumbItems,
       },
       {
         '@type': 'Article',

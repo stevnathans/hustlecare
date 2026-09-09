@@ -33,6 +33,20 @@ async function fetchGuideData(slug: string) {
   return business;
 }
 
+// ── HowTo totalTime ───────────────────────────────────────────────────────────
+// Previously hardcoded to 'P30D' for every business regardless of its real
+// data, even though Business.timeToLaunchMin/timeToLaunchMax already exists
+// and is already used elsewhere for the same business (hub page FAQs,
+// insights strip). Prefers the upper bound (timeToLaunchMax) since totalTime
+// in the HowTo schema is meant to represent the full time commitment, not a
+// best case; falls back to timeToLaunchMin if only that's set, and only
+// uses the rough constant when neither value exists.
+function computeTotalTime(timeToLaunchMin: number | null, timeToLaunchMax: number | null): string {
+  const days = timeToLaunchMax ?? timeToLaunchMin;
+  if (days && days > 0) return `P${Math.round(days)}D`;
+  return 'P30D'; // rough estimate — only used when no real data exists
+}
+
 // ── SEO Metadata ──────────────────────────────────────────────────────────────
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -146,6 +160,8 @@ export default async function HowToStartPage({ params }: Props) {
     guide.metaDescription ||
     `A complete ${guide.steps.length}-step guide to starting a ${name} business in Kenya.`;
 
+  const totalTime = computeTotalTime(business.timeToLaunchMin, business.timeToLaunchMax);
+
   // ── JSON-LD Structured Data ───────────────────────────────────────────────
   //
   // Three schemas work together here:
@@ -225,6 +241,10 @@ export default async function HowToStartPage({ params }: Props) {
 
       // 3. HowTo — the main money schema for this page
       //    Google uses this for the rich step-by-step carousel in Search.
+      //    totalTime now reflects real Business.timeToLaunchMin/Max data
+      //    when available — see computeTotalTime() above — instead of a
+      //    flat 'P30D' constant applied to every business regardless of
+      //    its actual launch timeline.
       ...(guide.steps.length > 0
         ? [{
             '@type':       'HowTo',
@@ -238,7 +258,7 @@ export default async function HowToStartPage({ params }: Props) {
               height: 630,
             },
             inLanguage:  'en-KE',
-            totalTime:   'P30D', // rough estimate; refine if timeToLaunch data is available
+            totalTime,
             supply: [],          // physical supplies — left empty; requirements page covers this
             tool:   [],
             step: guide.steps.map((step, i) => ({

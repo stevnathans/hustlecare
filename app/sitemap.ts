@@ -4,6 +4,24 @@ import { prisma } from '@/lib/prisma';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
 
+// Same condition used by generateStaticParams in
+// app/us/businesses/[slug]/page.tsx and .../requirements/page.tsx, and by
+// isUSMarketEligible() in lib/business-data.ts — a business only gets a US
+// sitemap entry if it actually has at least one active, non-deprecated
+// requirement visible in the US market. Keeps the sitemap from advertising
+// near-empty US pages that the pages' own thin-content guards would 404.
+const US_ELIGIBLE_WHERE = {
+  requirements: {
+    some: {
+      isActive: true,
+      template: {
+        isDeprecated: false,
+        OR: [{ restrictedToCountry: null }, { restrictedToCountry: 'US' as const }],
+      },
+    },
+  },
+};
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // ── Static pages ────────────────────────────────────────────────────────────
@@ -16,6 +34,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     {
       url: `${SITE_URL}/businesses`,
+      lastModified: new Date(),
+      changeFrequency: 'daily',
+      priority: 0.9,
+    },
+    // Previously missing entirely — the US market has been live without
+    // any sitemap discovery signal for its own listing page.
+    {
+      url: `${SITE_URL}/us/businesses`,
       lastModified: new Date(),
       changeFrequency: 'daily',
       priority: 0.9,
@@ -82,7 +108,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
-  // ── Dynamic business pages ──────────────────────────────────────────────────
+  // ── Dynamic Kenya business pages ─────────────────────────────────────────────
   let businessPages: MetadataRoute.Sitemap = [];
 
   try {
@@ -118,7 +144,62 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       },
     ]);
   } catch (error) {
-    console.error('Sitemap: failed to fetch businesses from DB:', error);
+    console.error('Sitemap: failed to fetch KE businesses from DB:', error);
+  }
+
+  // ── Dynamic US business pages ─────────────────────────────────────────────
+  // Previously missing entirely — nothing generated a US sitemap. Filtered
+  // to US-eligible businesses only (see US_ELIGIBLE_WHERE above) so this
+  // never advertises a page the US routes' own guards would 404. No
+  // how-to-start entry — that route doesn't exist for the US market yet
+  // (shows "Coming soon" on the hub page instead).
+  let usBusinessPages: MetadataRoute.Sitemap = [];
+
+  try {
+    const usBusinesses = await prisma.business.findMany({
+      where: { published: true, ...US_ELIGIBLE_WHERE },
+      select: {
+        slug: true,
+        updatedAt: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    usBusinessPages = usBusinesses.flatMap((business) => [
+      {
+        url: `${SITE_URL}/us/businesses/${business.slug}`,
+        lastModified: business.updatedAt,
+        changeFrequency: 'weekly' as const,
+        priority: 0.85,
+        // Supplementary hreflang signal for sitemap-reading crawlers.
+        // Confirm your Next.js version actually honors per-entry
+        // `alternates.languages` in MetadataRoute.Sitemap before relying
+        // on this — it's changed across Next versions. The authoritative
+        // signal either way is the `alternates.languages` block in each
+        // page's own generateMetadata (see the hub/requirements page
+        // updates alongside this file).
+        alternates: {
+          languages: {
+            'en-KE': `${SITE_URL}/businesses/${business.slug}`,
+            'en-US': `${SITE_URL}/us/businesses/${business.slug}`,
+          },
+        },
+      },
+      {
+        url: `${SITE_URL}/us/businesses/${business.slug}/requirements`,
+        lastModified: business.updatedAt,
+        changeFrequency: 'weekly' as const,
+        priority: 0.80,
+        alternates: {
+          languages: {
+            'en-KE': `${SITE_URL}/businesses/${business.slug}/requirements`,
+            'en-US': `${SITE_URL}/us/businesses/${business.slug}/requirements`,
+          },
+        },
+      },
+    ]);
+  } catch (error) {
+    console.error('Sitemap: failed to fetch US-eligible businesses from DB:', error);
   }
 
   // ── Dynamic category pages ──────────────────────────────────────────────────
@@ -134,7 +215,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     });
 
     categoryPages = categories.map((cat) => ({
-      // Restructured mapping endpoint path to /businesses/categories/
       url: `${SITE_URL}/businesses/categories/${cat.name
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
@@ -147,5 +227,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     console.error('Sitemap: failed to fetch categories from DB:', error);
   }
 
-  return [...staticPages, ...businessPages, ...categoryPages];
+  return [...staticPages, ...businessPages, ...usBusinessPages, ...categoryPages];
 }

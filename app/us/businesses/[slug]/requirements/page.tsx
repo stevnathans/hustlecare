@@ -91,7 +91,14 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
   const { slug } = await params;
   const business = await fetchBusinessWithRequirements(slug, 'US');
 
-  if (!business) {
+  const requirementCount = business
+    ? splitCoreAndStock(business.requirements ?? []).core.length
+    : 0;
+
+  // Guards against both a genuinely missing business AND a business with
+  // zero US-visible requirements — same anti-thin-content bar as
+  // generateStaticParams below and the US hub page.
+  if (!business || requirementCount === 0) {
     return {
       title: 'Business Not Found | HustleCare',
       description: 'The requested business could not be found. Browse our full list of businesses with startup guides and cost calculators.',
@@ -99,8 +106,6 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
     };
   }
 
-  const { core } = splitCoreAndStock(business.requirements ?? []);
-  const requirementCount = core.length;
   const title = buildTitle(business.name, requirementCount);
   const description =
     business.description ||
@@ -171,6 +176,13 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
 
     alternates: {
       canonical: pageUrl,
+      // The Kenya requirements page for this slug is always guaranteed to
+      // exist (its bar isn't gated on requirement count), so no
+      // eligibility check is needed in this direction.
+      languages: {
+        'en-US': pageUrl,
+        'en-KE': `${siteUrl}/businesses/${slug}/requirements`,
+      },
     },
 
     category: 'Business',
@@ -183,8 +195,8 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
 }
 
 // ── Static Params ─────────────────────────────────────────────────────────────
-// Same filter as app/us/businesses/[slug]/page.tsx (step 5) — only
-// pre-render businesses with at least one US-visible requirement.
+// Same filter as app/us/businesses/[slug]/page.tsx — only pre-render
+// businesses with at least one US-visible requirement.
 
 export async function generateStaticParams() {
   try {
@@ -222,6 +234,14 @@ export default async function USBusinessPage({ params }: BusinessPageProps) {
   const requirements = business.requirements ?? [];
   const { core: coreRequirements, stock: stockRequirements } = splitCoreAndStock(requirements);
   const requirementCount = coreRequirements.length;
+
+  // Same bar as generateStaticParams and generateMetadata above — a
+  // business that slipped through to this on-demand render but has zero
+  // qualifying requirements gets a real 404 instead of an empty,
+  // indexable page.
+  if (requirementCount === 0) {
+    notFound();
+  }
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
   const pageUrl = `${siteUrl}/us/businesses/${slug}/requirements`;
@@ -454,7 +474,7 @@ export default async function USBusinessPage({ params }: BusinessPageProps) {
   id: req.id,
   templateId: req.templateId,
   name: req.template.name,
-  description: req.descriptionOverride ?? selectTemplateDescription(req.template, market) ?? null,   // CHANGED
+  description: req.descriptionOverride ?? selectTemplateDescription(req.template, market) ?? null,
   category: req.template.category ?? null,
   necessity: req.necessityOverride ?? req.template.necessity,
   image: req.template.image ?? null,

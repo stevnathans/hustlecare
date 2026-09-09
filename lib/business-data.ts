@@ -90,7 +90,7 @@ export async function fetchBusinessWithRequirements(slug: string, market: Market
             select: {
               name: true,
               description: true,
-              descriptionUS: true,   // ADD
+              descriptionUS: true,
               category: true,
               necessity: true,
               image: true,
@@ -101,4 +101,33 @@ export async function fetchBusinessWithRequirements(slug: string, market: Market
     },
   });
   return business;
+}
+
+// ── Cross-market eligibility check ──────────────────────────────────────────
+//
+// Whether a business has at least one active, non-deprecated requirement
+// visible in the US market. Two call sites:
+//
+//  1. The US hub/requirements pages use this same condition (duplicated
+//     inline in their own generateStaticParams) to decide whether a slug
+//     should render at all — a business with zero qualifying requirements
+//     has nothing genuinely US-specific to show, and rendering it anyway
+//     produces an indexable near-duplicate of the Kenya page.
+//  2. The Kenya hub/requirements pages call this helper directly to decide
+//     whether to emit an `en-US` hreflang alternate. Kenya pages don't
+//     otherwise fetch any US-scoped data, so this is a lightweight count
+//     query rather than a full fetchBusiness(slug, 'US') call just to
+//     check eligibility.
+export async function isUSMarketEligible(businessId: number): Promise<boolean> {
+  const count = await prisma.businessRequirement.count({
+    where: {
+      businessId,
+      isActive: true,
+      template: {
+        isDeprecated: false,
+        OR: [{ restrictedToCountry: null }, { restrictedToCountry: 'US' }],
+      },
+    },
+  });
+  return count > 0;
 }

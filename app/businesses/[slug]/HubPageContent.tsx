@@ -1,8 +1,8 @@
 // app/businesses/[slug]/HubPageContent.tsx
-'use client';
+"use client";
 
-import Link from 'next/link';
-import Image from 'next/image';
+import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowLeft,
   ArrowRight,
@@ -13,12 +13,11 @@ import {
   CheckCircle2,
   Circle,
   ChevronRight,
-  
-} from 'lucide-react';
-import BusinessInsights from './BusinessInsights';
-import BusinessFaqSection from './BusinessFaqSection';
-import BusinessCostBadge from './BusinessCostBadge';
-import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
+} from "lucide-react";
+import BusinessInsights from "./BusinessInsights";
+import BusinessFaqSection from "./BusinessFaqSection";
+import BusinessCostBadge from "./BusinessCostBadge";
+import { DEFAULT_MARKET, type MarketCode } from "@/lib/markets";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -71,39 +70,42 @@ function getSubPages(slug: string, base: string, market: MarketCode) {
     {
       href: `${base}/businesses/${slug}/requirements`,
       icon: FileText,
-      label: 'Requirements Checklist',
-      description: 'Full list of everything you need — documents, equipment, software, licences, and more.',
+      label: "Requirements Checklist",
+      description:
+        "Full list of everything you need — documents, equipment, software, licences, and more.",
       badge: null,
-      color: 'emerald',
+      color: "emerald",
       available: true,
     },
     {
       href: `${base}/businesses/${slug}/how-to-start`,
       icon: BookOpen,
-      label: 'How to Start Guide',
-      description: 'Step-by-step walkthrough — registration, sourcing, hiring, and first customers.',
-      badge: null,
-      color: 'violet',
-      available: true,
+      label: "How to Start Guide",
+      description:
+        "Step-by-step walkthrough — registration, sourcing, hiring, and first customers.",
+      badge: market === "US" ? "Coming soon" : null,
+      color: "violet",
+      available: market === "KE",
     },
     {
       href: `${base}/businesses/${slug}/costs`,
       icon: DollarSign,
-      label: 'Startup Cost Calculator',
-      description: `Detailed cost breakdown per requirement with low / medium / high estimates in ${market === 'KE' ? 'KES' : 'USD'}.`,
-      badge: 'Coming soon',
-      color: 'blue',
+      label: "Startup Cost Calculator",
+      description: `Detailed cost breakdown per requirement with low / medium / high estimates in ${market === "KE" ? "KES" : "USD"}.`,
+      badge: "Coming soon",
+      color: "blue",
       available: false,
     },
     {
       href: `${base}/businesses/${slug}/success-stories`,
       icon: Star,
-      label: 'Success Stories',
-      description: market === 'KE'
-        ? 'Real Kenyan entrepreneurs share how they built their business from scratch.'
-        : 'Real entrepreneurs share how they built their business from scratch.',
-      badge: 'Coming soon',
-      color: 'amber',
+      label: "Success Stories",
+      description:
+        market === "KE"
+          ? "Real Kenyan entrepreneurs share how they built their business from scratch."
+          : "Real entrepreneurs share how they built their business from scratch.",
+      badge: "Coming soon",
+      color: "amber",
       available: false,
     },
   ];
@@ -113,40 +115,40 @@ function getSubPages(slug: string, base: string, market: MarketCode) {
 
 const COLOR = {
   emerald: {
-    bg: 'bg-emerald-50',
-    border: 'border-emerald-200',
-    iconBg: 'bg-emerald-100',
-    icon: 'text-emerald-600',
-    text: 'text-emerald-700',
-    hover: 'hover:border-emerald-400 hover:bg-emerald-50/80',
-    arrow: 'text-emerald-500',
+    bg: "bg-emerald-50",
+    border: "border-emerald-200",
+    iconBg: "bg-emerald-100",
+    icon: "text-emerald-600",
+    text: "text-emerald-700",
+    hover: "hover:border-emerald-400 hover:bg-emerald-50/80",
+    arrow: "text-emerald-500",
   },
   blue: {
-    bg: 'bg-blue-50',
-    border: 'border-blue-200',
-    iconBg: 'bg-blue-100',
-    icon: 'text-blue-600',
-    text: 'text-blue-700',
-    hover: 'hover:border-blue-300',
-    arrow: 'text-blue-400',
+    bg: "bg-blue-50",
+    border: "border-blue-200",
+    iconBg: "bg-blue-100",
+    icon: "text-blue-600",
+    text: "text-blue-700",
+    hover: "hover:border-blue-300",
+    arrow: "text-blue-400",
   },
   violet: {
-    bg: 'bg-violet-50',
-    border: 'border-violet-200',
-    iconBg: 'bg-violet-100',
-    icon: 'text-violet-600',
-    text: 'text-violet-700',
-    hover: 'hover:border-violet-300',
-    arrow: 'text-violet-400',
+    bg: "bg-violet-50",
+    border: "border-violet-200",
+    iconBg: "bg-violet-100",
+    icon: "text-violet-600",
+    text: "text-violet-700",
+    hover: "hover:border-violet-300",
+    arrow: "text-violet-400",
   },
   amber: {
-    bg: 'bg-amber-50',
-    border: 'border-amber-200',
-    iconBg: 'bg-amber-100',
-    icon: 'text-amber-600',
-    text: 'text-amber-700',
-    hover: 'hover:border-amber-300',
-    arrow: 'text-amber-400',
+    bg: "bg-amber-50",
+    border: "border-amber-200",
+    iconBg: "bg-amber-100",
+    icon: "text-amber-600",
+    text: "text-amber-700",
+    hover: "hover:border-amber-300",
+    arrow: "text-amber-400",
   },
 } as const;
 
@@ -172,16 +174,14 @@ export default function HubPageContent({
   // Every internal link in this file is built from `base` so the same
   // component correctly stays inside whichever market rendered it —
   // Kenya's routes have no prefix, US routes live under /us.
-  const base = market === 'US' ? '/us' : '';
+  const base = market === "US" ? "/us" : "";
   const subPages = getSubPages(slug, base, market);
-  const countryPhrase = market === 'KE' ? 'Kenya' : 'the US';
+  const countryPhrase = market === "KE" ? "Kenya" : "the US";
 
   return (
     <div className="min-h-screen bg-gray-50">
-
       {/* ── Hero — full-bleed image background ── */}
       <div className="relative min-h-[420px] md:min-h-[480px] flex flex-col justify-end overflow-hidden">
-
         {/* Background image or gradient fallback */}
         {image ? (
           <Image
@@ -201,48 +201,47 @@ export default function HubPageContent({
 
         {/* Hero content */}
         <div className="relative z-10 max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 pb-10 pt-20">
-
           {/* Breadcrumb */}
-<nav
-  aria-label="Breadcrumb"
-  className="flex items-center gap-2 text-sm text-white/70 mb-6"
->
-  <Link
-    href={`${base}/businesses`}
-    className="inline-flex items-center gap-1 hover:text-white transition-colors group"
-  >
-    <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
-    Businesses
-  </Link>
+          <nav
+            aria-label="Breadcrumb"
+            className="flex items-center gap-2 text-sm text-white/70 mb-6"
+          >
+            <Link
+              href={`${base}/businesses`}
+              className="inline-flex items-center gap-1 hover:text-white transition-colors group"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+              Businesses
+            </Link>
 
-  {category && (
-    <>
-      <ChevronRight className="w-3.5 h-3.5 text-white/40" />
+            {category && (
+              <>
+                <ChevronRight className="w-3.5 h-3.5 text-white/40" />
 
-      <Link
-        href={`${base}/businesses/categories`}
-        className="hover:text-white transition-colors"
-      >
-        Categories
-      </Link>
+                <Link
+                  href={`${base}/businesses/categories`}
+                  className="hover:text-white transition-colors"
+                >
+                  Categories
+                </Link>
 
-      <ChevronRight className="w-3.5 h-3.5 text-white/40" />
+                <ChevronRight className="w-3.5 h-3.5 text-white/40" />
 
-      <Link
-        href={`${base}/businesses/categories/${encodeURIComponent(
-          category.toLowerCase().replace(/\s+/g, "-")
-        )}`}
-        className="hover:text-white transition-colors"
-      >
-        {category}
-      </Link>
-    </>
-  )}
+                <Link
+                  href={`${base}/businesses/categories/${encodeURIComponent(
+                    category.toLowerCase().replace(/\s+/g, "-"),
+                  )}`}
+                  className="hover:text-white transition-colors"
+                >
+                  {category}
+                </Link>
+              </>
+            )}
 
-  <ChevronRight className="w-3.5 h-3.5 text-white/40" />
+            <ChevronRight className="w-3.5 h-3.5 text-white/40" />
 
-  <span className="text-white/90 font-medium">{name}</span>
-</nav>
+            <span className="text-white/90 font-medium">{name}</span>
+          </nav>
 
           {/* Title */}
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white tracking-tight leading-tight mb-6 max-w-3xl">
@@ -256,7 +255,7 @@ export default function HubPageContent({
               <span className="font-semibold">{requirementCount}</span>
               <span className="text-white/70">requirements</span>
             </div>
-            
+
             <BusinessCostBadge slug={slug} market={market} />
             <Link
               href={`${base}/businesses/${slug}/requirements`}
@@ -282,8 +281,8 @@ export default function HubPageContent({
 
       {/* ── Business Insights strip ── */}
       <BusinessInsights
-       slug={slug}
-       name={name}
+        slug={slug}
+        name={name}
         timeToLaunchMin={timeToLaunchMin}
         timeToLaunchMax={timeToLaunchMax}
         profitPotential={profitPotential}
@@ -294,10 +293,12 @@ export default function HubPageContent({
 
       {/* ── Body ── */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-12">
-
         {/* ── Explore this business ── */}
         <section aria-labelledby="explore-heading">
-          <h2 id="explore-heading" className="text-xl font-bold text-gray-900 mb-5">
+          <h2
+            id="explore-heading"
+            className="text-xl font-bold text-gray-900 mb-5"
+          >
             Complete Guide to Starting a {name} Business
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -311,19 +312,25 @@ export default function HubPageContent({
                     key={page.href}
                     className={`relative flex items-start gap-4 p-5 bg-white border ${colors.border} rounded-2xl opacity-60 cursor-not-allowed`}
                   >
-                    <div className={`w-10 h-10 rounded-xl ${colors.iconBg} flex items-center justify-center flex-shrink-0`}>
+                    <div
+                      className={`w-10 h-10 rounded-xl ${colors.iconBg} flex items-center justify-center flex-shrink-0`}
+                    >
                       <Icon className={`w-5 h-5 ${colors.icon}`} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-semibold text-gray-700 text-sm">{page.label}</span>
+                        <span className="font-semibold text-gray-700 text-sm">
+                          {page.label}
+                        </span>
                         {page.badge && (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">
                             {page.badge}
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-gray-400 leading-snug">{page.description}</p>
+                      <p className="text-xs text-gray-400 leading-snug">
+                        {page.description}
+                      </p>
                     </div>
                   </div>
                 );
@@ -335,16 +342,24 @@ export default function HubPageContent({
                   href={page.href}
                   className={`group relative flex items-start gap-4 p-5 bg-white border-2 ${colors.border} ${colors.hover} rounded-2xl transition-all duration-150 shadow-sm hover:shadow-md`}
                 >
-                  <div className={`w-10 h-10 rounded-xl ${colors.iconBg} flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform`}>
+                  <div
+                    className={`w-10 h-10 rounded-xl ${colors.iconBg} flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform`}
+                  >
                     <Icon className={`w-5 h-5 ${colors.icon}`} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`font-semibold ${colors.text} text-sm`}>{page.label}</span>
+                      <span className={`font-semibold ${colors.text} text-sm`}>
+                        {page.label}
+                      </span>
                     </div>
-                    <p className="text-xs text-gray-500 leading-snug">{page.description}</p>
+                    <p className="text-xs text-gray-500 leading-snug">
+                      {page.description}
+                    </p>
                   </div>
-                  <ArrowRight className={`w-4 h-4 ${colors.arrow} flex-shrink-0 mt-1 group-hover:translate-x-0.5 transition-transform`} />
+                  <ArrowRight
+                    className={`w-4 h-4 ${colors.arrow} flex-shrink-0 mt-1 group-hover:translate-x-0.5 transition-transform`}
+                  />
                 </Link>
               );
             })}
@@ -353,17 +368,25 @@ export default function HubPageContent({
 
         {/* ── Requirements section ── */}
         <section aria-labelledby="requirements-heading">
-          <h2 id="requirements-heading" className="text-xl font-bold text-gray-900 mb-5">
+          <h2
+            id="requirements-heading"
+            className="text-xl font-bold text-gray-900 mb-5"
+          >
             {name} Business Requirements
           </h2>
 
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-
             {/* Requirements preview */}
-            <section aria-labelledby="preview-heading" className="lg:col-span-3">
+            <section
+              aria-labelledby="preview-heading"
+              className="lg:col-span-3"
+            >
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-                  <h2 id="preview-heading" className="font-bold text-gray-900 text-base">
+                  <h2
+                    id="preview-heading"
+                    className="font-bold text-gray-900 text-base"
+                  >
                     Popular Requirements
                   </h2>
                   <Link
@@ -376,23 +399,30 @@ export default function HubPageContent({
                 </div>
                 <ul className="divide-y divide-gray-50">
                   {previewRequirements.map((req) => (
-                    <li key={req.id} className="flex items-center gap-4 px-6 py-4">
-                      {req.necessity === 'Required' ? (
+                    <li
+                      key={req.id}
+                      className="flex items-center gap-4 px-6 py-4"
+                    >
+                      {req.necessity === "Required" ? (
                         <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
                       ) : (
                         <Circle className="w-4 h-4 text-gray-300 flex-shrink-0" />
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">{req.name}</p>
+                        <p className="text-sm font-medium text-gray-800 truncate">
+                          {req.name}
+                        </p>
                         {req.category && (
-                          <p className="text-xs text-gray-400 mt-0.5">{req.category}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {req.category}
+                          </p>
                         )}
                       </div>
                       <span
                         className={`text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${
-                          req.necessity === 'Required'
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-gray-100 text-gray-500'
+                          req.necessity === "Required"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-gray-100 text-gray-500"
                         }`}
                       >
                         {req.necessity}
@@ -413,22 +443,32 @@ export default function HubPageContent({
             </section>
 
             {/* Category breakdown */}
-            <section aria-labelledby="categories-heading" className="lg:col-span-2">
+            <section
+              aria-labelledby="categories-heading"
+              className="lg:col-span-2"
+            >
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden h-full">
                 <div className="px-6 py-4 border-b border-gray-100">
-                  <h2 id="categories-heading" className="font-bold text-gray-900 text-base">
+                  <h2
+                    id="categories-heading"
+                    className="font-bold text-gray-900 text-base"
+                  >
                     Requirement Categories
                   </h2>
                 </div>
                 <ul className="divide-y divide-gray-50 px-2 py-2">
                   {categoryBreakdown.map((cat) => {
-                    const pct = Math.round((cat.requiredCount / cat.count) * 100);
+                    const pct = Math.round(
+                      (cat.requiredCount / cat.count) * 100,
+                    );
                     return (
                       <li key={cat.name} className="px-4 py-3">
                         <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-sm font-medium text-gray-700">{cat.name}</span>
+                          <span className="text-sm font-medium text-gray-700">
+                            {cat.name}
+                          </span>
                           <span className="text-xs text-gray-400">
-                            {cat.count} item{cat.count !== 1 ? 's' : ''}
+                            {cat.count} item{cat.count !== 1 ? "s" : ""}
                           </span>
                         </div>
                         <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
@@ -438,7 +478,8 @@ export default function HubPageContent({
                           />
                         </div>
                         <p className="text-xs text-gray-400 mt-1">
-                          {cat.requiredCount} required · {cat.count - cat.requiredCount} optional
+                          {cat.requiredCount} required ·{" "}
+                          {cat.count - cat.requiredCount} optional
                         </p>
                       </li>
                     );
@@ -446,7 +487,6 @@ export default function HubPageContent({
                 </ul>
               </div>
             </section>
-
           </div>
         </section>
 
@@ -459,7 +499,8 @@ export default function HubPageContent({
             Ready to start your {name} business?
           </h2>
           <p className="text-emerald-100 mb-6 max-w-lg mx-auto text-sm">
-            View the full requirements checklist, calculate your startup costs, and get everything in order before you launch.
+            View the full requirements checklist, calculate your startup costs,
+            and get everything in order before you launch.
           </p>
           <Link
             href={`${base}/businesses/${slug}/requirements`}
@@ -469,7 +510,6 @@ export default function HubPageContent({
             <ArrowRight className="w-4 h-4" />
           </Link>
         </section>
-
       </div>
     </div>
   );
