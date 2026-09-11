@@ -36,6 +36,9 @@ export async function GET(
         },
       },
       include: {
+        // Full include (no `select`) — `link.template.slug` and
+        // `link.template.published` (added in the Stage 1 migration) are
+        // already present on every row here without any query change.
         template: {
           include: {
             _count: { select: { products: true } },
@@ -59,6 +62,17 @@ export async function GET(
         category: link.template.category,
         necessity: link.necessityOverride ?? link.template.necessity,
         productCount: link.template._count.products,
+        // Only a valid link target when the template is published AND
+        // we're on the Kenya market — /requirements/{slug} (Stage 2) is
+        // Kenya-scoped: it fetches Kenya business links and frames copy
+        // around "in Kenya." Linking a US visitor there would be a
+        // content mismatch, not a 404, until Stage 4 ships a
+        // market-aware /us/requirements/{slug}. Mirrors the same gating
+        // rule already applied in the SSR paths
+        // (app/businesses/[slug]/requirements/page.tsx sets this from
+        // `template.published`; the US equivalent always sends null for
+        // the same reason this route does).
+        slug: market === 'KE' && link.template.published ? link.template.slug : null,
       };
     });
 

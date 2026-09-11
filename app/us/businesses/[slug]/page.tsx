@@ -117,10 +117,7 @@ interface AutoFaq {
 // active, non-deprecated, US-visible requirements has nothing genuinely
 // US-specific to show. Rendering it anyway (Next's default dynamicParams
 // lets any slug outside generateStaticParams still render on demand) would
-// produce an indexable near-duplicate of the Kenya page. Computed inline
-// wherever needed below rather than as a shared helper, since both
-// generateMetadata and the page component already fetch the full business
-// object and can filter its requirements array directly with no extra query.
+// produce an indexable near-duplicate of the Kenya page.
 function countCoreRequirements(business: NonNullable<Awaited<ReturnType<typeof fetchBusiness>>>) {
   return business.requirements.filter((r) => !isExcludedFromTotals(r.template.category ?? '')).length;
 }
@@ -265,12 +262,21 @@ export default async function USBusinessHubPage({ params }: Props) {
     {}
   );
 
+  // requirementSlug deliberately always null on the US market for now —
+  // /requirements/{slug} (built in Stage 2) is Kenya-scoped: it fetches
+  // Kenya business links and frames content around Kenya ("... in
+  // Kenya"). Linking a US visitor there would be a content mismatch, not
+  // a 404, but still wrong — the fix is Stage 4 (a market-aware
+  // /us/requirements/{slug}), not enabling this link early. Revisit once
+  // that ships: swap this back to `r.template.published ? r.template.slug
+  // : null` and point the href at the US route.
   const previewRequirements = coreRequirements.slice(0, 4).map((r) => ({
     id: r.id,
     name: r.template.name,
     category: r.template.category,
     necessity: r.template.necessity,
     image: r.template.image,
+    requirementSlug: null,
   }));
 
   const categoryBreakdown = Object.entries(grouped).map(([cat, reqs]) => ({

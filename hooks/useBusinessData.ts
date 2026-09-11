@@ -12,6 +12,13 @@ export interface Requirement {
   category?: string | null;
   necessity: string;
   image?: string | null;
+  // Only a valid link target when the source template is published —
+  // see the requirementSlug computation in the page components that
+  // build initialRequirements. Optional and possibly stale on the
+  // client-refetch path (see the handoff note about
+  // /api/business/[slug]/requirements/route.ts) — RequirementCard
+  // treats a missing/null slug as "render plain text, not a link."
+  slug?: string | null;
 }
 
 export interface Business {

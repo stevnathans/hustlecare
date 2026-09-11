@@ -18,6 +18,7 @@ interface RequirementLocal {
   category?: string | null;
   necessity: string;
   image?: string | null;
+  slug?: string | null;
 }
 
 interface CategoryState {

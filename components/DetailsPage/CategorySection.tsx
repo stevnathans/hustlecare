@@ -18,6 +18,12 @@ interface Requirement {
   category?: string | null;
   necessity: string;
   image?: string | null;
+  // Only a valid link target when the source template is published —
+  // see the requirementSlug computation in the page components that
+  // build the requirements list this eventually comes from. Threaded
+  // through to RequirementCard, which is the component that actually
+  // renders the /requirements/{slug} link.
+  slug?: string | null;
 }
 
 interface CategoryState {
@@ -96,6 +102,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
           image: requirement.image ?? undefined,
           description: requirement.description ?? undefined,
           templateId: requirement.templateId,
+          slug: requirement.slug ?? null,
         }}
         products={products[requirement.name] || []}
         countyUnavailable={legalUnavailableInCounty?.[requirement.name] || false}

@@ -23,6 +23,19 @@ function toPositiveInt(value: unknown): number | null {
   return Math.floor(n)
 }
 
+// NEW: validates a submitted tradeClassId, distinguishing "clear the
+// override" (empty string / null / undefined-but-present) from "not
+// touched at all" — callers check `'tradeClassId' in body` to tell those
+// apart, same pattern as categoryName below.
+async function resolveTradeClassId(value: unknown): Promise<{ error: string } | { tradeClassId: number | null }> {
+  if (value === null || value === undefined || value === '') return { tradeClassId: null }
+  const id = Number(value)
+  if (!Number.isFinite(id)) return { error: 'Invalid trade class.' }
+  const tradeClass = await prisma.tradeClass.findUnique({ where: { id }, select: { id: true } })
+  if (!tradeClass) return { error: 'Trade class not found.' }
+  return { tradeClassId: id }
+}
+
 async function resolveCategoryId(categoryName?: string): Promise<number | undefined> {
   if (!categoryName || !categoryName.trim()) return undefined
   const trimmedName = categoryName.trim().slice(0, 100)
@@ -52,6 +65,7 @@ export async function GET() {
         _count: { select: { requirements: true, carts: true, searches: true } },
         user:   { select: { name: true, email: true } },
         category: true,
+        tradeClass: { select: { id: true, name: true } }, // NEW
       },
       orderBy: { createdAt: 'desc' },
       take: ADMIN_LIST_CAP,
@@ -77,6 +91,7 @@ export async function POST(req: NextRequest) {
       timeToLaunchMin, timeToLaunchMax,
       profitPotential, skillLevel,
       bestLocations,
+      tradeClassId, // NEW
     } = body
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -103,6 +118,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'A business with this slug already exists' }, { status: 409 })
     }
 
+    // NEW
+    const tradeClassResult = await resolveTradeClassId(tradeClassId)
+    if ('error' in tradeClassResult) {
+      return NextResponse.json({ error: tradeClassResult.error }, { status: 400 })
+    }
+
     const categoryId = await resolveCategoryId(categoryName)
     const isPublished = Boolean(published)
 
@@ -113,12 +134,10 @@ export async function POST(req: NextRequest) {
         description: description ? String(description).slice(0, 5000) : null,
         image:       image       ? String(image)                       : null,
         published:   isPublished,
-        // NEW: stamp publishedAt on creation too, so a business created
-        // already-published counts toward today's execution-tracker ring
-        // immediately, not just on a later explicit publish action.
         publishedAt: isPublished ? new Date() : null,
         userId:      user.id,
         ...(categoryId ? { categoryId } : {}),
+        tradeClassId: tradeClassResult.tradeClassId, // NEW
         costMin:         toPositiveInt(costMin),
         costMax:         toPositiveInt(costMax),
         timeToLaunchMin: toPositiveInt(timeToLaunchMin),
@@ -134,6 +153,7 @@ export async function POST(req: NextRequest) {
       include: {
         _count:   { select: { requirements: true } },
         category: true,
+        tradeClass: { select: { id: true, name: true } }, // NEW
       },
     })
 
@@ -216,6 +236,9 @@ export async function PATCH(req: NextRequest) {
       timeToLaunchMin, timeToLaunchMax,
       profitPotential, skillLevel,
       bestLocations,
+      tradeClassId, // NEW — pulled out just like categoryName, so it
+                    // doesn't fall into `rest` and get silently dropped
+                    // by the ALLOWED_UPDATE_FIELDS loop.
       ...rest
     } = body
 
@@ -260,6 +283,19 @@ export async function PATCH(req: NextRequest) {
         : { categoryId: await resolveCategoryId(categoryName) }
     }
 
+    // NEW — only touches tradeClassId when the caller actually sent the
+    // key, same "in body" convention as categoryName above, so a PATCH
+    // that doesn't mention trade class at all leaves the existing value
+    // untouched instead of clearing it.
+    let tradeClassUpdate: { tradeClassId?: number | null } = {}
+    if ('tradeClassId' in body) {
+      const tradeClassResult = await resolveTradeClassId(tradeClassId)
+      if ('error' in tradeClassResult) {
+        return NextResponse.json({ error: tradeClassResult.error }, { status: 400 })
+      }
+      tradeClassUpdate = { tradeClassId: tradeClassResult.tradeClassId }
+    }
+
     const metaUpdate: Record<string, unknown> = {}
     if (costMin         !== undefined) metaUpdate.costMin         = toPositiveInt(costMin)
     if (costMax         !== undefined) metaUpdate.costMax         = toPositiveInt(costMax)
@@ -275,13 +311,6 @@ export async function PATCH(req: NextRequest) {
           : []
     }
 
-    // NEW: keep publishedAt in lockstep with published. Only touches it when
-    // the caller actually sent a `published` value, and only writes when the
-    // state is genuinely changing — so re-saving an already-published
-    // business with published:true doesn't reset its publishedAt and steal
-    // credit for a day it wasn't actually (re)published on. Toggling to
-    // false clears it, so an unpublish immediately drops out of the
-    // execution tracker's live count for today.
     if (updateData.published !== undefined) {
       const nextPublished = Boolean(updateData.published)
       updateData.published = nextPublished
@@ -292,10 +321,11 @@ export async function PATCH(req: NextRequest) {
 
     const business = await prisma.business.update({
       where: { id: Number(id) },
-      data:  { ...updateData, ...categoryUpdate, ...metaUpdate },
+      data:  { ...updateData, ...categoryUpdate, ...tradeClassUpdate, ...metaUpdate }, // NEW: tradeClassUpdate
       include: {
         _count:   { select: { requirements: true } },
         category: true,
+        tradeClass: { select: { id: true, name: true } }, // NEW
       },
     })
 
@@ -312,6 +342,9 @@ export async function PATCH(req: NextRequest) {
     }
     if (categoryName !== undefined && oldBusiness.category?.name !== categoryName) {
       changes['category'] = { old: oldBusiness.category?.name ?? null, new: categoryName || null }
+    }
+    if ('tradeClassId' in body && oldBusiness.tradeClassId !== tradeClassUpdate.tradeClassId) { // NEW
+      changes['tradeClassId'] = { old: oldBusiness.tradeClassId, new: tradeClassUpdate.tradeClassId }
     }
 
     await createAuditLog({

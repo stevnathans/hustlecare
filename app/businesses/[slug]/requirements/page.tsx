@@ -504,6 +504,12 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
     effectiveTradeClassId,
   };
 
+  // requirementSlug (below, mapped to `slug`) is only a valid link target
+  // when the source template is published — an unpublished template might
+  // carry a slug placeholder but has no live /requirements/{slug} page
+  // yet. This flows through hooks/useBusinessData's Requirement type into
+  // RequirementsSection → CategorySection → RequirementCard, which is the
+  // component that actually renders the link.
   const initialRequirements: RequirementData[] = requirements.map((req) => ({
   id: req.id,
   templateId: req.templateId,
@@ -512,6 +518,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   category: req.template.category ?? null,
   necessity: req.necessityOverride ?? req.template.necessity,
   image: req.template.image ?? null,
+  slug: req.template.published ? req.template.slug : null,
 }));
 
   return (

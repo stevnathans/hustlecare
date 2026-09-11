@@ -20,6 +20,17 @@ function revalidateBusinessPages(slug: string) {
   revalidatePath(`/businesses/${slug}/requirements`);
 }
 
+// Added in Stage 2 alongside app/requirements/[slug]/page.tsx — a
+// requirement's business list (and therefore its "which businesses need
+// this" section and its "related requirements" computation) changes
+// every time a link here is created, updated, or removed, so the
+// requirement's own public page needs revalidating on every mutation in
+// this file, not just the business's pages.
+function revalidateRequirementPages(slug: string | null) {
+  if (slug) revalidatePath(`/requirements/${slug}`);
+  revalidatePath('/requirements');
+}
+
 // GET /api/requirements/:id/businesses
 // Returns all businesses this template is linked to, including any necessity override.
 export async function GET(_: NextRequest, { params }: Params) {
@@ -167,6 +178,10 @@ export async function POST(req: NextRequest, { params }: Params) {
       })
     );
 
+    // The requirement's own page changed too — its business list (and
+    // hence its "related requirements" computation) is different now.
+    revalidateRequirementPages(template.slug);
+
     const succeeded = results.filter((r) => r.success);
     const duplicates = results.filter((r) => !r.success && r.duplicate);
     const failed = results.filter((r) => !r.success && !r.duplicate);
@@ -215,7 +230,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         business: { select: { name: true, slug: true } },
         // category is needed to validate necessityOverride against the
         // correct scale (Required/Optional vs. the Stock demand scale).
-        template: { select: { name: true, category: true, necessity: true, description: true } },
+        // slug is needed to revalidate the requirement's own public page.
+        template: { select: { name: true, slug: true, category: true, necessity: true, description: true } },
       },
     });
 
@@ -268,6 +284,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // description) never showed up on the storefront pages until a
     // full rebuild.
     revalidateBusinessPages(existing.business.slug);
+    // The requirement's own page shows this business's necessity for it
+    // too (see businessSummaries in lib/requirement-data.ts), so it needs
+    // revalidating on the same change.
+    revalidateRequirementPages(existing.template.slug);
 
     const effectiveNecessity =
       updated.necessityOverride ?? existing.template.necessity;
@@ -312,7 +332,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         // FIX: select slug too — needed to revalidate this business's
         // statically-generated pages after unlinking.
         business: { select: { name: true, slug: true } },
-        template: { select: { name: true } },
+        // slug is needed to revalidate the requirement's own public page —
+        // unlinking changes its business list.
+        template: { select: { name: true, slug: true } },
       },
     });
 
@@ -335,6 +357,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     // FIX: revalidate this business's hub + requirements pages now that
     // the link has been removed.
     revalidateBusinessPages(link.business.slug);
+    revalidateRequirementPages(link.template.slug);
 
     return NextResponse.json({
       message: `"${link.template.name}" unlinked from "${link.business.name}"`,

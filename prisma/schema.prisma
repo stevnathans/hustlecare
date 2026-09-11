@@ -169,6 +169,15 @@ model Business {
   // "High-End Spa" vs "Barbershop", both under Beauty & Wellness).
   tradeClassId Int?
   tradeClass   TradeClass? @relation(fields: [tradeClassId], references: [id])
+  sizeBand     BusinessSizeBand?
+
+  // SEO metadata overrides for the public hub page (/businesses/{slug}
+  // and /us/businesses/{slug}). Both nullable — when unset, the page's
+  // generateMetadata falls back to generated copy from name/description.
+  // Added because HowToGuide already had metaTitle/metaDescription but
+  // Business itself — the highest-value page on the site — did not.
+  metaTitle       String?
+  metaDescription String?
 
   @@index([name])
   @@index([slug])
@@ -243,9 +252,43 @@ model TradeClass {
   @@index([slug])
 }
 
+// What kind of thing a RequirementTemplate actually represents, for the
+// application/SEO layer — controls page template selection, breadcrumb
+// structure, and which schema.org type applies once /requirements/{slug}
+// pages exist. Deliberately a separate axis from `category` (below):
+// `category` is the broad, editable topical grouping used for navigation
+// (Legal, Equipment, Software, ...); `type` is the smaller, code-relevant
+// classification within a category (a Legal requirement might be a
+// PERMIT, LICENCE, CERTIFICATE, or REGISTRATION — each renders and gets
+// tagged with structured data differently even though they share a
+// category).
+enum RequirementType {
+  PERMIT
+  LICENCE
+  REGISTRATION
+  CERTIFICATE
+  EQUIPMENT
+  SOFTWARE
+  DOCUMENT
+  SERVICE
+  FURNITURE
+  SAFETY
+  BRANDING
+  OTHER
+}
+
 model RequirementTemplate {
   id           Int                   @id @default(autoincrement())
   name         String
+
+  // Canonical URL segment for the public /requirements/{slug} page.
+  // Nullable during the backfill window (see
+  // scripts/backfill-requirement-slugs.ts) — every existing row gets one
+  // via that script before this column is tightened to required in a
+  // follow-up migration. @unique already permits multiple nulls in
+  // Postgres, so this is safe to add before the backfill runs.
+  slug         String?               @unique
+
   description  String?
 
   // Optional US-specific override of `description`, for the narrow case
@@ -290,11 +333,35 @@ model RequirementTemplate {
   // separate template rather than reusing this one).
   restrictedToCountry String? @default("KE")
 
+  // ── SEO / indexing fields (Stage 1) ─────────────────────────────────
+  //
+  // published/publishedAt mirror the pattern Business already uses:
+  // published defaults to true so nothing is silently hidden for
+  // existing rows once /requirements/{slug} pages exist, and
+  // publishedAt is set/cleared automatically by the admin API whenever
+  // `published` flips (see app/api/requirements/[id]/route.ts).
+  published   Boolean @default(true)
+  publishedAt DateTime?
+
+  // See the RequirementType enum comment above for how this differs
+  // from `category`.
+  type RequirementType?
+
+  // Provenance/trust fields — deliberately left null until someone has
+  // actually verified the underlying fact. Never backfilled with a
+  // fabricated date; the public requirement page only renders a "last
+  // verified" trust line when verifiedAt is genuinely set.
+  sourceName String?
+  sourceUrl  String?
+  verifiedAt DateTime?
+
   @@index([category])
   @@index([necessity])
   @@index([isDeprecated])
   @@index([name])
   @@index([restrictedToCountry])
+  @@index([slug])
+  @@index([published])
 }
 
 model BusinessRequirement {
@@ -559,13 +626,19 @@ model LegalFeeSchedule {
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
 
+  // Trust/provenance fields for the public requirement page's county fee
+  // table (Stage 1). Left null until genuinely verified — the "Last
+  // verified" line only renders when verifiedAt is actually set.
+  issuingAuthority      String?
+  verifiedAt            DateTime?
+
   template         RequirementTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   county           County              @relation(fields: [countyId], references: [id], onDelete: Cascade)
   businessCategory BusinessCategory?   @relation(fields: [businessCategoryId], references: [id])
   tradeClass       TradeClass?         @relation(fields: [tradeClassId], references: [id])  // renamed from TradeClass
   tradeClassId     Int?
 
-  @@unique([templateId, countyId, businessCategoryId, sizeBand])
+  @@unique([templateId, countyId, tradeClassId, sizeBand])
   @@index([templateId, countyId])
   @@index([countyId])
 }

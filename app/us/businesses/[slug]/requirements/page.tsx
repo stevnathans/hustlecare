@@ -470,6 +470,15 @@ export default async function USBusinessPage({ params }: BusinessPageProps) {
     effectiveTradeClassId,
   };
 
+  // slug deliberately always null on the US market for now —
+  // /requirements/{slug} (built in Stage 2) is Kenya-scoped: it fetches
+  // Kenya business links and frames content around Kenya ("... in
+  // Kenya"). Linking a US visitor there would be a content mismatch, not
+  // a 404, but still wrong — the fix is Stage 4 (a market-aware
+  // /us/requirements/{slug}), not enabling this link early. Revisit once
+  // that ships: swap this back to `req.template.published ?
+  // req.template.slug : null` and point RequirementCard at the US route
+  // for this market.
   const initialRequirements: RequirementData[] = requirements.map((req) => ({
   id: req.id,
   templateId: req.templateId,
@@ -478,6 +487,7 @@ export default async function USBusinessPage({ params }: BusinessPageProps) {
   category: req.template.category ?? null,
   necessity: req.necessityOverride ?? req.template.necessity,
   image: req.template.image ?? null,
+  slug: null,
 }));
 
     return (

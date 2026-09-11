@@ -1,7 +1,12 @@
+// app/api/requirements/route.ts
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { revalidateBusinessPages } from "@/lib/revalidate";
 import { isMarketCode } from "@/lib/markets";
+import { slugify, resolveUniqueSlug } from "@/lib/slugify";
+import { RequirementType } from "@prisma/client";
+
+const REQUIREMENT_TYPES = Object.values(RequirementType);
 
 export async function GET() {
   try {
@@ -19,6 +24,7 @@ export async function GET() {
       templates.map((t) => ({
         id: t.id,
         name: t.name,
+        slug: t.slug,
         description: t.description,
         descriptionUS: t.descriptionUS,
         image: t.image,
@@ -28,6 +34,12 @@ export async function GET() {
         isGlobal: t.isGlobal,
         isCountyFeeSchedule: t.isCountyFeeSchedule,
         restrictedToCountry: t.restrictedToCountry,
+        published: t.published,
+        publishedAt: t.publishedAt,
+        type: t.type,
+        sourceName: t.sourceName,
+        sourceUrl: t.sourceUrl,
+        verifiedAt: t.verifiedAt,
         productCount: t._count.products,
         businessCount: t._count.businesses,
         createdAt: t.createdAt,
@@ -48,6 +60,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const {
       name,
+      slug: requestedSlug,
       description,
       descriptionUS,
       image,
@@ -57,6 +70,11 @@ export async function POST(req: Request) {
       isGlobal = false,
       isCountyFeeSchedule = false,
       restrictedToCountry,
+      published = true,
+      type,
+      sourceName,
+      sourceUrl,
+      verifiedAt,
     } = body;
 
     if (!name || !category || !necessity) {
@@ -79,9 +97,28 @@ export async function POST(req: Request) {
       );
     }
 
+    if (type !== undefined && type !== null && !REQUIREMENT_TYPES.includes(type)) {
+      return NextResponse.json(
+        { error: `type must be one of: ${REQUIREMENT_TYPES.join(", ")}, or null` },
+        { status: 400 }
+      );
+    }
+
+    // Auto-generate a slug from `name` whenever one isn't supplied — an
+    // empty string from the admin form is treated the same as "not
+    // supplied" so the form can just be left blank rather than requiring
+    // every submission to fill it in manually. Collisions resolve to
+    // -2, -3, etc.
+    const baseSlug = slugify(requestedSlug || name);
+    const slug = await resolveUniqueSlug(baseSlug, async (candidate) => {
+      const existing = await prisma.requirementTemplate.findUnique({ where: { slug: candidate } });
+      return existing !== null;
+    });
+
     const template = await prisma.requirementTemplate.create({
       data: {
         name,
+        slug,
         description,
         // Optional US-specific override of `description` — see
         // lib/requirement-description.ts for the resolution order. Only
@@ -95,6 +132,12 @@ export async function POST(req: Request) {
         isGlobal,
         isCountyFeeSchedule,
         ...(restrictedToCountry !== undefined && { restrictedToCountry }),
+        published,
+        publishedAt: published ? new Date() : null,
+        ...(type !== undefined && { type: type || null }),
+        ...(sourceName !== undefined && { sourceName: sourceName || null }),
+        ...(sourceUrl !== undefined && { sourceUrl: sourceUrl || null }),
+        ...(verifiedAt !== undefined && { verifiedAt: verifiedAt ? new Date(verifiedAt) : null }),
       },
       include: { _count: { select: { products: true, businesses: true } } },
     });
@@ -166,6 +209,7 @@ export async function POST(req: Request) {
       {
         id: template.id,
         name: template.name,
+        slug: template.slug,
         description: template.description,
         descriptionUS: template.descriptionUS,
         image: template.image,
@@ -174,6 +218,12 @@ export async function POST(req: Request) {
         isGlobal: template.isGlobal,
         isCountyFeeSchedule: template.isCountyFeeSchedule,
         restrictedToCountry: template.restrictedToCountry,
+        published: template.published,
+        publishedAt: template.publishedAt,
+        type: template.type,
+        sourceName: template.sourceName,
+        sourceUrl: template.sourceUrl,
+        verifiedAt: template.verifiedAt,
         productCount: template._count.products,
         businessCount: updatedCount,
         createdAt: template.createdAt,

@@ -1,3 +1,4 @@
+//app/admin/requirements/page.tsx
 "use client";
 import { useEffect, useState, useMemo, useRef } from "react";
 import Image from "next/image";
@@ -14,6 +15,7 @@ import {
 type Template = {
   id: number;
   name: string;
+  slug: string | null;
   description?: string;
   descriptionUS: string | null;
   image?: string;
@@ -23,6 +25,12 @@ type Template = {
   isGlobal: boolean;
   isCountyFeeSchedule: boolean;
   restrictedToCountry: string | null;
+  published: boolean;
+  publishedAt: string | null;
+  type: string | null;
+  sourceName: string | null;
+  sourceUrl: string | null;
+  verifiedAt: string | null;
   productCount: number;
   businessCount: number;
   createdAt: string;
@@ -62,6 +70,32 @@ const CATEGORIES = [
   "Operating Expenses",
   "Stock",
 ];
+
+// Mirrors the RequirementType enum in prisma/schema.prisma. Kept as a
+// plain string array here (rather than importing the Prisma enum into a
+// client component) the same way CATEGORIES above is a plain array rather
+// than a DB-driven list — see the audit doc's Section 20 on why this will
+// eventually move to a fetched RequirementCategory list instead of a
+// hardcoded one.
+const REQUIREMENT_TYPES = [
+  "PERMIT",
+  "LICENCE",
+  "REGISTRATION",
+  "CERTIFICATE",
+  "EQUIPMENT",
+  "SOFTWARE",
+  "DOCUMENT",
+  "SERVICE",
+  "FURNITURE",
+  "SAFETY",
+  "BRANDING",
+  "OTHER",
+];
+
+function formatTypeLabel(type: string): string {
+  return type.charAt(0) + type.slice(1).toLowerCase();
+}
+
 const PAGE_SIZE = 10;
 
 const CAT_COLORS: Record<string, [string, string]> = {
@@ -76,6 +110,7 @@ const CAT_COLORS: Record<string, [string, string]> = {
 
 const defaultForm: {
   name: string;
+  slug: string;
   description: string;
   descriptionUS: string;
   image: string;
@@ -84,8 +119,14 @@ const defaultForm: {
   isGlobal: boolean;
   isCountyFeeSchedule: boolean;
   restrictedToCountry: string | null;
+  published: boolean;
+  type: string;
+  sourceName: string;
+  sourceUrl: string;
+  verifiedAt: string;
 } = {
   name: "",
+  slug: "",
   description: "",
   descriptionUS: "",
   image: "",
@@ -94,7 +135,26 @@ const defaultForm: {
   isGlobal: false,
   isCountyFeeSchedule: false,
   restrictedToCountry: "KE",
+  published: true,
+  type: "",
+  sourceName: "",
+  sourceUrl: "",
+  verifiedAt: "",
 };
+
+/** Client-side mirror of lib/slugify.ts's slugify(), used only to preview
+ * a slug in the form as the admin types a name — the server is still the
+ * source of truth for the final slug (it re-slugifies and resolves
+ * collisions regardless of what's sent). Kept tiny and duplicated rather
+ * than imported to avoid pulling a server-oriented module into this
+ * client component. */
+function previewSlug(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
 
 const S = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap');
@@ -164,8 +224,10 @@ const S = `
   .linked-biz-card.sel-unlink { border-color:rgba(239,68,68,0.3); background:rgba(239,68,68,0.04); }
   .linked-biz-row { display:flex; align-items:center; padding:0.65rem 0.85rem; gap:0.5rem; cursor:pointer; flex-wrap:nowrap; min-height:52px; }
   .dep-badge { display:inline-flex; align-items:center; gap:0.3rem; padding:0.2rem 0.6rem; border-radius:100px; font-size:0.68rem; font-weight:700; background:rgba(239,68,68,0.1); color:#f87171; border:1px solid rgba(239,68,68,0.2); }
+  .draft-badge { display:inline-flex; align-items:center; gap:0.3rem; padding:0.2rem 0.6rem; border-radius:100px; font-size:0.68rem; font-weight:700; background:rgba(148,148,176,0.12); color:#9494b0; border:1px solid rgba(148,148,176,0.22); }
   .global-badge { display:inline-flex; align-items:center; gap:0.25rem; padding:0.15rem 0.5rem; border-radius:100px; font-size:0.65rem; font-weight:700; background:rgba(99,102,241,0.12); color:#818cf8; border:1px solid rgba(99,102,241,0.2); }
   .market-badge { display:inline-flex; align-items:center; gap:0.25rem; padding:0.15rem 0.5rem; border-radius:100px; font-size:0.65rem; font-weight:700; background:rgba(148,148,176,0.1); color:#9494b0; border:1px solid rgba(148,148,176,0.2); }
+  .type-badge { display:inline-flex; align-items:center; gap:0.25rem; padding:0.15rem 0.5rem; border-radius:100px; font-size:0.65rem; font-weight:700; background:rgba(56,189,248,0.12); color:#38bdf8; border:1px solid rgba(56,189,248,0.22); }
   .modal-search { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.09); border-radius:8px; padding:0.5rem 2rem 0.5rem 2.1rem; color:#f0f0f5; font-family:'Sora',sans-serif; font-size:0.82rem; outline:none; width:100%; box-sizing:border-box; }
   .modal-search::placeholder { color:#3a3a56; }
   .modal-search:focus { border-color:rgba(99,102,241,0.5); }
@@ -493,7 +555,9 @@ export default function RequirementsPage() {
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("");
   const [filterNec, setFilterNec] = useState("");
+  const [filterType, setFilterType] = useState("");
   const [filterGlobal, setFilterGlobal] = useState(false);
+  const [filterDraftOnly, setFilterDraftOnly] = useState(false);
   const [showDeprecated, setShowDeprecated] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sortField, setSortField] = useState<SortField>("name");
@@ -509,6 +573,7 @@ export default function RequirementsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState(defaultForm);
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   const [formLinkToBiz, setFormLinkToBiz] = useState(false);
   const [formBizId, setFormBizId] = useState<number | null>(null);
@@ -540,7 +605,9 @@ export default function RequirementsPage() {
     search,
     filterCat,
     filterNec,
+    filterType,
     filterGlobal,
+    filterDraftOnly,
     showDeprecated,
     sortField,
     sortDir,
@@ -606,20 +673,24 @@ export default function RequirementsPage() {
   }
 
   const activeFilterCount =
-    [filterCat, filterNec].filter(Boolean).length +
+    [filterCat, filterNec, filterType].filter(Boolean).length +
     (showDeprecated ? 1 : 0) +
-    (filterGlobal ? 1 : 0);
+    (filterGlobal ? 1 : 0) +
+    (filterDraftOnly ? 1 : 0);
 
   const filtered = useMemo(() => {
     return templates
       .filter((t) => (showDeprecated ? true : !t.isDeprecated))
       .filter((t) => !filterCat || t.category === filterCat)
       .filter((t) => !filterNec || t.necessity === filterNec)
+      .filter((t) => !filterType || t.type === filterType)
       .filter((t) => !filterGlobal || t.isGlobal)
+      .filter((t) => !filterDraftOnly || !t.published)
       .filter(
         (t) =>
           !search ||
           t.name.toLowerCase().includes(search.toLowerCase()) ||
+          t.slug?.toLowerCase().includes(search.toLowerCase()) ||
           t.description?.toLowerCase().includes(search.toLowerCase()) ||
           t.category.toLowerCase().includes(search.toLowerCase()),
       )
@@ -655,7 +726,9 @@ export default function RequirementsPage() {
     search,
     filterCat,
     filterNec,
+    filterType,
     filterGlobal,
+    filterDraftOnly,
     showDeprecated,
     sortField,
     sortDir,
@@ -694,6 +767,7 @@ export default function RequirementsPage() {
 
   function openNew() {
     setFormData(defaultForm);
+    setSlugManuallyEdited(false);
     setEditingId(null);
     setFormLinkToBiz(false);
     setFormBizId(businesses.length > 0 ? businesses[0].id : null);
@@ -703,6 +777,7 @@ export default function RequirementsPage() {
   function openEdit(t: Template) {
     setFormData({
       name: t.name,
+      slug: t.slug ?? "",
       description: t.description ?? "",
       descriptionUS: t.descriptionUS ?? "",
       image: t.image ?? "",
@@ -711,7 +786,17 @@ export default function RequirementsPage() {
       isGlobal: t.isGlobal,
       isCountyFeeSchedule: t.isCountyFeeSchedule,
       restrictedToCountry: t.restrictedToCountry,
+      published: t.published,
+      type: t.type ?? "",
+      sourceName: t.sourceName ?? "",
+      sourceUrl: t.sourceUrl ?? "",
+      // <input type="date"> wants yyyy-mm-dd
+      verifiedAt: t.verifiedAt ? t.verifiedAt.slice(0, 10) : "",
     });
+    // An existing template already has a real slug, so don't auto-overwrite
+    // it just because the admin edits the name — they'd need to touch the
+    // slug field themselves to trigger a re-slug.
+    setSlugManuallyEdited(true);
     setEditingId(t.id);
     setFormLinkToBiz(false);
     setFormBizId(null);
@@ -726,7 +811,19 @@ export default function RequirementsPage() {
       const url = editingId
         ? `/api/requirements/${editingId}`
         : "/api/requirements";
-      const body: typeof formData & { businessId?: number } = { ...formData };
+      const body: Omit<typeof formData, "type" | "verifiedAt"> & {
+        businessId?: number;
+        type: string | null;
+        verifiedAt: string | null;
+      } = {
+        ...formData,
+        // Empty string means "no type set" / "not verified" — send null
+        // rather than an empty string so the API doesn't have to guess.
+        type: formData.type || null,
+        verifiedAt: formData.verifiedAt
+          ? new Date(formData.verifiedAt).toISOString()
+          : null,
+      };
       if (!editingId && formLinkToBiz && formBizId) body.businessId = formBizId;
       const r = await fetch(url, {
         method,
@@ -990,6 +1087,7 @@ export default function RequirementsPage() {
         (t) => !t.isDeprecated && t.necessity === "Optional",
       ).length,
       global: templates.filter((t) => !t.isDeprecated && t.isGlobal).length,
+      draft: templates.filter((t) => !t.isDeprecated && !t.published).length,
       totalLinks: templates.reduce((sum, t) => sum + t.businessCount, 0),
     }),
     [templates],
@@ -1120,6 +1218,16 @@ export default function RequirementsPage() {
               bg: "rgba(99,102,241,0.12)",
               color: "#818cf8",
             },
+            ...(stats.draft > 0
+              ? [
+                  {
+                    label: "Draft",
+                    val: stats.draft,
+                    bg: "rgba(148,148,176,0.12)",
+                    color: "#9494b0",
+                  },
+                ]
+              : []),
             ...(stats.deprecated > 0
               ? [
                   {
@@ -1308,8 +1416,10 @@ export default function RequirementsPage() {
                   onClick={() => {
                     setFilterCat("");
                     setFilterNec("");
+                    setFilterType("");
                     setShowDeprecated(false);
                     setFilterGlobal(false);
+                    setFilterDraftOnly(false);
                   }}
                   style={{
                     fontSize: "0.75rem",
@@ -1359,6 +1469,18 @@ export default function RequirementsPage() {
                   </option>
                 ))}
               </select>
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                className="u-select"
+              >
+                <option value="">Any type</option>
+                {REQUIREMENT_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {formatTypeLabel(t)}
+                  </option>
+                ))}
+              </select>
               <label
                 style={{
                   display: "flex",
@@ -1377,6 +1499,38 @@ export default function RequirementsPage() {
                   style={{ accentColor: "#6366f1", cursor: "pointer" }}
                 />
                 Global only
+              </label>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  cursor: "pointer",
+                  fontSize: "0.82rem",
+                  color: filterDraftOnly ? "#9494b0" : "#55556e",
+                  fontFamily: "Sora,sans-serif",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={filterDraftOnly}
+                  onChange={(e) => setFilterDraftOnly(e.target.checked)}
+                  style={{ accentColor: "#9494b0", cursor: "pointer" }}
+                />
+                Draft only
+                {stats.draft > 0 && (
+                  <span
+                    style={{
+                      fontSize: "0.7rem",
+                      background: "rgba(148,148,176,0.12)",
+                      color: "#9494b0",
+                      borderRadius: 100,
+                      padding: "0.1rem 0.4rem",
+                    }}
+                  >
+                    {stats.draft}
+                  </span>
+                )}
               </label>
               <label
                 style={{
@@ -1625,8 +1779,19 @@ export default function RequirementsPage() {
                                       deprecated
                                     </span>
                                   )}
+                                  {!t.isDeprecated && !t.published && (
+                                    <span className="draft-badge">draft</span>
+                                  )}
                                   {t.isGlobal && (
                                     <span className="global-badge">global</span>
+                                  )}
+                                  {t.type && (
+                                    <span
+                                      className="type-badge"
+                                      title="Requirement type — controls page template / structured data once /requirements pages exist"
+                                    >
+                                      {formatTypeLabel(t.type)}
+                                    </span>
                                   )}
                                   {t.isCountyFeeSchedule && (
                                     <span
@@ -1657,6 +1822,18 @@ export default function RequirementsPage() {
                                     </span>
                                   )}
                                 </div>
+                                {t.slug && (
+                                  <div
+                                    className="adm-mono"
+                                    style={{
+                                      fontSize: "0.68rem",
+                                      color: "#3a3a56",
+                                      marginTop: "0.1rem",
+                                    }}
+                                  >
+                                    /requirements/{t.slug}
+                                  </div>
+                                )}
                                 {t.description && (
                                   <div
                                     style={{
@@ -1901,8 +2078,14 @@ export default function RequirementsPage() {
                       {t.isDeprecated && (
                         <span className="dep-badge">deprecated</span>
                       )}
+                      {!t.isDeprecated && !t.published && (
+                        <span className="draft-badge">draft</span>
+                      )}
                       {t.isGlobal && (
                         <span className="global-badge">global</span>
+                      )}
+                      {t.type && (
+                        <span className="type-badge">{formatTypeLabel(t.type)}</span>
                       )}
                       {t.isCountyFeeSchedule && (
                         <span
@@ -1932,6 +2115,18 @@ export default function RequirementsPage() {
                         </span>
                       )}
                     </div>
+                    {t.slug && (
+                      <div
+                        className="adm-mono"
+                        style={{
+                          fontSize: "0.68rem",
+                          color: "#3a3a56",
+                          marginBottom: "0.4rem",
+                        }}
+                      >
+                        /requirements/{t.slug}
+                      </div>
+                    )}
                     {t.description && (
                       <div
                         style={{
@@ -2077,307 +2272,309 @@ export default function RequirementsPage() {
         {/* ── Create / Edit Modal ── */}
         {formOpen && (
           <div className="modal-overlay" onClick={() => setFormOpen(false)}>
-            <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "1.5rem",
-                }}
-              >
-                <h2 style={{ fontSize: "1.05rem", fontWeight: 700 }}>
-                  {editingId ? "Edit" : "New"} Requirement
-                </h2>
-                <button
-                  onClick={() => setFormOpen(false)}
-                  className="btn btn-ghost btn-icon"
-                >
-                  ×
-                </button>
-              </div>
-              {editingId && (
+            <div
+              className="modal-box modal-flex"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="modal-flex-header">
                 <div
                   style={{
-                    background: "rgba(99,102,241,0.08)",
-                    border: "1px solid rgba(99,102,241,0.2)",
-                    borderRadius: 10,
-                    padding: "0.75rem 1rem",
-                    marginBottom: "1.25rem",
-                    fontSize: "0.78rem",
-                    color: "#a5b4fc",
-                    lineHeight: 1.6,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
                   }}
                 >
-                  Changes here apply to <strong>all businesses</strong> that
-                  have linked this requirement. To customise per-business, use
-                  the &ldquo;Add to Biz&rdquo; modal.
+                  <h2 style={{ fontSize: "1.05rem", fontWeight: 700 }}>
+                    {editingId ? "Edit" : "New"} Requirement
+                  </h2>
+                  <button
+                    onClick={() => setFormOpen(false)}
+                    className="btn btn-ghost btn-icon"
+                  >
+                    ×
+                  </button>
                 </div>
-              )}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.9rem",
-                }}
-              >
-                <div>
-                  <label className="f-label">Name *</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Business Permit, Laptop, POS System"
-                    className="f-input"
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    autoFocus
-                  />
-                </div>
-                <div>
-                  <label className="f-label">Description</label>
-                  <textarea
-                    placeholder="Use [businessName] to personalise — e.g. 'You need a business permit to operate your [businessName].'"
-                    className="f-textarea"
-                    rows={3}
-                    value={formData.description}
-                    onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
-                    }
-                  />
-                  <div className="f-hint highlight">
-                    Tip: [businessName] is replaced with the business name
-                    wherever this requirement appears.
-                  </div>
-                </div>
-
-                {formData.restrictedToCountry === null && (
-                  <div>
-                    <label className="f-label">
-                      US Description Override{" "}
-                      <span style={{ fontWeight: 400, color: "#55556e" }}>
-                        (optional)
-                      </span>
-                    </label>
-                    <textarea
-                      placeholder="Leave blank to use the description above for US visitors too. Only fill this in if the requirement genuinely works differently in the US — e.g. tax software (KRA/iTax vs IRS)."
-                      className="f-textarea"
-                      rows={3}
-                      value={formData.descriptionUS}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          descriptionUS: e.target.value,
-                        })
-                      }
-                    />
-                    <div className="f-hint">
-                      Shown to US visitors instead of the description above.
-                      Kenya visitors always see the description above.
-                    </div>
+                {editingId && (
+                  <div
+                    style={{
+                      background: "rgba(99,102,241,0.08)",
+                      border: "1px solid rgba(99,102,241,0.2)",
+                      borderRadius: 10,
+                      padding: "0.75rem 1rem",
+                      marginTop: "1rem",
+                      fontSize: "0.78rem",
+                      color: "#a5b4fc",
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    Changes here apply to <strong>all businesses</strong> that
+                    have linked this requirement. To customise per-business, use
+                    the &ldquo;Add to Biz&rdquo; modal.
                   </div>
                 )}
+              </div>
 
+              <div className="modal-flex-body scroll">
                 <div
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: "0.75rem",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.9rem",
                   }}
                 >
                   <div>
-                    <label className="f-label">Category *</label>
-                    <select
-                      className="f-select"
-                      value={formData.category}
+                    <label className="f-label">Name *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Business Permit, Laptop, POS System"
+                      className="f-input"
+                      value={formData.name}
                       onChange={(e) => {
-                        const newCategory = e.target.value;
-                        // Switching category can change the valid necessity scale
-                        // (e.g. moving into/out of Stock). If the current necessity
-                        // value isn't valid for the new category, reset it to that
-                        // category's default rather than leaving a stale value.
-                        // Also reset isCountyFeeSchedule when leaving Legal — that
-                        // toggle only makes sense for Legal requirements.
+                        const name = e.target.value;
                         setFormData((f) => ({
                           ...f,
-                          category: newCategory,
-                          necessity: necessityOptions(newCategory).some(
-                            (o) => o.value === f.necessity,
-                          )
-                            ? f.necessity
-                            : defaultNecessity(newCategory),
-                          isCountyFeeSchedule:
-                            newCategory === "Legal"
-                              ? f.isCountyFeeSchedule
-                              : false,
+                          name,
+                          // Keep the slug preview in sync with the name until
+                          // the admin explicitly edits the slug field
+                          // themselves — matches the create-time UX of most
+                          // CMS admin forms (title → slug auto-fill, editable).
+                          slug: slugManuallyEdited ? f.slug : previewSlug(name),
                         }));
                       }}
+                      autoFocus
+                    />
+                  </div>
+
+                  <div>
+                    <label className="f-label">
+                      Slug{" "}
+                      <span style={{ fontWeight: 400, color: "#55556e" }}>
+                        (URL: /requirements/…)
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="auto-generated from name if left blank"
+                      className="f-input"
+                      value={formData.slug}
+                      onChange={(e) => {
+                        setSlugManuallyEdited(true);
+                        setFormData({ ...formData, slug: previewSlug(e.target.value) });
+                      }}
+                    />
+                    <div className="f-hint">
+                      {editingId
+                        ? "Changing this after the page is live will move the URL — set up a redirect if it's already indexed."
+                        : "Leave blank to auto-generate from the name. Preview only — the server resolves the final slug and any collisions."}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="f-label">Description</label>
+                    <textarea
+                      placeholder="Use [businessName] to personalise — e.g. 'You need a business permit to operate your [businessName].'"
+                      className="f-textarea"
+                      rows={3}
+                      value={formData.description}
+                      onChange={(e) =>
+                        setFormData({ ...formData, description: e.target.value })
+                      }
+                    />
+                    <div className="f-hint highlight">
+                      Tip: [businessName] is replaced with the business name
+                      wherever this requirement appears.
+                    </div>
+                  </div>
+
+                  {formData.restrictedToCountry === null && (
+                    <div>
+                      <label className="f-label">
+                        US Description Override{" "}
+                        <span style={{ fontWeight: 400, color: "#55556e" }}>
+                          (optional)
+                        </span>
+                      </label>
+                      <textarea
+                        placeholder="Leave blank to use the description above for US visitors too. Only fill this in if the requirement genuinely works differently in the US — e.g. tax software (KRA/iTax vs IRS)."
+                        className="f-textarea"
+                        rows={3}
+                        value={formData.descriptionUS}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            descriptionUS: e.target.value,
+                          })
+                        }
+                      />
+                      <div className="f-hint">
+                        Shown to US visitors instead of the description above.
+                        Kenya visitors always see the description above.
+                      </div>
+                    </div>
+                  )}
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "0.75rem",
+                    }}
+                  >
+                    <div>
+                      <label className="f-label">Category *</label>
+                      <select
+                        className="f-select"
+                        value={formData.category}
+                        onChange={(e) => {
+                          const newCategory = e.target.value;
+                          // Switching category can change the valid necessity scale
+                          // (e.g. moving into/out of Stock). If the current necessity
+                          // value isn't valid for the new category, reset it to that
+                          // category's default rather than leaving a stale value.
+                          // Also reset isCountyFeeSchedule when leaving Legal — that
+                          // toggle only makes sense for Legal requirements.
+                          setFormData((f) => ({
+                            ...f,
+                            category: newCategory,
+                            necessity: necessityOptions(newCategory).some(
+                              (o) => o.value === f.necessity,
+                            )
+                              ? f.necessity
+                              : defaultNecessity(newCategory),
+                            isCountyFeeSchedule:
+                              newCategory === "Legal"
+                                ? f.isCountyFeeSchedule
+                                : false,
+                          }));
+                        }}
+                      >
+                        <option value="">Select…</option>
+                        {CATEGORIES.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="f-label">Image URL</label>
+                      <input
+                        type="text"
+                        placeholder="https://…"
+                        className="f-input"
+                        value={formData.image}
+                        onChange={(e) =>
+                          setFormData({ ...formData, image: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="f-label">
+                      Type{" "}
+                      <span style={{ fontWeight: 400, color: "#55556e" }}>
+                        (optional — controls page template once /requirements
+                        pages exist)
+                      </span>
+                    </label>
+                    <select
+                      className="f-select"
+                      value={formData.type}
+                      onChange={(e) =>
+                        setFormData({ ...formData, type: e.target.value })
+                      }
                     >
-                      <option value="">Select…</option>
-                      {CATEGORIES.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
+                      <option value="">Not set</option>
+                      {REQUIREMENT_TYPES.map((t) => (
+                        <option key={t} value={t}>
+                          {formatTypeLabel(t)}
                         </option>
                       ))}
                     </select>
                   </div>
+
                   <div>
-                    <label className="f-label">Image URL</label>
-                    <input
-                      type="text"
-                      placeholder="https://…"
-                      className="f-input"
-                      value={formData.image}
-                      onChange={(e) =>
-                        setFormData({ ...formData, image: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="f-label">Default Necessity *</label>
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "0.65rem",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    {necessityOptions(formData.category || "Equipment").map(
-                      (o) => (
-                        <label
-                          key={o.value}
-                          className="nec-opt"
-                          style={{
-                            borderColor:
-                              formData.necessity === o.value
-                                ? `${o.hexColor}80`
-                                : "rgba(255,255,255,0.07)",
-                            background:
-                              formData.necessity === o.value
-                                ? o.hexBg
-                                : "transparent",
-                            color:
-                              formData.necessity === o.value
-                                ? o.hexColor
-                                : "#9494b0",
-                          }}
-                        >
-                          <input
-                            type="radio"
-                            name="nec"
-                            value={o.value}
-                            checked={formData.necessity === o.value}
-                            onChange={() =>
-                              setFormData({ ...formData, necessity: o.value })
-                            }
-                            style={{ display: "none" }}
-                          />
-                          {o.label}
-                        </label>
-                      ),
-                    )}
-                  </div>
-                  <div className="f-hint">
-                    This is the default. You can override per-business in the
-                    Add to Biz modal.
-                  </div>
-                </div>
-
-                {/* Global toggle */}
-                <div>
-                  <label
-                    className="link-biz-toggle"
-                    style={{
-                      borderColor: formData.isGlobal
-                        ? "rgba(99,102,241,0.4)"
-                        : "rgba(99,102,241,0.15)",
-                      background: formData.isGlobal
-                        ? "rgba(99,102,241,0.12)"
-                        : "rgba(99,102,241,0.06)",
-                    }}
-                    onClick={() =>
-                      setFormData((f) => ({ ...f, isGlobal: !f.isGlobal }))
-                    }
-                  >
-                    <input
-                      type="checkbox"
-                      checked={formData.isGlobal}
-                      onChange={() =>
-                        setFormData((f) => ({ ...f, isGlobal: !f.isGlobal }))
-                      }
-                      style={{ accentColor: "#6366f1", cursor: "pointer" }}
-                    />
-                    <span
-                      style={{
-                        fontWeight: 600,
-                        color: formData.isGlobal ? "#a5b4fc" : "#9494b0",
-                      }}
-                    >
-                      Global requirement
-                    </span>
-                    <span
-                      style={{
-                        fontSize: "0.72rem",
-                        color: "#55556e",
-                        marginLeft: "auto",
-                      }}
-                    >
-                      auto-links to every business
-                    </span>
-                  </label>
-                  {formData.isGlobal && (
+                    <label className="f-label">Default Necessity *</label>
                     <div
-                      className="f-hint highlight"
-                      style={{ marginTop: "0.4rem" }}
+                      style={{
+                        display: "flex",
+                        gap: "0.65rem",
+                        flexWrap: "wrap",
+                      }}
                     >
-                      {editingId
-                        ? `Saving will link this to any businesses not yet connected (${businesses.length} total).`
-                        : `Will be automatically linked to all ${businesses.length} existing businesses, and every new business going forward.`}
+                      {necessityOptions(formData.category || "Equipment").map(
+                        (o) => (
+                          <label
+                            key={o.value}
+                            className="nec-opt"
+                            style={{
+                              borderColor:
+                                formData.necessity === o.value
+                                  ? `${o.hexColor}80`
+                                  : "rgba(255,255,255,0.07)",
+                              background:
+                                formData.necessity === o.value
+                                  ? o.hexBg
+                                  : "transparent",
+                              color:
+                                formData.necessity === o.value
+                                  ? o.hexColor
+                                  : "#9494b0",
+                            }}
+                          >
+                            <input
+                              type="radio"
+                              name="nec"
+                              value={o.value}
+                              checked={formData.necessity === o.value}
+                              onChange={() =>
+                                setFormData({ ...formData, necessity: o.value })
+                              }
+                              style={{ display: "none" }}
+                            />
+                            {o.label}
+                          </label>
+                        ),
+                      )}
                     </div>
-                  )}
-                </div>
+                    <div className="f-hint">
+                      This is the default. You can override per-business in the
+                      Add to Biz modal.
+                    </div>
+                  </div>
 
-                {/* County fee-schedule toggle — Legal category only */}
-                {formData.category === "Legal" && (
+                  {/* Published toggle */}
                   <div>
                     <label
                       className="link-biz-toggle"
                       style={{
-                        borderColor: formData.isCountyFeeSchedule
-                          ? "rgba(20,184,166,0.4)"
-                          : "rgba(99,102,241,0.15)",
-                        background: formData.isCountyFeeSchedule
-                          ? "rgba(20,184,166,0.1)"
-                          : "rgba(99,102,241,0.06)",
+                        borderColor: formData.published
+                          ? "rgba(52,211,153,0.35)"
+                          : "rgba(148,148,176,0.2)",
+                        background: formData.published
+                          ? "rgba(52,211,153,0.08)"
+                          : "rgba(148,148,176,0.06)",
                       }}
                       onClick={() =>
-                        setFormData((f) => ({
-                          ...f,
-                          isCountyFeeSchedule: !f.isCountyFeeSchedule,
-                        }))
+                        setFormData((f) => ({ ...f, published: !f.published }))
                       }
                     >
                       <input
                         type="checkbox"
-                        checked={formData.isCountyFeeSchedule}
+                        checked={formData.published}
                         onChange={() =>
-                          setFormData((f) => ({
-                            ...f,
-                            isCountyFeeSchedule: !f.isCountyFeeSchedule,
-                          }))
+                          setFormData((f) => ({ ...f, published: !f.published }))
                         }
-                        style={{ accentColor: "#14b8a6", cursor: "pointer" }}
+                        style={{ accentColor: "#34d399", cursor: "pointer" }}
                       />
                       <span
                         style={{
                           fontWeight: 600,
-                          color: formData.isCountyFeeSchedule
-                            ? "#2dd4bf"
-                            : "#9494b0",
+                          color: formData.published ? "#6ee7b7" : "#9494b0",
                         }}
                       >
-                        County fee schedule
+                        Published
                       </span>
                       <span
                         style={{
@@ -2386,67 +2583,44 @@ export default function RequirementsPage() {
                           marginLeft: "auto",
                         }}
                       >
-                        price varies by county, e.g. Business Permit
+                        {formData.published
+                          ? "visible once /requirements pages ship"
+                          : "draft — hidden from the public site"}
                       </span>
                     </label>
-                    {formData.isCountyFeeSchedule && (
-                      <div
-                        className="f-hint highlight"
-                        style={{ marginTop: "0.4rem" }}
-                      >
-                        Pricing for this requirement is managed via the Legal
-                        Fee Schedule (per-county rates), not the normal product
-                        catalog.
-                      </div>
-                    )}
                   </div>
-                )}
 
-                {/* Market availability */}
-                <div>
-                  <label className="f-label">Market Availability</label>
-                  <select
-                    className="f-select"
-                    value={formData.restrictedToCountry ?? ""}
-                    onChange={(e) =>
-                      setFormData((f) => ({
-                        ...f,
-                        restrictedToCountry:
-                          e.target.value === "" ? null : e.target.value,
-                      }))
-                    }
-                  >
-                    <option value="KE">Kenya only</option>
-                    <option value="US">US only</option>
-                    <option value="">All markets</option>
-                  </select>
-                  <div className="f-hint">
-                    {formData.restrictedToCountry === null
-                      ? "Shows in every market, including any added later."
-                      : `Only shows to visitors in ${formData.restrictedToCountry === "KE" ? "Kenya" : "the US"}.`}
-                  </div>
-                </div>
-
-                {/* Link to specific biz — only shown when NOT global and NOT editing */}
-                {!editingId && !formData.isGlobal && (
+                  {/* Global toggle */}
                   <div>
                     <label
                       className="link-biz-toggle"
-                      onClick={() => setFormLinkToBiz(!formLinkToBiz)}
+                      style={{
+                        borderColor: formData.isGlobal
+                          ? "rgba(99,102,241,0.4)"
+                          : "rgba(99,102,241,0.15)",
+                        background: formData.isGlobal
+                          ? "rgba(99,102,241,0.12)"
+                          : "rgba(99,102,241,0.06)",
+                      }}
+                      onClick={() =>
+                        setFormData((f) => ({ ...f, isGlobal: !f.isGlobal }))
+                      }
                     >
                       <input
                         type="checkbox"
-                        checked={formLinkToBiz}
-                        onChange={() => setFormLinkToBiz(!formLinkToBiz)}
+                        checked={formData.isGlobal}
+                        onChange={() =>
+                          setFormData((f) => ({ ...f, isGlobal: !f.isGlobal }))
+                        }
                         style={{ accentColor: "#6366f1", cursor: "pointer" }}
                       />
                       <span
                         style={{
                           fontWeight: 600,
-                          color: formLinkToBiz ? "#a5b4fc" : "#9494b0",
+                          color: formData.isGlobal ? "#a5b4fc" : "#9494b0",
                         }}
                       >
-                        Also link to a business
+                        Global requirement
                       </span>
                       <span
                         style={{
@@ -2455,69 +2629,271 @@ export default function RequirementsPage() {
                           marginLeft: "auto",
                         }}
                       >
-                        optional
+                        auto-links to every business
                       </span>
                     </label>
-                    {formLinkToBiz && (
-                      <div style={{ marginTop: "0.65rem" }}>
-                        <label className="f-label">Select Business</label>
-                        <select
-                          className="f-select"
-                          value={formBizId ?? ""}
-                          onChange={(e) => setFormBizId(Number(e.target.value))}
-                        >
-                          <option value="">— Select a business —</option>
-                          {businesses.map((b) => (
-                            <option key={b.id} value={b.id}>
-                              {b.name}
-                              {!b.published ? " (draft)" : ""}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="f-hint">
-                          Requirement will be added to the library AND linked to
-                          this business.
-                        </div>
+                    {formData.isGlobal && (
+                      <div
+                        className="f-hint highlight"
+                        style={{ marginTop: "0.4rem" }}
+                      >
+                        {editingId
+                          ? `Saving will link this to any businesses not yet connected (${businesses.length} total).`
+                          : `Will be automatically linked to all ${businesses.length} existing businesses, and every new business going forward.`}
                       </div>
                     )}
                   </div>
-                )}
 
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    gap: "0.65rem",
-                    marginTop: "0.5rem",
-                  }}
-                >
-                  <button
-                    className="btn btn-ghost"
-                    onClick={() => setFormOpen(false)}
+                  {/* County fee-schedule toggle — Legal category only */}
+                  {formData.category === "Legal" && (
+                    <div>
+                      <label
+                        className="link-biz-toggle"
+                        style={{
+                          borderColor: formData.isCountyFeeSchedule
+                            ? "rgba(20,184,166,0.4)"
+                            : "rgba(99,102,241,0.15)",
+                          background: formData.isCountyFeeSchedule
+                            ? "rgba(20,184,166,0.1)"
+                            : "rgba(99,102,241,0.06)",
+                        }}
+                        onClick={() =>
+                          setFormData((f) => ({
+                            ...f,
+                            isCountyFeeSchedule: !f.isCountyFeeSchedule,
+                          }))
+                        }
+                      >
+                        <input
+                          type="checkbox"
+                          checked={formData.isCountyFeeSchedule}
+                          onChange={() =>
+                            setFormData((f) => ({
+                              ...f,
+                              isCountyFeeSchedule: !f.isCountyFeeSchedule,
+                            }))
+                          }
+                          style={{ accentColor: "#14b8a6", cursor: "pointer" }}
+                        />
+                        <span
+                          style={{
+                            fontWeight: 600,
+                            color: formData.isCountyFeeSchedule
+                              ? "#2dd4bf"
+                              : "#9494b0",
+                          }}
+                        >
+                          County fee schedule
+                        </span>
+                        <span
+                          style={{
+                            fontSize: "0.72rem",
+                            color: "#55556e",
+                            marginLeft: "auto",
+                          }}
+                        >
+                          price varies by county, e.g. Business Permit
+                        </span>
+                      </label>
+                      {formData.isCountyFeeSchedule && (
+                        <div
+                          className="f-hint highlight"
+                          style={{ marginTop: "0.4rem" }}
+                        >
+                          Pricing for this requirement is managed via the Legal
+                          Fee Schedule (per-county rates), not the normal product
+                          catalog.
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Market availability */}
+                  <div>
+                    <label className="f-label">Market Availability</label>
+                    <select
+                      className="f-select"
+                      value={formData.restrictedToCountry ?? ""}
+                      onChange={(e) =>
+                        setFormData((f) => ({
+                          ...f,
+                          restrictedToCountry:
+                            e.target.value === "" ? null : e.target.value,
+                        }))
+                      }
+                    >
+                      <option value="KE">Kenya only</option>
+                      <option value="US">US only</option>
+                      <option value="">All markets</option>
+                    </select>
+                    <div className="f-hint">
+                      {formData.restrictedToCountry === null
+                        ? "Shows in every market, including any added later."
+                        : `Only shows to visitors in ${formData.restrictedToCountry === "KE" ? "Kenya" : "the US"}.`}
+                    </div>
+                  </div>
+
+                  {/* Trust & verification */}
+                  <div
+                    style={{
+                      border: "1px solid rgba(255,255,255,0.07)",
+                      borderRadius: 10,
+                      padding: "0.85rem 1rem",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.65rem",
+                    }}
                   >
-                    Cancel
-                  </button>
-                  <button
-                    className="btn btn-primary"
-                    onClick={handleSubmit}
-                    disabled={
-                      formLoading ||
-                      !formData.name ||
-                      !formData.category ||
-                      !formData.necessity
-                    }
-                  >
-                    {formLoading
-                      ? "Saving…"
-                      : editingId
-                        ? "Update"
-                        : formData.isGlobal
-                          ? "Create + Link to All"
-                          : formLinkToBiz && formBizId
-                            ? "Create + Link to Biz"
-                            : "Create"}
-                  </button>
+                    <span
+                      style={{
+                        fontSize: "0.72rem",
+                        fontWeight: 700,
+                        color: "#55556e",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.07em",
+                      }}
+                    >
+                      Trust &amp; verification
+                    </span>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: "0.65rem",
+                      }}
+                    >
+                      <div>
+                        <label className="f-label">Source name</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Nairobi City County"
+                          className="f-input"
+                          value={formData.sourceName}
+                          onChange={(e) =>
+                            setFormData({ ...formData, sourceName: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="f-label">Verified date</label>
+                        <input
+                          type="date"
+                          className="f-input"
+                          value={formData.verifiedAt}
+                          onChange={(e) =>
+                            setFormData({ ...formData, verifiedAt: e.target.value })
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="f-label">Source URL</label>
+                      <input
+                        type="text"
+                        placeholder="https://…"
+                        className="f-input"
+                        value={formData.sourceUrl}
+                        onChange={(e) =>
+                          setFormData({ ...formData, sourceUrl: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="f-hint">
+                      Only fill these in once genuinely verified — leave blank
+                      rather than guessing. The public page only shows a
+                      &ldquo;last verified&rdquo; line when a date is actually
+                      set here.
+                    </div>
+                  </div>
+
+                  {/* Link to specific biz — only shown when NOT global and NOT editing */}
+                  {!editingId && !formData.isGlobal && (
+                    <div>
+                      <label
+                        className="link-biz-toggle"
+                        onClick={() => setFormLinkToBiz(!formLinkToBiz)}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={formLinkToBiz}
+                          onChange={() => setFormLinkToBiz(!formLinkToBiz)}
+                          style={{ accentColor: "#6366f1", cursor: "pointer" }}
+                        />
+                        <span
+                          style={{
+                            fontWeight: 600,
+                            color: formLinkToBiz ? "#a5b4fc" : "#9494b0",
+                          }}
+                        >
+                          Also link to a business
+                        </span>
+                        <span
+                          style={{
+                            fontSize: "0.72rem",
+                            color: "#55556e",
+                            marginLeft: "auto",
+                          }}
+                        >
+                          optional
+                        </span>
+                      </label>
+                      {formLinkToBiz && (
+                        <div style={{ marginTop: "0.65rem" }}>
+                          <label className="f-label">Select Business</label>
+                          <select
+                            className="f-select"
+                            value={formBizId ?? ""}
+                            onChange={(e) => setFormBizId(Number(e.target.value))}
+                          >
+                            <option value="">— Select a business —</option>
+                            {businesses.map((b) => (
+                              <option key={b.id} value={b.id}>
+                                {b.name}
+                                {!b.published ? " (draft)" : ""}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="f-hint">
+                            Requirement will be added to the library AND linked to
+                            this business.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
+              </div>
+
+              <div
+                className="modal-flex-footer"
+                style={{ display: "flex", justifyContent: "flex-end", gap: "0.65rem" }}
+              >
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => setFormOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleSubmit}
+                  disabled={
+                    formLoading ||
+                    !formData.name ||
+                    !formData.category ||
+                    !formData.necessity
+                  }
+                >
+                  {formLoading
+                    ? "Saving…"
+                    : editingId
+                      ? "Update"
+                      : formData.isGlobal
+                        ? "Create + Link to All"
+                        : formLinkToBiz && formBizId
+                          ? "Create + Link to Biz"
+                          : "Create"}
+                </button>
               </div>
             </div>
           </div>

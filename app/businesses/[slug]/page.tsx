@@ -247,12 +247,17 @@ export default async function BusinessHubPage({ params }: Props) {
     {}
   );
 
+  // requirementSlug is only a valid link target when the template is
+  // actually published — an unpublished template might carry a slug
+  // placeholder but has no live /requirements/{slug} page yet. See the
+  // internal-linking design note in lib/business-data.ts.
   const previewRequirements = coreRequirements.slice(0, 4).map((r) => ({
     id: r.id,
     name: r.template.name,
     category: r.template.category,
     necessity: r.template.necessity,
     image: r.template.image,
+    requirementSlug: r.template.published ? r.template.slug : null,
   }));
 
   const categoryBreakdown = Object.entries(grouped).map(([cat, reqs]) => ({
@@ -311,11 +316,10 @@ export default async function BusinessHubPage({ params }: Props) {
 
   // ── Structured Data ───────────────────────────────────────────────────────
   //
-  // BreadcrumbList now mirrors the visible breadcrumb in HubPageContent.tsx
+  // BreadcrumbList mirrors the visible breadcrumb in HubPageContent.tsx
   // exactly: Home > Businesses > Categories > {Category} > {Business} when
   // the business has a category, or Home > Businesses > {Business} when it
-  // doesn't. Previously this always emitted the 3-node version regardless
-  // of category, one level shallower than what visitors actually see.
+  // doesn't.
   const breadcrumbItems: Array<{ '@type': string; position: number; name: string; item: string }> = [
     { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
     { '@type': 'ListItem', position: 2, name: 'Businesses', item: `${SITE_URL}/businesses` },

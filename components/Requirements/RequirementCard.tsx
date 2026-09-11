@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import ProductCard from "@/components/product/ProductCard";
 import { Product } from "@/types";
 import {
@@ -34,6 +35,15 @@ interface RequirementCardProps {
     description?: string;
     necessity: string;
     image?: string;
+    // Only a valid link target when the source RequirementTemplate is
+    // published (see the requirementSlug/slug computation in the page
+    // components that build this data) — null/undefined means "no live
+    // /requirements/{slug} page yet, render plain text." Deliberately
+    // always null on the US market for now — see the note in
+    // app/us/businesses/[slug]/requirements/page.tsx about why linking
+    // to the Kenya-scoped requirement page from a US context would be a
+    // content mismatch until Stage 4 ships a market-aware equivalent.
+    slug?: string | null;
   };
   products?: Product[];
   countyUnavailable?: boolean;
@@ -510,9 +520,25 @@ export default function RequirementCard({
               </div>
 
               <div className="flex-1 min-w-0">
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900 group-hover:text-blue-700 transition-colors duration-200 mb-2 break-words whitespace-normal leading-snug">
-                  {requirement.name}
-                </h3>
+                {/* Requirement name — links out to its /requirements/{slug}
+                    entity page when one exists and is published (see the
+                    slug threading notes in the RequirementCardProps type
+                    above). Falls back to plain text otherwise, so an
+                    unpublished or not-yet-slugged template never produces
+                    a broken link. Link opens the same tab — this is a
+                    real content page, not an external reference. */}
+                {requirement.slug ? (
+                  <Link
+                    href={`/requirements/${requirement.slug}`}
+                    className="text-lg sm:text-xl font-bold text-gray-900 group-hover:text-blue-700 hover:underline transition-colors duration-200 mb-2 break-words whitespace-normal leading-snug block"
+                  >
+                    {requirement.name}
+                  </Link>
+                ) : (
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 group-hover:text-blue-700 transition-colors duration-200 mb-2 break-words whitespace-normal leading-snug">
+                    {requirement.name}
+                  </h3>
+                )}
                 <div
                   className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold ${style.bg} ${style.text} ${style.border} border`}
                 >

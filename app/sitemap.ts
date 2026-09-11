@@ -1,6 +1,8 @@
 // app/sitemap.ts
 import { MetadataRoute } from 'next';
 import { prisma } from '@/lib/prisma';
+import { getIndexableRequirementSlugs } from '@/lib/requirement-data';
+import { DEFAULT_MARKET } from '@/lib/markets';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
 
@@ -38,13 +40,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'daily',
       priority: 0.9,
     },
-    // Previously missing entirely — the US market has been live without
-    // any sitemap discovery signal for its own listing page.
     {
       url: `${SITE_URL}/us/businesses`,
       lastModified: new Date(),
       changeFrequency: 'daily',
       priority: 0.9,
+    },
+    // New — the requirement entity index (Stage 2).
+    {
+      url: `${SITE_URL}/requirements`,
+      lastModified: new Date(),
+      changeFrequency: 'daily',
+      priority: 0.85,
     },
     {
       url: `${SITE_URL}/guides`,
@@ -122,7 +129,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     });
 
     businessPages = businesses.flatMap((business) => [
-      // Hub page — slightly higher priority than sub-pages
       {
         url: `${SITE_URL}/businesses/${business.slug}`,
         lastModified: business.updatedAt,
@@ -135,7 +141,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         changeFrequency: 'weekly' as const,
         priority: 0.80,
       },
-      // Active "How-to-Start" Sub-page
       {
         url: `${SITE_URL}/businesses/${business.slug}/how-to-start`,
         lastModified: business.updatedAt,
@@ -148,11 +153,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   // ── Dynamic US business pages ─────────────────────────────────────────────
-  // Previously missing entirely — nothing generated a US sitemap. Filtered
-  // to US-eligible businesses only (see US_ELIGIBLE_WHERE above) so this
-  // never advertises a page the US routes' own guards would 404. No
-  // how-to-start entry — that route doesn't exist for the US market yet
-  // (shows "Coming soon" on the hub page instead).
   let usBusinessPages: MetadataRoute.Sitemap = [];
 
   try {
@@ -171,13 +171,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         lastModified: business.updatedAt,
         changeFrequency: 'weekly' as const,
         priority: 0.85,
-        // Supplementary hreflang signal for sitemap-reading crawlers.
-        // Confirm your Next.js version actually honors per-entry
-        // `alternates.languages` in MetadataRoute.Sitemap before relying
-        // on this — it's changed across Next versions. The authoritative
-        // signal either way is the `alternates.languages` block in each
-        // page's own generateMetadata (see the hub/requirements page
-        // updates alongside this file).
         alternates: {
           languages: {
             'en-KE': `${SITE_URL}/businesses/${business.slug}`,
@@ -200,6 +193,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ]);
   } catch (error) {
     console.error('Sitemap: failed to fetch US-eligible businesses from DB:', error);
+  }
+
+  // ── Dynamic requirement entity pages (Stage 2) ────────────────────────────
+  // Filtered by getIndexableRequirementSlugs's anti-orphan rule — a
+  // requirement only gets a sitemap entry if it has real content behind it
+  // (an active business link or fee-schedule data), same bar the page's
+  // own generateStaticParams and notFound() guard use.
+  let requirementPages: MetadataRoute.Sitemap = [];
+
+  try {
+    const slugs = await getIndexableRequirementSlugs(DEFAULT_MARKET);
+    requirementPages = slugs.map((slug) => ({
+      url: `${SITE_URL}/requirements/${slug}`,
+      changeFrequency: 'weekly' as const,
+      priority: 0.75,
+    }));
+  } catch (error) {
+    console.error('Sitemap: failed to fetch requirement slugs from DB:', error);
   }
 
   // ── Dynamic category pages ──────────────────────────────────────────────────
@@ -227,5 +238,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     console.error('Sitemap: failed to fetch categories from DB:', error);
   }
 
-  return [...staticPages, ...businessPages, ...usBusinessPages, ...categoryPages];
+  return [
+    ...staticPages,
+    ...businessPages,
+    ...usBusinessPages,
+    ...requirementPages,
+    ...categoryPages,
+  ];
 }

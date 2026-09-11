@@ -37,6 +37,15 @@ export async function fetchBusiness(slug: string, market: MarketCode = DEFAULT_M
               category: true,
               necessity: true,
               image: true,
+              // slug/published — added for internal linking from the
+              // requirements preview on this page out to
+              // /requirements/{slug}. Only a *published* template
+              // actually has a live page, so callers must gate on
+              // `published` before using `slug` as a link target — see
+              // the requirementSlug computation in
+              // app/businesses/[slug]/page.tsx and the US equivalent.
+              slug: true,
+              published: true,
               // ← needed for server-side cost calculation for FAQs
               products: {
                 select: { price: true },
@@ -94,6 +103,11 @@ export async function fetchBusinessWithRequirements(slug: string, market: Market
               category: true,
               necessity: true,
               image: true,
+              // slug/published — same internal-linking rationale as
+              // fetchBusiness above. Used to build RequirementData.slug
+              // for every requirement card on the checklist page.
+              slug: true,
+              published: true,
             },
           },
         },
