@@ -169,7 +169,6 @@ model Business {
   // "High-End Spa" vs "Barbershop", both under Beauty & Wellness).
   tradeClassId Int?
   tradeClass   TradeClass? @relation(fields: [tradeClassId], references: [id])
-  sizeBand     BusinessSizeBand?
 
   // SEO metadata overrides for the public hub page (/businesses/{slug}
   // and /us/businesses/{slug}). Both nullable — when unset, the page's
