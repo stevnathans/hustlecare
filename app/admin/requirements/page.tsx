@@ -5,6 +5,8 @@ import Image from "next/image";
 import { Toaster } from "react-hot-toast";
 import RequirementCSVImport from "@/components/RequirementCSVImport";
 import NecessityToggle from "@/components/admin/NecessityToggle";
+import QuantityEditor, { type QuantityInfo } from "@/components/admin/QuantityEditor";
+import type { SizeBand } from "@/lib/cost-engine";
 import {
   necessityOptions,
   necessityStyle,
@@ -603,6 +605,14 @@ export default function RequirementsPage() {
   );
   const [unlinkLoading, setUnlinkLoading] = useState(false);
 
+  // Quantity data for every business linked to the template currently
+  // open in the "Manage Business Links" modal, keyed by businessId —
+  // fetched from the new /api/requirements/[id]/quantities route
+  // alongside linkedBusinesses. See QuantityEditor below.
+  const [quantitiesByBusinessId, setQuantitiesByBusinessId] = useState<
+    Record<number, QuantityInfo>
+  >({});
+
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [bulkConfirm, setBulkConfirm] = useState(false);
 
@@ -693,12 +703,33 @@ export default function RequirementsPage() {
     }
   }
 
+  // Quantity counterpart to fetchLinkedBusinesses — a separate call to a
+  // separate route (see the route file's header comment for why), fetched
+  // in parallel whenever the "Manage Business Links" modal opens.
+  async function fetchQuantities(templateId: number) {
+    try {
+      const r = await fetch(`/api/requirements/${templateId}/quantities`);
+      if (r.ok) {
+        const data: QuantityInfo[] = await r.json();
+        const map: Record<number, QuantityInfo> = {};
+        data.forEach((q) => {
+          map[q.businessId] = q;
+        });
+        setQuantitiesByBusinessId(map);
+      }
+    } catch {}
+  }
+
   function handleDescriptionUpdated(linkId: number, desc: string | null) {
     setLinkedBusinesses((prev) =>
       prev.map((lb) =>
         lb.linkId !== linkId ? lb : { ...lb, descriptionOverride: desc },
       ),
     );
+  }
+
+  function handleQuantityUpdated(businessId: number, info: QuantityInfo) {
+    setQuantitiesByBusinessId((prev) => ({ ...prev, [businessId]: info }));
   }
 
   const activeFilterCount =
@@ -958,9 +989,11 @@ export default function RequirementsPage() {
     setSelectedBizIds(new Set());
     setUnlinkSelectedIds(new Set());
     setLinkedBusinesses([]);
+    setQuantitiesByBusinessId({});
     setBizSearch("");
     setAddBizModalOpen(true);
     fetchLinkedBusinesses(t.id);
+    fetchQuantities(t.id);
   }
 
   function closeAddBiz() {
@@ -968,6 +1001,7 @@ export default function RequirementsPage() {
     setAddBizTemplate(null);
     setSelectedBizIds(new Set());
     setUnlinkSelectedIds(new Set());
+    setQuantitiesByBusinessId({});
     setBizSearch("");
   }
 
@@ -3263,6 +3297,29 @@ export default function RequirementsPage() {
                                       addBizTemplate.description ?? ""
                                     }
                                     onUpdated={handleDescriptionUpdated}
+                                    showToast={showToast}
+                                  />
+                                </div>
+                                {/* Quantity editor — sets defaultQuantity plus
+                                    optional per-size-band overrides for this
+                                    (business, requirement) pair. Data feeds
+                                    lib/cost-engine.ts's quantity-based totals
+                                    once entered; see QuantityEditor's own
+                                    header comment. */}
+                                <div onClick={(e) => e.stopPropagation()}>
+                                  <QuantityEditor
+                                    templateId={addBizTemplate.id}
+                                    businessId={lb.businessId}
+                                    businessName={lb.businessName}
+                                    defaultQuantity={
+                                      quantitiesByBusinessId[lb.businessId]
+                                        ?.defaultQuantity ?? 1
+                                    }
+                                    quantityByBand={
+                                      quantitiesByBusinessId[lb.businessId]
+                                        ?.quantities ?? {}
+                                    }
+                                    onUpdated={handleQuantityUpdated}
                                     showToast={showToast}
                                   />
                                 </div>
