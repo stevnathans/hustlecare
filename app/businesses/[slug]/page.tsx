@@ -2,12 +2,17 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { fetchBusiness, isUSMarketEligible } from '@/lib/business-data';
+import { getBusinessCostBreakdown, type BusinessCostBreakdown } from '@/lib/cost-data';
 import HubPageContent from './HubPageContent';
 import RelatedBusinesses from './RelatedBusinesses';
 import { isExcludedFromTotals } from '@/lib/necessity';
+import { formatCurrency } from '@/lib/currency';
 import { prisma } from '@/lib/prisma';
+import { type MarketCode } from '@/lib/markets';
 
 export const revalidate = 300; // regenerate at most every 5 minutes
+
+const market: MarketCode = 'KE';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -16,23 +21,6 @@ interface Props {
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-interface CostData {
-  low: number;
-  medium: number;
-  high: number;
-  requirementsWithProducts: number;
-  totalRequirements: number;
-  hasPricing: boolean;
-}
-function formatKES(amount: number) {
-  return new Intl.NumberFormat('en-KE', {
-    style: 'currency',
-    currency: 'KES',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
 
 function formatDays(days: number) {
   if (days < 7) return `${days} day${days !== 1 ? 's' : ''}`;
@@ -53,10 +41,28 @@ function categorySlug(name: string) {
     .replace(/^-|-$/g, '');
 }
 
+/**
+ * Whether a requirement counts toward the headline "N requirements to
+ * start" total (Stage 3 Part B). Reads the RequirementCategory entity's
+ * `excludedFromTotals` flag — threaded through by lib/business-data.ts's
+ * fetchBusiness alongside slug/published — and falls back to the legacy
+ * category-string comparison only for a template that somehow has no
+ * categoryRef yet.
+ *
+ * Note this is only used for the requirement COUNT and grouping now. The
+ * cost figure applies the same rule internally, inside the cost engine.
+ */
+function isRequirementExcludedFromTotals(template: {
+  category: string | null;
+  categoryRef?: { excludedFromTotals: boolean } | null;
+}): boolean {
+  return template.categoryRef?.excludedFromTotals ?? isExcludedFromTotals(template.category ?? '');
+}
+
 /** Build auto-generated FAQs from business data. */
 function buildAutoFaqs(
   name: string,
-  cost: CostData | null,  
+  cost: BusinessCostBreakdown | null,
   timeMin: number | null,
   timeMax: number | null,
   profitPotential: string | null,
@@ -66,10 +72,21 @@ function buildAutoFaqs(
 ): AutoFaq[] {
   const faqs: AutoFaq[] = [];
 
-   if (cost?.hasPricing) {
+  // Only answer the cost question from genuinely computed data. When
+  // `source` is EDITORIAL there's nothing priced behind the figure, and a
+  // hand-entered band dressed up as a data-derived answer in an FAQ rich
+  // result is exactly the kind of claim that shouldn't be made.
+  if (cost?.hasPricing && cost.source === 'COMPUTED') {
+    const money = (n: number) => formatCurrency(n, market);
+    const { requirementsWithPricing, totalRequirements } = cost.coverage;
+
     faqs.push({
       question: `How much does it cost to start a ${name} business in Kenya?`,
-      answer: `Starting a ${name} business in Kenya costs between ${formatKES(cost.low)} and ${formatKES(cost.high)} depending on your scale and location. This is based on ${cost.requirementsWithProducts} out of ${cost.totalRequirements} requirements that have products assigned.${cost.requirementsWithProducts < cost.totalRequirements ? ' The actual cost may be higher as some requirements are still being priced.' : ''}`,
+      answer: `Starting a ${name} business in Kenya costs between ${money(cost.oneTime.low)} and ${money(cost.oneTime.high)} depending on your scale and location, with a typical setup around ${money(cost.oneTime.typical)}. This is based on ${requirementsWithPricing} out of ${totalRequirements} essential requirements that currently have real supplier prices.${
+        requirementsWithPricing < totalRequirements
+          ? ' The actual cost may be higher, as some requirements are still being priced.'
+          : ''
+      }`,
     });
   }
 
@@ -128,7 +145,7 @@ interface AutoFaq {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const business = await fetchBusiness(slug);
+  const business = await fetchBusiness(slug, market);
 
   if (!business) {
     return {
@@ -148,9 +165,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const ogImage = business.image || `${SITE_URL}/images/default-business.jpg`;
 
   // Only advertise a US alternate if this business actually has a live US
-  // page — see isUSMarketEligible() in lib/business-data.ts. Without this
-  // check, hreflang could point Google at a slug the US route's own
-  // thin-content guard would 404.
+  // page — see isUSMarketEligible() in lib/business-data.ts.
   const usEligible = await isUSMarketEligible(business.id);
 
   return {
@@ -212,7 +227,16 @@ export async function generateStaticParams() {
 
 export default async function BusinessHubPage({ params }: Props) {
   const { slug } = await params;
-  const business = await fetchBusiness(slug);
+
+  // Business shape and cost are fetched independently: the cost breakdown
+  // comes from lib/cost-data.ts, which is cached separately and owns the
+  // one correct product filter. This page used to run its own inline
+  // price loop over a products select that included non-ACTIVE products —
+  // see the COST NOTE in lib/business-data.ts.
+  const [business, cost] = await Promise.all([
+    fetchBusiness(slug, market),
+    getBusinessCostBreakdown(slug, market),
+  ]);
 
   if (!business) notFound();
 
@@ -223,11 +247,10 @@ export default async function BusinessHubPage({ params }: Props) {
   // ── Core/Stock split ──────────────────────────────────────────────────────
   // Stock requirements are products a business can sell (e.g. spare parts),
   // not fixed one-time startup requirements. They're excluded from the
-  // headline requirement count, category breakdown, requirements preview,
-  // and the server-side cost calculation below — same reasoning already
-  // applied on the requirements detail page. See lib/necessity.ts.
+  // headline requirement count, category breakdown and requirements
+  // preview — the cost engine applies the same rule internally.
   const coreRequirements = business.requirements.filter(
-    (r) => !isExcludedFromTotals(r.template.category ?? '')
+    (r) => !isRequirementExcludedFromTotals(r.template)
   );
 
   const requirementCount = coreRequirements.length;
@@ -249,8 +272,7 @@ export default async function BusinessHubPage({ params }: Props) {
 
   // requirementSlug is only a valid link target when the template is
   // actually published — an unpublished template might carry a slug
-  // placeholder but has no live /requirements/{slug} page yet. See the
-  // internal-linking design note in lib/business-data.ts.
+  // placeholder but has no live /requirements/{slug} page yet.
   const previewRequirements = coreRequirements.slice(0, 4).map((r) => ({
     id: r.id,
     name: r.template.name,
@@ -266,37 +288,6 @@ export default async function BusinessHubPage({ params }: Props) {
     requiredCount: reqs.filter((r) => r.template.necessity === 'Required').length,
   }));
 
-  // ── Fetch auto-calculated cost server-side for FAQs and JSON-LD ──────────
-  let cost: CostData | null = null;
-  try {
-    let low = 0, medium = 0, high = 0, requirementsWithProducts = 0;
-    const totalRequirements = coreRequirements.length;
-
-    for (const req of coreRequirements) {
-      const prices = req.template.products
-        ?.map((p: { price: number | null }) => p.price)
-        .filter((p): p is number => p !== null && p > 0)
-        .sort((a: number, b: number) => a - b) ?? [];
-
-      if (prices.length === 0) continue;
-      requirementsWithProducts++;
-      low    += prices[0];
-      high   += prices[prices.length - 1];
-      medium += prices[Math.floor(prices.length / 2)];
-    }
-
-    cost = {
-      low,
-      medium,
-      high,
-      requirementsWithProducts,
-      totalRequirements,
-      hasPricing: requirementsWithProducts > 0,
-    };
-  } catch {
-    cost = null;
-  }
-
   // ── FAQs: merge DB overrides on top of auto-generated ────────────────────
 
   const autoFaqs = buildAutoFaqs(
@@ -311,7 +302,7 @@ export default async function BusinessHubPage({ params }: Props) {
   );
 
   // DB FAQs completely replace auto ones when present
-   const dbFaqs = business.faqs.map((f) => ({ question: f.question, answer: f.answer }));
+  const dbFaqs = business.faqs.map((f) => ({ question: f.question, answer: f.answer }));
   const finalFaqs = dbFaqs.length > 0 ? dbFaqs : autoFaqs;
 
   // ── Structured Data ───────────────────────────────────────────────────────

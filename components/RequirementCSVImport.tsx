@@ -17,9 +17,17 @@ type CSVRequirement = {
 
 type Business = { id: number; name: string; published: boolean; };
 
-type RequirementCSVImportProps = { onImportComplete: () => void; };
+// Fetched from /api/admin/requirement-categories instead of hardcoded —
+// see the RequirementCategory entity (Stage 3 Part A). CSV rows still
+// carry a raw `category` NAME string (not an id) — the import endpoint
+// (POST /api/requirements) accepts a raw `category` string as a
+// backward-compatible fallback when categoryId isn't sent, which is
+// exactly this path. Validating against fetched category names (instead
+// of the old hardcoded array) keeps this in sync automatically as
+// categories are added/renamed in the admin UI, with no code change here.
+type CategoryRow = { id: number; name: string; slug: string };
 
-const CATEGORIES = ['Equipment', 'Software', 'Documents', 'Legal', 'Branding', 'Operating Expenses', 'Stock'];
+type RequirementCSVImportProps = { onImportComplete: () => void; };
 
 const S = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap');
@@ -72,13 +80,17 @@ export default function RequirementCSVImport({ onImportComplete }: RequirementCS
   const [requirements,     setRequirements]     = useState<CSVRequirement[]>([]);
   const [loading,          setLoading]          = useState(false);
   const [businesses,       setBusinesses]       = useState<Business[]>([]);
+  const [categories,       setCategories]       = useState<CategoryRow[]>([]);
   // Optional: auto-link to a business after importing to library
   const [linkToBusiness,   setLinkToBusiness]   = useState(false);
   const [selectedBizId,    setSelectedBizId]    = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (isModalOpen) fetchBusinesses();
+    if (isModalOpen) {
+      fetchBusinesses();
+      fetchCategories();
+    }
   }, [isModalOpen]);
 
   async function fetchBusinesses() {
@@ -92,7 +104,14 @@ export default function RequirementCSVImport({ onImportComplete }: RequirementCS
     } catch { toast.error('Failed to load businesses'); }
   }
 
-  function parseCSV(text: string): CSVRequirement[] {
+  async function fetchCategories() {
+    try {
+      const res = await fetch('/api/admin/requirement-categories');
+      if (res.ok) setCategories(await res.json());
+    } catch { toast.error('Failed to load categories'); }
+  }
+
+  function parseCSV(text: string, categoryNames: string[]): CSVRequirement[] {
     const lines = text.split('\n').filter(l => l.trim());
     if (lines.length < 2) throw new Error('CSV must have at least a header row and one data row');
 
@@ -112,8 +131,8 @@ export default function RequirementCSVImport({ onImportComplete }: RequirementCS
       if (!raw.name) throw new Error(`Row ${i + 1}: Missing required field: name`);
 
       if (!raw.category) throw new Error(`Row ${i + 1}: Missing required field: category`);
-      if (!CATEGORIES.includes(raw.category)) {
-        throw new Error(`Row ${i + 1}: Invalid category "${raw.category}". Must be one of: ${CATEGORIES.join(', ')}`);
+      if (!categoryNames.includes(raw.category)) {
+        throw new Error(`Row ${i + 1}: Invalid category "${raw.category}". Must be one of: ${categoryNames.join(', ')}`);
       }
 
       if (!raw.necessity) throw new Error(`Row ${i + 1}: Missing required field: necessity`);
@@ -142,10 +161,15 @@ export default function RequirementCSVImport({ onImportComplete }: RequirementCS
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.name.endsWith('.csv')) { toast.error('Please upload a CSV file'); return; }
+    if (categories.length === 0) {
+      toast.error('Categories are still loading — try again in a moment');
+      return;
+    }
+    const categoryNames = categories.map(c => c.name);
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const parsed = parseCSV(ev.target?.result as string);
+        const parsed = parseCSV(ev.target?.result as string, categoryNames);
         setRequirements(parsed);
         toast.success(`${parsed.length} requirements loaded`);
       } catch (err: any) {
@@ -163,7 +187,12 @@ export default function RequirementCSVImport({ onImportComplete }: RequirementCS
     const createdTemplateIds: number[] = [];
 
     try {
-      // Step 1: Import all to the library
+      // Step 1: Import all to the library. Each row still sends a raw
+      // `category` NAME string — the API resolves this to a
+      // RequirementCategory row and sets both categoryId and the legacy
+      // category string from it server-side (see app/api/requirements/route.ts).
+      // This keeps the CSV format itself unchanged for anyone with existing
+      // import templates/scripts.
       for (const req of requirements) {
         const body: any = { ...req };
         // If linking is enabled, pass businessId so the API creates the link in one shot
@@ -208,6 +237,8 @@ export default function RequirementCSVImport({ onImportComplete }: RequirementCS
   function closeModal() { setIsModalOpen(false); setRequirements([]); if (fileInputRef.current) fileInputRef.current.value = ''; }
   function removeRequirement(idx: number) { setRequirements(requirements.filter((_, i) => i !== idx)); }
 
+  const categoryNames = categories.map(c => c.name);
+
   return (
     <>
       <style>{S}</style>
@@ -226,7 +257,7 @@ export default function RequirementCSVImport({ onImportComplete }: RequirementCS
               <div className="rci-info-title">CSV Format — required columns:</div>
               <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
                 <li><strong>name</strong> — Requirement name</li>
-                <li><strong>category</strong> — One of: {CATEGORIES.join(', ')}</li>
+                <li><strong>category</strong> — One of: {categoryNames.length > 0 ? categoryNames.join(', ') : 'loading…'}</li>
                 <li><strong>necessity</strong> — "Required" or "Optional" for most categories; "High Demand", "Medium Demand", or "Low Demand" for Stock</li>
                 <li><strong>description</strong> (optional) — Use <strong>[businessName]</strong> as a token for personalisation</li>
                 <li><strong>image</strong> (optional) — Image URL</li>

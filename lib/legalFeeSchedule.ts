@@ -98,6 +98,69 @@ export function resolveFeeSchedule(
   };
 }
 
+/**
+ * Aggregate a fee schedule across EVERY county present in `allSchedules`,
+ * for the "no county selected yet" default. Runs resolveFeeSchedule() per
+ * distinct county and takes the min/max of whatever resolves — this is
+ * the one true source for that aggregate, used identically by:
+ *   - lib/cost-data.ts, server-side, for the hub page, the cost API, the
+ *     business cards and the requirements page's SSR fallback
+ *   - BusinessPageContent.tsx, client-side, once the person's browser has
+ *     fetched the same raw fee-schedule rows via
+ *     /api/business/[slug]/products
+ * Both call sites reusing this function (rather than each aggregating
+ * independently) is what keeps the SSR figure and the post-hydration
+ * figure from ever disagreeing.
+ *
+ * Returns null when no county has resolvable data at all — a genuinely
+ * unpriced requirement, which callers should treat the same as "no
+ * products" rather than inventing a number.
+ */
+export interface FeeScheduleCountyRange {
+  low: number;
+  high: number;
+  /** How many counties actually had a resolvable price — for a coverage note. */
+  countiesWithData: number;
+}
+
+export function resolveFeeScheduleAcrossCounties(
+  allSchedules: LegalFeeSchedule[],
+  query: FeeScheduleQuery = {}
+): FeeScheduleCountyRange | null {
+  const countyIds = Array.from(new Set(allSchedules.map((r) => r.countyId)));
+  if (countyIds.length === 0) return null;
+
+  let low = Infinity;
+  let high = -Infinity;
+  let countiesWithData = 0;
+
+  for (const countyId of countyIds) {
+    const resolution = resolveFeeSchedule(allSchedules, countyId, query);
+    if (resolution.status === 'unavailable') continue;
+
+    countiesWithData += 1;
+    if (resolution.status === 'exact') {
+      low = Math.min(low, resolution.price);
+      high = Math.max(high, resolution.price);
+    } else {
+      low = Math.min(low, resolution.lowPrice);
+      high = Math.max(high, resolution.highPrice);
+    }
+  }
+
+  if (countiesWithData === 0) return null;
+  return { low, high, countiesWithData };
+}
+
+/** Flatten a single-county FeeScheduleResolution to a plain {low, high} range, or null when unavailable. */
+export function feeResolutionToRange(
+  resolution: FeeScheduleResolution
+): { low: number; high: number } | null {
+  if (resolution.status === 'exact') return { low: resolution.price, high: resolution.price };
+  if (resolution.status === 'range') return { low: resolution.lowPrice, high: resolution.highPrice };
+  return null;
+}
+
 /** Synthesized display name for the "vendor" of a county-issued permit — no DB row needed. */
 export function countyGovernmentName(countyName: string): string {
   return `County Government of ${countyName}`;

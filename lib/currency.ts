@@ -5,6 +5,7 @@
 // market here (and to lib/markets.ts) when expanding to a new country.
 
 import type { MarketCode } from '@/lib/markets';
+import type { MoneyRange } from '@/lib/cost-engine';
 
 export const MARKET_CURRENCY: Record<MarketCode, { code: string; locale: string; symbol: string }> = {
   KE: { code: 'KES', locale: 'en-KE', symbol: 'KSh' },
@@ -72,4 +73,20 @@ export function localeForCurrencyCode(currencyCodeValue: string): string {
 
 export function currencyCode(market: MarketCode): string {
   return MARKET_CURRENCY[market].code;
+}
+
+/**
+ * Format a cost-engine MoneyRange as "low – high", or a single figure when
+ * low equals high (e.g. an exact county fee). Added for the /cost page and
+ * its supporting components, which render MoneyRange values throughout —
+ * keeps that formatting in one place instead of every component building
+ * its own "${low} – ${high}" string.
+ */
+export function formatMoneyRange(
+  range: MoneyRange,
+  market: MarketCode,
+  options?: Intl.NumberFormatOptions
+): string {
+  if (range.low === range.high) return formatCurrency(range.low, market, options);
+  return `${formatCurrency(range.low, market, options)} – ${formatCurrency(range.high, market, options)}`;
 }

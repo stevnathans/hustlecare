@@ -26,13 +26,20 @@ interface RequirementFaq {
 // fuller comment. Stock requirements are sellable inventory, not fixed
 // startup requirements, so they're excluded from every SEO-facing count
 // here and get their own separate structured-data ItemList further down.
-function splitCoreAndStock<T extends { template: { category: string | null } }>(
-  requirements: T[]
-): { core: T[]; stock: T[] } {
+//
+// Stage 3 Part B: reads RequirementCategory.excludedFromTotals
+// (template.categoryRef) instead of string-comparing template.category,
+// with the same fallback as the Kenya page for a template with no
+// categoryRef yet.
+function splitCoreAndStock<T extends {
+  template: { category: string | null; categoryRef?: { excludedFromTotals: boolean } | null };
+}>(requirements: T[]): { core: T[]; stock: T[] } {
   const core: T[] = [];
   const stock: T[] = [];
   requirements.forEach((req) => {
-    if (isExcludedFromTotals(req.template.category ?? '')) {
+    const excluded =
+      req.template.categoryRef?.excludedFromTotals ?? isExcludedFromTotals(req.template.category ?? '');
+    if (excluded) {
       stock.push(req);
     } else {
       core.push(req);
@@ -479,6 +486,14 @@ export default async function USBusinessPage({ params }: BusinessPageProps) {
   // that ships: swap this back to `req.template.published ?
   // req.template.slug : null` and point RequirementCard at the US route
   // for this market.
+  //
+  // Stage 3 Part B: excludedFromTotals/usesLegalCountyFilter threaded
+  // through the same way as the Kenya page — see that file for the fuller
+  // comment. The Legal county-vendor filter never actually applies on the
+  // US market (BusinessPageContent.tsx's isKenya guard short-circuits it
+  // before this flag is read), but it's threaded here anyway for type
+  // consistency with RequirementData and so the two market page
+  // implementations don't quietly diverge.
   const initialRequirements: RequirementData[] = requirements.map((req) => ({
   id: req.id,
   templateId: req.templateId,
@@ -488,6 +503,10 @@ export default async function USBusinessPage({ params }: BusinessPageProps) {
   necessity: req.necessityOverride ?? req.template.necessity,
   image: req.template.image ?? null,
   slug: null,
+  excludedFromTotals:
+    req.template.categoryRef?.excludedFromTotals ?? isExcludedFromTotals(req.template.category ?? ''),
+  usesLegalCountyFilter:
+    req.template.categoryRef?.usesLegalCountyFilter ?? (req.template.category === 'Legal'),
 }));
 
     return (

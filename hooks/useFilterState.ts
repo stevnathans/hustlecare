@@ -1,6 +1,28 @@
 // hooks/useFilterState.ts
-import { useState, useMemo } from 'react';
+//
+// SIZE BAND (new): `options.sizeBand` now flows into every buildCostLines
+// call, and `initialCost` is keyed by band (Record<SizeBand,
+// RequirementsPageCostSummary>) rather than a flat object — see
+// lib/cost-data.ts's getRequirementsPageCostSummary. sizeBand itself is
+// NOT owned here: it's passed in from the caller (BusinessPageContent),
+// which also needs the current band to compute fee ranges before calling
+// this hook — lifting the state up one level avoids a chicken-and-egg
+// dependency between the two.
+
+import { useMemo, useState } from 'react';
 import { isExcludedFromTotals } from '@/lib/necessity';
+import {
+  buildCostLines,
+  summariseCostLines,
+  DEFAULT_SIZE_BAND,
+  type CostEngineProduct,
+  type CostEngineRequirement,
+  type CostLine,
+  type CostRecurrence,
+  type CostSource,
+  type RequirementsPageCostSummary,
+  type SizeBand,
+} from '@/lib/cost-engine';
 
 interface Requirement {
   id: number;
@@ -10,6 +32,10 @@ interface Requirement {
   category?: string | null;
   necessity: string;
   image?: string | null;
+  excludedFromTotals?: boolean;
+  quantity?: number;
+  quantityByBand?: Partial<Record<SizeBand, number>>;
+  recurrence?: CostRecurrence;
 }
 
 interface Product {
@@ -18,93 +44,96 @@ interface Product {
   description?: string;
   price: number;
   image?: string;
+  billingPeriod?: CostEngineProduct['billingPeriod'];
+  bulkPricing?: { minQty: number; price: number }[];
 }
 
 interface CategoryState {
   showFilter: boolean;
-  filter: string; // 'all' or a lowercase necessity value
+  filter: string;
   showSearch: boolean;
   searchQuery: string;
 }
 
-function getMedianPrice(sortedPrices: number[]): number {
-  const mid = Math.floor(sortedPrices.length / 2);
-  return sortedPrices[sortedPrices.length % 2 !== 0 ? mid : mid - 1];
+export type FeeRange = { low: number; high: number } | null;
+
+export interface UseFilterStateOptions {
+  initialCost?: Record<SizeBand, RequirementsPageCostSummary> | null;
+  productsLoaded?: boolean;
+  feeRangesByRequirementName?: Record<string, FeeRange>;
+  /** Which size band to price at. Defaults to Medium if omitted. */
+  sizeBand?: SizeBand;
 }
 
-function calculatePriceTotals(
+function toEngineRequirements(
   requirements: Requirement[],
-  products: Record<string, Product[]>
-): { low: number; median: number; high: number } {
-  let low = 0;
-  let median = 0;
-  let high = 0;
-
-  requirements.forEach((requirement) => {
-    const reqProducts = products[requirement.name] || [];
-    if (reqProducts.length === 0) return;
-
-    const sorted = [...reqProducts].sort((a, b) => a.price - b.price);
-    const prices = sorted.map((p) => p.price);
-
-    low    += prices[0];
-    median += getMedianPrice(prices);
-    high   += prices[prices.length - 1];
-  });
-
-  return { low, median, high };
+  feeRanges?: Record<string, FeeRange>,
+): CostEngineRequirement[] {
+  return requirements.map((req) => ({
+    id: req.id,
+    templateId: req.templateId ?? null,
+    name: req.name,
+    category: req.category,
+    necessity: req.necessity,
+    excludedFromTotals: req.excludedFromTotals ?? isExcludedFromTotals(req.category || ''),
+    feeSchedule: feeRanges?.[req.name] ?? null,
+    quantity: req.quantity,
+    quantityByBand: req.quantityByBand,
+    recurrence: req.recurrence,
+  }));
 }
 
-function countWithProducts(requirements: Requirement[], products: Record<string, Product[]>): number {
-  return requirements.filter((req) => (products[req.name] || []).length > 0).length;
+function toEngineProducts(products: Record<string, Product[]>): Record<string, CostEngineProduct[]> {
+  const out: Record<string, CostEngineProduct[]> = {};
+  for (const [name, list] of Object.entries(products)) {
+    out[name] = (list ?? []).map((p) => ({
+      id: p.id,
+      price: p.price,
+      billingPeriod: p.billingPeriod ?? null,
+      bulkPricing: p.bulkPricing ?? null,
+    }));
+  }
+  return out;
 }
 
-// Splits a requirement list into "core" (counts toward the headline
-// requirement total and cost estimate) and "stock" (products a business
-// sells — tracked and priced separately since inventory is a scalable,
-// ongoing decision rather than a fixed one-time startup requirement).
-// See lib/necessity.ts: EXCLUDED_FROM_TOTALS_CATEGORIES.
-function splitCoreAndStock(requirements: Requirement[]): { core: Requirement[]; stock: Requirement[] } {
-  const core: Requirement[] = [];
-  const stock: Requirement[] = [];
-  requirements.forEach((req) => {
-    if (isExcludedFromTotals(req.category || '')) {
-      stock.push(req);
-    } else {
-      core.push(req);
-    }
-  });
-  return { core, stock };
+function stockTotals(lines: CostLine[]) {
+  return lines
+    .filter((l) => l.isStock)
+    .reduce(
+      (acc, l) => ({
+        low: acc.low + l.total.low,
+        typical: acc.typical + l.total.typical,
+        high: acc.high + l.total.high,
+      }),
+      { low: 0, typical: 0, high: 0 },
+    );
 }
 
 export const useFilterState = (
   requirements: Requirement[],
   products: Record<string, Product[]>,
   groupedRequirements: Record<string, Requirement[]>,
-  sortedCategories: string[]
+  sortedCategories: string[],
+  options?: UseFilterStateOptions,
 ) => {
   const [categoryStates, setCategoryStates] = useState<Record<string, CategoryState>>({});
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [globalFilter, setGlobalFilter] = useState<string>('all');
 
-  // ── Necessity values actually present, for building filter dropdowns ──────
+  const productsLoaded = options?.productsLoaded ?? true;
+  const initialCost = options?.initialCost ?? null;
+  const feeRanges = options?.feeRangesByRequirementName;
+  const sizeBand = options?.sizeBand ?? DEFAULT_SIZE_BAND;
+  const useServerFallback = !productsLoaded && !!initialCost;
+  const initialCostForBand = initialCost?.[sizeBand] ?? null;
+
   const availableNecessities = useMemo(() => {
     const set = new Set(requirements.map((req) => req.necessity));
     return Array.from(set);
   }, [requirements]);
 
-  // ── Unfiltered counts and price ranges ─────────────────────────────────
-  // "Core" figures exclude Stock (see splitCoreAndStock) so the headline
-  // "N requirements to start" and cost estimate reflect actual fixed
-  // startup requirements, not open-ended inventory.
-  //
-  // Within core, cost is further split by necessity:
-  //   - unfilteredRequired*  → REQUIRED items only. This is the number
-  //     BusinessHeader shows by default, since "cost to start" should mean
-  //     the mandatory minimum, not mandatory + every optional extra.
-  //   - unfiltered* (no "Required" in the name) → required + optional
-  //     combined, same as before. Shown when the person opts in via the
-  //     "Include optional items" toggle in BusinessHeader.
+  const engineProducts = useMemo(() => toEngineProducts(products), [products]);
+
   const {
     necessityCounts,
     requiredCount,
@@ -121,108 +150,123 @@ export const useFilterState = (
     unfilteredStockLowPrice,
     unfilteredStockMedianPrice,
     unfilteredStockHighPrice,
+    unfilteredRequiredSource,
+    unfilteredSource,
   } = useMemo(() => {
-    const { core, stock } = splitCoreAndStock(requirements);
-    const requiredOnly = core.filter((req) => req.necessity.toLowerCase() === 'required');
+    const lines = buildCostLines(toEngineRequirements(requirements, feeRanges), engineProducts, { sizeBand });
 
+    const requiredSummary = summariseCostLines(lines, { includeOptional: false, sizeBand });
+    const allSummary = summariseCostLines(lines, { includeOptional: true, sizeBand });
+    const stock = stockTotals(lines);
+
+    const coreLines = lines.filter((l) => !l.isStock);
     const counts: Record<string, number> = {};
-    core.forEach((req) => {
-      const key = req.necessity.toLowerCase();
+    coreLines.forEach((line) => {
+      const key = line.necessity.toLowerCase();
       counts[key] = (counts[key] || 0) + 1;
     });
 
-    const coreTotals = calculatePriceTotals(core, products);
-    const requiredTotals = calculatePriceTotals(requiredOnly, products);
-    const stockTotals = calculatePriceTotals(stock, products);
-
-    return {
+    const base = {
       necessityCounts: counts,
       requiredCount: counts['required'] || 0,
       optionalCount: counts['optional'] || 0,
-      unfilteredLowPrice: coreTotals.low,
-      unfilteredMediumPrice: coreTotals.median,
-      unfilteredHighPrice: coreTotals.high,
-      unfilteredRequiredLowPrice: requiredTotals.low,
-      unfilteredRequiredMediumPrice: requiredTotals.median,
-      unfilteredRequiredHighPrice: requiredTotals.high,
-      unfilteredRequirementsWithProducts: countWithProducts(core, products),
-      unfilteredRequiredRequirementsWithProducts: countWithProducts(requiredOnly, products),
-      unfilteredStockCount: stock.length,
-      unfilteredStockLowPrice: stockTotals.low,
-      unfilteredStockMedianPrice: stockTotals.median,
-      unfilteredStockHighPrice: stockTotals.high,
+      unfilteredStockCount: lines.filter((l) => l.isStock).length,
     };
-  }, [requirements, products]);
 
-  // ── Filtered counts and price range (respects global search/filter state) ─
-  // Same core/stock split applied here so the interactive numbers stay
-  // consistent with the unfiltered headline numbers above. This path is
-  // unaffected by the required-only default — it reflects whatever
-  // necessity/demand filter the person has actively selected.
-  const { totalRequirements, lowPrice, mediumPrice, highPrice, stockCount, stockLowPrice, stockMedianPrice, stockHighPrice } = useMemo(() => {
+    if (useServerFallback && initialCostForBand) {
+      return {
+        ...base,
+        unfilteredLowPrice: initialCostForBand.unfilteredLowPrice,
+        unfilteredMediumPrice: initialCostForBand.unfilteredMediumPrice,
+        unfilteredHighPrice: initialCostForBand.unfilteredHighPrice,
+        unfilteredRequiredLowPrice: initialCostForBand.unfilteredRequiredLowPrice,
+        unfilteredRequiredMediumPrice: initialCostForBand.unfilteredRequiredMediumPrice,
+        unfilteredRequiredHighPrice: initialCostForBand.unfilteredRequiredHighPrice,
+        unfilteredRequirementsWithProducts: initialCostForBand.unfilteredRequirementsWithProducts,
+        unfilteredRequiredRequirementsWithProducts:
+          initialCostForBand.unfilteredRequiredRequirementsWithProducts,
+        unfilteredStockLowPrice: initialCostForBand.unfilteredStockLowPrice,
+        unfilteredStockMedianPrice: initialCostForBand.unfilteredStockMedianPrice,
+        unfilteredStockHighPrice: initialCostForBand.unfilteredStockHighPrice,
+        unfilteredRequiredSource: initialCostForBand.requiredSource,
+        unfilteredSource: initialCostForBand.allSource,
+      };
+    }
+
+    return {
+      ...base,
+      unfilteredLowPrice: allSummary.oneTime.low,
+      unfilteredMediumPrice: allSummary.oneTime.typical,
+      unfilteredHighPrice: allSummary.oneTime.high,
+      unfilteredRequiredLowPrice: requiredSummary.oneTime.low,
+      unfilteredRequiredMediumPrice: requiredSummary.oneTime.typical,
+      unfilteredRequiredHighPrice: requiredSummary.oneTime.high,
+      unfilteredRequirementsWithProducts: allSummary.coverage.requirementsWithPricing,
+      unfilteredRequiredRequirementsWithProducts: requiredSummary.coverage.requirementsWithPricing,
+      unfilteredStockLowPrice: stock.low,
+      unfilteredStockMedianPrice: stock.typical,
+      unfilteredStockHighPrice: stock.high,
+      unfilteredRequiredSource: requiredSummary.source as CostSource,
+      unfilteredSource: allSummary.source as CostSource,
+    };
+  }, [requirements, engineProducts, feeRanges, sizeBand, useServerFallback, initialCostForBand]);
+
+  const {
+    totalRequirements,
+    lowPrice,
+    mediumPrice,
+    highPrice,
+    stockCount,
+    stockLowPrice,
+    stockMedianPrice,
+    stockHighPrice,
+  } = useMemo(() => {
     const matchesFilters = (req: Requirement) => {
       const matchesGlobalSearch = globalSearchQuery
         ? req.name.toLowerCase().includes(globalSearchQuery.toLowerCase()) ||
-          (req.description &&
-            req.description.toLowerCase().includes(globalSearchQuery.toLowerCase()))
+          (req.description && req.description.toLowerCase().includes(globalSearchQuery.toLowerCase()))
         : true;
-      const matchesGlobalFilter =
-        globalFilter === 'all' || req.necessity.toLowerCase() === globalFilter;
+      const matchesGlobalFilter = globalFilter === 'all' || req.necessity.toLowerCase() === globalFilter;
       return matchesGlobalSearch && matchesGlobalFilter;
     };
 
     const filteredReqs = requirements.filter(matchesFilters);
-    const { core, stock } = splitCoreAndStock(filteredReqs);
-
-    const coreTotals = calculatePriceTotals(core, products);
-    const stockTotals = calculatePriceTotals(stock, products);
+    const lines = buildCostLines(toEngineRequirements(filteredReqs, feeRanges), engineProducts, { sizeBand });
+    const summary = summariseCostLines(lines, { includeOptional: true, sizeBand });
+    const stock = stockTotals(lines);
 
     return {
-      totalRequirements: core.length,
-      lowPrice: coreTotals.low,
-      mediumPrice: coreTotals.median,
-      highPrice: coreTotals.high,
-      stockCount: stock.length,
-      stockLowPrice: stockTotals.low,
-      stockMedianPrice: stockTotals.median,
-      stockHighPrice: stockTotals.high,
+      totalRequirements: lines.filter((l) => !l.isStock).length,
+      lowPrice: summary.oneTime.low,
+      mediumPrice: summary.oneTime.typical,
+      highPrice: summary.oneTime.high,
+      stockCount: lines.filter((l) => l.isStock).length,
+      stockLowPrice: stock.low,
+      stockMedianPrice: stock.typical,
+      stockHighPrice: stock.high,
     };
-  }, [requirements, products, globalSearchQuery, globalFilter]);
+  }, [requirements, engineProducts, feeRanges, sizeBand, globalSearchQuery, globalFilter]);
 
-  const filteredCategories = useMemo(() => {
-    return sortedCategories;
-  }, [sortedCategories]);
+  const filteredCategories = useMemo(() => sortedCategories, [sortedCategories]);
 
   const getFilteredRequirements = (category: string): Requirement[] => {
     return (
       groupedRequirements[category]?.filter((req) => {
         const matchesGlobalSearch = globalSearchQuery
           ? req.name.toLowerCase().includes(globalSearchQuery.toLowerCase()) ||
-            (req.description &&
-              req.description.toLowerCase().includes(globalSearchQuery.toLowerCase()))
+            (req.description && req.description.toLowerCase().includes(globalSearchQuery.toLowerCase()))
           : true;
-        const matchesGlobalFilter =
-          globalFilter === 'all' || req.necessity.toLowerCase() === globalFilter;
+        const matchesGlobalFilter = globalFilter === 'all' || req.necessity.toLowerCase() === globalFilter;
         const matchesCategorySearch = categoryStates[category]?.searchQuery
-          ? req.name
-              .toLowerCase()
-              .includes(categoryStates[category].searchQuery.toLowerCase()) ||
-            (req.description &&
-              req.description
-                .toLowerCase()
-                .includes(categoryStates[category].searchQuery.toLowerCase()))
+          ? req.name.toLowerCase().includes(categoryStates[category].searchQuery.toLowerCase()) ||
+            (req.description && req.description.toLowerCase().includes(categoryStates[category].searchQuery.toLowerCase()))
           : true;
         const matchesCategoryFilter =
           !categoryStates[category]?.filter ||
           categoryStates[category]?.filter === 'all' ||
           req.necessity.toLowerCase() === categoryStates[category]?.filter;
 
-        return (
-          matchesGlobalSearch &&
-          matchesGlobalFilter &&
-          matchesCategorySearch &&
-          matchesCategoryFilter
-        );
+        return matchesGlobalSearch && matchesGlobalFilter && matchesCategorySearch && matchesCategoryFilter;
       }) || []
     );
   };
@@ -242,32 +286,16 @@ export const useFilterState = (
   const toggleFilter = (category: string) => {
     setCategoryStates((prev) => ({
       ...prev,
-      [category]: {
-        ...prev[category],
-        showFilter: !prev[category]?.showFilter,
-        showSearch: false,
-      },
+      [category]: { ...prev[category], showFilter: !prev[category]?.showFilter, showSearch: false },
     }));
   };
 
   const setFilter = (category: string, filter: string) => {
-    setCategoryStates((prev) => ({
-      ...prev,
-      [category]: {
-        ...prev[category],
-        filter,
-      },
-    }));
+    setCategoryStates((prev) => ({ ...prev, [category]: { ...prev[category], filter } }));
   };
 
   const handleCategorySearchChange = (category: string, query: string) => {
-    setCategoryStates((prev) => ({
-      ...prev,
-      [category]: {
-        ...prev[category],
-        searchQuery: query,
-      },
-    }));
+    setCategoryStates((prev) => ({ ...prev, [category]: { ...prev[category], searchQuery: query } }));
   };
 
   return {
@@ -280,8 +308,6 @@ export const useFilterState = (
     necessityCounts,
     requiredCount,
     optionalCount,
-    // Required-only (default cost display) and full required+optional
-    // (shown when "Include optional items" is toggled on) — both exclude Stock.
     unfilteredRequiredLowPrice,
     unfilteredRequiredMediumPrice,
     unfilteredRequiredHighPrice,
@@ -290,8 +316,8 @@ export const useFilterState = (
     unfilteredHighPrice,
     unfilteredRequirementsWithProducts,
     unfilteredRequiredRequirementsWithProducts,
-    // Stock is tracked separately from the core requirement count/cost —
-    // see splitCoreAndStock() above.
+    unfilteredRequiredSource,
+    unfilteredSource,
     unfilteredStockCount,
     unfilteredStockLowPrice,
     unfilteredStockMedianPrice,

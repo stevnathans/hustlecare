@@ -11,6 +11,16 @@
 // "Full Route Cache"), since it never touches cookies/headers/searchParams
 // that would normally opt it out automatically. That caching was why
 // fee-schedule price changes took a long time to show up on the front end.
+//
+// BUG FIX (cost engine): the feeSchedules select was missing tradeClassId.
+// resolveFeeSchedule() in lib/legalFeeSchedule.ts scores a row higher when
+// it has a matching tradeClassId, so without this field every fee row
+// silently behaved as if untiered by trade class on the client — a county
+// with genuinely different fees for, say, "High-End Spa" vs "Barbershop"
+// would resolve to the wrong price here even though server-side resolution
+// (lib/cost-data.ts) already had the field and got it right. Also added
+// issuingAuthority/verifiedAt so the client has the same trust fields the
+// server-side cost engine now carries.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -91,16 +101,21 @@ export async function GET(
                       },
                       orderBy: { displayOrder: 'asc' },
                     },
+                    // Cost engine trust surface — when this price was last
+                    // confirmed against the vendor's own listing.
+                    priceCheckedAt: true,
                   },
                   orderBy: { price: 'asc' },
                 },
                 feeSchedules: {
                   select: {
-                    id: true, templateId: true, countyId: true, businessCategoryId: true, sizeBand: true,
+                    id: true, templateId: true, countyId: true, businessCategoryId: true,
+                    tradeClassId: true, sizeBand: true,
                     price: true, priceMin: true, priceMax: true,
                     validityValue: true, validityUnit: true,
                     processingTimeMinDays: true, processingTimeMaxDays: true,
                     applyUrl: true, notes: true,
+                    issuingAuthority: true, verifiedAt: true,
                   },
                 },
               },

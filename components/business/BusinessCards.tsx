@@ -5,7 +5,7 @@ import { useMemo, useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { isExcludedFromTotals } from '@/lib/necessity';
-import { currencyCode } from '@/lib/currency';
+import { currencyCode, formatCurrency } from '@/lib/currency';
 import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
 
 type Requirement = {
@@ -37,10 +37,18 @@ type BusinessCardProps = {
   market?: MarketCode;
 };
 
-interface CostData {
+// Mirrors the /api/businesses/[slug]/cost response. The legacy low/high
+// keys are still returned by that route and still mean "one-time setup
+// cost" — they're just computed correctly now (ACTIVE products only, in
+// this market). cashToOpen is the richer figure and is preferred when
+// present, so this card automatically starts showing setup + working
+// capital once recurrence data lands, with no further change here.
+interface CostResponse {
   low: number;
   high: number;
   hasPricing: boolean;
+  source?: 'COMPUTED' | 'EDITORIAL' | 'NONE';
+  cashToOpen?: { low: number; typical: number; high: number };
 }
 
 function formatCompact(n: number) {
@@ -58,15 +66,34 @@ export default function BusinessCard({
   groupedRequirements = {},
   market = DEFAULT_MARKET,
 }: BusinessCardProps) {
-  const [cost, setCost]           = useState<CostData | null>(null);
+  const [cost, setCost] = useState<CostResponse | null>(null);
   const [costLoading, setCostLoading] = useState(true);
 
   useEffect(() => {
+    // AbortController + the cancelled flag guard against two real races:
+    // a card unmounting mid-flight (grid re-render, route change) and a
+    // slug/market change landing out of order.
+    const controller = new AbortController();
+    let cancelled = false;
+
     setCostLoading(true);
-    fetch(`/api/businesses/${slug}/cost?market=${market}`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => { setCost(data); setCostLoading(false); })
-      .catch(() => setCostLoading(false));
+
+    fetch(`/api/businesses/${slug}/cost?market=${market}`, { signal: controller.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        setCost(data);
+        setCostLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setCostLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, [slug, market]);
 
   // Legacy fallback: derive the count from a full groupedRequirements
@@ -87,13 +114,27 @@ export default function BusinessCard({
   const overviewHref     = market === 'KE' ? `/businesses/${slug}` : `/us/businesses/${slug}`;
   const requirementsHref = market === 'KE' ? `/businesses/${slug}/requirements` : `/us/businesses/${slug}/requirements`;
 
-  // Cost display value
+  // Prefer the full cash-to-open range when the API provides it; fall back
+  // to the one-time setup figure otherwise. Today these are identical,
+  // since every line is ONE_TIME until the recurrence migration lands.
+  const range = useMemo(() => {
+    if (!cost?.hasPricing) return null;
+    if (cost.cashToOpen) return { low: cost.cashToOpen.low, high: cost.cashToOpen.high };
+    return { low: cost.low, high: cost.high };
+  }, [cost]);
+
   const code = currencyCode(market);
   const costDisplay = (() => {
-    if (costLoading) return null;              // show skeleton
-    if (!cost?.hasPricing) return '—';
-    return `${code} ${formatCompact(cost.low)} – ${formatCompact(cost.high)}`;
+    if (costLoading) return null;             // show skeleton
+    if (!range) return '—';
+    return `${code} ${formatCompact(range.low)} – ${formatCompact(range.high)}`;
   })();
+
+  const costTitle = range
+    ? `${formatCurrency(range.low, market)} – ${formatCurrency(range.high, market)}${
+        cost?.source === 'EDITORIAL' ? ' (estimated — requirements not yet priced)' : ''
+      }`
+    : undefined;
 
   return (
     <div className="group relative bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 h-full flex flex-col border border-gray-100">
@@ -171,7 +212,7 @@ export default function BusinessCard({
             ) : (
               <div
                 className="text-xs font-semibold text-gray-900 leading-tight"
-                title={cost?.hasPricing ? `${code} ${cost.low.toLocaleString()} – ${cost.high.toLocaleString()}` : undefined}
+                title={costTitle}
               >
                 {costDisplay}
               </div>

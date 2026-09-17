@@ -3,12 +3,14 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import BusinessPageContent from './BusinessPageContent';
 import { fetchBusinessWithRequirements, isUSMarketEligible } from '@/lib/business-data';
+import { getRequirementsPageCostSummary } from '@/lib/cost-data';
 import { isExcludedFromTotals } from '@/lib/necessity';
 import type { Business as BusinessData, Requirement as RequirementData } from 'hooks/useBusinessData';
 import { selectTemplateDescription } from '@/lib/requirement-description';
 import { type MarketCode } from '@/lib/markets';
+import type { CostRecurrence, SizeBand } from '@/lib/cost-engine';
 
-export const revalidate = 300; // regenerate at most every 5 minutes
+export const revalidate = 300;
 const market: MarketCode = 'KE';
 
 interface BusinessPageProps {
@@ -20,26 +22,15 @@ interface RequirementFaq {
   answer: string;
 }
 
-// ── Core/Stock split ──────────────────────────────────────────────────────────
-// "Stock" requirements are products a business can sell (e.g. spare parts),
-// not fixed one-time startup requirements. They're excluded from every
-// requirement count, cost figure, and the main "Requirements" SEO surfaces
-// below (title, meta description, requirements ItemList, FAQ copy) for the
-// same reason they're excluded from the client-side totals in
-// useFilterState.ts — folding them in would misrepresent "N requirements to
-// start" and inflate implied cost with open-ended inventory.
-//
-// Stock items ARE still rendered on the page (see initialRequirements below,
-// which is NOT filtered) and get their own separate JSON-LD ItemList
-// ("Products You Can Sell") further down, so they remain indexable — just
-// not conflated with startup requirements.
-function splitCoreAndStock<T extends { template: { category: string | null } }>(
-  requirements: T[]
-): { core: T[]; stock: T[] } {
+function splitCoreAndStock<T extends {
+  template: { category: string | null; categoryRef?: { excludedFromTotals: boolean } | null };
+}>(requirements: T[]): { core: T[]; stock: T[] } {
   const core: T[] = [];
   const stock: T[] = [];
   requirements.forEach((req) => {
-    if (isExcludedFromTotals(req.template.category ?? '')) {
+    const excluded =
+      req.template.categoryRef?.excludedFromTotals ?? isExcludedFromTotals(req.template.category ?? '');
+    if (excluded) {
       stock.push(req);
     } else {
       core.push(req);
@@ -48,30 +39,13 @@ function splitCoreAndStock<T extends { template: { category: string | null } }>(
   return { core, stock };
 }
 
-// ── Title Builder ─────────────────────────────────────────────────────────────
-// "Kenya" is now explicit in the title. Previously this page's own title
-// omitted it while the hub and how-to-start pages both included it, which
-// made those pages a stronger literal match for searches like
-// "requirements to start a barbershop business in Kenya."
-//
-// requirementCount here must be the CORE (non-Stock) count — see
-// splitCoreAndStock above.
-
 function buildTitle(businessName: string, requirementCount: number): string {
   const year = new Date().getFullYear();
   if (requirementCount > 0) {
-    return `${requirementCount} Requirements To Start a ${businessName} Business in Kenya (${year} Costs & Checklist)`;
+    return `${requirementCount} Requirements To Start a ${businessName} Business in Kenya (${year} Checklist)`;
   }
-  return `${businessName} Business Requirements in Kenya - Complete Checklist & Costs`;
+  return `${businessName} Business Requirements in Kenya - Complete Checklist`;
 }
-
-// ── FAQ Builder ────────────────────────────────────────────────────────────────
-// Small, requirements-specific FAQ set generated from data already fetched
-// above. Deliberately different in focus from the hub page's FAQs (which
-// cover cost/time/profitability/location) so the two pages don't compete
-// with near-duplicate FAQ content.
-//
-// All counts passed in here must be CORE (non-Stock) counts.
 
 function buildRequirementsFaqs(
   businessName: string,
@@ -105,11 +79,9 @@ function buildRequirementsFaqs(
   return faqs;
 }
 
-// ── SEO Metadata ──────────────────────────────────────────────────────────────
-
 export async function generateMetadata({ params }: BusinessPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const business = await fetchBusinessWithRequirements(slug);
+  const business = await fetchBusinessWithRequirements(slug, market);
 
   if (!business) {
     return {
@@ -119,7 +91,6 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
     };
   }
 
-  // requirementCount must exclude Stock — see splitCoreAndStock above.
   const { core } = splitCoreAndStock(business.requirements ?? []);
   const requirementCount = core.length;
   const title = buildTitle(business.name, requirementCount);
@@ -131,8 +102,6 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
   const pageUrl = `${siteUrl}/businesses/${slug}/requirements`;
   const ogImage = business.image || `${siteUrl}/images/default-business.jpg`;
 
-  // Only advertise a US alternate if this business actually has a live US
-  // requirements page — see isUSMarketEligible() in lib/business-data.ts.
   const usEligible = await isUSMarketEligible(business.id);
 
   return {
@@ -152,11 +121,9 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
       'investment calculator',
       'business requirements checklist',
     ].join(', '),
-
     authors: [{ name: 'HustleCare' }],
     creator: 'HustleCare',
     publisher: 'HustleCare',
-
     openGraph: {
       title,
       description,
@@ -164,16 +131,8 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
       siteName: 'HustleCare',
       type: 'article',
       locale: 'en_KE',
-      images: [
-        {
-          url: ogImage,
-          width: 1200,
-          height: 630,
-          alt: `What you need to start a ${business.name} business`,
-        },
-      ],
+      images: [{ url: ogImage, width: 1200, height: 630, alt: `What you need to start a ${business.name} business` }],
     },
-
     twitter: {
       card: 'summary_large_image',
       title,
@@ -182,19 +141,11 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
       creator: '@HustleCare',
       site: '@HustleCare',
     },
-
     robots: {
       index: true,
       follow: true,
-      googleBot: {
-        index: true,
-        follow: true,
-        'max-video-preview': -1,
-        'max-image-preview': 'large',
-        'max-snippet': -1,
-      },
+      googleBot: { index: true, follow: true, 'max-video-preview': -1, 'max-image-preview': 'large', 'max-snippet': -1 },
     },
-
     alternates: {
       canonical: pageUrl,
       languages: {
@@ -202,17 +153,11 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
         ...(usEligible ? { 'en-US': `${siteUrl}/us/businesses/${slug}/requirements` } : {}),
       },
     },
-
     category: 'Business',
     classification: 'Business Directory',
-
-    verification: {
-      google: process.env.GOOGLE_SITE_VERIFICATION,
-    },
+    verification: { google: process.env.GOOGLE_SITE_VERIFICATION },
   };
 }
-
-// ── Static Params ─────────────────────────────────────────────────────────────
 
 export async function generateStaticParams() {
   try {
@@ -225,24 +170,22 @@ export async function generateStaticParams() {
   }
 }
 
-// ── Page Component ────────────────────────────────────────────────────────────
-
 export default async function BusinessPage({ params }: BusinessPageProps) {
   const { slug } = await params;
-  const business = await fetchBusinessWithRequirements(slug);
+
+  // costSummary is now a Record<SizeBand, RequirementsPageCostSummary> —
+  // one full summary per size band, feeding BusinessHeader's fallback for
+  // whichever band the person has selected.
+  const [business, costSummary] = await Promise.all([
+    fetchBusinessWithRequirements(slug, market),
+    getRequirementsPageCostSummary(slug, market),
+  ]);
 
   if (!business) {
     notFound();
   }
 
   const requirements = business.requirements ?? [];
-
-  // Core (non-Stock) vs. Stock split — see splitCoreAndStock above. All
-  // "Requirements" SEO surfaces (title, meta description, requirements
-  // ItemList, FAQ copy) use the CORE count only. Stock gets its own,
-  // separately-labeled ItemList further below. `requirements` (unfiltered,
-  // includes Stock) is still passed to BusinessPageContent so Stock items
-  // render on the page as normal.
   const { core: coreRequirements, stock: stockRequirements } = splitCoreAndStock(requirements);
   const requirementCount = coreRequirements.length;
 
@@ -255,25 +198,10 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
     business.description ||
     `Complete guide to starting a ${business.name} business in Kenya with ${requirementCount} requirements and cost calculator.`;
 
-  // ── Requirement counts (for FAQs and general use) ───────────────────────
   const requiredCount = coreRequirements.filter(
     (req) => (req.necessityOverride ?? req.template.necessity) === 'Required'
   ).length;
   const optionalCount = requirementCount - requiredCount;
-
-  // ── Structured Data ─────────────────────────────────────────────────────────
-  //
-  // All JSON-LD is emitted here in the server component so it is present in the
-  // raw HTML response that search-engine crawlers receive — client components are
-  // hydrated too late for reliable schema injection.
-  //
-  // We use a @graph array so all nodes share a single <script> tag and Google can
-  // understand their relationships.
-  //
-  // Requirements are typed as "Thing" (not "Product") — they are prerequisites
-  // for starting a business, not purchasable items. Using "Product" here caused
-  // Google Search Console to flag missing required Product fields (offers, price).
-  // Stock items below use the same "Thing" typing for the same reason.
 
   const categoryMap = new Map<string, typeof requirements>();
   for (const req of coreRequirements) {
@@ -294,16 +222,8 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
         req.template.description ||
         `${req.template.name} required to start a ${business.name} business`,
       additionalProperty: [
-        {
-          '@type': 'PropertyValue',
-          name: 'category',
-          value: req.template.category ?? 'General',
-        },
-        {
-          '@type': 'PropertyValue',
-          name: 'necessity',
-          value: req.necessityOverride ?? req.template.necessity,
-        },
+        { '@type': 'PropertyValue', name: 'category', value: req.template.category ?? 'General' },
+        { '@type': 'PropertyValue', name: 'necessity', value: req.necessityOverride ?? req.template.necessity },
       ],
     },
   }));
@@ -320,21 +240,12 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
         req.template.description ||
         `${req.template.name} — a product ${business.name} businesses commonly stock and sell`,
       additionalProperty: [
-        {
-          '@type': 'PropertyValue',
-          name: 'category',
-          value: req.template.category ?? 'Stock',
-        },
-        {
-          '@type': 'PropertyValue',
-          name: 'demand',
-          value: req.necessityOverride ?? req.template.necessity,
-        },
+        { '@type': 'PropertyValue', name: 'category', value: req.template.category ?? 'Stock' },
+        { '@type': 'PropertyValue', name: 'demand', value: req.necessityOverride ?? req.template.necessity },
       ],
     },
   }));
 
-  // Auto-generated FAQ content, distinct in focus from the hub page's FAQs.
   const requirementFaqs = buildRequirementsFaqs(
     business.name,
     requirementCount,
@@ -346,7 +257,6 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   const structuredData = {
     '@context': 'https://schema.org',
     '@graph': [
-      // 1. BreadcrumbList — enables breadcrumb rich results
       {
         '@type': 'BreadcrumbList',
         '@id': `${pageUrl}#breadcrumb`,
@@ -357,74 +267,41 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
           { '@type': 'ListItem', position: 4, name: 'Requirements', item: pageUrl },
         ],
       },
-
-      // 2. Article — signals editorial content about starting a business
       {
         '@type': 'Article',
         '@id': `${pageUrl}#article`,
         headline: title,
         description,
         url: pageUrl,
-        image: {
-          '@type': 'ImageObject',
-          url: ogImage,
-          width: 1200,
-          height: 630,
-        },
-        author: {
-          '@type': 'Organization',
-          name: 'HustleCare',
-          url: siteUrl,
-        },
+        image: { '@type': 'ImageObject', url: ogImage, width: 1200, height: 630 },
+        author: { '@type': 'Organization', name: 'HustleCare', url: siteUrl },
         publisher: {
           '@type': 'Organization',
           name: 'HustleCare',
           url: siteUrl,
-          logo: {
-            '@type': 'ImageObject',
-            url: `${siteUrl}/images/logo.png`,
-          },
+          logo: { '@type': 'ImageObject', url: `${siteUrl}/images/logo.png` },
         },
         datePublished: business.createdAt.toISOString(),
         dateModified: business.updatedAt.toISOString(),
-        mainEntityOfPage: {
-          '@type': 'WebPage',
-          '@id': pageUrl,
-        },
+        mainEntityOfPage: { '@type': 'WebPage', '@id': pageUrl },
         breadcrumb: { '@id': `${pageUrl}#breadcrumb` },
         inLanguage: 'en-KE',
-        about: {
-          '@type': 'Thing',
-          name: `${business.name} Business`,
-        },
+        about: { '@type': 'Thing', name: `${business.name} Business` },
         keywords: [
           `how to start a ${business.name} business`,
           `${business.name} business requirements`,
           `${business.name} startup cost Kenya`,
         ].join(', '),
       },
-
-      // 3. Service — describes HustleCare's startup-guide service for this business
       {
         '@type': 'Service',
         '@id': `${pageUrl}#service`,
         name: `${business.name} Business Startup Guide`,
         description: `Complete guide to starting a ${business.name} business in Kenya with detailed requirements and cost estimates.`,
-        provider: {
-          '@type': 'Organization',
-          name: 'HustleCare',
-          url: siteUrl,
-        },
-        areaServed: {
-          '@type': 'Country',
-          name: 'Kenya',
-          sameAs: 'https://en.wikipedia.org/wiki/Kenya',
-        },
+        provider: { '@type': 'Organization', name: 'HustleCare', url: siteUrl },
+        areaServed: { '@type': 'Country', name: 'Kenya', sameAs: 'https://en.wikipedia.org/wiki/Kenya' },
         url: pageUrl,
       },
-
-      // 4. ItemList — the flat list of CORE requirements only, as "Thing"
-      //    nodes. Stock items are excluded here — see node 6 below.
       ...(requirementListItems.length > 0
         ? [
             {
@@ -437,9 +314,6 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
             },
           ]
         : []),
-
-      // 5. FAQPage — gives this page its own FAQ rich-result eligibility
-      //    instead of ceding all FAQ presence to the hub page.
       ...(requirementFaqs.length > 0
         ? [
             {
@@ -448,20 +322,11 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
               mainEntity: requirementFaqs.map((faq) => ({
                 '@type': 'Question',
                 name: faq.question,
-                acceptedAnswer: {
-                  '@type': 'Answer',
-                  text: faq.answer,
-                },
+                acceptedAnswer: { '@type': 'Answer', text: faq.answer },
               })),
             },
           ]
         : []),
-
-      // 6. ItemList — Stock items ("Products You Can Sell"), kept as a
-      //    separate node from the Requirements ItemList above so crawlers
-      //    (and anyone reading the schema) don't conflate sellable
-      //    inventory with fixed startup requirements. Only emitted when
-      //    the business actually has Stock items.
       ...(stockListItems.length > 0
         ? [
             {
@@ -479,7 +344,6 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
     ],
   };
 
-  // ── Data shaped for the client hook's initial state ──────────────────────
   const effectiveTradeClassId = business.tradeClassId ?? business.category?.defaultTradeClassId ?? null;
 
   const initialBusiness: BusinessData = {
@@ -504,22 +368,34 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
     effectiveTradeClassId,
   };
 
-  // requirementSlug (below, mapped to `slug`) is only a valid link target
-  // when the source template is published — an unpublished template might
-  // carry a slug placeholder but has no live /requirements/{slug} page
-  // yet. This flows through hooks/useBusinessData's Requirement type into
-  // RequirementsSection → CategorySection → RequirementCard, which is the
-  // component that actually renders the link.
-  const initialRequirements: RequirementData[] = requirements.map((req) => ({
-  id: req.id,
-  templateId: req.templateId,
-  name: req.template.name,
-  description: req.descriptionOverride ?? selectTemplateDescription(req.template, market) ?? null,
-  category: req.template.category ?? null,
-  necessity: req.necessityOverride ?? req.template.necessity,
-  image: req.template.image ?? null,
-  slug: req.template.published ? req.template.slug : null,
-}));
+  const initialRequirements: RequirementData[] = requirements.map((req) => {
+    const recurrence: CostRecurrence =
+      req.template.costRecurrence ?? req.template.categoryRef?.defaultCostRecurrence ?? 'ONE_TIME';
+
+    const quantityByBand = req.quantities.reduce<Partial<Record<SizeBand, number>>>((acc, row) => {
+      acc[row.sizeBand as SizeBand] = row.quantity;
+      return acc;
+    }, {});
+
+    return {
+      id: req.id,
+      templateId: req.templateId,
+      name: req.template.name,
+      description: req.descriptionOverride ?? selectTemplateDescription(req.template, market) ?? null,
+      category: req.template.category ?? null,
+      necessity: req.necessityOverride ?? req.template.necessity,
+      image: req.template.image ?? null,
+      slug: req.template.published ? req.template.slug : null,
+      excludedFromTotals:
+        req.template.categoryRef?.excludedFromTotals ?? isExcludedFromTotals(req.template.category ?? ''),
+      usesLegalCountyFilter:
+        req.template.categoryRef?.usesLegalCountyFilter ?? (req.template.category === 'Legal'),
+      // ── Cost engine size-band support ──────────────────────────────
+      quantity: req.defaultQuantity,
+      quantityByBand,
+      recurrence,
+    };
+  });
 
   return (
     <>
@@ -528,13 +404,13 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
 
-      {/* Pass resolved slug string — NOT the params Promise — plus the
-          server-fetched business/requirements/FAQs for SSR content. */}
       <BusinessPageContent
         slug={slug}
         initialBusiness={initialBusiness}
         initialRequirements={initialRequirements}
         faqs={requirementFaqs}
+        market={market}
+        initialCost={costSummary}
       />
     </>
   );

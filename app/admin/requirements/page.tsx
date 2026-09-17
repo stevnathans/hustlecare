@@ -61,22 +61,26 @@ type SortField =
 type SortDir = "asc" | "desc";
 type ViewMode = "table" | "cards";
 
-const CATEGORIES = [
-  "Equipment",
-  "Software",
-  "Documents",
-  "Legal",
-  "Branding",
-  "Operating Expenses",
-  "Stock",
-];
+// Fetched from /api/admin/requirement-categories instead of hardcoded —
+// see the RequirementCategory entity (Stage 3 Part A). Falls back to an
+// empty list until the fetch resolves; every UI spot that consumed the
+// old CATEGORIES/CAT_COLORS constants now reads from this state instead.
+type CategoryRow = {
+  id: number;
+  name: string;
+  slug: string;
+  colorToken: string | null;
+  displayOrder: number;
+  excludedFromTotals: boolean;
+  necessityScale: "REQUIRED_OPTIONAL" | "DEMAND";
+  usesLegalCountyFilter: boolean;
+  templateCount: number;
+};
 
 // Mirrors the RequirementType enum in prisma/schema.prisma. Kept as a
 // plain string array here (rather than importing the Prisma enum into a
-// client component) the same way CATEGORIES above is a plain array rather
-// than a DB-driven list — see the audit doc's Section 20 on why this will
-// eventually move to a fetched RequirementCategory list instead of a
-// hardcoded one.
+// client component) — unlike `category`, `type` isn't slated to become a
+// fetched entity, so this one stays a hardcoded mirror for now.
 const REQUIREMENT_TYPES = [
   "PERMIT",
   "LICENCE",
@@ -98,15 +102,24 @@ function formatTypeLabel(type: string): string {
 
 const PAGE_SIZE = 10;
 
-const CAT_COLORS: Record<string, [string, string]> = {
-  Equipment: ["rgba(99,102,241,0.12)", "#818cf8"],
-  Software: ["rgba(139,92,246,0.12)", "#a78bfa"],
-  Documents: ["rgba(245,158,11,0.12)", "#fbbf24"],
-  Legal: ["rgba(239,68,68,0.12)", "#f87171"],
-  Branding: ["rgba(236,72,153,0.12)", "#f472b6"],
-  "Operating Expenses": ["rgba(20,184,166,0.12)", "#2dd4bf"],
-  Stock: ["rgba(6,182,212,0.12)", "#22d3ee"],
-};
+/** Converts a hex color into a light rgba() background tint, the same
+ * shape the old hardcoded CAT_COLORS map supplied per category. Falls
+ * back to a neutral gray tint when no colorToken is set (e.g. a category
+ * created without one). */
+function hexToRgba(hex: string, alpha: number): string {
+  const clean = hex.replace("#", "");
+  const bigint = parseInt(
+    clean.length === 3
+      ? clean.split("").map((c) => c + c).join("")
+      : clean,
+    16,
+  );
+  if (Number.isNaN(bigint)) return `rgba(148,148,176,${alpha})`;
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
 
 const defaultForm: {
   name: string;
@@ -253,9 +266,6 @@ const S = `
   .avail-list { display:flex; flex-direction:column; gap:0.4rem; max-height:180px; overflow-y:auto; }
 `;
 
-function catColor(cat: string): [string, string] {
-  return CAT_COLORS[cat] ?? ["rgba(148,148,176,0.1)", "#9494b0"];
-}
 function SortArrow({
   field,
   sortField,
@@ -552,6 +562,7 @@ function DescriptionEditor({
 export default function RequirementsPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("");
   const [filterNec, setFilterNec] = useState("");
@@ -598,6 +609,7 @@ export default function RequirementsPage() {
   useEffect(() => {
     fetchTemplates();
     fetchBusinesses();
+    fetchCategories();
   }, []);
   useEffect(() => {
     setCurrentPage(1);
@@ -639,15 +651,21 @@ export default function RequirementsPage() {
     } catch {}
   }
 
-  async function fetchLinkedBusinesses(templateId: number) {
-    setLinkedLoading(true);
+  // Categories now come from the RequirementCategory table instead of a
+  // hardcoded array — see the Stage 3 Part A migration. Every place that
+  // used to read the old CATEGORIES/CAT_COLORS constants reads this state
+  // instead, ordered by displayOrder (same as the API's own ordering).
+  async function fetchCategories() {
     try {
-      const r = await fetch(`/api/requirements/${templateId}/businesses`);
-      if (r.ok) setLinkedBusinesses(await r.json());
-    } catch {
-    } finally {
-      setLinkedLoading(false);
-    }
+      const r = await fetch("/api/admin/requirement-categories");
+      if (r.ok) setCategories(await r.json());
+    } catch {}
+  }
+
+  function categoryColor(cat: string): [string, string] {
+    const row = categories.find((c) => c.name === cat);
+    const hex = row?.colorToken || "#9494b0";
+    return [hexToRgba(hex, 0.12), hex];
   }
 
   function handleNecessityUpdated(linkId: number, override: string | null) {
@@ -662,6 +680,17 @@ export default function RequirementsPage() {
         };
       }),
     );
+  }
+
+  async function fetchLinkedBusinesses(templateId: number) {
+    setLinkedLoading(true);
+    try {
+      const r = await fetch(`/api/requirements/${templateId}/businesses`);
+      if (r.ok) setLinkedBusinesses(await r.json());
+    } catch {
+    } finally {
+      setLinkedLoading(false);
+    }
   }
 
   function handleDescriptionUpdated(linkId: number, desc: string | null) {
@@ -811,12 +840,21 @@ export default function RequirementsPage() {
       const url = editingId
         ? `/api/requirements/${editingId}`
         : "/api/requirements";
+      // Resolve the selected category NAME to its id and send categoryId —
+      // the API resolves categoryId back to the legacy `category` string
+      // server-side (dual-write), so the admin UI never needs to send the
+      // string directly anymore. Falls back to sending the raw string if,
+      // for any reason, categories haven't loaded yet (keeps the form
+      // usable even if /api/admin/requirement-categories is slow/down).
+      const matchedCategory = categories.find((c) => c.name === formData.category);
       const body: Omit<typeof formData, "type" | "verifiedAt"> & {
         businessId?: number;
         type: string | null;
         verifiedAt: string | null;
+        categoryId?: number;
       } = {
         ...formData,
+        ...(matchedCategory && { categoryId: matchedCategory.id }),
         // Empty string means "no type set" / "not verified" — send null
         // rather than an empty string so the API doesn't have to guess.
         type: formData.type || null,
@@ -1448,9 +1486,9 @@ export default function RequirementsPage() {
                 className="u-select"
               >
                 <option value="">All categories</option>
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
+                {categories.map((c) => (
+                  <option key={c.id} value={c.name}>
+                    {c.name}
                   </option>
                 ))}
               </select>
@@ -1860,8 +1898,8 @@ export default function RequirementsPage() {
                                 borderRadius: "100px",
                                 fontSize: "0.72rem",
                                 fontWeight: 700,
-                                background: catColor(t.category)[0],
-                                color: catColor(t.category)[1],
+                                background: categoryColor(t.category)[0],
+                                color: categoryColor(t.category)[1],
                               }}
                             >
                               {t.category}
@@ -2157,8 +2195,8 @@ export default function RequirementsPage() {
                           borderRadius: "100px",
                           fontSize: "0.7rem",
                           fontWeight: 700,
-                          background: catColor(t.category)[0],
-                          color: catColor(t.category)[1],
+                          background: categoryColor(t.category)[0],
+                          color: categoryColor(t.category)[1],
                         }}
                       >
                         {t.category}
@@ -2432,7 +2470,9 @@ export default function RequirementsPage() {
                           // value isn't valid for the new category, reset it to that
                           // category's default rather than leaving a stale value.
                           // Also reset isCountyFeeSchedule when leaving Legal — that
-                          // toggle only makes sense for Legal requirements.
+                          // toggle only makes sense for Legal requirements. (Still a
+                          // string check for now — usesLegalCountyFilter swap is
+                          // Part B.)
                           setFormData((f) => ({
                             ...f,
                             category: newCategory,
@@ -2449,9 +2489,9 @@ export default function RequirementsPage() {
                         }}
                       >
                         <option value="">Select…</option>
-                        {CATEGORIES.map((c) => (
-                          <option key={c} value={c}>
-                            {c}
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.name}>
+                            {c.name}
                           </option>
                         ))}
                       </select>

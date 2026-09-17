@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useCart } from '@/contexts/CartContext';
 import { Product as ProductType, LegalFeeSchedule } from '@/types';
 import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
+import type { CostRecurrence, SizeBand } from '@/lib/cost-engine';
 
 export interface Requirement {
   id: number;
@@ -12,13 +13,19 @@ export interface Requirement {
   category?: string | null;
   necessity: string;
   image?: string | null;
-  // Only a valid link target when the source template is published —
-  // see the requirementSlug computation in the page components that
-  // build initialRequirements. Optional and possibly stale on the
-  // client-refetch path (see the handoff note about
-  // /api/business/[slug]/requirements/route.ts) — RequirementCard
-  // treats a missing/null slug as "render plain text, not a link."
   slug?: string | null;
+  excludedFromTotals?: boolean;
+  usesLegalCountyFilter?: boolean;
+  // ── Cost engine size-band support ──────────────────────────────────
+  // Carried from lib/business-data.ts's SSR select (page.tsx's
+  // initialRequirements) or app/api/business/[slug]/requirements/route.ts
+  // on a client-side re-fetch — both resolve identically. All 1/ONE_TIME
+  // today (no real quantity data exists yet), but wired through so a
+  // future admin-entered quantity doesn't silently diverge between server
+  // and client the way earlier cost figures used to.
+  quantity?: number;
+  quantityByBand?: Partial<Record<SizeBand, number>>;
+  recurrence?: CostRecurrence;
 }
 
 export interface Business {
@@ -47,17 +54,6 @@ export interface Business {
   socialLinks?: never[];
   reviewCount?: number;
   rating?: any;
-
-  // County-fee trade-class resolution (see lib/legalFeeSchedule.ts).
-  // tradeClassId is this business's own override, if set.
-  // effectiveTradeClassId is the one to actually use for fee lookups —
-  // tradeClassId ?? category.defaultTradeClassId — expected to be
-  // computed server-side by /api/business/[slug] and passed through here
-  // as-is. Both are always `number | null`, never `undefined` — the
-  // mapping below guarantees a null fallback. This matters because
-  // CostCalculator's prop type is the real Prisma-generated Business
-  // type, where tradeClassId is a required `number | null` column (not
-  // optional) — an `undefined` here would be a type mismatch there.
   tradeClassId: number | null;
   effectiveTradeClassId: number | null;
 }
@@ -101,12 +97,6 @@ function sortCategoryKeys(grouped: Record<string, Requirement[]>): string[] {
 export const useBusinessData = (
   slug: string,
   initialData?: UseBusinessDataInitial,
-  // Which market this page is rendering for — KE or US. Defaults to KE.
-  // Threaded into every client-side fetch (initial load and any
-  // refresh/re-fetch) so requirements and products stay scoped to the
-  // correct market even after hydration. See
-  // app/api/business/[slug]/requirements/route.ts and .../products/route.ts,
-  // which both read this from ?market=.
   market: MarketCode = DEFAULT_MARKET,
 ) => {
   const { switchBusiness } = useCart();
@@ -120,13 +110,10 @@ export const useBusinessData = (
   const [feeSchedules, setFeeSchedules]   = useState<Record<string, LegalFeeSchedule[]>>({});
   const [countyFeeScheduleNames, setCountyFeeScheduleNames] = useState<Set<string>>(new Set());
   const [countyFeeShellProductIds, setCountyFeeShellProductIds] = useState<Record<string, number>>({});
-  // Requirement name -> the shell product's editable fields (name,
-  // description, image, url). Lets the front end show admin-edited
-  // content instead of always falling back to the requirement template's
-  // generic description.
   const [countyFeeShellProductDetails, setCountyFeeShellProductDetails] = useState<Record<string, FeeScheduleShellProductDetails>>({});
   const [error, setError]                 = useState<string | null>(null);
   const [isLoading, setIsLoading]         = useState<boolean>(!hasInitialData);
+  const [productsLoaded, setProductsLoaded] = useState<boolean>(false);
   const [groupedRequirements, setGroupedRequirements] = useState<Record<string, Requirement[]>>(
     () => groupByCategory(initialData?.requirements ?? [])
   );
@@ -221,11 +208,9 @@ export const useBusinessData = (
             processingTimeMinDays: product.processingTimeMinDays,
             processingTimeMaxDays: product.processingTimeMaxDays,
 
-            // Software — simple flat-price cadence, and/or package tiers.
-            // See types/index.ts (Product.billingPeriod / Product.packages)
-            // for how the two interact with `price` above.
             billingPeriod: product.billingPeriod ?? null,
             packages:      Array.isArray(product.packages) ? product.packages : [],
+            priceCheckedAt: product.priceCheckedAt ?? null,
           })
         );
 
@@ -256,6 +241,8 @@ export const useBusinessData = (
       setCountyFeeScheduleNames(new Set());
       setCountyFeeShellProductIds({});
       setCountyFeeShellProductDetails({});
+    } finally {
+      setProductsLoaded(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [market]);
@@ -270,6 +257,7 @@ export const useBusinessData = (
     const loadBusinessData = async () => {
       try {
         setError(null);
+        setProductsLoaded(false);
 
         let transformedBusiness: Business;
         let requirementsData: Requirement[];
@@ -365,6 +353,7 @@ export const useBusinessData = (
     countyFeeShellProductDetails,
     error,
     isLoading,
+    productsLoaded,
     groupedRequirements,
     sortedCategories,
     refreshProducts,

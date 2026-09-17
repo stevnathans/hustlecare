@@ -1,8 +1,21 @@
 // app/api/business/[slug]/requirements/route.ts
+//
+// QUANTITY/RECURRENCE (new): response now includes quantity, quantityByBand
+// and recurrence per requirement — the client-hydration counterpart to
+// lib/business-data.ts's SSR select. This is the path useBusinessData
+// hits on any pure client-side navigation (no SSR initialData). Mirrors
+// lib/cost-data.ts's resolution logic (template override, then category
+// default, then ONE_TIME) — duplicated rather than shared, matching every
+// other resolution chain in this codebase (excludedFromTotals,
+// usesLegalCountyFilter) that already tolerates this duplication across
+// SSR paths and API routes.
+
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { DEFAULT_MARKET, isMarketCode } from '@/lib/markets';
 import { selectTemplateDescription } from '@/lib/requirement-description';
+import { isExcludedFromTotals } from '@/lib/necessity';
+import type { CostRecurrence, SizeBand } from '@/lib/cost-engine';
 
 export async function GET(
   request: NextRequest,
@@ -36,14 +49,15 @@ export async function GET(
         },
       },
       include: {
-        // Full include (no `select`) — `link.template.slug` and
-        // `link.template.published` (added in the Stage 1 migration) are
-        // already present on every row here without any query change.
         template: {
           include: {
             _count: { select: { products: true } },
+            categoryRef: {
+              select: { excludedFromTotals: true, usesLegalCountyFilter: true, defaultCostRecurrence: true },
+            },
           },
         },
+        quantities: { select: { sizeBand: true, quantity: true } },
       },
       orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
     });
@@ -52,6 +66,14 @@ export async function GET(
       const templateDesc = selectTemplateDescription(link.template, market) ?? '';
       const resolvedTemplateDesc = templateDesc.replace(/\[businessName\]/gi, business.name);
       const effectiveDescription = link.descriptionOverride ?? resolvedTemplateDesc;
+
+      const recurrence: CostRecurrence =
+        link.template.costRecurrence ?? link.template.categoryRef?.defaultCostRecurrence ?? 'ONE_TIME';
+
+      const quantityByBand = link.quantities.reduce<Partial<Record<SizeBand, number>>>((acc, row) => {
+        acc[row.sizeBand as SizeBand] = row.quantity;
+        return acc;
+      }, {});
 
       return {
         id: link.id,
@@ -62,17 +84,15 @@ export async function GET(
         category: link.template.category,
         necessity: link.necessityOverride ?? link.template.necessity,
         productCount: link.template._count.products,
-        // Only a valid link target when the template is published AND
-        // we're on the Kenya market — /requirements/{slug} (Stage 2) is
-        // Kenya-scoped: it fetches Kenya business links and frames copy
-        // around "in Kenya." Linking a US visitor there would be a
-        // content mismatch, not a 404, until Stage 4 ships a
-        // market-aware /us/requirements/{slug}. Mirrors the same gating
-        // rule already applied in the SSR paths
-        // (app/businesses/[slug]/requirements/page.tsx sets this from
-        // `template.published`; the US equivalent always sends null for
-        // the same reason this route does).
         slug: market === 'KE' && link.template.published ? link.template.slug : null,
+        excludedFromTotals:
+          link.template.categoryRef?.excludedFromTotals ?? isExcludedFromTotals(link.template.category ?? ''),
+        usesLegalCountyFilter:
+          link.template.categoryRef?.usesLegalCountyFilter ?? (link.template.category === 'Legal'),
+        // ── Cost engine size-band support ──────────────────────────────
+        quantity: link.defaultQuantity,
+        quantityByBand,
+        recurrence,
       };
     });
 

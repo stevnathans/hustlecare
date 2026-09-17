@@ -1,6 +1,7 @@
+// app/businesses/[slug]/requirements/BusinessPageContent.tsx
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import CostCalculator from '@/components/CostCalculator';
 import BusinessHeader from '@/components/DetailsPage/BusinessHeader';
 import RequirementsSection from '@/components/DetailsPage/RequirementsSection';
@@ -10,10 +11,16 @@ import {
   type Business as BusinessData,
   type Requirement as RequirementData,
 } from 'hooks/useBusinessData';
-import { useFilterState } from 'hooks/useFilterState';
+import { useFilterState, type FeeRange } from 'hooks/useFilterState';
 import { Product as ProductType } from '@/types';
-import { resolveFeeSchedule, FeeScheduleResolution } from '@/lib/legalFeeSchedule';
+import {
+  resolveFeeSchedule,
+  resolveFeeScheduleAcrossCounties,
+  feeResolutionToRange,
+  FeeScheduleResolution,
+} from '@/lib/legalFeeSchedule';
 import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
+import { DEFAULT_SIZE_BAND, type RequirementsPageCostSummary, type SizeBand } from '@/lib/cost-engine';
 import Link from 'next/link';
 
 interface Faq {
@@ -26,13 +33,9 @@ interface BusinessPageContentProps {
   initialBusiness?: BusinessData;
   initialRequirements?: RequirementData[];
   faqs?: Faq[];
-  // Which market this page is rendering for. Defaults to Kenya to match
-  // every other file's pre-existing default — but every caller (the KE
-  // and US requirements/hub page routes) should pass this explicitly.
-  // Drives: which market's requirements/products useBusinessData fetches
-  // on any client-side re-fetch, whether the county selector renders at
-  // all (Kenya-only concept), and which currency the cost calculator uses.
   market?: MarketCode;
+  /** Server-computed headline figures, PER SIZE BAND — see lib/cost-data.ts#getRequirementsPageCostSummary. */
+  initialCost?: Record<SizeBand, RequirementsPageCostSummary> | null;
 }
 
 function vendorServesCounty(vendor: any, countyId: number): boolean {
@@ -54,18 +57,17 @@ function BusinessPageContentInner({
   initialRequirements,
   faqs,
   market = DEFAULT_MARKET,
+  initialCost = null,
 }: Required<Pick<BusinessPageContentProps, 'market'>> & Omit<BusinessPageContentProps, 'market'>) {
   const isKenya = market === 'KE';
-
-  // County selection only exists as a concept in Kenya (county-fee permits,
-  // vendor county coverage). On any other market, selectedCounty is always
-  // null — CountyProvider is never mounted for those markets (see the
-  // outer BusinessPageContent below), and useCounty() safely returns a
-  // null-county default outside its provider (confirm this against
-  // CountyContext's implementation — see flag below).
   const { selectedCounty } = useCounty();
 
-    const {
+  // Size band — owned here (not inside useFilterState) because the fee-
+  // range computation below needs the current band BEFORE useFilterState
+  // is called, and BusinessHeader's selector needs to read/set it too.
+  const [sizeBand, setSizeBand] = useState<SizeBand>(DEFAULT_SIZE_BAND);
+
+  const {
     business,
     requirements,
     products,
@@ -77,6 +79,7 @@ function BusinessPageContentInner({
     groupedRequirements,
     sortedCategories,
     refreshProducts,
+    productsLoaded,
   } = useBusinessData(
     slug,
     initialBusiness && initialRequirements
@@ -85,22 +88,14 @@ function BusinessPageContentInner({
     market
   );
 
-  const requirementCategoryByName = useMemo(() => {
-    const map: Record<string, string> = {};
-    requirements.forEach((r) => { map[r.name] = r.category || 'Uncategorized'; });
+  const requirementUsesLegalCountyFilterByName = useMemo(() => {
+    const map: Record<string, boolean> = {};
+    requirements.forEach((r) => {
+      map[r.name] = r.usesLegalCountyFilter ?? r.category === 'Legal';
+    });
     return map;
   }, [requirements]);
 
-  // Legal (vendor-issued, e.g. KRA/KEBS): hard filter by vendor county coverage.
-  // Everything else: soft sort only. Fee-schedule requirements are handled
-  // separately below and untouched here (their "products" array is empty
-  // by design — they have no real Product rows).
-  //
-  // isKenya guard: county-based filtering/sorting is a Kenya-only concept.
-  // On any other market, selectedCounty is always null anyway (see above),
-  // so this already falls through to the unfiltered branch — the explicit
-  // isKenya check here is just documentation-by-code of that invariant,
-  // not a behavior change from the null check alone.
   const { countyAdjustedProducts, legalUnavailableInCounty } = useMemo(() => {
     if (!isKenya || !selectedCounty) {
       return { countyAdjustedProducts: products, legalUnavailableInCounty: {} as Record<string, boolean> };
@@ -110,9 +105,9 @@ function BusinessPageContentInner({
     const unavailable: Record<string, boolean> = {};
 
     for (const [reqName, prods] of Object.entries(products)) {
-      const category = requirementCategoryByName[reqName];
+      const usesLegalCountyFilter = requirementUsesLegalCountyFilterByName[reqName];
 
-      if (category === 'Legal' && !countyFeeScheduleNames.has(reqName)) {
+      if (usesLegalCountyFilter && !countyFeeScheduleNames.has(reqName)) {
         const filtered = prods.filter((p) => vendorServesCounty(p.vendor, selectedCounty.id));
         out[reqName] = filtered;
         unavailable[reqName] = prods.length > 0 && filtered.length === 0;
@@ -124,34 +119,45 @@ function BusinessPageContentInner({
     }
 
     return { countyAdjustedProducts: out, legalUnavailableInCounty: unavailable };
-  }, [isKenya, products, selectedCounty, requirementCategoryByName, countyFeeScheduleNames]);
+  }, [isKenya, products, selectedCounty, requirementUsesLegalCountyFilterByName, countyFeeScheduleNames]);
 
-  // County-issued permits (Business Permit, Health Certificate, etc.) —
-  // resolved from LegalFeeSchedule. Only computed once a county is picked;
-  // countyFeeScheduleNames (from useBusinessData) already tells the UI
-  // which requirements are this type even before that, so there's no
-  // "flash of wrong content" while waiting for a selection.
-  //
-  // Passes the business's EFFECTIVE trade class (its own override, else
-  // its category's default — see Business.effectiveTradeClassId in
-  // useBusinessData) so fee rows tiered by trade class actually resolve
-  // to the right price instead of always falling back to the flat/generic
-  // county rate. If effectiveTradeClassId isn't populated yet (API not
-  // updated, or business/category has no trade class assigned), this
-  // degrades gracefully to the same flat-rate behavior as before.
-  //
-  // isKenya guard: same reasoning as above — county fee schedules are a
-  // Kenya-only mechanism (see LegalFeeSchedule/County in schema.prisma).
+  // Per-county resolution — now size-band aware, so both CountyFeeCard
+  // (which reads this directly) and the aggregate fallback below reflect
+  // the currently selected size, not just trade class.
   const feeScheduleResolutions = useMemo(() => {
     if (!isKenya || !selectedCounty) return {} as Record<string, FeeScheduleResolution>;
     const out: Record<string, FeeScheduleResolution> = {};
     const tradeClassId = business?.effectiveTradeClassId ?? null;
     for (const [reqName, schedules] of Object.entries(feeSchedules)) {
       if (!countyFeeScheduleNames.has(reqName)) continue;
-      out[reqName] = resolveFeeSchedule(schedules, selectedCounty.id, { tradeClassId });
+      out[reqName] = resolveFeeSchedule(schedules, selectedCounty.id, { tradeClassId, sizeBand });
     }
     return out;
-  }, [isKenya, feeSchedules, selectedCounty, countyFeeScheduleNames, business]);
+  }, [isKenya, feeSchedules, selectedCounty, countyFeeScheduleNames, business, sizeBand]);
+
+  // Cost engine: county-fee ranges per requirement, at the current size
+  // band. No county selected → aggregate across every county with data,
+  // using the SAME pure function lib/cost-data.ts calls server-side, so
+  // this can never disagree with the SSR fallback. This is fully correct
+  // TODAY (no new data needed) — fee schedules are already fetched
+  // client-side and resolveFeeSchedule already accepts sizeBand.
+  const feeRangesByRequirementName = useMemo(() => {
+    const out: Record<string, FeeRange> = {};
+    if (!isKenya) return out;
+
+    const tradeClassId = business?.effectiveTradeClassId ?? null;
+
+    countyFeeScheduleNames.forEach((name) => {
+      if (selectedCounty && feeScheduleResolutions[name]) {
+        out[name] = feeResolutionToRange(feeScheduleResolutions[name]);
+      } else {
+        const aggregate = resolveFeeScheduleAcrossCounties(feeSchedules[name] ?? [], { tradeClassId, sizeBand });
+        out[name] = aggregate ? { low: aggregate.low, high: aggregate.high } : null;
+      }
+    });
+
+    return out;
+  }, [isKenya, countyFeeScheduleNames, selectedCounty, feeScheduleResolutions, feeSchedules, business, sizeBand]);
 
   const {
     categoryStates,
@@ -170,6 +176,8 @@ function BusinessPageContentInner({
     unfilteredHighPrice,
     unfilteredRequirementsWithProducts,
     unfilteredRequiredRequirementsWithProducts,
+    unfilteredRequiredSource,
+    unfilteredSource,
     unfilteredStockCount,
     unfilteredStockLowPrice,
     unfilteredStockMedianPrice,
@@ -181,7 +189,12 @@ function BusinessPageContentInner({
     toggleFilter,
     setFilter,
     handleCategorySearchChange,
-  } = useFilterState(requirements, countyAdjustedProducts, groupedRequirements, sortedCategories);
+  } = useFilterState(requirements, countyAdjustedProducts, groupedRequirements, sortedCategories, {
+    initialCost,
+    productsLoaded,
+    feeRangesByRequirementName,
+    sizeBand,
+  });
 
   if (error === 'Business not found') {
     return (
@@ -240,10 +253,15 @@ function BusinessPageContentInner({
             unfilteredHighPrice={unfilteredHighPrice}
             requiredRequirementsWithProducts={unfilteredRequiredRequirementsWithProducts}
             requirementsWithProducts={unfilteredRequirementsWithProducts}
+            costSourceRequired={unfilteredRequiredSource}
+            costSourceAll={unfilteredSource}
             unfilteredStockCount={unfilteredStockCount}
             unfilteredStockLowPrice={unfilteredStockLowPrice}
             unfilteredStockMedianPrice={unfilteredStockMedianPrice}
             unfilteredStockHighPrice={unfilteredStockHighPrice}
+            sizeBand={sizeBand}
+            onSizeBandChange={setSizeBand}
+            slug={business.slug}
             market={market}
           />
 
@@ -317,10 +335,6 @@ export default function BusinessPageContent(props: BusinessPageContentProps) {
   const market = props.market ?? DEFAULT_MARKET;
   const isKenya = market === 'KE';
 
-  // CountyProvider only mounts for Kenya — county selection has no meaning
-  // outside it. For every other market, BusinessPageContentInner never
-  // sees a CountyProvider above it; see the flag below about what
-  // useCounty() needs to return in that case.
   if (!isKenya) {
     return <BusinessPageContentInner {...props} market={market} />;
   }

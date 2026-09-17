@@ -41,6 +41,15 @@ export interface LegalFeeSchedule {
   processingTimeMaxDays: number | null;
   applyUrl: string | null;
   notes: string | null;
+  // Trust/provenance — present on the Prisma model. Left null until
+  // genuinely verified; the "Last verified" line only renders when
+  // verifiedAt is set. `string | Date` because this type serves both
+  // client code reading a JSON response (dates arrive as ISO strings)
+  // and server code reading Prisma directly (dates arrive as Date) —
+  // see lib/cost-data.ts, the first server-side caller of
+  // lib/legalFeeSchedule.ts's resolver functions.
+  issuingAuthority: string | null;
+  verifiedAt: string | Date | null;
 }
 
 // Software subscription cadence — shared by Product.billingPeriod (the
@@ -124,6 +133,10 @@ export interface Product {
   // lib/product-validation.ts).
   billingPeriod?: BillingPeriod | null;
   packages?: SoftwarePackage[];
+
+  // Cost engine trust surface — when this price was last confirmed
+  // against the vendor's own listing. Null until genuinely checked.
+  priceCheckedAt?: string | null;
 }
 
 export type ProductFormValues = {

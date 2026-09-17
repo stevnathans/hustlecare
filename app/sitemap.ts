@@ -141,6 +141,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         changeFrequency: 'weekly' as const,
         priority: 0.80,
       },
+      // New — the dedicated cost breakdown page. Same priority as
+      // requirements: both are core, high-intent pages for every business.
+      {
+        url: `${SITE_URL}/businesses/${business.slug}/cost`,
+        lastModified: business.updatedAt,
+        changeFrequency: 'weekly' as const,
+        priority: 0.80,
+      },
       {
         url: `${SITE_URL}/businesses/${business.slug}/how-to-start`,
         lastModified: business.updatedAt,
@@ -196,10 +204,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   // ── Dynamic requirement entity pages (Stage 2) ────────────────────────────
-  // Filtered by getIndexableRequirementSlugs's anti-orphan rule — a
-  // requirement only gets a sitemap entry if it has real content behind it
-  // (an active business link or fee-schedule data), same bar the page's
-  // own generateStaticParams and notFound() guard use.
   let requirementPages: MetadataRoute.Sitemap = [];
 
   try {

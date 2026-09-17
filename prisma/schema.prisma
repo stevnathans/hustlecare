@@ -178,6 +178,15 @@ model Business {
   metaTitle       String?
   metaDescription String?
 
+  // Cost engine — months of running costs folded into the "cash needed
+  // to open" headline figure. 3 is a conservative default matching the
+  // engine's own DEFAULT_WORKING_CAPITAL_MONTHS constant, so every
+  // existing business behaves identically until someone sets a
+  // business-specific value (e.g. higher for a business with a long
+  // ramp-up before it breaks even). Overridable per-request by any
+  // caller of getBusinessCostBreakdown(); this is only the default.
+  workingCapitalMonths Int @default(3)
+
   @@index([name])
   @@index([slug])
   @@index([published])
@@ -313,6 +322,14 @@ model RequirementTemplate {
   businesses   BusinessRequirement[]
   products     Product[]
 
+    // ── Category entity ────────────────────────────────
+  // Additive alongside the legacy `category` string above. Nullable
+  // during backfill; once every row has been matched to a
+  // RequirementCategory, application code can start reading through
+  // this relation instead of string-comparing `category`.
+  categoryId  Int?
+  categoryRef RequirementCategory? @relation(fields: [categoryId], references: [id])
+
   // When true, this requirement's pricing comes from LegalFeeSchedule
   // (county-issued permits/certificates whose price varies by county and
   // sometimes trade class/size) instead of the normal Product catalog.
@@ -332,7 +349,14 @@ model RequirementTemplate {
   // separate template rather than reusing this one).
   restrictedToCountry String? @default("KE")
 
-  // ── SEO / indexing fields (Stage 1) ─────────────────────────────────
+  // Cost engine — per-template override of RequirementCategory
+  // .defaultCostRecurrence, for the rare requirement whose billing
+  // cadence genuinely differs from its category's norm (e.g. a
+  // template that's paid annually even though its category is
+  // otherwise one-time). Null means "use the category default."
+  costRecurrence CostRecurrence?
+
+  // ── SEO / indexing fields ─────────────────────────────────
   //
   // published/publishedAt mirror the pattern Business already uses:
   // published defaults to true so nothing is silently hidden for
@@ -355,12 +379,40 @@ model RequirementTemplate {
   verifiedAt DateTime?
 
   @@index([category])
+  @@index([categoryId])
   @@index([necessity])
   @@index([isDeprecated])
   @@index([name])
   @@index([restrictedToCountry])
   @@index([slug])
   @@index([published])
+}
+
+model RequirementCategory {
+  id                    Int            @id @default(autoincrement())
+  name                  String         @unique
+  slug                  String         @unique
+  description           String?
+  displayOrder          Int            @default(0)
+  colorToken            String?        // single accent hex — UI derives a light bg tint from it
+  excludedFromTotals    Boolean        @default(false)
+  necessityScale        NecessityScale @default(REQUIRED_OPTIONAL)
+  usesLegalCountyFilter Boolean        @default(false)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  templates             RequirementTemplate[]
+
+  // Default recurrence for every requirement in this category — e.g. set
+  // Operating Expenses to MONTHLY once created; everything else keeps the
+  // ONE_TIME default it already behaves as today. A RequirementTemplate
+  // can override this individually via its own costRecurrence field
+  // below; that override wins. See resolveRecurrence() in
+  // lib/cost-engine.ts for the full precedence chain (a product's own
+  // billingPeriod, e.g. Software, wins over both).
+  defaultCostRecurrence CostRecurrence @default(ONE_TIME)
+
+  @@index([slug])
+  @@index([displayOrder])
 }
 
 model BusinessRequirement {
@@ -378,10 +430,44 @@ model BusinessRequirement {
   template            RequirementTemplate @relation(fields: [templateId], references: [id])
   comments            Comment[]
 
+  // Cost engine — how many units of this requirement THIS business
+  // typically needs. Used as the fallback whenever no row exists in
+  // `quantities` below for the size band being priced. 1 for most
+  // requirements (one permit, one signboard); higher for things bought
+  // in multiples (chairs, dumbbells, uniforms). Every existing row
+  // defaults to 1, which reproduces current behavior exactly — no cost
+  // figure moves until someone sets a real value.
+  defaultQuantity Int @default(1)
+
+  // Per-size-band quantity overrides. Only create rows for requirements
+  // whose count genuinely changes with business size — most requirements
+  // need none and just use defaultQuantity at every band.
+  quantities BusinessRequirementQuantity[]
+
   @@unique([businessId, templateId])
   @@index([businessId])
   @@index([templateId])
   @@index([isActive])
+}
+
+// Per-scale quantity override for a single BusinessRequirement. Same
+// child-of-parent shape as BulkPriceTier and SoftwarePackage. Reuses the
+// BusinessSizeBand enum already defined for LegalFeeSchedule, so picking
+// a scale (e.g. on the /cost page) resolves BOTH the requirement
+// quantity AND the county permit fee band from the same one selection.
+
+model BusinessRequirementQuantity {
+  id                    Int              @id @default(autoincrement())
+  businessRequirementId Int
+  sizeBand              BusinessSizeBand
+  quantity              Int
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  businessRequirement BusinessRequirement @relation(fields: [businessRequirementId], references: [id], onDelete: Cascade)
+
+  @@unique([businessRequirementId, sizeBand])
+  @@index([businessRequirementId])
 }
 
 model Comment {
@@ -482,6 +568,16 @@ model Product {
   vendor     Vendor?              @relation(fields: [vendorId], references: [id])
   reviews    Review[]
   orderItems OrderItem[]
+
+  // Cost engine trust surface — when this price was last confirmed
+  // against the vendor's own listing (manually or via a future
+  // scraper/monitor). Null until someone genuinely checks it. The public
+  // "prices last verified" line on the cost page only renders when every
+  // priced product behind a figure has this set — see
+  // resolveLinePriceCheckedAt() in lib/cost-engine.ts, which is
+  // deliberately conservative: one unchecked product in a line means the
+  // whole line is treated as unverified rather than partially trusted.
+  priceCheckedAt DateTime?
 
   @@index([vendorId])
   @@index([templateId])
@@ -1019,6 +1115,22 @@ enum HowToSectionType {
   NOTE
   INFO
   CONCLUSION
+}
+
+enum NecessityScale {
+  REQUIRED_OPTIONAL
+  DEMAND
+}
+
+// Cost engine (lib/cost-engine.ts): whether a requirement's cost is a
+// one-time setup expense or a recurring running cost. Only ONE_TIME
+// existed implicitly before this — everything summed into one capex
+// figure, which is why a monthly rent line and a one-time equipment
+// purchase were indistinguishable in every cost total on the site.
+enum CostRecurrence {
+  ONE_TIME
+  MONTHLY
+  ANNUAL
 }
 
 model EmailLog {

@@ -61,6 +61,7 @@ export async function GET(_: NextRequest, { params }: Params) {
       descriptionUS: template.descriptionUS,
       image: template.image,
       category: template.category,
+      categoryId: template.categoryId,
       necessity: template.necessity,
       isDeprecated: template.isDeprecated,
       isGlobal: template.isGlobal,
@@ -107,6 +108,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       descriptionUS,
       image,
       category,
+      categoryId,
       necessity,
       isGlobal,
       isCountyFeeSchedule,
@@ -148,6 +150,33 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       );
     }
 
+    // ── Category resolution (Stage 3 Part A) ────────────────────────────
+    // Same dual-write pattern as the POST handler: when categoryId is
+    // sent, resolve it and sync the legacy `category` string to the
+    // resolved row's name. When categoryId is absent, fall back to
+    // accepting a raw `category` string exactly as before. Sending
+    // categoryId: null explicitly clears the relation (category string
+    // is left untouched in that case unless a raw `category` was also
+    // sent alongside it).
+    let resolvedCategory: string | undefined;
+    let resolvedCategoryId: number | null | undefined;
+    if (categoryId !== undefined) {
+      if (categoryId === null) {
+        resolvedCategoryId = null; // explicit clear
+      } else {
+        const categoryRow = await prisma.requirementCategory.findUnique({
+          where: { id: Number(categoryId) },
+        });
+        if (!categoryRow) {
+          return NextResponse.json({ error: "Invalid categoryId" }, { status: 400 });
+        }
+        resolvedCategoryId = categoryRow.id;
+        resolvedCategory = categoryRow.name;
+      }
+    } else if (category !== undefined) {
+      resolvedCategory = category;
+    }
+
     // Only re-slug if a genuinely different slug was requested — never
     // silently reslug just because `name` changed, since that would break
     // any existing inbound links (internal or external) to the current
@@ -183,7 +212,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         // lib/requirement-description.ts for the resolution order.
         ...(descriptionUS !== undefined && { descriptionUS }),
         ...(image       !== undefined && { image }),
-        ...(category    !== undefined && { category }),
+        ...(resolvedCategory !== undefined && { category: resolvedCategory }),
+        ...(resolvedCategoryId !== undefined && { categoryId: resolvedCategoryId }),
         ...(necessity   !== undefined && { necessity }),
         ...(isGlobal    !== undefined && { isGlobal }),
         ...(isCountyFeeSchedule !== undefined && { isCountyFeeSchedule }),
@@ -237,6 +267,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       descriptionUS: updated.descriptionUS,
       image: updated.image,
       category: updated.category,
+      categoryId: updated.categoryId,
       necessity: updated.necessity,
       isGlobal: updated.isGlobal,
       isCountyFeeSchedule: updated.isCountyFeeSchedule,

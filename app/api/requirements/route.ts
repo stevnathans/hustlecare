@@ -29,6 +29,7 @@ export async function GET() {
         descriptionUS: t.descriptionUS,
         image: t.image,
         category: t.category,
+        categoryId: t.categoryId,
         necessity: t.necessity,
         isDeprecated: t.isDeprecated,
         isGlobal: t.isGlobal,
@@ -65,6 +66,7 @@ export async function POST(req: Request) {
       descriptionUS,
       image,
       category,
+      categoryId,
       necessity,
       businessId,
       isGlobal = false,
@@ -77,9 +79,29 @@ export async function POST(req: Request) {
       verifiedAt,
     } = body;
 
-    if (!name || !category || !necessity) {
+    // ── Category resolution (Stage 3 Part A) ────────────────────────────
+    // Admin UI sends categoryId; the CSV import path (and any other
+    // legacy caller) sends a raw `category` string. When categoryId is
+    // present, resolve it and use the category row's name as the legacy
+    // `category` string too, so both columns stay in sync (dual-write).
+    // When categoryId is absent, fall back to accepting the raw string
+    // exactly as before — categoryId is simply left unset on that row
+    // until a later pass matches it up (see
+    // scripts/backfill-requirement-categories.ts).
+    let resolvedCategory: string | undefined = category;
+    if (categoryId !== undefined && categoryId !== null) {
+      const categoryRow = await prisma.requirementCategory.findUnique({
+        where: { id: Number(categoryId) },
+      });
+      if (!categoryRow) {
+        return NextResponse.json({ error: "Invalid categoryId" }, { status: 400 });
+      }
+      resolvedCategory = categoryRow.name;
+    }
+
+    if (!name || !resolvedCategory || !necessity) {
       return NextResponse.json(
-        { error: "name, category, and necessity are required" },
+        { error: "name, and either categoryId or category, and necessity are required" },
         { status: 400 }
       );
     }
@@ -127,7 +149,8 @@ export async function POST(req: Request) {
         // never read in that case.
         ...(descriptionUS !== undefined && { descriptionUS }),
         image,
-        category,
+        category: resolvedCategory,
+        ...(categoryId !== undefined && categoryId !== null && { categoryId: Number(categoryId) }),
         necessity,
         isGlobal,
         isCountyFeeSchedule,
@@ -214,6 +237,7 @@ export async function POST(req: Request) {
         descriptionUS: template.descriptionUS,
         image: template.image,
         category: template.category,
+        categoryId: template.categoryId,
         necessity: template.necessity,
         isGlobal: template.isGlobal,
         isCountyFeeSchedule: template.isCountyFeeSchedule,

@@ -41,6 +41,20 @@ function formatDays(days: number) {
   return `${months} month${months !== 1 ? 's' : ''}`;
 }
 
+/**
+ * Whether a requirement counts toward the headline requirement total
+ * (Stage 3 Part B) — same helper as the Kenya hub page. Reads
+ * RequirementCategory.excludedFromTotals (threaded through by
+ * fetchBusiness alongside slug/published) with a fallback to the legacy
+ * category-string comparison for a template with no categoryRef yet.
+ */
+function isRequirementExcludedFromTotals(template: {
+  category: string | null;
+  categoryRef?: { excludedFromTotals: boolean } | null;
+}): boolean {
+  return template.categoryRef?.excludedFromTotals ?? isExcludedFromTotals(template.category ?? '');
+}
+
 /** Build auto-generated FAQs from business data — US copy. */
 function buildAutoFaqs(
   name: string,
@@ -118,8 +132,12 @@ interface AutoFaq {
 // US-specific to show. Rendering it anyway (Next's default dynamicParams
 // lets any slug outside generateStaticParams still render on demand) would
 // produce an indexable near-duplicate of the Kenya page.
+//
+// Stage 3 Part B: now reads categoryRef.excludedFromTotals instead of
+// string-comparing template.category — see isRequirementExcludedFromTotals
+// above.
 function countCoreRequirements(business: NonNullable<Awaited<ReturnType<typeof fetchBusiness>>>) {
-  return business.requirements.filter((r) => !isExcludedFromTotals(r.template.category ?? '')).length;
+  return business.requirements.filter((r) => !isRequirementExcludedFromTotals(r.template)).length;
 }
 
 // ── SEO Metadata ──────────────────────────────────────────────────────────────
@@ -236,7 +254,7 @@ export default async function USBusinessHubPage({ params }: Props) {
   const pageUrl = `${SITE_URL}/us/businesses/${slug}`;
 
   const coreRequirements = business.requirements.filter(
-    (r) => !isExcludedFromTotals(r.template.category ?? '')
+    (r) => !isRequirementExcludedFromTotals(r.template)
   );
 
   const requirementCount = coreRequirements.length;
@@ -291,7 +309,9 @@ export default async function USBusinessHubPage({ params }: Props) {
     const totalRequirements = coreRequirements.length;
 
     for (const req of coreRequirements) {
-      const prices = req.template.products
+      const prices = (req.template as typeof req.template & {
+        products?: Array<{ price: number | null }>;
+      }).products
         ?.map((p: { price: number | null }) => p.price)
         .filter((p): p is number => p !== null && p > 0)
         .sort((a: number, b: number) => a - b) ?? [];

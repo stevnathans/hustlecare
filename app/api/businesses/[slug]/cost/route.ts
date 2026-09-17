@@ -1,98 +1,19 @@
 // app/api/businesses/[slug]/cost/route.ts
+//
+// Thin wrapper over getBusinessCostBreakdown() in lib/cost-data.ts, which
+// owns both the caching and the one correct product filter. This route
+// previously ran its own Prisma query and its own arithmetic, and had a
+// bug: it filtered products by vendor market but NOT by status, so DRAFT,
+// PENDING_REVIEW, REJECTED and ARCHIVED products were inflating the cost
+// range shown on every business card and on the homepage.
+//
+// Response shape: the legacy keys (low/medium/high/requirementsWithProducts
+// /totalRequirements/hasPricing) are preserved so existing consumers keep
+// working, with the richer breakdown added alongside.
+
 import { NextRequest, NextResponse } from 'next/server';
-import { unstable_cache } from 'next/cache';
-import { prisma } from '@/lib/prisma';
-import { DEFAULT_MARKET, isMarketCode, type MarketCode } from '@/lib/markets';
-
-// Cost ranges don't change minute-to-minute, but this endpoint was being
-// hit on every homepage load (3x — once per featured business), each time
-// re-fetching every RequirementTemplate + Product price for that business
-// from scratch. unstable_cache means the actual DB work only runs once per
-// revalidate window (here: 1 hour) per (slug, market) pair; every request
-// in between is served from Next's data cache with no DB round trip at all.
-const REVALIDATE_SECONDS = 60 * 30; // 30 minutes
-
-const getBusinessCost = unstable_cache(
-  async (slug: string, market: MarketCode) => {
-    const business = await prisma.business.findUnique({
-      where: { slug },
-      include: {
-        requirements: {
-          where: {
-            isActive: true,
-            template: {
-              isDeprecated: false,
-              // Same restrictedToCountry filter as every other
-              // requirements query (see lib/business-data.ts) — this
-              // route previously had no market filter at all, so a
-              // Kenya-only requirement's product prices could leak into
-              // a US visitor's cost estimate.
-              OR: [
-                { restrictedToCountry: null },
-                { restrictedToCountry: market },
-              ],
-            },
-          },
-          include: {
-            template: {
-              select: {
-                id: true,
-                name: true,
-                products: {
-                  select: { price: true },
-                  where: {
-                    price: { not: null },
-                    // Only aggregate prices from vendors operating in
-                    // this market — same filter as
-                    // app/api/business/[slug]/products/route.ts.
-                    vendor: { country: market },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!business) return null;
-
-    let low = 0;
-    let medium = 0;
-    let high = 0;
-    let requirementsWithProducts = 0;
-    const totalRequirements = business.requirements.length;
-
-    for (const req of business.requirements) {
-      const prices = req.template.products
-        .map((p) => p.price)
-        .filter((p): p is number => p !== null && p > 0)
-        .sort((a, b) => a - b);
-
-      if (prices.length === 0) continue;
-
-      requirementsWithProducts++;
-
-      // Low  = cheapest product for this requirement
-      // High = most expensive product for this requirement
-      // Mid  = median product
-      low    += prices[0];
-      high   += prices[prices.length - 1];
-      medium += prices[Math.floor(prices.length / 2)];
-    }
-
-    return {
-      low,
-      medium,
-      high,
-      requirementsWithProducts,
-      totalRequirements,
-      hasPricing: requirementsWithProducts > 0,
-    };
-  },
-  ['business-cost'], // base cache key — slug and market are appended via the args below
-  { revalidate: REVALIDATE_SECONDS }
-);
+import { getBusinessCostBreakdown } from '@/lib/cost-data';
+import { DEFAULT_MARKET, isMarketCode } from '@/lib/markets';
 
 export async function GET(
   req: NextRequest,
@@ -104,16 +25,38 @@ export async function GET(
     const marketParam = req.nextUrl.searchParams.get('market');
     const market = isMarketCode(marketParam) ? marketParam : DEFAULT_MARKET;
 
-    // unstable_cache keys on the function args too, so each (slug, market)
-    // pair gets its own cache entry — pass both explicitly so the key
-    // varies per business AND per market, not just per business.
-    const result = await getBusinessCost(slug, market);
+    const includeOptional = req.nextUrl.searchParams.get('includeOptional') === 'true';
 
-    if (!result) {
+    const breakdown = await getBusinessCostBreakdown(slug, market, { includeOptional });
+
+    if (!breakdown) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 });
     }
 
-    return NextResponse.json(result);
+    return NextResponse.json({
+      // ── Legacy keys ────────────────────────────────────────────────
+      // Kept deliberately: BusinessCards and the homepage read these.
+      // They now mean "one-time setup cost", which is what they always
+      // described, just computed correctly.
+      low: breakdown.oneTime.low,
+      medium: breakdown.oneTime.typical,
+      high: breakdown.oneTime.high,
+      requirementsWithProducts: breakdown.coverage.requirementsWithPricing,
+      totalRequirements: breakdown.coverage.totalRequirements,
+      hasPricing: breakdown.hasPricing,
+
+      // ── Current shape ──────────────────────────────────────────────
+      market: breakdown.market,
+      source: breakdown.source,
+      sizeBand: breakdown.sizeBand,
+      workingCapitalMonths: breakdown.workingCapitalMonths,
+      oneTime: breakdown.oneTime,
+      monthlyRecurring: breakdown.monthlyRecurring,
+      workingCapital: breakdown.workingCapital,
+      stock: breakdown.stock,
+      cashToOpen: breakdown.cashToOpen,
+      coverage: breakdown.coverage,
+    });
   } catch (error) {
     console.error('Error calculating business cost:', error);
     return NextResponse.json(

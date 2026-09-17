@@ -18,6 +18,10 @@ interface RequirementLocal {
   category?: string | null;
   necessity: string;
   image?: string | null;
+  // Only a valid link target when the source RequirementTemplate is
+  // published — threaded through from hooks/useBusinessData's
+  // Requirement type. See CategorySection.tsx and RequirementCard.tsx
+  // for where this is actually rendered as a link.
   slug?: string | null;
 }
 
