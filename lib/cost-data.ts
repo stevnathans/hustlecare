@@ -1,21 +1,11 @@
 // lib/cost-data.ts
 //
-// The Prisma layer under lib/cost-engine.ts.
-//
-// SIZE-BAND FIX: county-fee resolution used to be baked into the cached
-// getBusinessCostInputs() using only trade class, with no size band at
-// all — so even a county that genuinely tiers its permit fee by business
-// size (LegalFeeSchedule.sizeBand) had that variation silently discarded.
-// Fee resolution now happens per-call, inside getBusinessCostBreakdown,
-// using whichever sizeBand the caller requested, over the SAME cached raw
-// schedule rows — correct, and still cheap (no extra DB round trip).
-//
-// getCostBreakdownMatrix is new: computes a full breakdown for every
-// SizeBand × includeOptional combination (8 calls, all against the same
-// cached inputs) so a UI can offer an instant size selector with zero
-// client-side fetch — the same trick the optional-items toggle already
-// uses, extended across bands. getRequirementsPageCostSummary now returns
-// one of these per band instead of a single flat object.
+// (Unchanged design from the previous revision — size-band-aware fee
+// resolution, getCostBreakdownMatrix, getRequirementsPageCostSummary,
+// getCountyFeeTable. See that revision's comments for the full
+// rationale.) Product select now also pulls name/image, so
+// buildCostLines can populate CostLine.representativeProduct for the
+// /cost page's "add cheapest option" action.
 
 import { unstable_cache } from 'next/cache';
 import type { Prisma } from '@prisma/client';
@@ -78,14 +68,6 @@ export interface BusinessCostInputs {
   countyFeeRequirements: CountyFeeRequirementInput[];
 }
 
-/**
- * Raw priced data for one business+market, cached. Requirements here
- * carry `feeSchedule: null` unconditionally — see the SIZE-BAND FIX note
- * above. County-fee requirements are ALSO listed separately in
- * countyFeeRequirements (with their raw, unresolved schedule rows and an
- * `id` for matching), which is what getBusinessCostBreakdown resolves
- * per-call, per-sizeBand.
- */
 const getBusinessCostInputs = unstable_cache(
   async (slug: string, market: MarketCode): Promise<BusinessCostInputs | null> => {
     const business = await prisma.business.findUnique({
@@ -123,6 +105,8 @@ const getBusinessCostInputs = unstable_cache(
                   where: COSTABLE_PRODUCT_WHERE(market),
                   select: {
                     id: true,
+                    name: true,
+                    image: true,
                     price: true,
                     billingPeriod: true,
                     priceCheckedAt: true,
@@ -201,11 +185,13 @@ const getBusinessCostInputs = unstable_cache(
         quantity: link.defaultQuantity,
         quantityByBand,
         recurrence,
-        feeSchedule: null, // resolved per-call, per-sizeBand — see getBusinessCostBreakdown
+        feeSchedule: null,
       });
 
       productsByRequirementName[name] = link.template.products.map((p) => ({
         id: p.id,
+        name: p.name,
+        image: p.image,
         price: p.price,
         billingPeriod: p.billingPeriod,
         bulkPricing: p.bulkPricing,
@@ -253,8 +239,6 @@ export async function getBusinessCostBreakdown(
 
   const sizeBand = options.sizeBand ?? DEFAULT_SIZE_BAND;
 
-  // Resolve county fees for THIS call's size band, over the cached raw
-  // schedule rows — see the SIZE-BAND FIX note at the top of the file.
   const feeById = new Map(inputs.countyFeeRequirements.map((r) => [r.id, r]));
   const requirementsForThisCall =
     inputs.countyFeeRequirements.length === 0
@@ -293,13 +277,6 @@ export interface CostBreakdownPair {
 
 export type CostBreakdownMatrix = Record<SizeBand, CostBreakdownPair>;
 
-/**
- * A full requiredOnly/withOptional breakdown for every SizeBand, computed
- * from the same cached inputs (8 pure-function calls, no extra DB work).
- * The shared source for both /cost's size selector and the requirements
- * page's per-band SSR fallback — so the two pages can never disagree
- * about what "Large" means for a given business.
- */
 export async function getCostBreakdownMatrix(
   slug: string,
   market: MarketCode = DEFAULT_MARKET,
@@ -319,11 +296,6 @@ export async function getCostBreakdownMatrix(
   return Object.fromEntries(entries as [SizeBand, CostBreakdownPair][]) as CostBreakdownMatrix;
 }
 
-/**
- * Server-side headline cost figures for the requirements page, per size
- * band, in the exact flat shape hooks/useFilterState.ts computes
- * client-side for a given band.
- */
 export async function getRequirementsPageCostSummary(
   slug: string,
   market: MarketCode = DEFAULT_MARKET,
@@ -368,14 +340,6 @@ export interface CountyFeeTableRow {
   resolution: FeeScheduleResolution;
 }
 
-/**
- * Every county's resolved price for every county-fee requirement this
- * business has, at a given size band (defaults to Medium — the /cost
- * page pins its table to this rather than matrixing it across bands,
- * since that would be 4x the table for no visible difference until real
- * quantity data exists; the headline figure is where band selection
- * earns its keep today).
- */
 export async function getCountyFeeTable(
   slug: string,
   market: MarketCode = DEFAULT_MARKET,

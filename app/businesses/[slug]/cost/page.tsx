@@ -1,11 +1,11 @@
 // app/businesses/[slug]/cost/page.tsx
 //
-// SIZE BAND MATRIX: fetches getCostBreakdownMatrix (8 breakdowns — every
-// SizeBand × includeOptional combination) and passes the full matrix to
-// CostSummaryPanel, so switching size bands there is instant with zero
-// client fetch. The category breakdown and county fee table below stay
-// pinned to matrix.MEDIUM — see lib/cost-data.ts's getCountyFeeTable
-// comment for why matrixing those too isn't worth it yet.
+// CART CONNECTION (new): CostCartSync points the shared cart at this
+// business (mirrors what useBusinessData does on the requirements page),
+// and CostCartSummary shows the live running total. Neither requires a
+// client data fetch of its own — they ride on the same CartContext the
+// requirements page already uses, so items added here show up there and
+// vice versa.
 
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
@@ -19,6 +19,8 @@ import { DEFAULT_SIZE_BAND, type SizeBand } from '@/lib/cost-engine';
 import CostSummaryPanel, { type CostPanelSummary } from './CostSummaryPanel';
 import CostCategoryBreakdown from './CostCategoryBreakdown';
 import CountyFeeTable from './CountyFeeTable';
+import CostCartSync from './CostCartSync';
+import CostCartSummary from './CostCartSummary';
 
 export const revalidate = 300;
 const market: MarketCode = 'KE';
@@ -305,6 +307,8 @@ export default async function CostPage({ params }: CostPageProps) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
 
+      <CostCartSync businessId={business.id} />
+
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         <nav aria-label="Breadcrumb" className="text-sm text-slate-500 mb-6">
           <Link href="/businesses" className="hover:text-emerald-700">Businesses</Link>
@@ -324,13 +328,17 @@ export default async function CostPage({ params }: CostPageProps) {
           </p>
         </div>
 
-        <div className="mb-10">
+        <div className="mb-6">
           <CostSummaryPanel
             businessName={name}
             market={market}
             matrix={panelMatrix}
             optionalCount={optionalCount}
           />
+        </div>
+
+        <div className="mb-10">
+          <CostCartSummary businessSlug={slug} market={market} />
         </div>
 
         {required.hasPricing && (

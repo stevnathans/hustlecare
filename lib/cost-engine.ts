@@ -1,15 +1,14 @@
 // lib/cost-engine.ts
 //
-// THE single source of truth for every startup-cost figure on the site.
-// Pure — no Prisma, no fetch, no React — so it runs identically server-
-// and client-side. See prior revisions' comments for the full design
-// rationale (scale-vs-tier, one-time-vs-recurring, trust surface).
-//
-// ALL_SIZE_BANDS (new): the canonical, ordered list of SizeBand values,
-// used everywhere a UI needs to enumerate bands (the selector on /cost
-// and on the requirements page) or a server function needs to compute
-// across all of them (lib/cost-data.ts's getCostBreakdownMatrix). Single
-// source for band order so the UI and the data layer can't drift apart.
+// REPRESENTATIVE PRODUCT (new): each PRODUCT-basis CostLine now carries
+// the identity (id/name/image) of whichever product produced its "low"
+// price, alongside the price itself. This is what lets a UI offer a real
+// "add this to your cart" action next to a cost line — previously the
+// engine only knew the aggregate price, not which product it came from,
+// which was fine for every use so far but not for a genuine cart action.
+// Null for FEE_SCHEDULE lines (no single product exists — see
+// CountyFeeCard's shell-product flow instead) and for NONE lines
+// (nothing to recommend).
 
 import type { MarketCode } from '@/lib/markets';
 
@@ -29,12 +28,13 @@ export interface MoneyRange {
 }
 
 export const ZERO_RANGE: MoneyRange = { low: 0, typical: 0, high: 0 };
-
 export const DEFAULT_SIZE_BAND: SizeBand = 'MEDIUM';
 export const DEFAULT_WORKING_CAPITAL_MONTHS = 3;
 
 export interface CostEngineProduct {
   id?: number;
+  name?: string;
+  image?: string | null;
   price: number | null | undefined;
   billingPeriod?: BillingPeriod | null;
   bulkPricing?: { minQty: number; price: number }[] | null;
@@ -64,6 +64,13 @@ export interface CostEngineOptions {
   editorialFallback?: { min: number | null; max: number | null } | null;
 }
 
+export interface RepresentativeProduct {
+  id: number;
+  name: string;
+  price: number;
+  image: string | null;
+}
+
 export interface CostLine {
   requirementId: number;
   templateId: number | null;
@@ -81,6 +88,8 @@ export interface CostLine {
   productCount: number;
   hasPricing: boolean;
   priceCheckedAt: Date | string | null;
+  /** The cheapest matching product's identity, when priceBasis is PRODUCT. */
+  representativeProduct: RepresentativeProduct | null;
 }
 
 export interface CategoryBreakdown {
@@ -178,6 +187,17 @@ function resolveLinePriceCheckedAt(products: CostEngineProduct[]): Date | string
   }, null);
 }
 
+/** The cheapest matching product's identity, for the "add to cart" action. */
+function resolveRepresentativeProduct(
+  products: CostEngineProduct[],
+  quantity: number,
+  cheapestUnitPrice: number,
+): RepresentativeProduct | null {
+  const winner = products.find((p) => unitPriceForQuantity(p, quantity) === cheapestUnitPrice) ?? products[0];
+  if (!winner || winner.id == null || !winner.name) return null;
+  return { id: winner.id, name: winner.name, price: cheapestUnitPrice, image: winner.image ?? null };
+}
+
 function addRange(a: MoneyRange, b: MoneyRange): MoneyRange {
   return { low: a.low + b.low, typical: a.typical + b.typical, high: a.high + b.high };
 }
@@ -229,6 +249,7 @@ export function buildCostLines(
         productCount: 0,
         hasPricing: true,
         priceCheckedAt: null,
+        representativeProduct: null,
       };
     }
 
@@ -250,6 +271,7 @@ export function buildCostLines(
         productCount: 0,
         hasPricing: false,
         priceCheckedAt: null,
+        representativeProduct: null,
       };
     }
 
@@ -277,6 +299,7 @@ export function buildCostLines(
       productCount: products.length,
       hasPricing: true,
       priceCheckedAt: resolveLinePriceCheckedAt(products),
+      representativeProduct: resolveRepresentativeProduct(products, quantity, unit.low),
     };
   });
 }

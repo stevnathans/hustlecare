@@ -1,15 +1,14 @@
 // app/businesses/[slug]/cost/CostCategoryBreakdown.tsx
 //
-// Server component — no interactivity, so it renders directly from
-// page.tsx's fetched data with no client boundary needed. This is the
-// "extensive breakdown" the /cost page exists to provide: every category,
-// every priced requirement within it, linked back to its own
-// /requirements/{slug} page where one exists.
+// Still a server component — only the individual "Add cheapest option"
+// buttons are client islands (QuickAddButton), the standard RSC pattern
+// for a mostly-static list with a few interactive controls.
 
 import Link from 'next/link';
 import { formatMoneyRange } from '@/lib/currency';
 import type { MarketCode } from '@/lib/markets';
 import type { CategoryBreakdown, CostLine, CostRecurrence } from '@/lib/cost-engine';
+import QuickAddButton from './QuickAddButton';
 
 interface CostCategoryBreakdownProps {
   categories: CategoryBreakdown[];
@@ -18,7 +17,6 @@ interface CostCategoryBreakdownProps {
   businessSlug: string;
 }
 
-/** Same slugify used by CategorySection.tsx's section ids — kept in sync manually, same as that file's own note about categorySlug duplication elsewhere. */
 function categoryAnchor(name: string): string {
   return name.toLowerCase().replace(/\s+/g, '-');
 }
@@ -101,13 +99,23 @@ export default function CostCategoryBreakdown({
                         )}
                       </div>
                     </div>
-                    <div className="text-right flex-shrink-0">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       {line.hasPricing ? (
                         <span className="text-sm font-semibold text-slate-800">
                           {formatMoneyRange(line.total, market)}
                         </span>
                       ) : (
                         <span className="text-xs text-slate-400 italic">Not priced yet</span>
+                      )}
+                      {line.representativeProduct && (
+                        <QuickAddButton
+                          productId={line.representativeProduct.id}
+                          productName={line.representativeProduct.name}
+                          price={line.representativeProduct.price}
+                          image={line.representativeProduct.image}
+                          requirementName={line.name}
+                          category={line.category}
+                        />
                       )}
                     </div>
                   </li>
@@ -120,7 +128,7 @@ export default function CostCategoryBreakdown({
                 href={`/businesses/${businessSlug}/requirements#${categoryAnchor(category.name)}`}
                 className="text-xs font-medium text-emerald-700 hover:text-emerald-800 hover:underline"
               >
-                Browse {category.name} products →
+                Browse all {category.name} options →
               </Link>
             </div>
           </div>
