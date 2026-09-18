@@ -60,6 +60,10 @@ export async function GET(req: NextRequest) {
 
     const itemWhere: Prisma.CartItemWhereInput = sinceDate ? { createdAt: { gte: sinceDate } } : {};
 
+    // NOTE: sorting by totalCost still orders on the cached Cart.totalCost
+    // column, since that value isn't materialized anywhere else for a DB-level
+    // ORDER BY. It's stale for filtering by 0-vs-nonzero, but fine as a rough
+    // sort; the *displayed* number below is always the real computed total.
     let orderBy: Prisma.CartOrderByWithRelationInput;
     switch (sortField) {
       case 'totalCost': orderBy = { totalCost: sortDir }; break;
@@ -75,19 +79,17 @@ export async function GET(req: NextRequest) {
     const [
       totalCartsAllTime,
       totalCartsFiltered,
-      cartValueAgg,
       totalItems,
       cartsThisWeek,
       cartsLastWeek,
       carts,
       cartsCountForPagination,
-      topBusinessesRaw,
+      cartsForTotals,          // <-- NEW: replaces cartValueAgg + the old topBusinesses groupBy
       topProductsRaw,
       topRequirementsRaw,
     ] = await Promise.all([
       prisma.cart.count(),
       prisma.cart.count({ where: cartWhere }),
-      prisma.cart.aggregate({ _sum: { totalCost: true }, _avg: { totalCost: true }, where: cartWhere }),
       prisma.cartItem.count({ where: itemWhere }),
       prisma.cart.count({ where: { createdAt: { gte: weekAgo } } }),
       prisma.cart.count({ where: { createdAt: { gte: twoWeeksAgo, lt: weekAgo } } }),
@@ -100,7 +102,6 @@ export async function GET(req: NextRequest) {
         select: {
           id: true,
           name: true,
-          totalCost: true,
           createdAt: true,
           user: { select: { id: true, name: true, email: true } },
           business: { select: { id: true, name: true, slug: true } },
@@ -118,18 +119,16 @@ export async function GET(req: NextRequest) {
       }),
       prisma.cart.count({ where: cartWhere }),
 
-      // Top businesses by cart count
-      prisma.cart.groupBy({
-        by: ['businessId'],
+      // Real per-cart + per-business totals, computed from actual CartItem
+      // rows instead of the (unreliable) cached Cart.totalCost column.
+      prisma.cart.findMany({
         where: cartWhere,
-        _count: { _all: true },
-        _sum: { totalCost: true },
-        orderBy: { _count: { businessId: 'desc' } },
-        take: 10,
+        select: {
+          businessId: true,
+          items: { select: { quantity: true, unitPrice: true } },
+        },
       }),
 
-      // Top products by cart-add count, with real dollar totals via raw SQL
-      // (quantity * unitPrice can't be summed through Prisma's groupBy)
       sinceDate
         ? prisma.$queryRaw<{ productId: number; cartAddCount: number; totalQuantity: number; totalValue: number }[]>`
             SELECT "productId",
@@ -153,7 +152,6 @@ export async function GET(req: NextRequest) {
             LIMIT 10
           `,
 
-      // Top requirements by cart-add count, across all businesses
       sinceDate
         ? prisma.$queryRaw<{ requirementName: string | null; category: string | null; cartAddCount: number; totalQuantity: number; totalValue: number }[]>`
             SELECT "requirementName", "category",
@@ -178,8 +176,27 @@ export async function GET(req: NextRequest) {
           `,
     ]);
 
-    // Resolve names for the raw/groupBy results
-    const businessIds = topBusinessesRaw.map(b => b.businessId);
+    // ── Derive real totals from cartsForTotals ──────────────────────────
+    let totalValueSum = 0;
+    const businessTotals = new Map<number, { cartCount: number; totalValue: number }>();
+    for (const cart of cartsForTotals) {
+      const cartTotal = cart.items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
+      totalValueSum += cartTotal;
+      if (cart.businessId != null) {
+        const entry = businessTotals.get(cart.businessId) ?? { cartCount: 0, totalValue: 0 };
+        entry.cartCount += 1;
+        entry.totalValue += cartTotal;
+        businessTotals.set(cart.businessId, entry);
+      }
+    }
+    const averageValue = totalCartsFiltered > 0 ? totalValueSum / totalCartsFiltered : 0;
+
+    const topBusinessEntries = [...businessTotals.entries()]
+      .sort((a, b) => b[1].cartCount - a[1].cartCount)
+      .slice(0, 10);
+
+    // Resolve names for top businesses / top products
+    const businessIds = topBusinessEntries.map(([id]) => id);
     const productIds = topProductsRaw.map(p => p.productId);
 
     const [businesses, products] = await Promise.all([
@@ -197,12 +214,12 @@ export async function GET(req: NextRequest) {
     const businessMap = new Map(businesses.map(b => [b.id, b]));
     const productMap = new Map(products.map(p => [p.id, p]));
 
-    const topBusinesses = topBusinessesRaw.map(b => ({
-      businessId: b.businessId,
-      businessName: businessMap.get(b.businessId)?.name ?? 'Unknown business',
-      businessSlug: businessMap.get(b.businessId)?.slug ?? null,
-      cartCount: b._count._all,
-      totalValue: Math.round(b._sum.totalCost ?? 0),
+    const topBusinesses = topBusinessEntries.map(([businessId, agg]) => ({
+      businessId,
+      businessName: businessMap.get(businessId)?.name ?? 'Unknown business',
+      businessSlug: businessMap.get(businessId)?.slug ?? null,
+      cartCount: agg.cartCount,
+      totalValue: Math.round(agg.totalValue),
     }));
 
     const topProducts = topProductsRaw.map(p => ({
@@ -222,15 +239,9 @@ export async function GET(req: NextRequest) {
       totalValue: Math.round(r.totalValue ?? 0),
     }));
 
-    const cartRows = carts.map(c => ({
-      id: c.id,
-      name: c.name,
-      totalCost: c.totalCost ?? 0,
-      createdAt: c.createdAt,
-      user: c.user,
-      business: c.business,
-      itemCount: c.items.length,
-      items: c.items.map(i => ({
+    // ── Cart rows: totalCost computed from items, not the cached column ──
+    const cartRows = carts.map(c => {
+      const items = c.items.map(i => ({
         id: i.id,
         requirementName: i.requirementName ?? i.product?.name ?? 'Unspecified Requirement',
         category: i.category ?? 'Uncategorized',
@@ -238,15 +249,25 @@ export async function GET(req: NextRequest) {
         quantity: i.quantity,
         unitPrice: i.unitPrice,
         lineTotal: i.quantity * i.unitPrice,
-      })),
-    }));
+      }));
+      return {
+        id: c.id,
+        name: c.name,
+        totalCost: items.reduce((sum, item) => sum + item.lineTotal, 0),
+        createdAt: c.createdAt,
+        user: c.user,
+        business: c.business,
+        itemCount: items.length,
+        items,
+      };
+    });
 
     return NextResponse.json({
       summary: {
         totalCartsAllTime,
         totalCartsInWindow: totalCartsFiltered,
-        totalValue: Math.round(cartValueAgg._sum.totalCost ?? 0),
-        averageValue: Math.round(cartValueAgg._avg.totalCost ?? 0),
+        totalValue: Math.round(totalValueSum),
+        averageValue: Math.round(averageValue),
         totalItems,
         averageItemsPerCart: totalCartsFiltered > 0 ? Math.round((totalItems / totalCartsFiltered) * 10) / 10 : 0,
         cartsThisWeek,
