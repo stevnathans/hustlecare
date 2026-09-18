@@ -1,14 +1,19 @@
 // lib/cost-engine.ts
 //
-// REPRESENTATIVE PRODUCT (new): each PRODUCT-basis CostLine now carries
-// the identity (id/name/image) of whichever product produced its "low"
-// price, alongside the price itself. This is what lets a UI offer a real
-// "add this to your cart" action next to a cost line — previously the
-// engine only knew the aggregate price, not which product it came from,
-// which was fine for every use so far but not for a genuine cart action.
-// Null for FEE_SCHEDULE lines (no single product exists — see
-// CountyFeeCard's shell-product flow instead) and for NONE lines
-// (nothing to recommend).
+// THE single source of truth for every startup-cost figure on the site.
+// Pure — no Prisma, no fetch, no React.
+//
+// BUG FIX (this revision): buildCategoryBreakdown used to be built from
+// the FULL, unfiltered line list — every line regardless of isStock or
+// isRequired — while the headline summary (oneTime/cashToOpen) correctly
+// excludes stock always, and excludes optional lines unless
+// includeOptional is set. That meant a required-only breakdown's
+// .categories total could be HIGHER than its own .oneTime total: the
+// category cards were silently including stock and optional costs the
+// headline number above them didn't. filterInScope is now the single
+// filter both summariseCostLines and buildCostBreakdown use, so
+// `.categories` and `.oneTime`/`.cashToOpen` always describe the same
+// set of lines for a given set of options.
 
 import type { MarketCode } from '@/lib/markets';
 
@@ -88,7 +93,6 @@ export interface CostLine {
   productCount: number;
   hasPricing: boolean;
   priceCheckedAt: Date | string | null;
-  /** The cheapest matching product's identity, when priceBasis is PRODUCT. */
   representativeProduct: RepresentativeProduct | null;
 }
 
@@ -187,7 +191,6 @@ function resolveLinePriceCheckedAt(products: CostEngineProduct[]): Date | string
   }, null);
 }
 
-/** The cheapest matching product's identity, for the "add to cart" action. */
 function resolveRepresentativeProduct(
   products: CostEngineProduct[],
   quantity: number,
@@ -208,6 +211,22 @@ function scaleRange(r: MoneyRange, factor: number): MoneyRange {
 
 function isRequiredNecessity(necessity: string): boolean {
   return (necessity || '').toLowerCase() === 'required';
+}
+
+/**
+ * The one filter defining "which lines count toward the headline figures"
+ * for a given set of options: never stock, and optional lines only when
+ * includeOptional is set. Used identically by summariseCostLines (for the
+ * money totals) and buildCostBreakdown (for the category rollup), so the
+ * two can never disagree about which lines they're describing.
+ */
+function filterInScope(lines: CostLine[], options: CostEngineOptions): CostLine[] {
+  const includeOptional = options.includeOptional ?? false;
+  return lines.filter((line) => {
+    if (line.isStock) return false;
+    if (!includeOptional && !line.isRequired) return false;
+    return true;
+  });
 }
 
 export function buildCostLines(
@@ -305,17 +324,11 @@ export function buildCostLines(
 }
 
 export function summariseCostLines(lines: CostLine[], options: CostEngineOptions = {}): CostSummary {
-  const includeOptional = options.includeOptional ?? false;
   const includeStock = options.includeStock ?? false;
   const workingCapitalMonths = options.workingCapitalMonths ?? DEFAULT_WORKING_CAPITAL_MONTHS;
   const sizeBand = options.sizeBand ?? DEFAULT_SIZE_BAND;
 
-  const inScope = lines.filter((line) => {
-    if (line.isStock) return false;
-    if (!includeOptional && !line.isRequired) return false;
-    return true;
-  });
-
+  const inScope = filterInScope(lines, options);
   const stockLines = lines.filter((line) => line.isStock);
 
   let oneTime = ZERO_RANGE;
@@ -397,10 +410,10 @@ export function summariseCostLines(lines: CostLine[], options: CostEngineOptions
   };
 }
 
-function buildCategoryBreakdown(lines: CostLine[]): CategoryBreakdown[] {
+function buildCategoryBreakdown(inScopeLines: CostLine[]): CategoryBreakdown[] {
   const map = new Map<string, CategoryBreakdown>();
 
-  for (const line of lines) {
+  for (const line of inScopeLines) {
     let entry = map.get(line.category);
     if (!entry) {
       entry = { name: line.category, lineCount: 0, linesWithPricing: 0, oneTime: ZERO_RANGE, monthlyRecurring: ZERO_RANGE };
@@ -425,7 +438,11 @@ export function buildCostBreakdown(
 ): CostBreakdown {
   const lines = buildCostLines(requirements, productsByRequirementName, options);
   const summary = summariseCostLines(lines, options);
-  return { ...summary, lines, categories: buildCategoryBreakdown(lines) };
+  // Same inScope filter as the summary above — see filterInScope's
+  // header comment. This is what fixed .categories disagreeing with
+  // .oneTime/.cashToOpen.
+  const inScope = filterInScope(lines, options);
+  return { ...summary, lines, categories: buildCategoryBreakdown(inScope) };
 }
 
 export function isEditorialDriftSignificant(drift: number | null, threshold = 0.3): boolean {

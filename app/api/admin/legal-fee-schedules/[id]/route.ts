@@ -17,10 +17,6 @@ export async function PATCH(request: Request, { params }: Params) {
     const existing = await prisma.legalFeeSchedule.findUnique({ where: { id: Number(id) } });
     if (!existing) return NextResponse.json({ error: 'Fee schedule row not found.' }, { status: 404 });
 
-    // Pricing: the admin UI always sends the full pricing block on edit
-    // (fixed OR range, never partial), so resolve it the same way as
-    // create. If neither `price` nor `usePriceRange`+min/max is present
-    // at all, leave pricing untouched (a pure non-price field edit).
     const touchesPricing = body.price !== undefined || body.priceMin !== undefined || body.priceMax !== undefined || body.usePriceRange !== undefined;
     let pricingUpdate: { price?: number | null; priceMin?: number | null; priceMax?: number | null } = {};
     if (touchesPricing) {
@@ -85,6 +81,11 @@ export async function PATCH(request: Request, { params }: Params) {
         processingTimeMaxDays: body.processingTimeMaxDays !== undefined ? (body.processingTimeMaxDays === null ? null : Number(body.processingTimeMaxDays)) : undefined,
         applyUrl: body.applyUrl !== undefined ? (body.applyUrl?.trim() || null) : undefined,
         notes: body.notes !== undefined ? (body.notes?.trim() || null) : undefined,
+        // Verification — previously silently ignored by this route no
+        // matter what the client sent, which is why every row stayed
+        // "Not yet verified" forever.
+        issuingAuthority: body.issuingAuthority !== undefined ? (body.issuingAuthority?.trim() || null) : undefined,
+        verifiedAt: body.verifiedAt !== undefined ? (body.verifiedAt ? new Date(body.verifiedAt) : null) : undefined,
       },
       include: {
         county: { select: { id: true, name: true } },

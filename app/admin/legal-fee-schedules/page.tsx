@@ -1,6 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable react/no-unescaped-entities */
 // app/admin/legal-fee-schedules/page.tsx
+//
+// VERIFICATION FIELDS (this revision): issuingAuthority and verifiedAt
+// already existed on LegalFeeSchedule in the schema, and the public
+// /cost page's county fee table already reads them — but nothing here
+// could ever SET them, so every row showed "Not yet verified" with no
+// way to change that. GET already returns both (findMany with no
+// `select` returns every scalar field), so only the write paths needed
+// updating: the new-row form, the inline edit form, and the two API
+// routes below.
+
 'use client';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
@@ -28,6 +38,8 @@ type FeeRow = {
   processingTimeMaxDays: number | null;
   applyUrl: string | null;
   notes: string | null;
+  issuingAuthority: string | null;
+  verifiedAt: string | null;
 };
 
 type RowDraft = {
@@ -46,6 +58,8 @@ type RowDraft = {
   processingTimeMaxDays: string;
   applyUrl: string;
   notes: string;
+  issuingAuthority: string;
+  verifiedAt: string;
 };
 
 const EMPTY_NEW_ROW: RowDraft = {
@@ -55,6 +69,7 @@ const EMPTY_NEW_ROW: RowDraft = {
   validityValue: '', validityUnit: 'years',
   processingTimeMinDays: '', processingTimeMaxDays: '',
   applyUrl: '', notes: '',
+  issuingAuthority: '', verifiedAt: '',
 };
 
 function rowToDraft(row: FeeRow): RowDraft {
@@ -74,6 +89,9 @@ function rowToDraft(row: FeeRow): RowDraft {
     processingTimeMaxDays: row.processingTimeMaxDays != null ? String(row.processingTimeMaxDays) : '',
     applyUrl: row.applyUrl ?? '',
     notes: row.notes ?? '',
+    issuingAuthority: row.issuingAuthority ?? '',
+    // <input type="date"> wants yyyy-mm-dd
+    verifiedAt: row.verifiedAt ? row.verifiedAt.slice(0, 10) : '',
   };
 }
 
@@ -81,6 +99,13 @@ function draftToPricingBody(d: RowDraft) {
   return d.usePriceRange
     ? { usePriceRange: true, priceMin: d.priceMin, priceMax: d.priceMax }
     : { usePriceRange: false, price: d.price };
+}
+
+function draftToVerificationBody(d: RowDraft) {
+  return {
+    issuingAuthority: d.issuingAuthority.trim() || null,
+    verifiedAt: d.verifiedAt ? new Date(d.verifiedAt).toISOString() : null,
+  };
 }
 
 function formatPrice(row: FeeRow): string {
@@ -104,6 +129,12 @@ function formatProcessing(row: FeeRow): string {
       : `${row.processingTimeMinDays}–${row.processingTimeMaxDays}d`;
   }
   return `${row.processingTimeMinDays ?? row.processingTimeMaxDays}d`;
+}
+
+function formatVerified(row: FeeRow): { label: string; verified: boolean } {
+  if (!row.verifiedAt) return { label: 'Not yet verified', verified: false };
+  const d = new Date(row.verifiedAt);
+  return { label: d.toLocaleDateString('en-KE', { year: 'numeric', month: 'short', day: 'numeric' }), verified: true };
 }
 
 const S = `
@@ -154,6 +185,8 @@ const S = `
   .edit-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:0.5rem; }
   .edit-row-actions { display:flex; gap:0.35rem; justify-content:flex-end; margin-top:0.6rem; }
   .price-toggle { display:flex; align-items:center; gap:0.4rem; font-size:0.76rem; color:#9494b0; cursor:pointer; user-select:none; margin-bottom:0.5rem; }
+  .verify-box { border:1px solid rgba(255,255,255,0.07); border-radius:10px; padding:0.85rem 1rem; display:flex; flex-direction:column; gap:0.65rem; }
+  .verify-title { font-size:0.72rem; font-weight:700; color:#55556e; text-transform:uppercase; letter-spacing:0.07em; }
 `;
 
 function PriceFields({
@@ -182,6 +215,45 @@ function PriceFields({
   );
 }
 
+function VerificationFields({
+  issuingAuthority, verifiedAt, small = false, onIssuingAuthority, onVerifiedAt,
+}: {
+  issuingAuthority: string; verifiedAt: string; small?: boolean;
+  onIssuingAuthority: (v: string) => void; onVerifiedAt: (v: string) => void;
+}) {
+  const inputCls = small ? 'u-input u-input-sm' : 'u-input';
+  return (
+    <div className="verify-box">
+      <span className="verify-title">Verification</span>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
+        <div>
+          <div className="f-label">Issuing authority</div>
+          <input
+            type="text"
+            placeholder="e.g. Nairobi City County"
+            className={inputCls}
+            value={issuingAuthority}
+            onChange={(e) => onIssuingAuthority(e.target.value)}
+          />
+        </div>
+        <div>
+          <div className="f-label">Verified date</div>
+          <input
+            type="date"
+            className={inputCls}
+            value={verifiedAt}
+            onChange={(e) => onVerifiedAt(e.target.value)}
+          />
+        </div>
+      </div>
+      <div style={{ fontSize: '0.7rem', color: '#55556e', lineHeight: 1.5 }}>
+        Only fill in once you've genuinely confirmed this price against the county's own source — the public
+        page only shows a "verified" line when a date is actually set here.
+      </div>
+    </div>
+  );
+}
+
 export default function LegalFeeSchedulesAdminPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [counties, setCounties] = useState<County[]>([]);
@@ -197,6 +269,8 @@ export default function LegalFeeSchedulesAdminPage() {
   const [bulkPrice, setBulkPrice] = useState('');
   const [bulkPriceMin, setBulkPriceMin] = useState('');
   const [bulkPriceMax, setBulkPriceMax] = useState('');
+  const [bulkIssuingAuthority, setBulkIssuingAuthority] = useState('');
+  const [bulkVerifiedAt, setBulkVerifiedAt] = useState('');
   const [bulkSaving, setBulkSaving] = useState(false);
 
   // New-row form
@@ -262,6 +336,8 @@ export default function LegalFeeSchedulesAdminPage() {
           price: bulkPrice,
           priceMin: bulkPriceMin,
           priceMax: bulkPriceMax,
+          issuingAuthority: bulkIssuingAuthority.trim() || null,
+          verifiedAt: bulkVerifiedAt ? new Date(bulkVerifiedAt).toISOString() : null,
         }),
       });
       const d = await r.json();
@@ -303,6 +379,7 @@ export default function LegalFeeSchedulesAdminPage() {
           processingTimeMinDays: newRow.processingTimeMinDays ? Number(newRow.processingTimeMinDays) : null,
           processingTimeMaxDays: newRow.processingTimeMaxDays ? Number(newRow.processingTimeMaxDays) : null,
           applyUrl: newRow.applyUrl.trim() || null,
+          ...draftToVerificationBody(newRow),
         }),
       });
       const d = await r.json();
@@ -375,6 +452,7 @@ export default function LegalFeeSchedulesAdminPage() {
           processingTimeMaxDays: editDraft.processingTimeMaxDays ? Number(editDraft.processingTimeMaxDays) : null,
           applyUrl: editDraft.applyUrl.trim() || null,
           notes: editDraft.notes.trim() || null,
+          ...draftToVerificationBody(editDraft),
         }),
       });
       const d = await r.json();
@@ -396,7 +474,8 @@ export default function LegalFeeSchedulesAdminPage() {
     const withOverrides = rows.filter((r) => r.tradeClassId !== null || r.sizeBand !== null).length;
     const fixedRows = rows.filter((r) => r.price != null);
     const avgPrice = fixedRows.length ? Math.round(fixedRows.reduce((a, b) => a + (b.price ?? 0), 0) / fixedRows.length) : 0;
-    return { countiesCovered, withOverrides, avgPrice, total: rows.length, fixedCount: fixedRows.length };
+    const verifiedCount = rows.filter((r) => r.verifiedAt).length;
+    return { countiesCovered, withOverrides, avgPrice, total: rows.length, fixedCount: fixedRows.length, verifiedCount };
   }, [rows]);
 
   return (
@@ -452,6 +531,7 @@ export default function LegalFeeSchedulesAdminPage() {
               { label: 'Priced Rows', val: stats.total, bg: 'rgba(99,102,241,0.12)', color: '#818cf8' },
               { label: 'Counties Covered', val: `${stats.countiesCovered}/47`, bg: 'rgba(16,185,129,0.12)', color: '#34d399' },
               { label: 'With Overrides', val: stats.withOverrides, bg: 'rgba(245,158,11,0.1)', color: '#fbbf24' },
+              { label: 'Verified', val: `${stats.verifiedCount}/${stats.total}`, bg: 'rgba(20,184,166,0.12)', color: '#2dd4bf' },
               { label: 'Avg Fixed Price', val: stats.fixedCount ? `KSh ${stats.avgPrice.toLocaleString()}` : '—', bg: 'rgba(148,148,176,0.1)', color: '#9494b0' },
             ].map((s) => (
               <div key={s.label} className="stat-pill" style={{ background: s.bg, border: `1px solid ${s.color}22` }}>
@@ -465,20 +545,30 @@ export default function LegalFeeSchedulesAdminPage() {
             <div className="panel-title">Set one price for all 47 counties</div>
             <div className="panel-sub">
               Fastest way to get started — this sets the same price (or range) everywhere. You can override
-              specific counties below afterward.
+              specific counties below afterward. Verification fields here apply to every county row this
+              creates or updates — only use them if you're confirming the SAME source for all 47 at once;
+              otherwise verify counties individually below.
             </div>
-            <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'flex-end' }}>
-              <div style={{ flex: 1 }}>
-                <PriceFields
-                  usePriceRange={bulkUsePriceRange}
-                  price={bulkPrice} priceMin={bulkPriceMin} priceMax={bulkPriceMax}
-                  onToggleRange={setBulkUsePriceRange}
-                  onPrice={setBulkPrice} onPriceMin={setBulkPriceMin} onPriceMax={setBulkPriceMax}
-                />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'flex-end' }}>
+                <div style={{ flex: 1 }}>
+                  <PriceFields
+                    usePriceRange={bulkUsePriceRange}
+                    price={bulkPrice} priceMin={bulkPriceMin} priceMax={bulkPriceMax}
+                    onToggleRange={setBulkUsePriceRange}
+                    onPrice={setBulkPrice} onPriceMin={setBulkPriceMin} onPriceMax={setBulkPriceMax}
+                  />
+                </div>
+                <button onClick={handleBulkSet} disabled={bulkSaving} className="btn btn-secondary">
+                  {bulkSaving ? 'Applying…' : 'Apply to all counties'}
+                </button>
               </div>
-              <button onClick={handleBulkSet} disabled={bulkSaving} className="btn btn-secondary">
-                {bulkSaving ? 'Applying…' : 'Apply to all counties'}
-              </button>
+              <VerificationFields
+                issuingAuthority={bulkIssuingAuthority}
+                verifiedAt={bulkVerifiedAt}
+                onIssuingAuthority={setBulkIssuingAuthority}
+                onVerifiedAt={setBulkVerifiedAt}
+              />
             </div>
           </div>
 
@@ -562,6 +652,14 @@ export default function LegalFeeSchedulesAdminPage() {
                 <input type="text" placeholder="https://…" className="u-input" value={newRow.applyUrl} onChange={(e) => setNewRow((f) => ({ ...f, applyUrl: e.target.value }))} />
               </div>
             </div>
+            <div style={{ marginBottom: '0.85rem' }}>
+              <VerificationFields
+                issuingAuthority={newRow.issuingAuthority}
+                verifiedAt={newRow.verifiedAt}
+                onIssuingAuthority={(v) => setNewRow((f) => ({ ...f, issuingAuthority: v }))}
+                onVerifiedAt={(v) => setNewRow((f) => ({ ...f, verifiedAt: v }))}
+              />
+            </div>
             <div style={{ fontSize: '0.72rem', color: '#55556e', marginBottom: '0.85rem', lineHeight: 1.5 }}>
               Max Employees and Floor Area are informational — shown to admins and on the county-fee display,
               but not used for automatic matching yet (that requires collecting the same data from businesses
@@ -594,6 +692,7 @@ export default function LegalFeeSchedulesAdminPage() {
                       <th>Floor Area</th>
                       <th>Validity</th>
                       <th>Processing</th>
+                      <th>Verified</th>
                       <th style={{ textAlign: 'right' }}>Price</th>
                       <th style={{ textAlign: 'right', paddingRight: '1.25rem' }}></th>
                     </tr>
@@ -602,7 +701,7 @@ export default function LegalFeeSchedulesAdminPage() {
                     {rows.map((row) =>
                       editingRowId === row.id && editDraft ? (
                         <tr key={row.id} className="editing">
-                          <td colSpan={9} style={{ padding: '1rem 1.25rem' }}>
+                          <td colSpan={10} style={{ padding: '1rem 1.25rem' }}>
                             <div className="edit-grid" style={{ marginBottom: '0.65rem' }}>
                               <div>
                                 <div className="f-label">County *</div>
@@ -674,9 +773,18 @@ export default function LegalFeeSchedulesAdminPage() {
                               <div className="f-label">Apply URL</div>
                               <input type="text" placeholder="https://…" className="u-input u-input-sm" value={editDraft.applyUrl} onChange={(e) => updateDraft({ applyUrl: e.target.value })} />
                             </div>
-                            <div>
+                            <div style={{ marginBottom: '0.65rem' }}>
                               <div className="f-label">Notes</div>
                               <input type="text" placeholder="Optional internal note" className="u-input u-input-sm" value={editDraft.notes} onChange={(e) => updateDraft({ notes: e.target.value })} />
+                            </div>
+                            <div style={{ marginBottom: '0.65rem', maxWidth: 420 }}>
+                              <VerificationFields
+                                issuingAuthority={editDraft.issuingAuthority}
+                                verifiedAt={editDraft.verifiedAt}
+                                small
+                                onIssuingAuthority={(v) => updateDraft({ issuingAuthority: v })}
+                                onVerifiedAt={(v) => updateDraft({ verifiedAt: v })}
+                              />
                             </div>
                             <div className="edit-row-actions">
                               <button className="btn btn-ghost btn-sm" onClick={cancelEditing} disabled={editSaving}>Cancel</button>
@@ -707,6 +815,24 @@ export default function LegalFeeSchedulesAdminPage() {
                           <td style={{ fontSize: '0.8rem', color: '#9494b0' }}>{row.floorAreaSqm != null ? `${row.floorAreaSqm} sqm` : '—'}</td>
                           <td style={{ fontSize: '0.8rem', color: '#9494b0' }}>{formatValidity(row)}</td>
                           <td style={{ fontSize: '0.8rem', color: '#9494b0' }}>{formatProcessing(row)}</td>
+                          <td>
+                            {(() => {
+                              const v = formatVerified(row);
+                              return (
+                                <span
+                                  className="badge"
+                                  style={
+                                    v.verified
+                                      ? { background: 'rgba(20,184,166,0.12)', color: '#2dd4bf' }
+                                      : { background: 'rgba(148,148,176,0.1)', color: '#9494b0' }
+                                  }
+                                  title={row.issuingAuthority ?? undefined}
+                                >
+                                  {v.label}
+                                </span>
+                              );
+                            })()}
+                          </td>
                           <td className="adm-mono" style={{ textAlign: 'right', fontWeight: 700, color: '#34d399' }}>
                             {formatPrice(row)}
                           </td>

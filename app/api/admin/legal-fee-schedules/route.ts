@@ -36,7 +36,15 @@ export async function POST(request: Request) {
   try {
     const user = await requirePermission('products.create');
     const body = await request.json();
-    const { templateId, countyId, tradeClassId = null, sizeBand = null, employeeCountMax, floorAreaSqm, validityValue, validityUnit, processingTimeMinDays, processingTimeMaxDays, applyUrl, notes } = body;
+    const {
+      templateId, countyId, tradeClassId = null, sizeBand = null,
+      employeeCountMax, floorAreaSqm, validityValue, validityUnit,
+      processingTimeMinDays, processingTimeMaxDays, applyUrl, notes,
+      // Verification — previously accepted by nothing, so every row saved
+      // via this route always ended up with issuingAuthority/verifiedAt
+      // null regardless of what the admin form sent. Now persisted.
+      issuingAuthority = null, verifiedAt = null,
+    } = body;
 
     if (!templateId || !countyId) return NextResponse.json({ error: 'templateId and countyId are required.' }, { status: 400 });
 
@@ -69,6 +77,8 @@ export async function POST(request: Request) {
       processingTimeMaxDays: processingTimeMaxDays != null ? Number(processingTimeMaxDays) : null,
       applyUrl: applyUrl?.trim() || null,
       notes: notes?.trim() || null,
+      issuingAuthority: issuingAuthority?.trim() || null,
+      verifiedAt: verifiedAt ? new Date(verifiedAt) : null,
     };
 
     const row = existing
@@ -87,7 +97,7 @@ export async function POST(request: Request) {
       action: existing ? 'UPDATE' : 'CREATE',
       entity: 'Product',
       entityId: row.id.toString(),
-      changes: { templateId, countyId, price: data.price, priceMin: data.priceMin, priceMax: data.priceMax, updatedBy: user.id },
+      changes: { templateId, countyId, price: data.price, priceMin: data.priceMin, priceMax: data.priceMax, verifiedAt: data.verifiedAt, updatedBy: user.id },
     });
 
     return NextResponse.json(row, { status: existing ? 200 : 201 });

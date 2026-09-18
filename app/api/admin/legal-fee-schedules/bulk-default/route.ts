@@ -10,7 +10,15 @@ export async function POST(request: Request) {
   try {
     const user = await requirePermission('products.create');
     const body = await request.json();
-    const { templateId, validityValue, validityUnit, processingTimeMinDays, processingTimeMaxDays, applyUrl, notes } = body;
+    const {
+      templateId, validityValue, validityUnit, processingTimeMinDays,
+      processingTimeMaxDays, applyUrl, notes,
+      // Verification — optional. Only pass these when confirming the same
+      // source for every county at once; leave blank to verify counties
+      // individually via the table below instead (each edit there is
+      // independent and won't be touched by this bulk action).
+      issuingAuthority = null, verifiedAt = null,
+    } = body;
 
     if (!templateId) return NextResponse.json({ error: 'templateId is required.' }, { status: 400 });
 
@@ -37,6 +45,8 @@ export async function POST(request: Request) {
       processingTimeMaxDays: processingTimeMaxDays != null ? Number(processingTimeMaxDays) : null,
       applyUrl: applyUrl?.trim() || null,
       notes: notes?.trim() || null,
+      issuingAuthority: issuingAuthority?.trim() || null,
+      verifiedAt: verifiedAt ? new Date(verifiedAt) : null,
     };
 
     let created = 0;
@@ -63,7 +73,7 @@ export async function POST(request: Request) {
       action: 'UPDATE',
       entity: 'Product',
       entityId: templateId.toString(),
-      changes: { price: data.price, priceMin: data.priceMin, priceMax: data.priceMax, countiesAffected: counties.length, created, updated, updatedBy: user.id },
+      changes: { price: data.price, priceMin: data.priceMin, priceMax: data.priceMax, countiesAffected: counties.length, created, updated, verifiedAt: data.verifiedAt, updatedBy: user.id },
     });
 
     return NextResponse.json({ message: `Set rate for ${counties.length} counties.`, created, updated });

@@ -1,15 +1,22 @@
 // app/businesses/[slug]/cost/CostCartSummary.tsx
 //
-// Live running total for whatever's been quick-added on this page (or
-// already in the cart from the requirements page — same cart either
-// way). Deliberately thin: no editing, removal, save or export here —
-// those stay on the requirements page's CostCalculator, which already
-// does them well. This is a status readout plus a link, not a second
-// cart UI to maintain.
+// Fixed floating bar, matching the visual language of CostCalculator's
+// mobile collapsed bar on the requirements page (gradient emerald,
+// rounded-2xl, shadow-2xl). /cost has no sidebar to make sticky, so this
+// pins to the viewport bottom instead — visible while scrolling the whole
+// page, on every screen size. Hidden entirely while the cart is empty, so
+// a first-time visitor doesn't see a persistent bar with nothing in it;
+// it appears the moment something's added (here or on the requirements
+// page — same shared cart either way) and stays until they navigate away.
+//
+// Deliberately thin: no editing, removal, save or export here — those
+// stay on the requirements page's CostCalculator. This is a status
+// readout plus a link, not a second cart UI to maintain.
 
 'use client';
 
 import Link from 'next/link';
+import { FiShoppingCart, FiArrowRight } from 'react-icons/fi';
 import { useCart } from '@/contexts/CartContext';
 import { formatCurrency } from '@/lib/currency';
 import type { MarketCode } from '@/lib/markets';
@@ -20,49 +27,38 @@ interface CostCartSummaryProps {
 }
 
 export default function CostCartSummary({ businessSlug, market }: CostCartSummaryProps) {
-  const { items, totalCost, totalItems, loading } = useCart();
+  const { items, totalCost, totalItems } = useCart();
+
+  if (items.length === 0) return null;
 
   const requirementsUrl =
     market === 'KE' ? `/businesses/${businessSlug}/requirements` : `/us/businesses/${businessSlug}/requirements`;
 
-  if (loading && items.length === 0) {
-    return (
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 text-center text-sm text-slate-400">
-        Loading your list…
-      </div>
-    );
-  }
+  return (
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-xl z-50">
+      <div className="bg-gradient-to-r from-emerald-600 to-emerald-500 rounded-2xl shadow-2xl px-4 py-3 sm:px-5 sm:py-3.5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="bg-white/20 p-2 rounded-lg flex-shrink-0">
+            <FiShoppingCart className="text-white" size={18} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-white font-bold text-sm sm:text-base leading-tight">
+              {formatCurrency(totalCost, market)}
+            </p>
+            <p className="text-white/80 text-xs">
+              {totalItems} item{totalItems === 1 ? '' : 's'} in your list
+            </p>
+          </div>
+        </div>
 
-  if (items.length === 0) {
-    return (
-      <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-5 text-center">
-        <p className="text-sm text-slate-500 mb-2">
-          Use &quot;Add cheapest option&quot; on the requirements below to start building your own estimate.
-        </p>
-        <Link href={requirementsUrl} className="text-sm font-medium text-emerald-700 hover:underline">
-          Or browse every option on the requirements page →
+        <Link
+          href={requirementsUrl}
+          className="flex-shrink-0 flex items-center gap-1.5 bg-white text-emerald-700 rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold hover:bg-emerald-50 transition-colors"
+        >
+          Manage list
+          <FiArrowRight size={14} />
         </Link>
       </div>
-    );
-  }
-
-  return (
-    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 flex items-center justify-between gap-4 flex-wrap">
-      <div>
-        <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-1">Your list</p>
-        <p className="text-lg font-bold text-emerald-900">
-          {formatCurrency(totalCost, market)}{' '}
-          <span className="text-sm font-normal text-emerald-700">
-            · {totalItems} item{totalItems === 1 ? '' : 's'}
-          </span>
-        </p>
-      </div>
-      <Link
-        href={requirementsUrl}
-        className="text-sm font-semibold text-emerald-700 hover:text-emerald-800 hover:underline"
-      >
-        Manage, save or export your list →
-      </Link>
     </div>
   );
 }

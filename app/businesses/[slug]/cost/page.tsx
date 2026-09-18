@@ -1,11 +1,21 @@
 // app/businesses/[slug]/cost/page.tsx
 //
-// CART CONNECTION (new): CostCartSync points the shared cart at this
-// business (mirrors what useBusinessData does on the requirements page),
-// and CostCartSummary shows the live running total. Neither requires a
-// client data fetch of its own — they ride on the same CartContext the
-// requirements page already uses, so items added here show up there and
-// vice versa.
+// CATEGORY-TOTAL CONSISTENCY (this revision): the category breakdown now
+// sources from `required` (the required-only, Medium-band breakdown —
+// same one CostSummaryPanel shows by default) rather than `withOptional`,
+// and its line list is explicitly filtered to required + non-stock. Before
+// this, category cards summed required + optional + stock regardless of
+// what the headline number above them showed, which is the "extra cost"
+// bug — see lib/cost-engine.ts's header comment for the actual fix.
+// Optional items and stock are still visible elsewhere on the page (the
+// "not yet priced" section, and stock's own site-wide stats) — just not
+// folded into this specific total anymore.
+//
+// FLOATING CART (this revision): CostCartSummary now renders as a fixed
+// bottom bar (see that file), so it moves out of the normal content flow
+// into an overlay rendered once near the top of this component, and the
+// content wrapper gets extra bottom padding so the bar never covers the
+// page's own CTAs.
 
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
@@ -207,8 +217,18 @@ export default async function CostPage({ params }: CostPageProps) {
   const { requiredOnly: required, withOptional } = reference;
 
   const optionalCount = withOptional.coverage.totalRequirements - required.coverage.totalRequirements;
+  // .lines is the raw, unfiltered list regardless of options — used here
+  // for coverage ("what's not priced yet") across both required and
+  // optional. The category breakdown below deliberately narrows this
+  // further — see categoryLines.
   const unpricedLines = withOptional.lines.filter((l) => !l.hasPricing && !l.isStock);
   const hasCountyFees = countyFeeRows.length > 0;
+
+  // Required + non-stock only, matching required.categories exactly (see
+  // lib/cost-engine.ts's filterInScope) — this is what keeps the category
+  // cards from ever summing to more than the headline "cash to open"
+  // figure above them.
+  const categoryLines = required.lines.filter((l) => l.isRequired && !l.isStock);
 
   const faqs = buildCostPageFaqs(name, required, optionalCount, required.stockCount, hasCountyFees);
 
@@ -308,8 +328,9 @@ export default async function CostPage({ params }: CostPageProps) {
       />
 
       <CostCartSync businessId={business.id} />
+      <CostCartSummary businessSlug={slug} market={market} />
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 sm:pt-12 pb-28">
         <nav aria-label="Breadcrumb" className="text-sm text-slate-500 mb-6">
           <Link href="/businesses" className="hover:text-emerald-700">Businesses</Link>
           <span className="mx-2">/</span>
@@ -328,7 +349,7 @@ export default async function CostPage({ params }: CostPageProps) {
           </p>
         </div>
 
-        <div className="mb-6">
+        <div className="mb-10">
           <CostSummaryPanel
             businessName={name}
             market={market}
@@ -337,19 +358,18 @@ export default async function CostPage({ params }: CostPageProps) {
           />
         </div>
 
-        <div className="mb-10">
-          <CostCartSummary businessSlug={slug} market={market} />
-        </div>
-
         {required.hasPricing && (
           <section className="mb-10">
             <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-1">
               Cost Breakdown by Category
             </h2>
-            <p className="text-xs text-slate-400 mb-4">Shown at Medium scale — use the summary above to compare sizes.</p>
+            <p className="text-xs text-slate-400 mb-4">
+              Required items only, at Medium scale — matches the headline figure above.
+              {optionalCount > 0 && ` ${optionalCount} optional item${optionalCount === 1 ? '' : 's'} not shown here — toggle "include optional" above to add them.`}
+            </p>
             <CostCategoryBreakdown
-              categories={withOptional.categories}
-              lines={withOptional.lines}
+              categories={required.categories}
+              lines={categoryLines}
               market={market}
               businessSlug={slug}
             />
