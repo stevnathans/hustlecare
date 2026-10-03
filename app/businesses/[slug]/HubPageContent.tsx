@@ -98,13 +98,13 @@ function getSubPages(slug: string, base: string, market: MarketCode) {
       available: market === 'KE',
     },
     {
-      href: `${base}/businesses/${slug}/costs`,
+      href: `${base}/businesses/${slug}/cost`,
       icon: DollarSign,
       label: 'Startup Cost Calculator',
       description: `Detailed cost breakdown per requirement with low / medium / high estimates in ${market === 'KE' ? 'KES' : 'USD'}.`,
-      badge: 'Coming soon',
+       badge: market === 'US' ? 'Coming soon' : null,
       color: 'blue',
-      available: false,
+      available: market === 'KE',
     },
     {
       href: `${base}/businesses/${slug}/success-stories`,
