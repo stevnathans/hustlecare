@@ -55,6 +55,17 @@ interface CategorySectionProps {
   availableNecessities: string[];
   onProductAssigned?: () => void;
   market?: MarketCode;
+  // Stage 4.5 — set when this category has its own dedicated checklist
+  // sub-page (/businesses/{slug}/requirements/{category-slug}), which
+  // only exists once the business has ≥3 active requirements in this
+  // category (see the threshold check in the requirements page
+  // components that compute this). `viewAllCount` is the total item
+  // count for the category (unfiltered by any search/necessity filter),
+  // shown in the link's own label. Omitted entirely on the category
+  // sub-page itself, where the link would be redundant — you're already
+  // looking at everything it would take you to.
+  viewAllHref?: string | null;
+  viewAllCount?: number;
 }
 
 const CategorySection: React.FC<CategorySectionProps> = ({
@@ -78,6 +89,8 @@ const CategorySection: React.FC<CategorySectionProps> = ({
   onFilterChange,
   onProductAssigned,
   market = DEFAULT_MARKET,
+  viewAllHref,
+  viewAllCount,
 }) => {
   const categoryId = category.toLowerCase().replace(/\s+/g, '-');
 
@@ -132,6 +145,22 @@ const CategorySection: React.FC<CategorySectionProps> = ({
         onToggleSearch={onToggleSearch}
         onToggleFilter={onToggleFilter}
       />
+
+      {/* Stage 4.5 — only rendered when this category has its own
+          checklist sub-page, i.e. the business clears the ≥3-item
+          threshold for it. Sits right under the header so it's visible
+          before anyone starts filtering/searching within the category. */}
+      {viewAllHref && (
+        <div className="px-4 sm:px-6 pb-3 -mt-1">
+          <Link
+            href={viewAllHref}
+            className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium"
+          >
+            View all {viewAllCount ?? requirements.length} {category} requirements
+            <span aria-hidden="true">→</span>
+          </Link>
+        </div>
+      )}
 
       <CategorySearchFilter
         category={category}

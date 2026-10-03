@@ -2,9 +2,13 @@
 import { MetadataRoute } from 'next';
 import { prisma } from '@/lib/prisma';
 import { getIndexableRequirementSlugs } from '@/lib/requirement-data';
-import { DEFAULT_MARKET } from '@/lib/markets';
+import { fetchBusinessWithRequirements, groupRequirementsByCategory } from '@/lib/business-data';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
+
+// Same threshold used by the [category] page routes and the "View all"
+// link on the main requirements pages — must stay in sync with those.
+const CATEGORY_PAGE_THRESHOLD = 3;
 
 // Same condition used by generateStaticParams in
 // app/us/businesses/[slug]/page.tsx and .../requirements/page.tsx, and by
@@ -46,9 +50,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'daily',
       priority: 0.9,
     },
-    // New — the requirement entity index (Stage 2).
     {
       url: `${SITE_URL}/requirements`,
+      lastModified: new Date(),
+      changeFrequency: 'daily',
+      priority: 0.85,
+    },
+    // New (Stage 4) — the US requirement index, mirroring the KE one.
+    {
+      url: `${SITE_URL}/us/requirements`,
       lastModified: new Date(),
       changeFrequency: 'daily',
       priority: 0.85,
@@ -141,14 +151,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         changeFrequency: 'weekly' as const,
         priority: 0.80,
       },
-      // New — the dedicated cost breakdown page. Same priority as
-      // requirements: both are core, high-intent pages for every business.
-      {
-        url: `${SITE_URL}/businesses/${business.slug}/cost`,
-        lastModified: business.updatedAt,
-        changeFrequency: 'weekly' as const,
-        priority: 0.80,
-      },
       {
         url: `${SITE_URL}/businesses/${business.slug}/how-to-start`,
         lastModified: business.updatedAt,
@@ -203,21 +205,114 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     console.error('Sitemap: failed to fetch US-eligible businesses from DB:', error);
   }
 
-  // ── Dynamic requirement entity pages (Stage 2) ────────────────────────────
+  // ── Dynamic requirement entity pages (Stage 2, extended in Stage 4) ───────
+  // Filtered by getIndexableRequirementSlugs's anti-orphan rule — a
+  // requirement only gets a sitemap entry if it has real content behind
+  // it, the same bar the page's own generateStaticParams and notFound()
+  // guard use. Stage 4 adds the US variant plus hreflang in both
+  // directions — computed from two slug lists rather than an N+1 check
+  // per slug, mirroring the eligibility-where-clause pattern already used
+  // for business pages above.
   let requirementPages: MetadataRoute.Sitemap = [];
+  let usRequirementPages: MetadataRoute.Sitemap = [];
 
   try {
-    const slugs = await getIndexableRequirementSlugs(DEFAULT_MARKET);
-    requirementPages = slugs.map((slug) => ({
+    const [keSlugs, usSlugs] = await Promise.all([
+      getIndexableRequirementSlugs('KE'),
+      getIndexableRequirementSlugs('US'),
+    ]);
+    const usEligibleSet = new Set(usSlugs);
+
+    requirementPages = keSlugs.map((slug) => ({
       url: `${SITE_URL}/requirements/${slug}`,
       changeFrequency: 'weekly' as const,
       priority: 0.75,
+      ...(usEligibleSet.has(slug) && {
+        alternates: {
+          languages: {
+            'en-KE': `${SITE_URL}/requirements/${slug}`,
+            'en-US': `${SITE_URL}/us/requirements/${slug}`,
+          },
+        },
+      }),
+    }));
+
+    usRequirementPages = usSlugs.map((slug) => ({
+      url: `${SITE_URL}/us/requirements/${slug}`,
+      changeFrequency: 'weekly' as const,
+      priority: 0.75,
+      alternates: {
+        languages: {
+          'en-KE': `${SITE_URL}/requirements/${slug}`,
+          'en-US': `${SITE_URL}/us/requirements/${slug}`,
+        },
+      },
     }));
   } catch (error) {
     console.error('Sitemap: failed to fetch requirement slugs from DB:', error);
   }
 
-  // ── Dynamic category pages ──────────────────────────────────────────────────
+  // ── Dynamic category-scoped checklist pages (Stage 4.5) ───────────────────
+  // One entry per business × RequirementCategory pair that clears
+  // CATEGORY_PAGE_THRESHOLD, for each market independently — a business's
+  // category composition can differ by market (different requirements are
+  // visible per market), so KE and US are computed separately rather than
+  // assumed to mirror each other. Mirrors exactly the generateStaticParams
+  // logic in the two [category] page routes; kept in sync manually since
+  // sitemap generation and static-param generation run at different times
+  // and via different Next.js entry points.
+  let categoryChecklistPages: MetadataRoute.Sitemap = [];
+
+  try {
+    const [keBusinesses, usBusinesses] = await Promise.all([
+      prisma.business.findMany({ where: { published: true }, select: { slug: true, updatedAt: true } }),
+      prisma.business.findMany({ where: { published: true, ...US_ELIGIBLE_WHERE }, select: { slug: true, updatedAt: true } }),
+    ]);
+
+    const keEntries: MetadataRoute.Sitemap = [];
+    for (const { slug, updatedAt } of keBusinesses) {
+      const business = await fetchBusinessWithRequirements(slug, 'KE');
+      if (!business) continue;
+      const groups = groupRequirementsByCategory(business.requirements ?? []);
+      for (const group of Object.values(groups)) {
+        if (group.slug && group.items.length >= CATEGORY_PAGE_THRESHOLD) {
+          keEntries.push({
+            url: `${SITE_URL}/businesses/${slug}/requirements/${group.slug}`,
+            lastModified: updatedAt,
+            changeFrequency: 'weekly',
+            priority: 0.65,
+          });
+        }
+      }
+    }
+
+    const usEntries: MetadataRoute.Sitemap = [];
+    for (const { slug, updatedAt } of usBusinesses) {
+      const business = await fetchBusinessWithRequirements(slug, 'US');
+      if (!business) continue;
+      const groups = groupRequirementsByCategory(business.requirements ?? []);
+      for (const group of Object.values(groups)) {
+        if (group.slug && group.items.length >= CATEGORY_PAGE_THRESHOLD) {
+          usEntries.push({
+            url: `${SITE_URL}/us/businesses/${slug}/requirements/${group.slug}`,
+            lastModified: updatedAt,
+            changeFrequency: 'weekly',
+            priority: 0.65,
+          });
+        }
+      }
+    }
+
+    categoryChecklistPages = [...keEntries, ...usEntries];
+  } catch (error) {
+    console.error('Sitemap: failed to build category checklist entries:', error);
+  }
+
+  // ── Dynamic category pages (BusinessCategory — the consumer browsing
+  // taxonomy, e.g. /businesses/categories/retail) ──────────────────────────
+  // Unrelated to the RequirementCategory checklist pages above — see the
+  // SEO architecture doc, Section 16, on why these two taxonomies don't
+  // conflict.
   let categoryPages: MetadataRoute.Sitemap = [];
 
   try {
@@ -247,6 +342,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...businessPages,
     ...usBusinessPages,
     ...requirementPages,
+    ...usRequirementPages,
+    ...categoryChecklistPages,
     ...categoryPages,
   ];
 }

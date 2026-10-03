@@ -32,6 +32,20 @@ interface CategoryState {
   searchQuery: string;
 }
 
+// Stage 4.5 — one entry per category that has cleared the ≥3-item
+// threshold and therefore has its own checklist sub-page
+// (/businesses/{slug}/requirements/{category-slug}). Built by the page
+// component (app/businesses/[slug]/requirements/page.tsx and the US
+// equivalent) via lib/business-data.ts's groupRequirementsByCategory, and
+// threaded down to each CategorySection as viewAllHref/viewAllCount. A
+// category not present in this map simply renders without the link —
+// either it's below the threshold, or its RequirementCategory row has no
+// slug yet (shouldn't happen post-backfill, but handled gracefully).
+export interface CategoryLinkInfo {
+  href: string;
+  count: number;
+}
+
 interface RequirementsSectionProps {
   businessId: string;
   businessName: string;
@@ -57,6 +71,7 @@ interface RequirementsSectionProps {
   isLoading?: boolean;
   onProductAssigned?: () => void;
   market?: MarketCode;
+  categoryLinks?: Record<string, CategoryLinkInfo>;
 }
 
 type Business = {
@@ -94,6 +109,7 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
   onProductAssigned,
   availableNecessities,
   market = DEFAULT_MARKET,
+  categoryLinks,
 }) => {
   const [similarBusinesses, setSimilarBusinesses] = useState<Business[]>([]);
   const [loadingBusinesses, setLoadingBusinesses] = useState(true);
@@ -392,6 +408,7 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
                 showSearch: false,
                 searchQuery: "",
               };
+              const linkInfo = categoryLinks?.[category];
 
               return (
                 <CategorySection
@@ -417,6 +434,8 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
                   businessId={businessId}
                   availableNecessities={availableNecessities}
                   market={market}
+                  viewAllHref={linkInfo?.href}
+                  viewAllCount={linkInfo?.count}
                 />
               );
             })}

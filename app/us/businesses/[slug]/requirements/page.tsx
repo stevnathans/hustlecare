@@ -2,7 +2,8 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import BusinessPageContent from '../../../../businesses/[slug]/requirements/BusinessPageContent';
-import { fetchBusinessWithRequirements } from '@/lib/business-data';
+import { fetchBusinessWithRequirements, groupRequirementsByCategory } from '@/lib/business-data';
+import type { CategoryLinkInfo } from '@/components/DetailsPage/RequirementsSection';
 import { prisma } from '@/lib/prisma';
 import { isExcludedFromTotals } from '@/lib/necessity';
 import type { Business as BusinessData, Requirement as RequirementData } from 'hooks/useBusinessData';
@@ -11,6 +12,14 @@ import { type MarketCode } from '@/lib/markets';
 
 export const revalidate = 300; // regenerate at most every 5 minutes
 const market: MarketCode = 'US';
+
+// Stage 4.5 — same threshold as the Kenya requirements page and its
+// [category] sub-route counterpart. Kept as its own local constant here
+// (rather than a shared import) to match this file's existing convention
+// of near-duplicating the Kenya page rather than sharing state across the
+// two market implementations — see the module comments throughout this
+// file for the fuller reasoning already established at Stage 2/3.
+const CATEGORY_PAGE_THRESHOLD = 3;
 
 interface BusinessPageProps {
   params: Promise<{ slug: string }>;
@@ -264,6 +273,22 @@ export default async function USBusinessPage({ params }: BusinessPageProps) {
   ).length;
   const optionalCount = requirementCount - requiredCount;
 
+  // ── Category-scoped checklist links (Stage 4.5) ──────────────────────────
+  // Same grouping as the Kenya page, pointed at the US sub-route
+  // (/us/businesses/{slug}/requirements/{category-slug}). See that file's
+  // fuller comment on why the grouping runs over ALL active requirements
+  // (Stock included) rather than just coreRequirements.
+  const categoryGroups = groupRequirementsByCategory(requirements);
+  const categoryLinks: Record<string, CategoryLinkInfo> = {};
+  for (const [categoryName, group] of Object.entries(categoryGroups)) {
+    if (group.slug && group.items.length >= CATEGORY_PAGE_THRESHOLD) {
+      categoryLinks[categoryName] = {
+        href: `/us/businesses/${slug}/requirements/${group.slug}`,
+        count: group.items.length,
+      };
+    }
+  }
+
   // ── Structured Data ─────────────────────────────────────────────────────────
 
   const categoryMap = new Map<string, typeof requirements>();
@@ -478,14 +503,11 @@ export default async function USBusinessPage({ params }: BusinessPageProps) {
   };
 
   // slug deliberately always null on the US market for now —
-  // /requirements/{slug} (built in Stage 2) is Kenya-scoped: it fetches
-  // Kenya business links and frames content around Kenya ("... in
-  // Kenya"). Linking a US visitor there would be a content mismatch, not
-  // a 404, but still wrong — the fix is Stage 4 (a market-aware
-  // /us/requirements/{slug}), not enabling this link early. Revisit once
-  // that ships: swap this back to `req.template.published ?
-  // req.template.slug : null` and point RequirementCard at the US route
-  // for this market.
+  // /requirements/{slug} was Kenya-scoped until Stage 4; a market-aware
+  // /us/requirements/{slug} now exists, so this could be re-enabled, but
+  // is left as-is here since re-pointing it is outside this stage's scope
+  // — flip back to `req.template.published ? req.template.slug : null`
+  // and point RequirementCard at the US route for this market when ready.
   //
   // Stage 3 Part B: excludedFromTotals/usesLegalCountyFilter threaded
   // through the same way as the Kenya page — see that file for the fuller
@@ -522,6 +544,7 @@ export default async function USBusinessPage({ params }: BusinessPageProps) {
         initialRequirements={initialRequirements}
         faqs={requirementFaqs}
         market="US"
+        categoryLinks={categoryLinks}
       />
     </>
   );

@@ -1,14 +1,12 @@
-// app/requirements/[slug]/page.tsx
+// app/us/requirements/[slug]/page.tsx
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import {
   fetchRequirementBySlug,
   getIndexableRequirementSlugs,
   hasIndexableContent,
-  isRequirementUSMarketEligible,
 } from '@/lib/requirement-data';
-import RequirementPageContent from './RequirementPageContent';
-import { DEFAULT_MARKET } from '@/lib/markets';
+import RequirementPageContent from '../../../requirements/[slug]/RequirementPageContent';
 
 export const revalidate = 300; // regenerate at most every 5 minutes
 
@@ -27,7 +25,7 @@ function formatTypeLabel(type: string | null): string | null {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const requirement = await fetchRequirementBySlug(slug, DEFAULT_MARKET);
+  const requirement = await fetchRequirementBySlug(slug, 'US');
 
   if (!requirement || !hasIndexableContent(requirement)) {
     return {
@@ -36,7 +34,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
-  const pageUrl = `${SITE_URL}/requirements/${slug}`;
+  const pageUrl = `${SITE_URL}/us/requirements/${slug}`;
   const businessCount = requirement.businessSummaries.length;
   const typeLabel = formatTypeLabel(requirement.type);
 
@@ -45,23 +43,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   } | HustleCare`;
 
   const description =
+    requirement.descriptionUS ||
     requirement.description ||
-    `${requirement.name} explained: what it is, whether your business needs it, typical costs in Kenya, and which business types require it.`;
+    `${requirement.name} explained: what it is, whether your business needs it, typical costs in the US, and which business types require it.`;
 
   const ogImage = requirement.image || `${SITE_URL}/images/default-requirement.jpg`;
-
-  // Only advertise a US alternate if this requirement actually has a live
-  // US page — see isRequirementUSMarketEligible() in
-  // lib/requirement-data.ts. Without this check, hreflang could point
-  // Google at a slug the US route's own anti-orphan guard would 404.
-  const usEligible = await isRequirementUSMarketEligible(slug);
 
   return {
     title,
     description,
     keywords: [
       requirement.name,
-      `${requirement.name} Kenya`,
+      `${requirement.name} US`,
       `${requirement.name} cost`,
       `${requirement.name} requirements`,
       ...(typeLabel ? [`${requirement.name} ${typeLabel.toLowerCase()}`] : []),
@@ -75,7 +68,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       url: pageUrl,
       siteName: 'HustleCare',
       type: 'article',
-      locale: 'en_KE',
+      locale: 'en_US',
       images: [{ url: ogImage, width: 1200, height: 630, alt: requirement.name }],
     },
     twitter: {
@@ -98,9 +91,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     },
     alternates: {
       canonical: pageUrl,
+      // The Kenya page for this slug is guaranteed to exist — Kenya is
+      // the unrestricted default market and isn't gated by the same
+      // business-eligibility bar the US side is — so no eligibility
+      // check is needed in this direction. Same convention already used
+      // by the US business hub/requirements pages.
       languages: {
-        'en-KE': pageUrl,
-        ...(usEligible ? { 'en-US': `${SITE_URL}/us/requirements/${slug}` } : {}),
+        'en-US': pageUrl,
+        'en-KE': `${SITE_URL}/requirements/${slug}`,
       },
     },
     verification: { google: process.env.GOOGLE_SITE_VERIFICATION },
@@ -111,38 +109,33 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export async function generateStaticParams() {
   try {
-    const slugs = await getIndexableRequirementSlugs(DEFAULT_MARKET);
+    const slugs = await getIndexableRequirementSlugs('US');
     return slugs.map((slug) => ({ slug }));
   } catch (error) {
-    console.error('Error generating requirement static params:', error);
+    console.error('Error generating US requirement static params:', error);
     return [];
   }
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default async function RequirementPage({ params }: Props) {
+export default async function USRequirementPage({ params }: Props) {
   const { slug } = await params;
-  const requirement = await fetchRequirementBySlug(slug, DEFAULT_MARKET);
+  const requirement = await fetchRequirementBySlug(slug, 'US');
 
   if (!requirement) notFound();
 
-  // Anti-orphan guard — mirrors getIndexableRequirementSlugs. A template
-  // that slipped through to an on-demand render (dynamicParams defaults to
-  // true) but has neither business links nor fee-schedule data has nothing
-  // real to show, and would otherwise be an indexable empty page.
+  // Anti-orphan guard — mirrors getIndexableRequirementSlugs('US'). A
+  // template that slipped through to an on-demand render (dynamicParams
+  // defaults to true) but has no US-eligible business link has nothing
+  // real to show on this market — fee-schedule rows never count here,
+  // since LegalFeeSchedule is Kenya-only (see lib/requirement-data.ts).
   if (!hasIndexableContent(requirement)) notFound();
 
-  const pageUrl = `${SITE_URL}/requirements/${slug}`;
+  const pageUrl = `${SITE_URL}/us/requirements/${slug}`;
   const businessCount = requirement.businessSummaries.length;
 
   // ── Structured Data ───────────────────────────────────────────────────────
-  //
-  // DefinedTerm is the closest accurate schema.org type for a reusable
-  // requirement entity — there's no "BusinessRequirement" type, and
-  // forcing Permit/Product schema onto every requirement regardless of
-  // its actual type would misrepresent equipment/software requirements
-  // that aren't permits at all. See the SEO architecture doc, Section 11.
   const structuredData = {
     '@context': 'https://schema.org',
     '@graph': [
@@ -150,8 +143,8 @@ export default async function RequirementPage({ params }: Props) {
         '@type': 'BreadcrumbList',
         '@id': `${pageUrl}#breadcrumb`,
         itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
-          { '@type': 'ListItem', position: 2, name: 'Requirements', item: `${SITE_URL}/requirements` },
+          { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE_URL}/us` },
+          { '@type': 'ListItem', position: 2, name: 'Requirements', item: `${SITE_URL}/us/requirements` },
           { '@type': 'ListItem', position: 3, name: requirement.name, item: pageUrl },
         ],
       },
@@ -159,7 +152,7 @@ export default async function RequirementPage({ params }: Props) {
         '@type': 'DefinedTerm',
         '@id': `${pageUrl}#term`,
         name: requirement.name,
-        description: requirement.description || `${requirement.name} for businesses in Kenya.`,
+        description: requirement.descriptionUS || requirement.description || `${requirement.name} for businesses in the US.`,
         url: pageUrl,
         inDefinedTermSet: {
           '@type': 'DefinedTermSet',
@@ -176,7 +169,7 @@ export default async function RequirementPage({ params }: Props) {
               itemListElement: requirement.businessSummaries.map((b, i) => ({
                 '@type': 'ListItem',
                 position: i + 1,
-                url: `${SITE_URL}/businesses/${b.slug}`,
+                url: `${SITE_URL}/us/businesses/${b.slug}`,
                 name: `${b.name} Business`,
               })),
             },
@@ -191,7 +184,7 @@ export default async function RequirementPage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
-      <RequirementPageContent requirement={requirement} market="KE" />
+      <RequirementPageContent requirement={requirement} market="US" />
     </>
   );
 }

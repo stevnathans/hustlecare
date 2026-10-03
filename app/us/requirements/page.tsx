@@ -1,27 +1,27 @@
-// app/requirements/page.tsx
+// app/us/requirements/page.tsx
 //
-// Index/browse page for all indexable requirement entities, grouped by
-// category. Built alongside app/requirements/[slug]/page.tsx specifically
-// so that page's breadcrumb ("Home > Requirements > {name}") points at a
-// real page — see the Stage 0 lesson about not linking to routes that
-// don't exist yet (the US how-to-start card).
+// US market's requirement index/browse page — the entity page's own
+// breadcrumb (app/us/requirements/[slug]/page.tsx) links here as its
+// parent, so this page has to exist before that link is added, the same
+// lesson Stage 0 already applied to the how-to-start card (never ship a
+// breadcrumb/nav link to a route that isn't live yet). Otherwise
+// identical in structure to app/requirements/page.tsx.
 
 import { Metadata } from 'next';
 import Link from 'next/link';
 import { getIndexableRequirements } from '@/lib/requirement-data';
-import { DEFAULT_MARKET } from '@/lib/markets';
 
 export const revalidate = 300;
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
-const PAGE_URL = `${SITE_URL}/requirements`;
+const PAGE_URL = `${SITE_URL}/us/requirements`;
 
 export async function generateMetadata(): Promise<Metadata> {
-  const requirements = await getIndexableRequirements(DEFAULT_MARKET);
+  const requirements = await getIndexableRequirements('US');
   const count = requirements.length;
 
-  const title = `${count > 0 ? `${count} ` : ''}Business Requirements, Permits & Equipment Explained | HustleCare`;
-  const description = `Browse ${count > 0 ? count : 'every'} business requirement in our database — permits, licences, equipment, software, and documents — with costs and which businesses in Kenya need each one.`;
+  const title = `${count > 0 ? `${count} ` : ''}Business Requirements & Equipment Explained | HustleCare`;
+  const description = `Browse ${count > 0 ? count : 'every'} business requirement in our database — equipment, software, and documents — with costs and which businesses in the US need each one.`;
 
   return {
     title,
@@ -33,7 +33,7 @@ export async function generateMetadata(): Promise<Metadata> {
       siteName: 'HustleCare',
       title,
       description,
-      locale: 'en_KE',
+      locale: 'en_US',
     },
     twitter: {
       card: 'summary_large_image',
@@ -47,23 +47,19 @@ export async function generateMetadata(): Promise<Metadata> {
       follow: true,
       googleBot: { index: true, follow: true, 'max-snippet': -1 },
     },
-    // Stage 4 — /us/requirements now exists, so this index can point at it
-    // too. Kenya is the unrestricted default market, so no eligibility
-    // check is needed in this direction (same convention as every other
-    // KE ↔ US hreflang pair in this codebase).
     alternates: {
       canonical: PAGE_URL,
       languages: {
-        'en-KE': PAGE_URL,
-        'en-US': `${SITE_URL}/us/requirements`,
+        'en-US': PAGE_URL,
+        'en-KE': `${SITE_URL}/requirements`,
       },
     },
     verification: { google: process.env.GOOGLE_SITE_VERIFICATION },
   };
 }
 
-export default async function RequirementsIndexPage() {
-  const requirements = await getIndexableRequirements(DEFAULT_MARKET);
+export default async function USRequirementsIndexPage() {
+  const requirements = await getIndexableRequirements('US');
 
   const grouped = requirements.reduce<Record<string, typeof requirements>>((acc, r) => {
     if (!acc[r.category]) acc[r.category] = [];
@@ -80,16 +76,16 @@ export default async function RequirementsIndexPage() {
         '@type': 'BreadcrumbList',
         '@id': `${PAGE_URL}#breadcrumb`,
         itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
+          { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE_URL}/us` },
           { '@type': 'ListItem', position: 2, name: 'Requirements', item: PAGE_URL },
         ],
       },
       {
         '@type': 'CollectionPage',
         '@id': `${PAGE_URL}#page`,
-        name: 'Business Requirements, Permits & Equipment',
+        name: 'Business Requirements & Equipment',
         url: PAGE_URL,
-        inLanguage: 'en-KE',
+        inLanguage: 'en-US',
         breadcrumb: { '@id': `${PAGE_URL}#breadcrumb` },
         ...(requirements.length > 0 && { numberOfItems: requirements.length }),
       },
@@ -106,11 +102,11 @@ export default async function RequirementsIndexPage() {
       <header className="bg-white border-b border-gray-100">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight mb-3">
-            Business Requirements, Permits &amp; Equipment
+            Business Requirements &amp; Equipment
           </h1>
           <p className="text-gray-600 max-w-2xl">
             {requirements.length} requirement{requirements.length !== 1 ? 's' : ''} explained — what each one is,
-            what it costs, and which types of businesses in Kenya need it.
+            what it costs, and which types of businesses in the US need it.
           </p>
         </div>
       </header>
@@ -128,7 +124,7 @@ export default async function RequirementsIndexPage() {
                 {grouped[category].map((r) => (
                   <Link
                     key={r.slug}
-                    href={`/requirements/${r.slug}`}
+                    href={`/us/requirements/${r.slug}`}
                     className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-200 rounded-full text-sm text-gray-700 hover:border-emerald-300 hover:text-emerald-700 transition-colors"
                   >
                     {r.name}

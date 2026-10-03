@@ -3,9 +3,12 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowLeft, ArrowRight, CheckCircle2, ExternalLink, ShieldCheck } from 'lucide-react';
 import type { RequirementDetail } from '@/lib/requirement-data';
+import { formatCurrency } from '@/lib/currency';
+import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
 
 interface Props {
   requirement: RequirementDetail;
+  market?: MarketCode;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -15,30 +18,21 @@ function formatTypeLabel(type: string | null): string | null {
   return type.charAt(0) + type.slice(1).toLowerCase();
 }
 
-function formatKES(amount: number): string {
-  return new Intl.NumberFormat('en-KE', {
-    style: 'currency',
-    currency: 'KES',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
-function formatProductPrice(product: RequirementDetail['products'][number]): string | null {
-  if (product.price != null) return formatKES(product.price);
+function formatProductPrice(product: RequirementDetail['products'][number], market: MarketCode): string | null {
+  if (product.price != null) return formatCurrency(product.price, market);
   if (product.priceMin != null && product.priceMax != null) {
-    return `${formatKES(product.priceMin)} – ${formatKES(product.priceMax)}`;
+    return `${formatCurrency(product.priceMin, market)} – ${formatCurrency(product.priceMax, market)}`;
   }
-  if (product.priceMin != null) return `From ${formatKES(product.priceMin)}`;
+  if (product.priceMin != null) return `From ${formatCurrency(product.priceMin, market)}`;
   return null;
 }
 
-function formatFeePrice(fee: RequirementDetail['feeSchedules'][number]): string {
-  if (fee.price != null) return formatKES(fee.price);
+function formatFeePrice(fee: RequirementDetail['feeSchedules'][number], market: MarketCode): string {
+  if (fee.price != null) return formatCurrency(fee.price, market);
   if (fee.priceMin != null && fee.priceMax != null) {
-    return `${formatKES(fee.priceMin)} – ${formatKES(fee.priceMax)}`;
+    return `${formatCurrency(fee.priceMin, market)} – ${formatCurrency(fee.priceMax, market)}`;
   }
-  if (fee.priceMin != null) return `From ${formatKES(fee.priceMin)}`;
+  if (fee.priceMin != null) return `From ${formatCurrency(fee.priceMin, market)}`;
   return 'Contact county office';
 }
 
@@ -48,20 +42,13 @@ function formatVerifiedDate(date: Date | string | null): string | null {
   return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 }
 
-const CATEGORY_TO_BUSINESS_SUBPAGE: Record<string, string> = {
-  Equipment: 'requirements',
-  Software: 'requirements',
-  Documents: 'requirements',
-  Legal: 'requirements',
-  Branding: 'requirements',
-};
-
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function RequirementPageContent({ requirement }: Props) {
+export default function RequirementPageContent({ requirement, market = DEFAULT_MARKET }: Props) {
   const {
     name,
     description,
+    descriptionUS,
     image,
     category,
     type,
@@ -75,6 +62,16 @@ export default function RequirementPageContent({ requirement }: Props) {
     related,
   } = requirement;
 
+  const isKenya = market === 'KE';
+  const base = isKenya ? '' : '/us';
+  const countryPhrase = isKenya ? 'Kenya' : 'the US';
+
+  // US visitors see descriptionUS when set (see the RequirementTemplate
+  // schema comment on descriptionUS — only meaningful when the template
+  // is shared across markets and genuinely differs by country). Kenya
+  // visitors always see the base description.
+  const effectiveDescription = !isKenya && descriptionUS ? descriptionUS : description;
+
   const typeLabel = formatTypeLabel(type);
   const verifiedLabel = formatVerifiedDate(verifiedAt);
   const hasTrustInfo = Boolean(sourceName || sourceUrl || verifiedLabel);
@@ -85,7 +82,7 @@ export default function RequirementPageContent({ requirement }: Props) {
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm text-gray-400 mb-6">
-            <Link href="/requirements" className="inline-flex items-center gap-1 hover:text-emerald-600 transition-colors group">
+            <Link href={`${base}/requirements`} className="inline-flex items-center gap-1 hover:text-emerald-600 transition-colors group">
               <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
               Requirements
             </Link>
@@ -107,6 +104,9 @@ export default function RequirementPageContent({ requirement }: Props) {
                     {typeLabel}
                   </span>
                 )}
+                {/* isCountyFeeSchedule is already forced false for any
+                    non-Kenya market by fetchRequirementBySlug, so this
+                    badge naturally never renders outside Kenya. */}
                 {isCountyFeeSchedule && (
                   <span className="inline-flex px-3 py-1 rounded-full text-xs font-semibold bg-teal-50 text-teal-700 border border-teal-100">
                     County fee varies
@@ -116,8 +116,8 @@ export default function RequirementPageContent({ requirement }: Props) {
               <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight leading-tight mb-3">
                 {name}
               </h1>
-              {description && (
-                <p className="text-gray-600 text-base leading-relaxed max-w-2xl">{description}</p>
+              {effectiveDescription && (
+                <p className="text-gray-600 text-base leading-relaxed max-w-2xl">{effectiveDescription}</p>
               )}
             </div>
           </div>
@@ -133,13 +133,13 @@ export default function RequirementPageContent({ requirement }: Props) {
               Businesses that need {name}
             </h2>
             <p className="text-sm text-gray-500 mb-5">
-              {businessSummaries.length} business type{businessSummaries.length !== 1 ? 's' : ''} in Kenya {businessSummaries.length !== 1 ? 'require' : 'requires'} this.
+              {businessSummaries.length} business type{businessSummaries.length !== 1 ? 's' : ''} in {countryPhrase} {businessSummaries.length !== 1 ? 'require' : 'requires'} this.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {businessSummaries.map((b) => (
                 <Link
                   key={b.id}
-                  href={`/businesses/${b.slug}`}
+                  href={`${base}/businesses/${b.slug}`}
                   className="group flex items-center gap-3 p-4 bg-white border border-gray-100 rounded-2xl hover:border-emerald-300 hover:shadow-sm transition-all"
                 >
                   {b.image ? (
@@ -167,7 +167,9 @@ export default function RequirementPageContent({ requirement }: Props) {
           </section>
         )}
 
-        {/* ── County fee schedule ── */}
+        {/* ── County fee schedule — Kenya only, isCountyFeeSchedule is
+            already forced false outside Kenya so this section naturally
+            never renders on the US page. ── */}
         {isCountyFeeSchedule && feeSchedules.length > 0 && (
           <section aria-labelledby="fees-heading">
             <h2 id="fees-heading" className="text-xl font-bold text-gray-900 mb-1">
@@ -191,7 +193,7 @@ export default function RequirementPageContent({ requirement }: Props) {
                     {feeSchedules.map((fee) => (
                       <tr key={fee.id} className="border-b border-gray-50 last:border-0">
                         <td className="px-5 py-3 font-medium text-gray-800">{fee.county.name}</td>
-                        <td className="px-5 py-3 text-gray-700">{formatFeePrice(fee)}</td>
+                        <td className="px-5 py-3 text-gray-700">{formatFeePrice(fee, market)}</td>
                         <td className="px-5 py-3 text-gray-500 text-xs">
                           {fee.tradeClass?.name || fee.businessCategory?.name || 'All businesses'}
                         </td>
@@ -227,7 +229,7 @@ export default function RequirementPageContent({ requirement }: Props) {
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {products.map((product) => {
-                const price = formatProductPrice(product);
+                const price = formatProductPrice(product, market);
                 const card = (
                   <div className="flex gap-4 p-4 bg-white border border-gray-100 rounded-2xl hover:border-emerald-300 hover:shadow-sm transition-all h-full">
                     {product.image ? (
@@ -275,7 +277,7 @@ export default function RequirementPageContent({ requirement }: Props) {
               {related.map((r) => (
                 <Link
                   key={r.id}
-                  href={`/requirements/${r.slug}`}
+                  href={`${base}/requirements/${r.slug}`}
                   className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-200 rounded-full text-sm text-gray-700 hover:border-emerald-300 hover:text-emerald-700 transition-colors"
                 >
                   {r.name}
