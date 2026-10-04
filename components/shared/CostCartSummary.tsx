@@ -1,13 +1,22 @@
-// app/businesses/[slug]/cost/CostCartSummary.tsx
+// components/shared/CostCartSummary.tsx
 //
 // Fixed floating bar, matching the visual language of CostCalculator's
 // mobile collapsed bar on the requirements page (gradient emerald,
-// rounded-2xl, shadow-2xl). /cost has no sidebar to make sticky, so this
-// pins to the viewport bottom instead — visible while scrolling the whole
-// page, on every screen size. Hidden entirely while the cart is empty, so
-// a first-time visitor doesn't see a persistent bar with nothing in it;
-// it appears the moment something's added (here or on the requirements
-// page — same shared cart either way) and stays until they navigate away.
+// rounded-2xl, shadow-2xl). Originally built for /cost, which has no
+// sidebar to make sticky, so this pins to the viewport bottom instead —
+// visible while scrolling the whole page, on every screen size. Hidden
+// entirely while the cart is empty, so a first-time visitor doesn't see a
+// persistent bar with nothing in it; it appears the moment something's
+// added (here, on the requirements page, or on a category checklist
+// sub-page — same shared cart either way) and stays until they navigate
+// away.
+//
+// Moved out of app/businesses/[slug]/cost/ into components/shared/ once a
+// second consumer appeared: components/DetailsPage/CategoryChecklistContent.tsx
+// (the /businesses/{slug}/requirements/{category-slug} sub-pages) renders
+// this too, for the same reason /cost originally needed it — neither page
+// has the main requirements page's BusinessHeader/CostCalculator sidebar,
+// so without this the visitor gets no feedback when they add something.
 //
 // Deliberately thin: no editing, removal, save or export here — those
 // stay on the requirements page's CostCalculator. This is a status

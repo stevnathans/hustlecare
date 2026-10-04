@@ -41,7 +41,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const typeLabel = formatTypeLabel(requirement.type);
 
   const title = `${requirement.name}${
-    businessCount > 0 ? ` — Cost, Requirements & Which Businesses Need It` : ''
+    businessCount > 0 ? ` Price In Kenya [Updated]` : ''
   } | HustleCare`;
 
   const description =

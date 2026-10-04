@@ -16,6 +16,14 @@
 // into an overlay rendered once near the top of this component, and the
 // content wrapper gets extra bottom padding so the bar never covers the
 // page's own CTAs.
+//
+// SHARED CART COMPONENTS: CostCartSync/CostCartSummary now live in
+// components/shared/ instead of this folder — a second consumer
+// (components/DetailsPage/CategoryChecklistContent.tsx, for the
+// /businesses/{slug}/requirements/{category-slug} sub-pages) needed the
+// same floating cart bar, so both moved out once they stopped being
+// /cost-specific. See each file's own header comment for the fuller
+// reasoning.
 
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
@@ -29,8 +37,8 @@ import { DEFAULT_SIZE_BAND, type SizeBand } from '@/lib/cost-engine';
 import CostSummaryPanel, { type CostPanelSummary } from './CostSummaryPanel';
 import CostCategoryBreakdown from './CostCategoryBreakdown';
 import CountyFeeTable from './CountyFeeTable';
-import CostCartSync from './CostCartSync';
-import CostCartSummary from './CostCartSummary';
+import CostCartSync from '@/components/shared/CostCartSync';
+import CostCartSummary from '@/components/shared/CostCartSummary';
 
 export const revalidate = 300;
 const market: MarketCode = 'KE';

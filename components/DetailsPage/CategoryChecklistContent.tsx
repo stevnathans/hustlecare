@@ -14,16 +14,17 @@ import { useFilterState } from 'hooks/useFilterState';
 import { Product as ProductType } from '@/types';
 import { resolveFeeSchedule, FeeScheduleResolution } from '@/lib/legalFeeSchedule';
 import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
-// Reused as-is from the /cost page rather than building a second cart UI
-// — it already reads the shared CartContext directly, already computes
-// the market-correct link back to the full requirements page
+// Lives in components/shared/ now (moved out of app/businesses/[slug]/cost/
+// once this page became its second consumer — see that file's own header
+// comment). It already reads the shared CartContext directly, already
+// computes the market-correct link back to the full requirements page
 // (/businesses/{slug}/requirements or /us/businesses/{slug}/requirements),
 // and already self-hides while the cart is empty. CostCartSync is
 // deliberately NOT used here: it exists only because /cost has no client
 // data hook of its own — this page already calls useBusinessData below,
 // which already calls switchBusiness() on load, the same reason the main
 // requirements page (BusinessPageContent.tsx) doesn't use it either.
-import CostCartSummary from '@/app/businesses/[slug]/cost/CostCartSummary';
+import CostCartSummary from '@/components/shared/CostCartSummary';
 
 // Stage 4.5 — the category-scoped checklist sub-page's content component.
 // Deliberately a near-copy of BusinessPageContent.tsx's county/fee-schedule
