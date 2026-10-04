@@ -59,13 +59,15 @@ interface CategorySectionProps {
   // sub-page (/businesses/{slug}/requirements/{category-slug}), which
   // only exists once the business has ≥3 active requirements in this
   // category (see the threshold check in the requirements page
-  // components that compute this). `viewAllCount` is the total item
-  // count for the category (unfiltered by any search/necessity filter),
-  // shown in the link's own label. Omitted entirely on the category
-  // sub-page itself, where the link would be redundant — you're already
-  // looking at everything it would take you to.
+  // components that compute this). Rather than a separate text link,
+  // this is handed straight to CategorySectionHeader so the category
+  // NAME itself becomes the link — on the theory that a visitor who
+  // already has every requirement in front of them on this page has
+  // little reason to click a "view all" link, but the category name is
+  // real link-building surface regardless. Omitted entirely on the
+  // category sub-page itself, where linking the header back to the page
+  // you're already on would be pointless.
   viewAllHref?: string | null;
-  viewAllCount?: number;
 }
 
 const CategorySection: React.FC<CategorySectionProps> = ({
@@ -90,7 +92,6 @@ const CategorySection: React.FC<CategorySectionProps> = ({
   onProductAssigned,
   market = DEFAULT_MARKET,
   viewAllHref,
-  viewAllCount,
 }) => {
   const categoryId = category.toLowerCase().replace(/\s+/g, '-');
 
@@ -144,23 +145,14 @@ const CategorySection: React.FC<CategorySectionProps> = ({
         showFilter={categoryState.showFilter}
         onToggleSearch={onToggleSearch}
         onToggleFilter={onToggleFilter}
+        // Stage 4.5 — when set, CategorySectionHeader renders the category
+        // NAME itself as a link to its own checklist sub-page, instead of
+        // plain text. See the viewAllHref comment above for why this
+        // replaced a separate "View all N requirements" link. Requires
+        // CategorySectionHeader to accept and use this prop — see the
+        // patch note for that file if it doesn't yet.
+        categoryHref={viewAllHref ?? undefined}
       />
-
-      {/* Stage 4.5 — only rendered when this category has its own
-          checklist sub-page, i.e. the business clears the ≥3-item
-          threshold for it. Sits right under the header so it's visible
-          before anyone starts filtering/searching within the category. */}
-      {viewAllHref && (
-        <div className="px-4 sm:px-6 pb-3 -mt-1">
-          <Link
-            href={viewAllHref}
-            className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium"
-          >
-            View all {viewAllCount ?? requirements.length} {category} requirements
-            <span aria-hidden="true">→</span>
-          </Link>
-        </div>
-      )}
 
       <CategorySearchFilter
         category={category}

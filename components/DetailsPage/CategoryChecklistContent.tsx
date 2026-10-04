@@ -14,6 +14,16 @@ import { useFilterState } from 'hooks/useFilterState';
 import { Product as ProductType } from '@/types';
 import { resolveFeeSchedule, FeeScheduleResolution } from '@/lib/legalFeeSchedule';
 import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
+// Reused as-is from the /cost page rather than building a second cart UI
+// — it already reads the shared CartContext directly, already computes
+// the market-correct link back to the full requirements page
+// (/businesses/{slug}/requirements or /us/businesses/{slug}/requirements),
+// and already self-hides while the cart is empty. CostCartSync is
+// deliberately NOT used here: it exists only because /cost has no client
+// data hook of its own — this page already calls useBusinessData below,
+// which already calls switchBusiness() on load, the same reason the main
+// requirements page (BusinessPageContent.tsx) doesn't use it either.
+import CostCartSummary from '@/app/businesses/[slug]/cost/CostCartSummary';
 
 // Stage 4.5 — the category-scoped checklist sub-page's content component.
 // Deliberately a near-copy of BusinessPageContent.tsx's county/fee-schedule
@@ -28,10 +38,12 @@ import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
 // over the Stage 2b component chain, not new UI."
 //
 // Notably absent versus the full requirements page: BusinessHeader (the
-// business-wide cost/requirement-count strip) and CostCalculator. This
-// page is a focused, single-category view — the full requirements page
-// remains canonical for whole-business totals and cost planning; this
-// page's own footer links back to it.
+// business-wide cost/requirement-count strip) and the CostCalculator
+// sidebar. This page is a focused, single-category view — the full
+// requirements page remains canonical for whole-business totals and cost
+// planning. CostCartSummary (below) is the concession to that: it gives
+// the visitor live feedback on what they've added without needing either
+// of those heavier components here.
 
 interface Props {
   slug: string;
@@ -121,6 +133,13 @@ function CategoryChecklistContentInner({
     return { countyAdjustedProducts: out, legalUnavailableInCounty: unavailable };
   }, [isKenya, products, selectedCounty, requirementUsesLegalCountyFilterByName, countyFeeScheduleNames]);
 
+  // NOTE: unlike BusinessPageContent.tsx, this page has no business-size
+  // selector (no BusinessHeader here), so fee resolution below is scoped
+  // by trade class only, same as before the sizeBand wiring landed on the
+  // main requirements page. If a size-aware fee row ever needs to resolve
+  // correctly here too, this page would need its own sizeBand state
+  // (defaulting to DEFAULT_SIZE_BAND from lib/cost-engine) threaded
+  // through the same way.
   const feeScheduleResolutions = useMemo(() => {
     if (!isKenya || !selectedCounty) return {} as Record<string, FeeScheduleResolution>;
     const out: Record<string, FeeScheduleResolution> = {};
@@ -189,64 +208,74 @@ function CategoryChecklistContentInner({
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-sm text-gray-400 mb-6">
-        <Link href={`${base}/businesses/${slug}`} className="inline-flex items-center gap-1 hover:text-emerald-600 transition-colors group">
-          <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
-          {business.name}
-        </Link>
-        <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
-        <Link href={`${base}/businesses/${slug}/requirements`} className="hover:text-emerald-600 transition-colors">
-          Requirements
-        </Link>
-        <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
-        <span className="text-gray-600 font-medium">{categoryName}</span>
-      </nav>
+    <>
+      {/* Floating cart status — visible from this focused single-category
+          view the same way it is on /cost, with no editing UI of its own.
+          Self-hides while the cart is empty, and already points back at
+          this market's full requirements page. */}
+      <CostCartSummary businessSlug={slug} market={market} />
 
-      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight mb-2">
-        {allReqsInCategory.length} {categoryName} Requirements for a {business.name} Business
-      </h1>
-      <p className="text-gray-500 mb-8">
-        Part of the full {business.name} requirements checklist — every {categoryName.toLowerCase()} item, with costs and options.
-      </p>
+      {/* Extra bottom padding matches the /cost page's own convention
+          (pb-28 regardless of whether the bar is currently shown) so the
+          floating bar never overlaps the page's own closing content. */}
+      <div className="container mx-auto px-4 py-8 pb-28 max-w-4xl">
+        <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-sm text-gray-400 mb-6">
+          <Link href={`${base}/businesses/${slug}`} className="inline-flex items-center gap-1 hover:text-emerald-600 transition-colors group">
+            <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+            {business.name}
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
+          <Link href={`${base}/businesses/${slug}/requirements`} className="hover:text-emerald-600 transition-colors">
+            Requirements
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
+          <span className="text-gray-600 font-medium">{categoryName}</span>
+        </nav>
 
-      <CategorySection
-        category={categoryName}
-        businessName={business.name}
-        businessId={business.id}
-        requirements={allReqsInCategory}
-        filteredRequirements={filteredReqs}
-        products={countyAdjustedProducts}
-        legalUnavailableInCounty={legalUnavailableInCounty}
-        feeScheduleResolutions={feeScheduleResolutions}
-        countyFeeScheduleNames={countyFeeScheduleNames}
-        countyFeeShellProductIds={countyFeeShellProductIds}
-        countyFeeShellProductDetails={countyFeeShellProductDetails}
-        categoryState={categoryState}
-        globalSearchQuery=""
-        globalFilter="all"
-        onToggleSearch={() => toggleCategorySearch(categoryName)}
-        onToggleFilter={() => toggleFilter(categoryName)}
-        onSearchChange={(query) => handleCategorySearchChange(categoryName, query)}
-        onFilterChange={(filter) => setFilter(categoryName, filter)}
-        availableNecessities={availableNecessities}
-        onProductAssigned={refreshProducts}
-        market={market}
-        // No viewAllHref here — this IS the "view all" destination for
-        // this category, so the link CategorySection would otherwise
-        // render would just point back at itself.
-      />
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight mb-2">
+          {allReqsInCategory.length} {categoryName} Requirements for a {business.name} Business
+        </h1>
+        <p className="text-gray-500 mb-8">
+          Part of the full {business.name} requirements checklist — every {categoryName.toLowerCase()} item, with costs and options.
+        </p>
 
-      <div className="mt-8 text-center">
-        <Link
-          href={`${base}/businesses/${slug}/requirements`}
-          className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors"
-        >
-          View all {business.name} requirements
-          <ArrowRight className="w-4 h-4" />
-        </Link>
+        <CategorySection
+          category={categoryName}
+          businessName={business.name}
+          businessId={business.id}
+          requirements={allReqsInCategory}
+          filteredRequirements={filteredReqs}
+          products={countyAdjustedProducts}
+          legalUnavailableInCounty={legalUnavailableInCounty}
+          feeScheduleResolutions={feeScheduleResolutions}
+          countyFeeScheduleNames={countyFeeScheduleNames}
+          countyFeeShellProductIds={countyFeeShellProductIds}
+          countyFeeShellProductDetails={countyFeeShellProductDetails}
+          categoryState={categoryState}
+          globalSearchQuery=""
+          globalFilter="all"
+          onToggleSearch={() => toggleCategorySearch(categoryName)}
+          onToggleFilter={() => toggleFilter(categoryName)}
+          onSearchChange={(query) => handleCategorySearchChange(categoryName, query)}
+          onFilterChange={(filter) => setFilter(categoryName, filter)}
+          availableNecessities={availableNecessities}
+          onProductAssigned={refreshProducts}
+          market={market}
+          // No viewAllHref here — this IS the destination that link would
+          // point to, so the category name shouldn't link back to itself.
+        />
+
+        <div className="mt-8 text-center">
+          <Link
+            href={`${base}/businesses/${slug}/requirements`}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors"
+          >
+            View all {business.name} requirements
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

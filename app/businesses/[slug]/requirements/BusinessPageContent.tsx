@@ -14,7 +14,7 @@ import { useFilterState } from 'hooks/useFilterState';
 import { Product as ProductType } from '@/types';
 import { resolveFeeSchedule, FeeScheduleResolution } from '@/lib/legalFeeSchedule';
 import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
-import { type SizeBand } from '@/lib/cost-engine';
+import { DEFAULT_SIZE_BAND, type SizeBand } from '@/lib/cost-engine';
 import Link from 'next/link';
 
 interface Faq {
@@ -79,15 +79,22 @@ function BusinessPageContentInner({
   // renders — same reasoning BusinessHeader's own file comment gives for
   // why this is lifted up rather than kept as local state there.
   //
-  // KNOWN GAP: this is currently display-state only — it is NOT yet
-  // threaded into resolveFeeSchedule() below, so selecting a different
-  // size band does not yet narrow county-fee pricing to that band's own
-  // LegalFeeSchedule row (the schema already has sizeBand on that model,
-  // so a size-aware fee row is possible, just not wired up here yet).
-  // Needs lib/cost-engine.ts and the current resolveFeeSchedule() options
-  // type confirmed before completing that wiring — tracked as a follow-up
-  // rather than guessed at here.
-  const [sizeBand, setSizeBand] = useState<SizeBand>('MEDIUM');
+  // Defaults to DEFAULT_SIZE_BAND (cost-engine.ts's 'MEDIUM') rather than
+  // a locally hardcoded literal, so this page and the /cost page's own
+  // DEFAULT_SIZE_BAND usage can never silently drift apart.
+  //
+  // Fully wired into fee-schedule resolution below (see
+  // feeScheduleResolutions) — a county-fee row tiered by size band (e.g. a
+  // cheaper permit fee for a Micro business) now resolves to the band the
+  // visitor actually has selected. The quantity dimension (how many units
+  // of a requirement a business of this size needs) is intentionally NOT
+  // wired here — BusinessHeader's own file comment explains why: it shows
+  // identical numbers across every band until real per-business
+  // quantities exist in BusinessRequirementQuantity, which has zero rows
+  // site-wide today. This page's headline numbers still come from
+  // useFilterState, not lib/cost-engine.ts's quantity-aware buildCostLines
+  // — only the /cost page currently uses the full cost engine.
+  const [sizeBand, setSizeBand] = useState<SizeBand>(DEFAULT_SIZE_BAND);
 
     const {
     business,
@@ -168,19 +175,17 @@ function BusinessPageContentInner({
   // which requirements are this type even before that, so there's no
   // "flash of wrong content" while waiting for a selection.
   //
-  // Passes the business's EFFECTIVE trade class (its own override, else
-  // its category's default — see Business.effectiveTradeClassId in
-  // useBusinessData) so fee rows tiered by trade class actually resolve
-  // to the right price instead of always falling back to the flat/generic
-  // county rate. If effectiveTradeClassId isn't populated yet (API not
-  // updated, or business/category has no trade class assigned), this
-  // degrades gracefully to the same flat-rate behavior as before.
-  //
-  // TODO: also pass `sizeBand` here once resolveFeeSchedule's options type
-  // is confirmed to accept it — LegalFeeSchedule rows already carry their
-  // own sizeBand column, so a size-tiered fee row (e.g. a cheaper permit
-  // for a Micro business) currently resolves the same regardless of which
-  // size the visitor has selected above. See the sizeBand state comment.
+  // Passes both the business's EFFECTIVE trade class (its own override,
+  // else its category's default — see Business.effectiveTradeClassId in
+  // useBusinessData) and the visitor's selected sizeBand, so a fee row
+  // tiered by either dimension resolves to the right price instead of
+  // always falling back to the flat/generic county rate — see
+  // resolveFeeSchedule's scoring logic in lib/legalFeeSchedule.ts, which
+  // already ranks tradeClassId above sizeBand when a row specifies both.
+  // If effectiveTradeClassId isn't populated yet (API not updated, or
+  // business/category has no trade class assigned), this degrades
+  // gracefully to resolving by sizeBand alone, same as before for
+  // tradeClassId.
   //
   // isKenya guard: same reasoning as above — county fee schedules are a
   // Kenya-only mechanism (see LegalFeeSchedule/County in schema.prisma).
@@ -190,10 +195,10 @@ function BusinessPageContentInner({
     const tradeClassId = business?.effectiveTradeClassId ?? null;
     for (const [reqName, schedules] of Object.entries(feeSchedules)) {
       if (!countyFeeScheduleNames.has(reqName)) continue;
-      out[reqName] = resolveFeeSchedule(schedules, selectedCounty.id, { tradeClassId });
+      out[reqName] = resolveFeeSchedule(schedules, selectedCounty.id, { tradeClassId, sizeBand });
     }
     return out;
-  }, [isKenya, feeSchedules, selectedCounty, countyFeeScheduleNames, business]);
+  }, [isKenya, feeSchedules, selectedCounty, countyFeeScheduleNames, business, sizeBand]);
 
   const {
     categoryStates,

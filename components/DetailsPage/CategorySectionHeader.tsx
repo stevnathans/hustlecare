@@ -1,5 +1,6 @@
 // DetailsPage/CategorySectionHeader.tsx
 import React from 'react';
+import Link from 'next/link';
 
 interface CategorySectionHeaderProps {
   category: string;
@@ -9,6 +10,13 @@ interface CategorySectionHeaderProps {
   showFilter: boolean;
   onToggleSearch: () => void;
   onToggleFilter: () => void;
+  // Stage 4.5 — when set, the category name renders as a link to that
+  // category's own checklist sub-page (/businesses/{slug}/requirements/
+  // {category-slug}) instead of plain text. Passed through from
+  // CategorySection.tsx's viewAllHref, which is only populated once the
+  // business has ≥3 active requirements in this category. Omitted (or
+  // undefined) renders exactly as before — plain, non-interactive text.
+  categoryHref?: string;
 }
 
 const CategorySectionHeader: React.FC<CategorySectionHeaderProps> = ({
@@ -18,8 +26,20 @@ const CategorySectionHeader: React.FC<CategorySectionHeaderProps> = ({
   showSearch,
   showFilter,
   onToggleSearch,
-  onToggleFilter
+  onToggleFilter,
+  categoryHref,
 }) => {
+  const CategoryName = categoryHref ? (
+    <Link
+      href={categoryHref}
+      className="hover:text-emerald-700 hover:underline transition-colors"
+    >
+      {category}
+    </Link>
+  ) : (
+    category
+  );
+
   return (
     <div className="bg-gray-200 px-4 py-3 sm:px-6 sm:py-4">
       {/* Mobile Layout: Two rows */}
@@ -27,7 +47,7 @@ const CategorySectionHeader: React.FC<CategorySectionHeaderProps> = ({
         {/* Top Row: Title and Icons */}
         <div className="flex justify-between items-center mb-2">
           <h2 className="text-xl font-semibold">
-            {category}
+            {CategoryName}
           </h2>
           <div className="flex gap-2">
             <button
@@ -62,7 +82,7 @@ const CategorySectionHeader: React.FC<CategorySectionHeaderProps> = ({
       {/* Desktop Layout: Single row */}
       <div className="hidden sm:flex justify-between items-center">
         <h2 className="text-2xl font-semibold">
-          {category}
+          {CategoryName}
         </h2>
         <span className="text-gray-600 text-sm font-medium">
           {filteredCount} of {totalCount} Requirements

@@ -37,10 +37,11 @@ interface CategoryState {
 // (/businesses/{slug}/requirements/{category-slug}). Built by the page
 // component (app/businesses/[slug]/requirements/page.tsx and the US
 // equivalent) via lib/business-data.ts's groupRequirementsByCategory, and
-// threaded down to each CategorySection as viewAllHref/viewAllCount. A
-// category not present in this map simply renders without the link —
-// either it's below the threshold, or its RequirementCategory row has no
-// slug yet (shouldn't happen post-backfill, but handled gracefully).
+// threaded down to each CategorySection as viewAllHref, which in turn
+// passes it to CategorySectionHeader so the category NAME becomes the
+// link rather than a separate "view all" line. `count` is kept on this
+// type for any future consumer that wants it (e.g. a badge), even though
+// CategorySection itself no longer renders it anywhere.
 export interface CategoryLinkInfo {
   href: string;
   count: number;
@@ -435,7 +436,6 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
                   availableNecessities={availableNecessities}
                   market={market}
                   viewAllHref={linkInfo?.href}
-                  viewAllCount={linkInfo?.count}
                 />
               );
             })}
