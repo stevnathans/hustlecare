@@ -15,6 +15,12 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// NOTE: do NOT add `alternates.canonical` here, and do not hard-code a
+// <link rel="canonical"> in <head>. Anything set at the root layout is
+// inherited by every page on the site, which tells Google that every URL is
+// a duplicate of that one address. Canonicals belong in each page's own
+// generateMetadata (alternates: { canonical: '/the/page/path' }), resolved
+// against metadataBase below.
 export const metadata: Metadata = {
   title: "Hustlecare | Everything You Need To Start Any Business in Kenya",
   description:
@@ -67,7 +73,6 @@ export default function RootLayout({
       <head>
         <meta charSet="UTF-8" />
         <link rel="manifest" href="/site.webmanifest" />
-        <link rel="canonical" href="https://hustlecare.net/" />
         {/* Raw tag on purpose — next/script's beforeInteractive optimization
             replaces this with a preload+runtime-injected script, which
             AdSense's verifier doesn't detect. This must stay a literal tag. */}

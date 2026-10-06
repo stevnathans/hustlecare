@@ -1,22 +1,43 @@
 // app/api/admin/apply-requests/route.ts
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/admin-auth';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-export async function GET(request: Request) {
+// Returns every request (newest first) with a document count. Volumes are
+// small, so the admin page filters, searches and pages them in the browser.
+export async function GET() {
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+
   try {
-    const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status');
-    const county = searchParams.get('county');
-
-    const where: Record<string, unknown> = {};
-    if (status) where.status = status;
-    if (county) where.countyName = county;
-
     const requests = await prisma.applyAssistanceRequest.findMany({
-      where,
       orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        requirementName: true,
+        countyName: true,
+        businessId: true,
+        businessName: true,
+        contactName: true,
+        contactPhone: true,
+        contactPhoneE164: true,
+        contactEmail: true,
+        stage: true,
+        serviceFee: true,
+        governmentFeeMin: true,
+        governmentFeeMax: true,
+        currency: true,
+        createdAt: true,
+        paidAt: true,
+        archived: true,
+        contactConsentAt: true,
+        optedOutAt: true,
+        reminderCount: true,
+        _count: { select: { documents: { where: { isDeliverable: false } } } },
+      },
     });
 
     return NextResponse.json({ requests });

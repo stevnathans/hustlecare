@@ -1392,22 +1392,216 @@ enum AnalyticsEventType {
   DONATION_CLICK
 }
 
+enum ApplyStage {
+  LEAD       // details saved, nothing paid. "Abandoned" = a LEAD older than a few hours (derived, not stored)
+  PAID       // paid; waiting on the customer's documents
+  READY      // paid AND every required document received — your turn to apply
+  SUBMITTED  // you've filed the application with the authority
+  COMPLETED  // permit / certificate delivered to the customer
+  CANCELLED
+}
+
+enum ApplyChannel {
+  WHATSAPP
+  SMS
+  EMAIL
+}
+
+enum ApplyEventKind {
+  CREATED
+  PAYMENT_STARTED
+  PAYMENT_SUCCEEDED
+  PAYMENT_FAILED
+  MESSAGE_SENT
+  MESSAGE_FAILED
+  CUSTOMER_REPLY
+  DOCUMENT_UPLOADED
+  DOCUMENT_REVIEWED
+  STAGE_CHANGED
+  NOTE
+  OPTED_OUT
+}
+
+enum ApplyDocumentStatus {
+  PENDING_REVIEW
+  ACCEPTED
+  REJECTED
+}
+
 model ApplyAssistanceRequest {
-  id              String   @id @default(uuid())
+  id          String  @id @default(uuid())
+  // Unguessable key for the customer's tracking link (/apply-help/track/{token}).
+  // Generated in code with crypto.randomBytes; null on legacy rows.
+  publicToken String? @unique
+
+  // ── What they want ─────────────────────────────────────────────────────────
   requirementName String
+  templateId      Int?    // RequirementTemplate.id
   countyName      String?
-  businessName    String?
-  businessId      Int?
-  contactName     String
-  contactPhone    String
-  contactEmail    String?
-  notes           String?
-  status          String   @default("new") // new | contacted | completed
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  countyId        Int?    // County.id
+  businessId      Int?    // Business.id — the business page the request came from
+  businessName    String? // snapshot, filled server-side from businessId (never trusted from the form)
+
+  // ── Who ────────────────────────────────────────────────────────────────────
+  contactName      String
+  contactPhone     String  // as typed
+  contactPhoneE164 String? // normalised, e.g. +254712345678 — used for messaging and duplicate detection
+  contactEmail     String?
+  notes            String?
+  contactConsentAt DateTime? // when they agreed to be contacted (WhatsApp / SMS / email)
+  optedOutAt       DateTime? // replied STOP / clicked unsubscribe — no further automated messages
+
+  // ── Price snapshot (what they were quoted at the time) ─────────────────────
+  serviceFee       Float?
+  governmentFeeMin Float?
+  governmentFeeMax Float?
+  currency         String  @default("KES")
+
+  // ── Pipeline ───────────────────────────────────────────────────────────────
+  status             String     @default("new") // LEGACY — replaced by `stage`; dropped in a follow-up migration
+  stage              ApplyStage @default(LEAD)
+  paidAt             DateTime?
+  submittedAt        DateTime?
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  cancelReason       String?
+  authorityReference String?    // the reference / application number you get when you file
+
+  // ── Abandonment follow-up ──────────────────────────────────────────────────
+  reminderCount  Int       @default(0)
+  lastReminderAt DateTime?
+  nextReminderAt DateTime?
+
+  // ── Admin ──────────────────────────────────────────────────────────────────
+  adminNotes String?
+  archived   Boolean @default(false)
+
+  // ── Attribution ────────────────────────────────────────────────────────────
+  sourcePath String? // page they clicked "Apply For Me" from
+  userId     String? // set when they were signed in; plain String, no relation
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payments  ApplyAssistancePayment[]
+  documents ApplyAssistanceDocument[]
+  events    ApplyAssistanceEvent[]
 
   @@index([status])
   @@index([createdAt])
+  @@index([stage, archived])
+  @@index([stage, nextReminderAt])
+  @@index([contactPhoneE164])
+}
+
+// One row per payment ATTEMPT (a customer can retry after a failed or
+// timed-out prompt). Reuses the existing PaymentStatus enum. The existing
+// Payment model is tied 1:1 to Order, which requires a signed-in User —
+// apply requests are guest checkouts, so they get their own table.
+model ApplyAssistancePayment {
+  id            String        @id @default(uuid())
+  requestId     String
+  amount        Float
+  currency      String        @default("KES")
+  provider      String        // "daraja" | "pesapal" — settled in the payments batch
+  merchantRef   String        @unique // our reference sent to the provider
+  providerRef   String?       @unique // CheckoutRequestID / OrderTrackingId
+  status        PaymentStatus @default(PENDING)
+  payerPhone    String?
+  receiptNumber String?       // e.g. the M-Pesa receipt code
+  failureReason String?
+  rawCallback   Json?
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Restrict (not Cascade): a request that has payment records can't be
+  // hard-deleted by accident — archive it instead.
+  request ApplyAssistanceRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+
+  @@index([requestId])
+  @@index([status])
+}
+
+// Customer uploads (ID copy, KRA PIN, lease...) AND the final deliverable you
+// upload for them (isDeliverable = true). Files live in a PRIVATE Supabase
+// Storage bucket; only the path is stored here, served via short-lived
+// signed URLs.
+model ApplyAssistanceDocument {
+  id            String              @id @default(uuid())
+  requestId     String
+  specId        Int?                // ApplyServiceDocumentSpec.id this satisfies (plain Int)
+  label         String
+  storagePath   String
+  fileName      String
+  mimeType      String
+  sizeBytes     Int
+  status        ApplyDocumentStatus @default(PENDING_REVIEW)
+  rejectReason  String?
+  uploadedBy    String              @default("customer") // "customer" | "admin"
+  isDeliverable Boolean             @default(false)
+  createdAt     DateTime            @default(now())
+
+  request ApplyAssistanceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+}
+
+// The timeline: every automated message, payment step, status change and
+// note, in order. Delivery receipts from WhatsApp / SMS / email update the
+// matching MESSAGE_SENT row via providerMessageId.
+model ApplyAssistanceEvent {
+  id                String         @id @default(uuid())
+  requestId         String
+  kind              ApplyEventKind
+  actor             String         @default("system") // "system" | "admin" | "customer"
+  channel           ApplyChannel?
+  template          String?
+  providerMessageId String?
+  deliveryStatus    String?        // sent | delivered | read | failed
+  summary           String
+  metadata          Json?
+  createdAt         DateTime       @default(now())
+
+  request ApplyAssistanceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId, createdAt])
+  @@index([providerMessageId])
+}
+
+// Which requirements you actually offer "Apply For Me" for, and at what
+// price. The button only appears for requirements with an active offering —
+// no offering, no link (which also stops the crawlable-URL explosion at the
+// source).
+model ApplyServiceOffering {
+  id             Int      @id @default(autoincrement())
+  templateId     Int      @unique // RequirementTemplate.id
+  serviceFee     Float
+  currency       String   @default("KES")
+  typicalDaysMin Int?
+  typicalDaysMax Int?
+  whatsIncluded  String[]
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  documents ApplyServiceDocumentSpec[]
+
+  @@index([isActive])
+}
+
+// The document checklist for one offering (what the customer must upload).
+model ApplyServiceDocumentSpec {
+  id           Int     @id @default(autoincrement())
+  offeringId   Int
+  label        String
+  description  String?
+  isRequired   Boolean @default(true)
+  displayOrder Int     @default(0)
+
+  offering ApplyServiceOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+
+  @@index([offeringId])
 }
 
 enum ActivitySourceType {
