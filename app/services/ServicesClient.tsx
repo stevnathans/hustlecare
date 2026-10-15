@@ -110,7 +110,7 @@ const services: Service[] = [
   },
 ];
 
-const categories: Category[] = [
+const staticCategories: Category[] = [
   {
     id: "planning",
     label: "Business Planning",
@@ -347,7 +347,7 @@ function HowWeHelpSection() {
 }
 
 // ── 3. SERVICES GRID ─────────────────────────────────────────────────────────
-function ServicesGrid() {
+function ServicesGrid({ items }: { items?: Service[] | null }) {
   return (
     <section id="services" className="bg-white py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -359,7 +359,7 @@ function ServicesGrid() {
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {services.map(({ emoji, title, desc, href, cta }) => (
+          {(items && items.length > 0 ? items : services).map(({ emoji, title, desc, href, cta }) => (
             <div
               key={title}
               className="group flex flex-col bg-white border border-slate-100 hover:border-emerald-200 rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all duration-200 hover:-translate-y-1"
@@ -385,7 +385,14 @@ function ServicesGrid() {
 }
 
 // ── 4. CATEGORIES SECTION ────────────────────────────────────────────────────
-function CategoriesSection() {
+function CategoriesSection({ items }: { items?: Service[] | null }) {
+  // With a catalog, each category lists its real services; otherwise the built-in list.
+  const categories: Category[] =
+    items && items.length > 0
+      ? staticCategories
+          .map((c) => ({ ...c, services: items.filter((s) => s.category === c.id).map((s) => s.title) }))
+          .filter((c) => c.services.length > 0)
+      : staticCategories;
   return (
     <section className="bg-slate-50 py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -582,13 +589,13 @@ function CTASection() {
 }
 
 // ── PAGE EXPORT ───────────────────────────────────────────────────────────────
-export default function ServicesClient() {
+export default function ServicesClient({ catalogServices }: { catalogServices?: Service[] | null }) {
   return (
     <main className="font-sans antialiased text-slate-900">
       <HeroSection />
       <HowWeHelpSection />
-      <ServicesGrid />
-      <CategoriesSection />
+      <ServicesGrid items={catalogServices} />
+      <CategoriesSection items={catalogServices} />
       <ValueSection />
       <BundleSection />
       <FAQAccordion />

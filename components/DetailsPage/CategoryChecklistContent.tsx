@@ -14,6 +14,7 @@ import { useFilterState } from 'hooks/useFilterState';
 import { Product as ProductType } from '@/types';
 import { resolveFeeSchedule, FeeScheduleResolution } from '@/lib/legalFeeSchedule';
 import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
+import { getCategorySeo } from '@/lib/category-seo';
 // Lives in components/shared/ now (moved out of app/businesses/[slug]/cost/
 // once this page became its second consumer — see that file's own header
 // comment). It already reads the shared CartContext directly, already
@@ -45,6 +46,12 @@ import CostCartSummary from '@/components/shared/CostCartSummary';
 // planning. CostCartSummary (below) is the concession to that: it gives
 // the visitor live feedback on what they've added without needing either
 // of those heavier components here.
+//
+// SEO copy: the H1 and intro paragraph come from lib/category-seo.ts —
+// the same module app/businesses/[slug]/requirements/[category]/page.tsx
+// uses for <title>, meta description, and JSON-LD — so on-page copy and
+// SERP copy can't drift apart. Neither includes the year, so the server
+// HTML and this client render can never disagree across a year boundary.
 
 interface Props {
   slug: string;
@@ -208,6 +215,15 @@ function CategoryChecklistContentInner({
     searchQuery: '',
   };
 
+  // Category-specific H1 + intro (see lib/category-seo.ts). `year` is
+  // required by the shared context type but unused by h1/intro.
+  const seo = getCategorySeo({
+    businessName: business.name,
+    categoryName,
+    count: allReqsInCategory.length,
+    year: new Date().getFullYear(),
+  });
+
   return (
     <>
       {/* Floating cart status — visible from this focused single-category
@@ -234,11 +250,9 @@ function CategoryChecklistContentInner({
         </nav>
 
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight mb-2">
-          {allReqsInCategory.length} {categoryName} Requirements for a {business.name} Business
+          {seo.h1}
         </h1>
-        <p className="text-gray-500 mb-8">
-          Part of the full {business.name} requirements checklist — every {categoryName.toLowerCase()} item, with costs and options.
-        </p>
+        <p className="text-gray-500 mb-8">{seo.intro}</p>
 
         <CategorySection
           category={categoryName}

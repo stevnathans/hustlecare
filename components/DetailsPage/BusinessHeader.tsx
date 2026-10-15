@@ -24,6 +24,7 @@ import Link from "next/link";
 import { formatCurrency } from "@/lib/currency";
 import { DEFAULT_MARKET, type MarketCode } from "@/lib/markets";
 import { ALL_SIZE_BANDS, type CostSource, type SizeBand } from "@/lib/cost-engine";
+import { indefiniteArticle } from "@/lib/grammar";
 
 interface BusinessHeaderProps {
   businessName: string;
@@ -117,8 +118,8 @@ const BusinessHeader: React.FC<BusinessHeaderProps> = ({
     <header>
       <div>
         <div className="text-center mb-6 sm:mb-8">
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 leading-tight mb-3 sm:mb-4 tracking-tight">
-            {totalRequirements} Requirements to Start a{" "}
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 leading-tight mb-3 sm:mb-4 tracking-tight">
+            {totalRequirements} Requirements to Start {indefiniteArticle(businessName)}{" "}
             <span className="bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
               {businessName}
             </span>{" "}

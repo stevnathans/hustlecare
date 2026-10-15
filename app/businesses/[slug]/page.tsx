@@ -243,6 +243,8 @@ export default async function BusinessHubPage({ params }: Props) {
   const year = new Date().getFullYear();
   const name = business.name;
   const pageUrl = `${SITE_URL}/businesses/${slug}`;
+  const datePublished = business.createdAt.toISOString();
+  const dateModified = business.updatedAt.toISOString();
 
   // ── Core/Stock split ──────────────────────────────────────────────────────
   // Stock requirements are products a business can sell (e.g. spare parts),
@@ -364,10 +366,8 @@ export default async function BusinessHubPage({ params }: Props) {
           url: SITE_URL,
           logo: { '@type': 'ImageObject', url: `${SITE_URL}/images/logo.png` },
         },
-        datePublished:
-          (business as { createdAt?: Date }).createdAt?.toISOString() ??
-          new Date().toISOString(),
-        dateModified: new Date().toISOString(),
+        datePublished,
+        dateModified,
         mainEntityOfPage: { '@type': 'WebPage', '@id': pageUrl },
         breadcrumb: { '@id': `${pageUrl}#breadcrumb` },
         inLanguage: 'en-KE',

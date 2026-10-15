@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import {
   Users, ShoppingCart, Building, Star, MessageSquare,
   TrendingUp, DollarSign, Activity, AlertCircle, RefreshCw,
-  Store, FileText, BarChart3, ExternalLink, Search
+  Store, FileText, BarChart3, ExternalLink, Search, Briefcase, Wallet, ClipboardCheck
 } from 'lucide-react';
 
 /* ─── Types ────────────────────────────────────────────────────── */
@@ -218,15 +218,17 @@ export default function AdminDashboard() {
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [attention, setAttention] = useState<Record<string, number> | null>(null);
 
   const fetchData = async (isRefresh=false) => {
     if (isRefresh) setRefreshing(true);
     try {
-      const [sRes, aRes] = await Promise.all([
-        fetch('/api/admin/stats'), fetch('/api/admin/activity')
+      const [sRes, aRes, tRes] = await Promise.all([
+        fetch('/api/admin/stats'), fetch('/api/admin/activity'), fetch('/api/admin/attention')
       ]);
       if (sRes.ok) setStats(await sRes.json());
       if (aRes.ok) setRecentActivity(await aRes.json());
+      if (tRes.ok) setAttention(await tRes.json());
     } catch(e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   };
@@ -243,7 +245,9 @@ export default function AdminDashboard() {
     (stats?.businesses.draft||0)>0 ||
     (stats?.vendors?.pendingApplications||0)>0 ||
     (stats?.vendors?.pendingAppeals||0)>0 ||
-    (stats?.vendors?.pendingProducts||0)>0;
+    (stats?.vendors?.pendingProducts||0)>0 ||
+    (attention?.applyReady||0)>0 ||
+    (attention?.ordersToWork||0)>0;
 
   // Single source of truth for the top-row metrics — each metric appears exactly once.
   const metricCards = stats ? [
@@ -295,6 +299,8 @@ export default function AdminDashboard() {
                   <AlertItem title="Vendor Applications" count={stats?.vendors?.pendingApplications||0} color="#34d399" onClick={()=>router.push('/admin/vendors')} />
                   <AlertItem title="Vendor Suspension Appeals" count={stats?.vendors?.pendingAppeals||0} color="#f87171" onClick={()=>router.push('/admin/vendors')} />
                   <AlertItem title="Vendor Products Awaiting Review" count={stats?.vendors?.pendingProducts||0} color="#fbbf24" onClick={()=>router.push('/admin/products')} />
+                  <AlertItem title="Apply requests ready to apply" count={attention?.applyReady||0} color="#818cf8" onClick={()=>router.push('/admin/apply-requests')} />
+                  <AlertItem title="Service orders to work on" count={attention?.ordersToWork||0} color="#34d399" onClick={()=>router.push('/admin/orders')} />
                 </div>
               </div>
             )}
@@ -316,6 +322,15 @@ export default function AdminDashboard() {
             </div>
 
             {/* ── Bottom row: Activity feed + sidebar ── */}
+            {attention && (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))', gap:'1rem' }}>
+                <StatCard title="Revenue collected" value={`KES ${Math.round(attention.revenueTotal||0).toLocaleString()}`} icon={Wallet} subtitle={`KES ${Math.round(attention.revenueThisMonth||0).toLocaleString()} this month`} color="green" onClick={()=>router.push('/admin/orders')} />
+                <StatCard title="Still to collect" value={`KES ${Math.round(attention.outstandingBalances||0).toLocaleString()}`} icon={DollarSign} subtitle="Balances on orders in progress" color="orange" onClick={()=>router.push('/admin/orders')} />
+                <StatCard title="Service orders" value={(attention.ordersToWork||0)+(attention.ordersInReview||0)+(attention.ordersAwaitingBalance||0)} icon={Briefcase} subtitle={`${attention.ordersToWork||0} to work on · ${attention.ordersInReview||0} in review · ${attention.ordersAwaitingBalance||0} awaiting balance`} color="purple" onClick={()=>router.push('/admin/orders')} />
+                <StatCard title="Apply For Me" value={(attention.applyReady||0)+(attention.applyWaiting||0)} icon={ClipboardCheck} subtitle={`${attention.applyReady||0} ready to apply · ${attention.applyLeads||0} unpaid leads`} color="blue" onClick={()=>router.push('/admin/apply-requests')} />
+              </div>
+            )}
+
             <div style={{ display:'grid', gridTemplateColumns:'1fr 320px', gap:'1.25rem', alignItems:'start' }}>
 
               {/* Activity feed */}
@@ -378,6 +393,9 @@ export default function AdminDashboard() {
                   <div className="sec-hd">Quick Links</div>
                   {[
                     { label:'Vendors',       href:'/admin/vendors',   icon:Store },
+                    { label:'Services', href:'/admin/services', icon:Briefcase },
+                    { label:'Service Orders', href:'/admin/orders', icon:Briefcase },
+                    { label:'Apply Requests', href:'/admin/apply-requests', icon:ClipboardCheck },
                     { label:'Community',     href:'/admin/community', icon:Users },
                     { label:'Analytics',     href:'/admin/analytics', icon:BarChart3 },
                     { label:'Audit Log',     href:'/admin/audit',     icon:FileText },

@@ -93,8 +93,8 @@ export interface PackageTierConfig {
   id: string; // "starter" | "professional" | "investor", or service-specific
   name: string;
   tag: string;
-  priceLabel: string; // "KSh 5,999"
-  includes: string[];
+  priceLabel?: string; // deprecated — prices live in the database (ServicePackage)
+  includes?: string[]; // deprecated — package contents live in the database
 }
 
 // ── Top-level questionnaire config ───────────────────────────────────────────
@@ -147,6 +147,7 @@ export interface QuestionnaireState {
   answers: QuestionnaireAnswers;
   status: "loading" | "ready" | "saving" | "submitting" | "submitted" | "error";
   errorMessage: string | null;
+  publicToken: string | null;
   orderNumber: string | null;
 }
 
@@ -159,4 +160,4 @@ export type QuestionnaireAction =
   | { type: "GO_BACK" }
   | { type: "GO_TO_STEP"; index: number }
   | { type: "SET_STATUS"; status: QuestionnaireState["status"]; errorMessage?: string }
-  | { type: "SUBMIT_SUCCESS"; orderNumber: string };
+  | { type: "SUBMIT_SUCCESS"; orderNumber: string; publicToken: string | null };

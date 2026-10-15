@@ -31,7 +31,7 @@ export function questionnaireReducer(
       return {
         ...state,
         draftId: action.draft.id,
-        packageTier: action.draft.packageTier,
+        packageTier: state.packageTier ?? action.draft.packageTier,
         currentStepIndex: action.draft.currentStep,
         answers: action.draft.answers,
         orderNumber: action.draft.orderNumber,
@@ -65,7 +65,7 @@ export function questionnaireReducer(
       return { ...state, status: action.status, errorMessage: action.errorMessage ?? null };
 
     case "SUBMIT_SUCCESS":
-      return { ...state, status: "submitted", orderNumber: action.orderNumber };
+      return { ...state, status: "submitted", orderNumber: action.orderNumber, publicToken: action.publicToken };
 
     default:
       return state;
@@ -82,5 +82,6 @@ export function createInitialState(serviceSlug: string, packageTier: string | nu
     status: "loading",
     errorMessage: null,
     orderNumber: null,
+    publicToken: null,
   };
 }

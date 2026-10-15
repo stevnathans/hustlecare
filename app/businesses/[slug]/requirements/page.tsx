@@ -8,6 +8,7 @@ import { isExcludedFromTotals } from '@/lib/necessity';
 import type { Business as BusinessData, Requirement as RequirementData } from 'hooks/useBusinessData';
 import { selectTemplateDescription } from '@/lib/requirement-description';
 import { type MarketCode } from '@/lib/markets';
+import { withArticle } from '@/lib/grammar';
 
 export const revalidate = 300; // regenerate at most every 5 minutes
 const market: MarketCode = 'KE';
@@ -75,11 +76,15 @@ function splitCoreAndStock<T extends {
 //
 // requirementCount here must be the CORE (non-Stock) count — see
 // splitCoreAndStock above.
+//
+// withArticle() picks "a"/"an" from the business name ("an Event Planning
+// Business", not "a Event Planning Business") — see lib/grammar.ts.
 
 function buildTitle(businessName: string, requirementCount: number): string {
   const year = new Date().getFullYear();
+  const a = withArticle(businessName);
   if (requirementCount > 0) {
-    return `${requirementCount} Requirements To Start a ${businessName} Business in Kenya (${year} Costs & Checklist)`;
+    return `${requirementCount} Requirements To Start ${a} Business in Kenya (${year} Costs & Checklist)`;
   }
   return `${businessName} Business Requirements in Kenya - Complete Checklist & Costs`;
 }
@@ -100,11 +105,12 @@ function buildRequirementsFaqs(
   categories: string[],
 ): RequirementFaq[] {
   const faqs: RequirementFaq[] = [];
+  const a = withArticle(businessName);
 
   if (totalRequirements > 0) {
     faqs.push({
-      question: `What do I need to start a ${businessName} business in Kenya?`,
-      answer: `To start a ${businessName} business in Kenya, you need ${totalRequirements} requirements in total${
+      question: `What do I need to start ${a} business in Kenya?`,
+      answer: `To start ${a} business in Kenya, you need ${totalRequirements} requirements in total${
         categories.length > 0 ? `, covering categories such as ${categories.join(', ')}` : ''
       }. Use the checklist on this page to see every item and add them to the cost calculator to estimate your total investment.`,
     });
@@ -113,7 +119,7 @@ function buildRequirementsFaqs(
   if (requiredCount > 0) {
     faqs.push({
       question: `How many of the ${businessName} business requirements are mandatory?`,
-      answer: `Out of the ${totalRequirements} requirements listed for a ${businessName} business, ${requiredCount} ${
+      answer: `Out of the ${totalRequirements} requirements listed for ${a} business, ${requiredCount} ${
         requiredCount === 1 ? 'is essential' : 'are essential'
       } and ${optionalCount} ${
         optionalCount === 1 ? 'is optional' : 'are optional'
@@ -141,10 +147,11 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
   // requirementCount must exclude Stock — see splitCoreAndStock above.
   const { core } = splitCoreAndStock(business.requirements ?? []);
   const requirementCount = core.length;
+  const a = withArticle(business.name);
   const title = buildTitle(business.name, requirementCount);
   const description =
     business.description ||
-    `Explore all ${requirementCount} requirements to start a ${business.name} business in Kenya. Use our cost calculator to estimate your total investment and get a complete launch plan.`;
+    `Explore all ${requirementCount} requirements to start ${a} business in Kenya. Use our cost calculator to estimate your total investment and get a complete launch plan.`;
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
   const pageUrl = `${siteUrl}/businesses/${slug}/requirements`;
@@ -158,15 +165,15 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
     title,
     description,
     keywords: [
-      `how to start a ${business.name} business`,
-      `how to start a ${business.name} business in Kenya`,
+      `how to start ${a} business`,
+      `how to start ${a} business in Kenya`,
       `${business.name} business requirements`,
       `${business.name} business equipment list`,
       `${business.name} startup cost in Kenya`,
       `${business.name} cost calculator`,
       `${business.name} business plan`,
-      `equipment list to start a ${business.name} business`,
-      `legal requirements to start a ${business.name} business in Kenya`,
+      `equipment list to start ${a} business`,
+      `legal requirements to start ${a} business in Kenya`,
       'business planning Kenya',
       'investment calculator',
       'business requirements checklist',
@@ -188,7 +195,7 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
           url: ogImage,
           width: 1200,
           height: 630,
-          alt: `What you need to start a ${business.name} business`,
+          alt: `What you need to start ${a} business`,
         },
       ],
     },
@@ -255,6 +262,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   }
 
   const requirements = business.requirements ?? [];
+  const a = withArticle(business.name);
 
   // Core (non-Stock) vs. Stock split — see splitCoreAndStock above. All
   // "Requirements" SEO surfaces (title, meta description, requirements
@@ -272,7 +280,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   const title = buildTitle(business.name, requirementCount);
   const description =
     business.description ||
-    `Complete guide to starting a ${business.name} business in Kenya with ${requirementCount} requirements and cost calculator.`;
+    `Complete guide to starting ${a} business in Kenya with ${requirementCount} requirements and cost calculator.`;
 
   // ── Requirement counts (for FAQs and general use) ───────────────────────
   const requiredCount = coreRequirements.filter(
@@ -331,7 +339,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
       description:
         req.descriptionOverride ||
         req.template.description ||
-        `${req.template.name} required to start a ${business.name} business`,
+        `${req.template.name} required to start ${a} business`,
       additionalProperty: [
         {
           '@type': 'PropertyValue',
@@ -437,7 +445,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
           name: `${business.name} Business`,
         },
         keywords: [
-          `how to start a ${business.name} business`,
+          `how to start ${a} business`,
           `${business.name} business requirements`,
           `${business.name} startup cost Kenya`,
         ].join(', '),
@@ -448,7 +456,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
         '@type': 'Service',
         '@id': `${pageUrl}#service`,
         name: `${business.name} Business Startup Guide`,
-        description: `Complete guide to starting a ${business.name} business in Kenya with detailed requirements and cost estimates.`,
+        description: `Complete guide to starting ${a} business in Kenya with detailed requirements and cost estimates.`,
         provider: {
           '@type': 'Organization',
           name: 'HustleCare',
@@ -469,8 +477,8 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
             {
               '@type': 'ItemList',
               '@id': `${pageUrl}#requirements`,
-              name: `Complete Requirements for Starting a ${business.name} Business In Kenya`,
-              description: `All ${requirementCount} requirements needed to start a ${business.name} business in Kenya, covering essential and optional items.`,
+              name: `Complete Requirements for Starting ${a} Business In Kenya`,
+              description: `All ${requirementCount} requirements needed to start ${a} business in Kenya, covering essential and optional items.`,
               numberOfItems: requirementCount,
               itemListElement: requirementListItems,
             },
@@ -506,7 +514,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
             {
               '@type': 'ItemList',
               '@id': `${pageUrl}#stock`,
-              name: `Popular Products You Can Sell in a ${business.name} Business`,
+              name: `Popular Products You Can Sell in ${a} Business`,
               description: `${stockRequirements.length} product${
                 stockRequirements.length === 1 ? '' : 's'
               } commonly stocked by ${business.name} businesses in Kenya. These are inventory suggestions, not startup requirements.`,
@@ -558,19 +566,19 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   // BusinessPageContent.tsx's Legal vendor-filter check) read these
   // fields directly instead of re-deriving them from the category string.
   const initialRequirements: RequirementData[] = requirements.map((req) => ({
-  id: req.id,
-  templateId: req.templateId,
-  name: req.template.name,
-  description: req.descriptionOverride ?? selectTemplateDescription(req.template, market) ?? null,
-  category: req.template.category ?? null,
-  necessity: req.necessityOverride ?? req.template.necessity,
-  image: req.template.image ?? null,
-  slug: req.template.published ? req.template.slug : null,
-  excludedFromTotals:
-    req.template.categoryRef?.excludedFromTotals ?? isExcludedFromTotals(req.template.category ?? ''),
-  usesLegalCountyFilter:
-    req.template.categoryRef?.usesLegalCountyFilter ?? (req.template.category === 'Legal'),
-}));
+    id: req.id,
+    templateId: req.templateId,
+    name: req.template.name,
+    description: req.descriptionOverride ?? selectTemplateDescription(req.template, market) ?? null,
+    category: req.template.category ?? null,
+    necessity: req.necessityOverride ?? req.template.necessity,
+    image: req.template.image ?? null,
+    slug: req.template.published ? req.template.slug : null,
+    excludedFromTotals:
+      req.template.categoryRef?.excludedFromTotals ?? isExcludedFromTotals(req.template.category ?? ''),
+    usesLegalCountyFilter:
+      req.template.categoryRef?.usesLegalCountyFilter ?? (req.template.category === 'Legal'),
+  }));
 
   return (
     <>

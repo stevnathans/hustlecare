@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Search as SearchIcon, X } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { DEFAULT_MARKET, type MarketCode } from "@/lib/markets";
 
 type Business = {
   id: number;
@@ -14,9 +15,18 @@ type Business = {
 type MenuSearchBarProps = {
   autoFocus?: boolean;
   onNavigate?: () => void; // called after a search is triggered (navigation happens), so parent can close any wrapping dropdown/overlay
+  // Which market the visitor is currently browsing — passed down from
+  // Menu, which derives it from the URL. Controls both where a completed
+  // search navigates (/search vs /us/search) and which market's
+  // requirements are considered when matching suggestions.
+  market?: MarketCode;
 };
 
-export default function MenuSearchBar({ autoFocus = false, onNavigate }: MenuSearchBarProps) {
+export default function MenuSearchBar({
+  autoFocus = false,
+  onNavigate,
+  market = DEFAULT_MARKET,
+}: MenuSearchBarProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -24,6 +34,8 @@ export default function MenuSearchBar({ autoFocus = false, onNavigate }: MenuSea
   const [loading, setLoading] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const base = market === "US" ? "/us" : "";
 
   useEffect(() => {
     if (autoFocus) {
@@ -34,7 +46,9 @@ export default function MenuSearchBar({ autoFocus = false, onNavigate }: MenuSea
   const handleSearch = (keyword: string) => {
     if (!keyword.trim()) return;
 
-    const query = `/search?keyword=${encodeURIComponent(keyword.trim())}`;
+    // Routed through `base` so a US visitor stays on /us/search instead
+    // of being sent to the Kenya search page.
+    const query = `${base}/search?keyword=${encodeURIComponent(keyword.trim())}`;
     router.push(query);
     setSearch("");
     setShowSuggestions(false);
@@ -60,8 +74,12 @@ export default function MenuSearchBar({ autoFocus = false, onNavigate }: MenuSea
       // completed search — it skips the SearchLog write (which would
       // otherwise fire on every keystroke pause) and returns a lean
       // id/name/slug shape instead of the full grouped-requirements tree.
+      //
+      // market is sent so the route only matches on requirement names/
+      // categories visible in this market (see the restrictedToCountry
+      // filter in /api/businesses/search).
       const response = await fetch(
-        `/api/businesses/search?keyword=${encodeURIComponent(query)}&suggest=1&limit=5`
+        `/api/businesses/search?keyword=${encodeURIComponent(query)}&suggest=1&limit=5&market=${market}`
       );
       const data = await response.json();
 
@@ -76,7 +94,7 @@ export default function MenuSearchBar({ autoFocus = false, onNavigate }: MenuSea
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [market]);
 
   // Debounced search suggestions - results update live as you type
   useEffect(() => {

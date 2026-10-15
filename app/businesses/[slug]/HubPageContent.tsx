@@ -19,6 +19,7 @@ import BusinessInsights from './BusinessInsights';
 import BusinessFaqSection from './BusinessFaqSection';
 import BusinessCostBadge from './BusinessCostBadge';
 import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
+import { withArticle } from '@/lib/grammar';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -309,7 +310,7 @@ export default function HubPageContent({
         {/* ── Explore this business ── */}
         <section aria-labelledby="explore-heading">
           <h2 id="explore-heading" className="text-xl font-bold text-gray-900 mb-5">
-            Complete Guide to Starting a {name} Business
+            Complete Guide to Starting {withArticle(name)} Business
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {subPages.map((page) => {

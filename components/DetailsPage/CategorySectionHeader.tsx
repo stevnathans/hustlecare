@@ -17,6 +17,10 @@ interface CategorySectionHeaderProps {
   // business has ≥3 active requirements in this category. Omitted (or
   // undefined) renders exactly as before — plain, non-interactive text.
   categoryHref?: string;
+  // Used only to build descriptive anchor text for the category link
+  // ("Legal requirements for Barbershop") — see below. Optional so any
+  // other caller keeps working unchanged.
+  businessName?: string;
 }
 
 const CategorySectionHeader: React.FC<CategorySectionHeaderProps> = ({
@@ -28,13 +32,26 @@ const CategorySectionHeader: React.FC<CategorySectionHeaderProps> = ({
   onToggleSearch,
   onToggleFilter,
   categoryHref,
+  businessName,
 }) => {
+  // Descriptive anchor text for the internal link: the visible label stays
+  // the short category name (no design change), while the visually hidden
+  // suffix gives screen readers and crawlers the full phrase — a stronger
+  // internal-linking signal than a bare "Legal" or "Equipment".
+  const anchorSuffix = businessName
+    ? category === 'Stock'
+      ? ` products for ${businessName}`
+      : ` requirements for ${businessName}`
+    : '';
+
   const CategoryName = categoryHref ? (
     <Link
       href={categoryHref}
+      title={businessName ? `${category}${anchorSuffix}` : undefined}
       className="hover:text-emerald-700 hover:underline transition-colors"
     >
       {category}
+      {anchorSuffix && <span className="sr-only">{anchorSuffix}</span>}
     </Link>
   ) : (
     category

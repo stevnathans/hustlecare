@@ -18,6 +18,7 @@ import {
   fetchDraft,
   patchDraft,
   submitDraft,
+  getLastSubmitError,
   getStoredDraftId,
   setStoredDraftId,
   clearStoredDraftId,
@@ -30,6 +31,7 @@ interface QuestionnaireContextValue {
   status: "loading" | "ready" | "saving" | "submitting" | "submitted" | "error";
   errorMessage: string | null;
   orderNumber: string | null;
+  publicToken: string | null;
   visibleSteps: StepConfig[];
   currentStepIndex: number;
   currentStep: StepConfig | null;
@@ -42,7 +44,7 @@ interface QuestionnaireContextValue {
   goBack: () => void;
   goToStep: (index: number) => void;
   setPackageTier: (tier: string) => void;
-  submit: () => Promise<void>;
+  submit: (consent: boolean) => Promise<void>;
 }
 
 const QuestionnaireContext = createContext<QuestionnaireContextValue | null>(null);
@@ -176,16 +178,16 @@ export function QuestionnaireProvider({
     dispatch({ type: "GO_TO_STEP", index });
   }
 
-  async function submit() {
+  async function submit(consent: boolean) {
     if (!state.draftId) return;
     dispatch({ type: "SET_STATUS", status: "submitting" });
     try {
       await patchDraft(state.draftId, { answers: state.answers, packageTier: state.packageTier });
-      const draft = await submitDraft(state.draftId);
+      const { draft, publicToken } = await submitDraft(state.draftId, consent);
       clearStoredDraftId(config.serviceSlug);
-      dispatch({ type: "SUBMIT_SUCCESS", orderNumber: draft.orderNumber ?? "" });
+      dispatch({ type: "SUBMIT_SUCCESS", orderNumber: draft.orderNumber ?? "", publicToken });
     } catch {
-      dispatch({ type: "SET_STATUS", status: "error", errorMessage: "Could not submit your order. Please try again." });
+      dispatch({ type: "SET_STATUS", status: "error", errorMessage: getLastSubmitError() ?? "Could not submit your order. Please try again." });
     }
   }
 
@@ -196,6 +198,7 @@ export function QuestionnaireProvider({
     status: state.status,
     errorMessage: state.errorMessage,
     orderNumber: state.orderNumber,
+    publicToken: state.publicToken,
     visibleSteps,
     currentStepIndex: state.currentStepIndex,
     currentStep,

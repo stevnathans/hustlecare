@@ -13,22 +13,22 @@ const packageTiers: PackageTierConfig[] = [
     id: "starter",
     name: "Starter Website",
     tag: "Best for small businesses",
-    priceLabel: "$180",
-    includes: ["3 pages", "Mobile responsive design", "Contact form", "Social media links"],
+
+
   },
   {
-    id: "business",
-    name: "Business Website",
+    id: "professional",
+    name: "Professional Website",
     tag: "Most popular",
-    priceLabel: "$350",
-    includes: ["Up to 6 pages", "Modern professional design", "Mobile responsive layout", "Contact forms", "Basic SEO structure"],
+
+
   },
   {
     id: "premium",
     name: "Premium Website",
     tag: "Best for growing startups",
-    priceLabel: "$600",
-    includes: ["Up to 10 pages", "Premium custom design", "Blog or content section", "Advanced contact forms", "SEO optimization"],
+
+
   },
 ];
 

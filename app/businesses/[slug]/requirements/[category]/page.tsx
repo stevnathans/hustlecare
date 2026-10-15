@@ -1,10 +1,12 @@
 // app/businesses/[slug]/requirements/[category]/page.tsx
+import { cache } from 'react';
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { fetchBusinessWithRequirements } from '@/lib/business-data';
 import { selectTemplateDescription } from '@/lib/requirement-description';
 import { isExcludedFromTotals } from '@/lib/necessity';
+import { getCategorySeo } from '@/lib/category-seo';
 import type { Business as BusinessData, Requirement as RequirementData } from 'hooks/useBusinessData';
 import CategoryChecklistContent from '@/components/DetailsPage/CategoryChecklistContent';
 import { type MarketCode } from '@/lib/markets';
@@ -33,22 +35,27 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
  * or the threshold isn't met — all three cases 404 identically, since a
  * category/business pair below the bar was never meant to have a URL at
  * all (see the anti-thin-content discipline throughout this project).
+ *
+ * Wrapped in React cache() so generateMetadata and the page component
+ * share one fetch per request/render instead of doing it twice.
  */
-async function getEligibleCategoryForBusiness(businessSlug: string, categorySlug: string) {
-  const business = await fetchBusinessWithRequirements(businessSlug, market);
-  if (!business) return null;
+const getEligibleCategoryForBusiness = cache(
+  async (businessSlug: string, categorySlug: string) => {
+    const business = await fetchBusinessWithRequirements(businessSlug, market);
+    if (!business) return null;
 
-  const categoryRequirements = (business.requirements ?? []).filter(
-    (r) => r.template.categoryRef?.slug === categorySlug
-  );
+    const categoryRequirements = (business.requirements ?? []).filter(
+      (r) => r.template.categoryRef?.slug === categorySlug
+    );
 
-  if (categoryRequirements.length < CATEGORY_PAGE_THRESHOLD) return null;
+    if (categoryRequirements.length < CATEGORY_PAGE_THRESHOLD) return null;
 
-  const categoryName = categoryRequirements[0]?.template.category ?? null;
-  if (!categoryName) return null;
+    const categoryName = categoryRequirements[0]?.template.category ?? null;
+    if (!categoryName) return null;
 
-  return { business, categoryRequirements, categoryName };
-}
+    return { business, categoryRequirements, categoryName };
+  }
+);
 
 // ── SEO Metadata ──────────────────────────────────────────────────────────────
 
@@ -64,22 +71,35 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const { business, categoryRequirements, categoryName } = result;
-  const count = categoryRequirements.length;
-  const year = new Date().getFullYear();
 
-  const title = `${count} ${categoryName} Requirements for a ${business.name} Business in Kenya (${year})`;
-  const description = `Every ${categoryName.toLowerCase()} requirement for a ${business.name} business in Kenya, with costs and options — part of the full ${business.name} requirements checklist.`;
+  // Category-specific title/description — see lib/category-seo.ts
+  const { title, description } = getCategorySeo({
+    businessName: business.name,
+    categoryName,
+    count: categoryRequirements.length,
+    year: new Date().getFullYear(),
+  });
+
   const pageUrl = `${SITE_URL}/businesses/${slug}/requirements/${category}`;
   const ogImage = business.image || `${SITE_URL}/images/default-business.jpg`;
 
   return {
     title,
     description,
-    alternates: { canonical: pageUrl },
+    alternates: {
+      canonical: pageUrl,
+      languages: { 'en-KE': pageUrl },
+    },
     robots: {
       index: true,
       follow: true,
-      googleBot: { index: true, follow: true, 'max-snippet': -1 },
+      googleBot: {
+        index: true,
+        follow: true,
+        'max-video-preview': -1,
+        'max-image-preview': 'large',
+        'max-snippet': -1,
+      },
     },
     openGraph: {
       title,
@@ -88,7 +108,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       siteName: 'HustleCare',
       type: 'article',
       locale: 'en_KE',
-      images: [{ url: ogImage, width: 1200, height: 630, alt: `${categoryName} requirements for a ${business.name} business` }],
+      publishedTime: business.createdAt.toISOString(),
+      modifiedTime: business.updatedAt.toISOString(),
+      images: [{ url: ogImage, width: 1200, height: 630, alt: `${categoryName} requirements for ${business.name}` }],
     },
     twitter: {
       card: 'summary_large_image',
@@ -103,12 +125,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 // ── Static Params ─────────────────────────────────────────────────────────────
-// Iterates published businesses × RequirementCategory rows, keeping only
-// pairs that clear CATEGORY_PAGE_THRESHOLD. Reuses
-// fetchBusinessWithRequirements per business (already the standard data
-// path — see lib/business-data.ts) rather than a bespoke aggregate query;
-// at current scale (~60 published businesses) this is a handful of extra
-// queries at build time, not a concern.
+// (unchanged)
 
 export async function generateStaticParams() {
   try {
@@ -152,7 +169,7 @@ export default async function CategoryChecklistPage({ params }: Props) {
 
   if (!result) notFound();
 
-  const { business, categoryName } = result;
+  const { business, categoryRequirements, categoryName } = result;
 
   const effectiveTradeClassId = business.tradeClassId ?? business.category?.defaultTradeClassId ?? null;
 
@@ -203,6 +220,18 @@ export default async function CategoryChecklistPage({ params }: Props) {
   const hubUrl = `${SITE_URL}/businesses/${slug}`;
   const requirementsUrl = `${hubUrl}/requirements`;
 
+  const seo = getCategorySeo({
+    businessName: business.name,
+    categoryName,
+    count: categoryRequirements.length,
+    year: new Date().getFullYear(),
+  });
+
+  // This category's items only, for the ItemList node. Typed "Thing", not
+  // "Product", for the same reason as the main requirements page (avoids
+  // Search Console flagging missing offers/price).
+  const categoryItems = initialRequirements.filter((r) => r.category === categoryName);
+
   const structuredData = {
     '@context': 'https://schema.org',
     '@graph': [
@@ -216,6 +245,41 @@ export default async function CategoryChecklistPage({ params }: Props) {
           { '@type': 'ListItem', position: 4, name: 'Requirements', item: requirementsUrl },
           { '@type': 'ListItem', position: 5, name: categoryName, item: pageUrl },
         ],
+      },
+      {
+        '@type': 'CollectionPage',
+        '@id': `${pageUrl}#webpage`,
+        url: pageUrl,
+        name: seo.title,
+        description: seo.description,
+        inLanguage: 'en-KE',
+        isPartOf: { '@type': 'WebPage', '@id': requirementsUrl, url: requirementsUrl },
+        breadcrumb: { '@id': `${pageUrl}#breadcrumb` },
+        mainEntity: { '@id': `${pageUrl}#items` },
+        dateModified: business.updatedAt.toISOString(),
+        publisher: { '@type': 'Organization', name: 'HustleCare', url: SITE_URL },
+      },
+      {
+        '@type': 'ItemList',
+        '@id': `${pageUrl}#items`,
+        name: seo.h1,
+        numberOfItems: categoryItems.length,
+        itemListElement: categoryItems.map((item, i) => ({
+          '@type': 'ListItem',
+          position: i + 1,
+          item: {
+            '@type': 'Thing',
+            name: item.name,
+            ...(item.description ? { description: item.description } : {}),
+            additionalProperty: [
+              {
+                '@type': 'PropertyValue',
+                name: item.excludedFromTotals ? 'demand' : 'necessity',
+                value: item.necessity,
+              },
+            ],
+          },
+        })),
       },
     ],
   };

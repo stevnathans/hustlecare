@@ -47,11 +47,29 @@ export async function patchDraft(
   return draft;
 }
 
-export async function submitDraft(draftId: string): Promise<QuestionnaireDraftDTO> {
-  const res = await fetch(`/api/questionnaire-drafts/${draftId}/submit`, { method: "POST" });
-  if (!res.ok) throw new Error("Failed to submit draft");
-  const { draft } = await res.json();
-  return draft;
+// The server explains WHY a submit was refused (missing answers, no consent...).
+// The context shows that message instead of a generic one.
+let lastSubmitError: string | null = null;
+export function getLastSubmitError(): string | null {
+  return lastSubmitError;
+}
+
+export async function submitDraft(
+  draftId: string,
+  consent: boolean
+): Promise<{ draft: QuestionnaireDraftDTO; publicToken: string | null }> {
+  lastSubmitError = null;
+  const res = await fetch(`/api/questionnaire-drafts/${draftId}/submit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ consent }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    lastSubmitError = typeof data.error === "string" ? data.error : null;
+    throw new Error(data.error || "Failed to submit draft");
+  }
+  return { draft: data.draft, publicToken: data.publicToken ?? null };
 }
 
 // ── localStorage helpers ─────────────────────────────────────────────────────

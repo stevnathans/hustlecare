@@ -26,6 +26,8 @@ import {
   BarChart,
   Target,
   History,
+  Briefcase,
+  Tags,
 } from "lucide-react";
 
 interface SubNavItem {
@@ -93,7 +95,13 @@ const navItems: NavItem[] = [
     requiredRoles: ["editor", "admin"],
   },
   {
-    name: "Orders",
+    name: "Services",
+    href: "/admin/services",
+    icon: Briefcase,
+    requiredRoles: ["editor", "admin"],
+  },
+  {
+    name: "Service Orders",
     href: "/admin/orders",
     icon: ShoppingCart,
     requiredRoles: ["editor", "admin"],
@@ -102,6 +110,12 @@ const navItems: NavItem[] = [
     name: "Apply Requests",
     href: "/admin/apply-requests",
     icon: ShoppingCart,
+    requiredRoles: ["editor", "admin"],
+  },
+  {
+    name: "Apply Prices",
+    href: "/admin/apply-services",
+    icon: Tags,
     requiredRoles: ["editor", "admin"],
   },
   {
@@ -187,6 +201,26 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const userRole = session?.user?.role || "user";
+
+  // Small count badges on the menu items that need you right now.
+  const [badges, setBadges] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (userRole !== "admin") return;
+    let cancelled = false;
+    const load = () =>
+      fetch("/api/admin/attention")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d && !cancelled) setBadges({ "/admin/apply-requests": d.applyReady || 0, "/admin/orders": d.ordersToWork || 0 });
+        })
+        .catch(() => {});
+    load();
+    const t = setInterval(load, 60000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, [userRole]);
 
   useEffect(() => {
     setSidebarOpen(false);
@@ -278,6 +312,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   }`}
                 />
                 <span>{item.name}</span>
+                {(badges[item.href] || 0) > 0 && (
+                  <span className="ml-auto inline-flex min-w-[20px] items-center justify-center rounded-full bg-indigo-600 px-1.5 text-[11px] font-bold text-white">
+                    {badges[item.href]}
+                  </span>
+                )}
               </Link>
 
               {/* Hover Dropdown Sub-menu */}

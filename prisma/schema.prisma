@@ -1205,6 +1205,117 @@ enum NotifType {
   WARNING
 }
 
+enum ServiceCategory {
+  PLANNING
+  LEGAL
+  BRANDING
+  DIGITAL
+}
+
+enum ServiceOrderStage {
+  DRAFT             // still filling in the questionnaire
+  AWAITING_DEPOSIT  // submitted, deposit not paid yet
+  IN_PROGRESS       // deposit paid — we are working on it
+  IN_REVIEW         // preview delivered; customer reviewing / requesting changes
+  AWAITING_BALANCE  // customer approved; balance due before the final files unlock
+  COMPLETED         // balance paid, final files delivered
+  CANCELLED
+}
+
+enum ServicePaymentKind {
+  DEPOSIT
+  BALANCE
+  FULL // when the deposit is 100%
+}
+
+enum ServiceFileKind {
+  CUSTOMER_FILE // logo, photos, documents the customer sends us
+  PREVIEW       // visible to the customer straight away
+  FINAL         // locked until the balance is paid
+}
+
+enum ServiceEventKind {
+  CREATED
+  SUBMITTED
+  PAYMENT_STARTED
+  PAYMENT_SUCCEEDED
+  PAYMENT_FAILED
+  MESSAGE_SENT
+  MESSAGE_FAILED
+  FILE_UPLOADED
+  PREVIEW_DELIVERED
+  REVISION_REQUESTED
+  APPROVED
+  FINAL_DELIVERED
+  STAGE_CHANGED
+  NOTE
+  OPTED_OUT
+}
+
+// ── Catalog ──────────────────────────────────────────────────────────────────
+
+model Service {
+  id               Int             @id @default(autoincrement())
+  slug             String          @unique // = questionnaire serviceSlug = /services/{slug}
+  name             String
+  shortDescription String
+  emoji            String          @default("")
+  category         ServiceCategory
+  ctaLabel         String          @default("Get started")
+  isActive         Boolean         @default(true)
+  displayOrder     Int             @default(0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  packages  ServicePackage[]
+  documents ServiceDocumentSpec[]
+
+  @@index([isActive, displayOrder])
+}
+
+model ServicePackage {
+  id                Int      @id @default(autoincrement())
+  serviceId         Int
+  // Stable key used inside questionnaire answers and conditions, e.g.
+  // "starter" / "professional" / "investor". Never change it once orders exist.
+  key               String
+  name              String
+  tag               String?
+  price             Float    // total, KES
+  depositPercent    Int      @default(50) // 1–100. 100 = pay everything up front
+  turnaroundMinDays Int?
+  turnaroundMaxDays Int?
+  revisionRounds    Int      @default(1)
+  features          String[]
+  isPopular         Boolean  @default(false)
+  isActive          Boolean  @default(true)
+  displayOrder      Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceId, key])
+  @@index([serviceId, isActive])
+}
+
+// Files we ask the customer to send for a service (logo, photos, registration
+// certificate...). Replaces the "paste a link" steps in the questionnaires.
+model ServiceDocumentSpec {
+  id           Int     @id @default(autoincrement())
+  serviceId    Int
+  label        String
+  description  String?
+  isRequired   Boolean @default(false)
+  displayOrder Int     @default(0)
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@index([serviceId])
+}
+
+// ── The order (this is the existing QuestionnaireDraft, extended) ───────────
+
 model QuestionnaireDraft {
   id           String  @id @default(cuid())
   serviceSlug  String
@@ -1213,19 +1324,117 @@ model QuestionnaireDraft {
   answers      Json    @default("{}")
   contactEmail String?
   contactPhone String?
-  status       String  @default("draft")
+  status       String  @default("draft") // draft | submitted (kept; the engine uses it)
   orderNumber  String? @unique
 
-  adminStatus String  @default("new")
+  adminStatus String  @default("new") // LEGACY — replaced by `stage`; dropped in a later migration
   adminNotes  String?
   archived    Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // ── NEW: pipeline ──────────────────────────────────────────────────────────
+  // Unguessable key for the customer's tracking link; set when submitted.
+  publicToken String?           @unique
+  stage       ServiceOrderStage @default(DRAFT)
+  submittedAt DateTime?
+  dueDate     DateTime?         // expected delivery, from the package turnaround
+  deliveredAt DateTime?         // preview delivered
+  completedAt DateTime?
+  cancelledAt DateTime?
+  cancelReason String?
+
+  // ── NEW: what they bought — a SNAPSHOT, so later price edits never change it
+  packageId      Int?   // ServicePackage.id (plain Int, same convention as elsewhere)
+  packageName    String?
+  currency       String @default("KES")
+  totalAmount    Float?
+  depositPercent Int?
+  depositAmount  Float?
+  balanceAmount  Float?
+  revisionsAllowed Int?
+  revisionsUsed    Int @default(0)
+
+  // ── NEW: contact consent and reminders ─────────────────────────────────────
+  contactConsentAt DateTime?
+  optedOutAt       DateTime?
+  reminderCount    Int       @default(0)
+  lastReminderAt   DateTime?
+  nextReminderAt   DateTime?
+
+  userId String? // set when the customer was signed in; no relation
+
+  payments  ServiceOrderPayment[]
+  files     ServiceOrderFile[]
+  events    ServiceOrderEvent[]
+
   @@index([serviceSlug, status])
   @@index([contactEmail])
   @@index([adminStatus, archived])
+  @@index([stage, archived])
+  @@index([stage, nextReminderAt])
+}
+
+model ServiceOrderPayment {
+  id            String             @id @default(uuid())
+  orderId       String
+  kind          ServicePaymentKind
+  amount        Float
+  currency      String             @default("KES")
+  provider      String             // "daraja" | "manual"
+  merchantRef   String             @unique
+  providerRef   String?            @unique
+  status        PaymentStatus      @default(PENDING)
+  payerPhone    String?
+  receiptNumber String?
+  failureReason String?
+  rawCallback   Json?
+  paidAt        DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  // Restrict: an order with payment records can't be hard-deleted.
+  order QuestionnaireDraft @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([status])
+}
+
+model ServiceOrderFile {
+  id           String          @id @default(uuid())
+  orderId      String
+  kind         ServiceFileKind
+  specId       Int?            // ServiceDocumentSpec.id this satisfies (customer files)
+  label        String
+  storagePath  String
+  fileName     String
+  mimeType     String
+  sizeBytes    Int
+  uploadedBy   String          @default("customer") // "customer" | "admin"
+  createdAt    DateTime        @default(now())
+
+  order QuestionnaireDraft @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, kind])
+}
+
+model ServiceOrderEvent {
+  id                String           @id @default(uuid())
+  orderId           String
+  kind              ServiceEventKind
+  actor             String           @default("system") // system | admin | customer
+  channel           ApplyChannel?
+  template          String?
+  providerMessageId String?
+  deliveryStatus    String?
+  summary           String
+  metadata          Json?
+  createdAt         DateTime         @default(now())
+
+  order QuestionnaireDraft @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
 }
 
 model Order {

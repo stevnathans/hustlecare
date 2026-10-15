@@ -139,6 +139,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
     >
       <CategorySectionHeader
         category={category}
+        businessName={businessName}
         filteredCount={filteredRequirements.length}
         totalCount={requirements.length}
         showSearch={categoryState.showSearch}
@@ -226,7 +227,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({
                 </Link>
                 <Link
                   href="/contact"
-                  className="inline-flex items-center px-3 py-2 sm:px-4 sm:py2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm"
+                  className="inline-flex items-center px-3 py-2 sm:px-4 sm:py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm"
                 >
                   Request Requirements
                 </Link>

@@ -2,6 +2,7 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
+import { withArticle } from '@/lib/grammar';
 import HowToStartContent from './HowToStartContent';
 
 interface Props {
@@ -62,15 +63,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const { name, howToGuide: guide } = business;
   const year = new Date().getFullYear();
+  // "a Barbershop" / "an Event Planning" — see lib/grammar.ts
+  const a = withArticle(name);
 
   const title =
-  guide.metaTitle ||
-  guide.title ||
-  `How to Start a ${name} Business in Kenya (${year}) — Step-by-Step Guide | HustleCare`;
+    guide.metaTitle ||
+    guide.title ||
+    `How to Start ${a} Business in Kenya (${year}) — Step-by-Step Guide | HustleCare`;
 
   const description =
     guide.metaDescription ||
-    `A complete ${guide.steps.length}-step guide to starting a ${name} business in Kenya. Learn what to do, what to buy, and how to get your first customers.`;
+    `A complete ${guide.steps.length}-step guide to starting ${a} business in Kenya. Learn what to do, what to buy, and how to get your first customers.`;
 
   const pageUrl = `${SITE_URL}/businesses/${slug}/how-to-start`;
   const ogImage = guide.imageUrl || business.image || `${SITE_URL}/images/default-business.jpg`;
@@ -82,10 +85,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       guide.keywords.length > 0
         ? guide.keywords.join(', ')
         : [
-            `how to start a ${name} business in Kenya`,
+            `how to start ${a} business in Kenya`,
             `${name} business guide`,
             `${name} step by step Kenya`,
-            `start ${name} business Kenya`,
+            `start ${a} business Kenya`,
             `${name} business tips Kenya`,
           ].join(', '),
     authors:   [{ name: 'HustleCare' }],
@@ -98,7 +101,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       siteName: 'HustleCare',
       type:     'article',
       locale:   'en_KE',
-      images:   [{ url: ogImage, width: 1200, height: 630, alt: `How to start a ${name} business` }],
+      images:   [{ url: ogImage, width: 1200, height: 630, alt: `How to start ${a} business` }],
     },
     twitter: {
       card:    'summary_large_image',
@@ -147,6 +150,7 @@ export default async function HowToStartPage({ params }: Props) {
   if (!business || !business.howToGuide?.isPublished) notFound();
 
   const { name, howToGuide: guide, category } = business;
+  const a        = withArticle(name);
   const pageUrl  = `${SITE_URL}/businesses/${slug}/how-to-start`;
   const hubUrl   = `${SITE_URL}/businesses/${slug}`;
   const ogImage  = business.image || `${SITE_URL}/images/default-business.jpg`;
@@ -154,11 +158,11 @@ export default async function HowToStartPage({ params }: Props) {
 
   const title =
     guide.metaTitle ||
-    `How to Start a ${name} Business in Kenya (${year}) — Step-by-Step Guide | HustleCare`;
+    `How to Start ${a} Business in Kenya (${year}) — Step-by-Step Guide | HustleCare`;
 
   const description =
     guide.metaDescription ||
-    `A complete ${guide.steps.length}-step guide to starting a ${name} business in Kenya.`;
+    `A complete ${guide.steps.length}-step guide to starting ${a} business in Kenya.`;
 
   const totalTime = computeTotalTime(business.timeToLaunchMin, business.timeToLaunchMax);
 
@@ -174,38 +178,38 @@ export default async function HowToStartPage({ params }: Props) {
   const structuredData = {
     '@context': 'https://schema.org',
     '@graph': [
-      
+
       // 1. BreadcrumbList
-{
-  '@type': 'BreadcrumbList',
-  '@id': `${pageUrl}#breadcrumb`,
-  itemListElement: [
-    {
-      '@type': 'ListItem',
-      position: 1,
-      name: 'Home',
-      item: SITE_URL,
-    },
-    {
-      '@type': 'ListItem',
-      position: 2,
-      name: 'Businesses',
-      item: `${SITE_URL}/businesses`,
-    },
-    {
-      '@type': 'ListItem',
-      position: 3,
-      name: name,
-      item: hubUrl,
-    },
-    {
-      '@type': 'ListItem',
-      position: 4,
-      name: 'How to Start',
-      item: pageUrl,
-    },
-  ],
-},
+      {
+        '@type': 'BreadcrumbList',
+        '@id': `${pageUrl}#breadcrumb`,
+        itemListElement: [
+          {
+            '@type': 'ListItem',
+            position: 1,
+            name: 'Home',
+            item: SITE_URL,
+          },
+          {
+            '@type': 'ListItem',
+            position: 2,
+            name: 'Businesses',
+            item: `${SITE_URL}/businesses`,
+          },
+          {
+            '@type': 'ListItem',
+            position: 3,
+            name: name,
+            item: hubUrl,
+          },
+          {
+            '@type': 'ListItem',
+            position: 4,
+            name: 'How to Start',
+            item: pageUrl,
+          },
+        ],
+      },
 
       // 2. Article
       {
@@ -236,7 +240,7 @@ export default async function HowToStartPage({ params }: Props) {
         mainEntityOfPage: { '@type': 'WebPage', '@id': pageUrl },
         breadcrumb:       { '@id': `${pageUrl}#breadcrumb` },
         inLanguage: 'en-KE',
-        keywords: (guide.keywords.length > 0 ? guide.keywords : [`how to start a ${name} business`]).join(', '),
+        keywords: (guide.keywords.length > 0 ? guide.keywords : [`how to start ${a} business`]).join(', '),
       },
 
       // 3. HowTo — the main money schema for this page
@@ -249,7 +253,7 @@ export default async function HowToStartPage({ params }: Props) {
         ? [{
             '@type':       'HowTo',
             '@id':         `${pageUrl}#howto`,
-            name:          `How to Start a ${name} Business in Kenya`,
+            name:          `How to Start ${a} Business in Kenya`,
             description:   guide.intro || description,
             image: {
               '@type': 'ImageObject',

@@ -9,6 +9,7 @@ import { Product } from "@/types";
 import { FeeScheduleResolution } from '@/lib/legalFeeSchedule';
 import { FeeScheduleShellProductDetails } from 'hooks/useBusinessData';
 import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
+import { withArticle } from "@/lib/grammar";
 
 interface RequirementLocal {
   id: number;
@@ -373,7 +374,7 @@ const RequirementsSection: React.FC<RequirementsSectionProps> = ({
             start a profitable {businessName} business. Each category contains
             both essential and optional requirements. Use the search and filter
             options to easily find items, and add them to your cost calculator
-            to understand how much you need to start a {businessName} business.
+            to understand how much you need to start {withArticle(businessName)} business.
           </p>
         </div>
 

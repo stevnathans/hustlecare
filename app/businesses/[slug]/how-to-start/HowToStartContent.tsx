@@ -18,6 +18,7 @@ import {
   RenderRichText,
   type RenderReference,
 } from "components/renderRichText";
+import { withArticle } from "@/lib/grammar";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -334,7 +335,7 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
           {image ? (
             <Image
               src={image}
-              alt={`How to start a ${name} business`}
+              alt={`How to start {withArticle(name)} business`}
               fill
               priority
               className="object-cover"
@@ -375,7 +376,7 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
             </nav>
 
             <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight leading-tight mb-4 max-w-3xl">
-              How to Start a {name} Business in Kenya
+              How to Start {withArticle(name)} Business in Kenya
             </h1>
 
             <div className="flex flex-wrap gap-3">
@@ -423,7 +424,7 @@ export default function HowToStartContent({ slug, name, image, guide }: Props) {
                     id="steps-heading"
                     className="text-2xl font-bold text-gray-900 mb-6 px-4 sm:px-0"
                   >
-                    Step-by-Step Guide to Starting a {name} Business in Kenya
+                    Step-by-Step Guide to Starting {withArticle(name)} Business in Kenya
                   </h2>
                   <ol className="space-y-5" role="list">
                     {guide.steps.map((step, i) => (

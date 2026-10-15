@@ -468,7 +468,7 @@ const plans: Plan[] = [
   },
 ];
 
-function PricingCards() {
+function PricingCards({ catalogPlans }: { catalogPlans?: Plan[] | null }) {
   const router = useRouter();
 
   function handleSelectPlan(planId: string) {
@@ -485,7 +485,7 @@ function PricingCards() {
           </h2>
         </div>
         <div className="grid md:grid-cols-3 gap-6 items-stretch">
-          {plans.map(({ id, name, tag, price, items, cta, popular }) => (
+          {(catalogPlans && catalogPlans.length > 0 ? catalogPlans : plans).map(({ id, name, tag, price, items, cta, popular }) => (
             <div
               key={name}
               className={`relative flex flex-col rounded-2xl p-8 border transition-all duration-200 ${
@@ -698,7 +698,7 @@ function CTASection() {
 }
 
 // ── ROOT EXPORT ───────────────────────────────────────────────────────────────
-export default function BusinessPlanWritingClient() {
+export default function BusinessPlanWritingClient({ catalogPlans }: { catalogPlans?: Plan[] | null }) {
   return (
     <main className="font-sans antialiased text-slate-900">
       <HeroSection />
@@ -706,7 +706,7 @@ export default function BusinessPlanWritingClient() {
       <FeaturesGrid />
       <AudienceSection />
       <ProcessSteps />
-      <PricingCards />
+      <PricingCards catalogPlans={catalogPlans} />
       <PlatformIntegrationSection />
       <FAQAccordion />
       <CTASection />
