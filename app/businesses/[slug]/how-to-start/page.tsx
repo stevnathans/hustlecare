@@ -3,24 +3,26 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { withArticle } from '@/lib/grammar';
-import HowToStartContent from './HowToStartContent';
 import { pickWithinLimit, TITLE_MAX } from '@/lib/seo-fit';
+import {
+  marketCountryPhrase,
+  marketHreflang,
+  marketOgLocale,
+  type MarketCode,
+} from '@/lib/markets';
+import HowToStartContent from './HowToStartContent';
 
 interface Props {
   params: Promise<{ slug: string }>;
 }
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
+// This route is Kenya-only (the US how-to guide isn't built yet — see
+// getSubPages in HubPageContent.tsx), so the market is fixed here.
+const market: MarketCode = 'KE';
+const COUNTRY = marketCountryPhrase(market); // "Kenya"
+const HREFLANG = marketHreflang(market);
 
-const defaultTitle = pickWithinLimit(
-  [
-    `How to Start ${a} Business in Kenya (${year}) - Step-by-Step Guide`,
-    `How to Start ${a} Business in Kenya (${year})`,
-    `How to Start ${a} Business in Kenya`,
-  ],
-  TITLE_MAX
-);
-const title = guide.metaTitle || guide.title || defaultTitle; // include guide.title in both places
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
 
 // ── Data Fetching ─────────────────────────────────────────────────────────────
 
@@ -43,6 +45,26 @@ async function fetchGuideData(slug: string) {
   });
 
   return business;
+}
+
+// ── Title ─────────────────────────────────────────────────────────────────────
+// Fallback title used when a guide has no metaTitle/title of its own.
+// Fitted to TITLE_MAX so it isn't truncated in the browser tab or search
+// results — longest wording first, falling back to shorter ones. Defined as
+// a function (not a module-level const) because it depends on the business
+// name; both generateMetadata and the page component call it so the <title>
+// and the JSON-LD headline can never disagree.
+function buildDefaultTitle(name: string): string {
+  const year = new Date().getFullYear();
+  const a = withArticle(name);
+  return pickWithinLimit(
+    [
+      `How to Start ${a} Business in ${COUNTRY} (${year}) - Step-by-Step Guide`,
+      `How to Start ${a} Business in ${COUNTRY} (${year})`,
+      `How to Start ${a} Business in ${COUNTRY}`,
+    ],
+    TITLE_MAX
+  );
 }
 
 // ── HowTo totalTime ───────────────────────────────────────────────────────────
@@ -73,18 +95,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const { name, howToGuide: guide } = business;
-  const year = new Date().getFullYear();
   // "a Barbershop" / "an Event Planning" — see lib/grammar.ts
   const a = withArticle(name);
 
-  const title =
-    guide.metaTitle ||
-    guide.title ||
-    `How to Start ${a} Business in Kenya (${year}) — Step-by-Step Guide | HustleCare`;
+  const title = guide.metaTitle || guide.title || buildDefaultTitle(name);
 
   const description =
     guide.metaDescription ||
-    `A complete ${guide.steps.length}-step guide to starting ${a} business in Kenya. Learn what to do, what to buy, and how to get your first customers.`;
+    `A complete ${guide.steps.length}-step guide to starting ${a} business in ${COUNTRY}. Learn what to do, what to buy, and how to get your first customers.`;
 
   const pageUrl = `${SITE_URL}/businesses/${slug}/how-to-start`;
   const ogImage = guide.imageUrl || business.image || `${SITE_URL}/images/default-business.jpg`;
@@ -96,11 +114,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       guide.keywords.length > 0
         ? guide.keywords.join(', ')
         : [
-            `how to start ${a} business in Kenya`,
+            `how to start ${a} business in ${COUNTRY}`,
             `${name} business guide`,
-            `${name} step by step Kenya`,
-            `start ${a} business Kenya`,
-            `${name} business tips Kenya`,
+            `${name} step by step ${COUNTRY}`,
+            `start ${a} business ${COUNTRY}`,
+            `${name} business tips ${COUNTRY}`,
           ].join(', '),
     authors:   [{ name: 'HustleCare' }],
     creator:   'HustleCare',
@@ -111,7 +129,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       url:      pageUrl,
       siteName: 'HustleCare',
       type:     'article',
-      locale:   'en_KE',
+      locale:   marketOgLocale(market),
       images:   [{ url: ogImage, width: 1200, height: 630, alt: `How to start ${a} business` }],
     },
     twitter: {
@@ -165,15 +183,14 @@ export default async function HowToStartPage({ params }: Props) {
   const pageUrl  = `${SITE_URL}/businesses/${slug}/how-to-start`;
   const hubUrl   = `${SITE_URL}/businesses/${slug}`;
   const ogImage  = business.image || `${SITE_URL}/images/default-business.jpg`;
-  const year     = new Date().getFullYear();
 
-  const title =
-    guide.metaTitle ||
-    `How to Start ${a} Business in Kenya (${year}) — Step-by-Step Guide | HustleCare`;
+  // Same resolution order as generateMetadata, so the JSON-LD headline
+  // always matches the <title>.
+  const title = guide.metaTitle || guide.title || buildDefaultTitle(name);
 
   const description =
     guide.metaDescription ||
-    `A complete ${guide.steps.length}-step guide to starting ${a} business in Kenya.`;
+    `A complete ${guide.steps.length}-step guide to starting ${a} business in ${COUNTRY}.`;
 
   const totalTime = computeTotalTime(business.timeToLaunchMin, business.timeToLaunchMax);
 
@@ -250,7 +267,7 @@ export default async function HowToStartPage({ params }: Props) {
         dateModified:  business.updatedAt.toISOString(),
         mainEntityOfPage: { '@type': 'WebPage', '@id': pageUrl },
         breadcrumb:       { '@id': `${pageUrl}#breadcrumb` },
-        inLanguage: 'en-KE',
+        inLanguage: HREFLANG,
         keywords: (guide.keywords.length > 0 ? guide.keywords : [`how to start ${a} business`]).join(', '),
       },
 
@@ -264,7 +281,7 @@ export default async function HowToStartPage({ params }: Props) {
         ? [{
             '@type':       'HowTo',
             '@id':         `${pageUrl}#howto`,
-            name:          `How to Start ${a} Business in Kenya`,
+            name:          `How to Start ${a} Business in ${COUNTRY}`,
             description:   guide.intro || description,
             image: {
               '@type': 'ImageObject',
@@ -272,7 +289,7 @@ export default async function HowToStartPage({ params }: Props) {
               width:  1200,
               height: 630,
             },
-            inLanguage:  'en-KE',
+            inLanguage:  HREFLANG,
             totalTime,
             supply: [],          // physical supplies — left empty; requirements page covers this
             tool:   [],
