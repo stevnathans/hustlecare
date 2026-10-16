@@ -33,7 +33,7 @@ export async function GET(request: Request) {
         packages: { orderBy: { displayOrder: 'asc' } },
       },
       orderBy: { createdAt: 'desc' },
-      take: 200,
+      
     });
 
     return NextResponse.json(products);
