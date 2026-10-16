@@ -7,11 +7,30 @@ import type { CategoryLinkInfo } from '@/components/DetailsPage/RequirementsSect
 import { isExcludedFromTotals } from '@/lib/necessity';
 import type { Business as BusinessData, Requirement as RequirementData } from 'hooks/useBusinessData';
 import { selectTemplateDescription } from '@/lib/requirement-description';
-import { type MarketCode } from '@/lib/markets';
+import {
+  marketBasePath,
+  marketCountryPhrase,
+  marketCountrySameAs,
+  marketHreflang,
+  marketLabel,
+  marketOgLocale,
+  type MarketCode,
+} from '@/lib/markets';
 import { withArticle } from '@/lib/grammar';
+import { pickWithinLimit, TITLE_MAX } from '@/lib/seo-fit';
 
 export const revalidate = 300; // regenerate at most every 5 minutes
+
+// The ONLY market-specific line in this file. Every URL, locale and piece
+// of copy below derives from it (see lib/markets.ts).
 const market: MarketCode = 'KE';
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
+// Kenya: https://hustlecare.net — US: https://hustlecare.net/us
+const BASE_PATH = marketBasePath(market);
+const SITE_BASE = `${SITE_URL}${BASE_PATH}`;
+const COUNTRY = marketCountryPhrase(market); // "Kenya" / "the US"
+const HREFLANG = marketHreflang(market);
 
 // Stage 4.5 — a category only gets its own checklist sub-page
 // (/businesses/{slug}/requirements/{category-slug}) once the business has
@@ -69,24 +88,35 @@ function splitCoreAndStock<T extends {
 }
 
 // ── Title Builder ─────────────────────────────────────────────────────────────
-// "Kenya" is now explicit in the title. Previously this page's own title
-// omitted it while the hub and how-to-start pages both included it, which
-// made those pages a stronger literal match for searches like
-// "requirements to start a barbershop business in Kenya."
+// The country is explicit and market-aware ("in Kenya" / "in the US"), and
+// the title is fitted to TITLE_MAX so it isn't truncated in the browser tab
+// or search results — longest wording first, falling back to shorter ones.
 //
 // requirementCount here must be the CORE (non-Stock) count — see
 // splitCoreAndStock above.
 //
-// withArticle() picks "a"/"an" from the business name ("an Event Planning
-// Business", not "a Event Planning Business") — see lib/grammar.ts.
+// withArticle() picks "a"/"an" from the business name — see lib/grammar.ts.
 
 function buildTitle(businessName: string, requirementCount: number): string {
   const year = new Date().getFullYear();
   const a = withArticle(businessName);
   if (requirementCount > 0) {
-    return `${requirementCount} Requirements To Start ${a} Business in Kenya (${year} Costs & Checklist)`;
+    return pickWithinLimit(
+      [
+        `${requirementCount} Requirements To Start ${a} Business in ${COUNTRY} (${year} Costs & Checklist)`,
+        `${requirementCount} Requirements to Start ${a} Business in ${COUNTRY} (${year})`,
+        `${requirementCount} Requirements to Start ${a} Business in ${COUNTRY}`,
+      ],
+      TITLE_MAX
+    );
   }
-  return `${businessName} Business Requirements in Kenya - Complete Checklist & Costs`;
+  return pickWithinLimit(
+    [
+      `${businessName} Business Requirements in ${COUNTRY} - Complete Checklist & Costs`,
+      `${businessName} Business Requirements in ${COUNTRY}`,
+    ],
+    TITLE_MAX
+  );
 }
 
 // ── FAQ Builder ────────────────────────────────────────────────────────────────
@@ -109,8 +139,8 @@ function buildRequirementsFaqs(
 
   if (totalRequirements > 0) {
     faqs.push({
-      question: `What do I need to start ${a} business in Kenya?`,
-      answer: `To start ${a} business in Kenya, you need ${totalRequirements} requirements in total${
+      question: `What do I need to start ${a} business in ${COUNTRY}?`,
+      answer: `To start ${a} business in ${COUNTRY}, you need ${totalRequirements} requirements in total${
         categories.length > 0 ? `, covering categories such as ${categories.join(', ')}` : ''
       }. Use the checklist on this page to see every item and add them to the cost calculator to estimate your total investment.`,
     });
@@ -134,7 +164,7 @@ function buildRequirementsFaqs(
 
 export async function generateMetadata({ params }: BusinessPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const business = await fetchBusinessWithRequirements(slug);
+  const business = await fetchBusinessWithRequirements(slug, market);
 
   if (!business) {
     return {
@@ -151,30 +181,32 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
   const title = buildTitle(business.name, requirementCount);
   const description =
     business.description ||
-    `Explore all ${requirementCount} requirements to start ${a} business in Kenya. Use our cost calculator to estimate your total investment and get a complete launch plan.`;
+    `Explore all ${requirementCount} requirements to start ${a} business in ${COUNTRY}. Use our cost calculator to estimate your total investment and get a complete launch plan.`;
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
-  const pageUrl = `${siteUrl}/businesses/${slug}/requirements`;
-  const ogImage = business.image || `${siteUrl}/images/default-business.jpg`;
+  const pageUrl = `${SITE_BASE}/businesses/${slug}/requirements`;
+  const ogImage = business.image || `${SITE_URL}/images/default-business.jpg`;
 
-  // Only advertise a US alternate if this business actually has a live US
-  // requirements page — see isUSMarketEligible() in lib/business-data.ts.
-  const usEligible = await isUSMarketEligible(business.id);
+  // Cross-market alternate. Kenya pages exist for every business, so a US
+  // page always advertises its Kenya twin; a Kenya page only advertises a
+  // US twin if that business actually has a live US requirements page —
+  // see isUSMarketEligible() in lib/business-data.ts.
+  const otherMarket: MarketCode = market === 'KE' ? 'US' : 'KE';
+  const otherMarketLive = market === 'KE' ? await isUSMarketEligible(business.id) : true;
 
   return {
     title,
     description,
     keywords: [
       `how to start ${a} business`,
-      `how to start ${a} business in Kenya`,
+      `how to start ${a} business in ${COUNTRY}`,
       `${business.name} business requirements`,
       `${business.name} business equipment list`,
-      `${business.name} startup cost in Kenya`,
+      `${business.name} startup cost in ${COUNTRY}`,
       `${business.name} cost calculator`,
       `${business.name} business plan`,
       `equipment list to start ${a} business`,
-      `legal requirements to start ${a} business in Kenya`,
-      'business planning Kenya',
+      `legal requirements to start ${a} business in ${COUNTRY}`,
+      `business planning in ${COUNTRY}`,
       'investment calculator',
       'business requirements checklist',
     ].join(', '),
@@ -189,7 +221,7 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
       url: pageUrl,
       siteName: 'HustleCare',
       type: 'article',
-      locale: 'en_KE',
+      locale: marketOgLocale(market),
       images: [
         {
           url: ogImage,
@@ -224,8 +256,12 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
     alternates: {
       canonical: pageUrl,
       languages: {
-        'en-KE': pageUrl,
-        ...(usEligible ? { 'en-US': `${siteUrl}/us/businesses/${slug}/requirements` } : {}),
+        [HREFLANG]: pageUrl,
+        ...(otherMarketLive
+          ? {
+              [marketHreflang(otherMarket)]: `${SITE_URL}${marketBasePath(otherMarket)}/businesses/${slug}/requirements`,
+            }
+          : {}),
       },
     },
 
@@ -239,6 +275,10 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
 }
 
 // ── Static Params ─────────────────────────────────────────────────────────────
+// NOTE: for a non-Kenya market this should only return businesses that have
+// live requirements in that market (see isUSMarketEligible in
+// lib/business-data.ts) — otherwise it renders indexable near-duplicates of
+// the Kenya page. Keep that filter in the US route's own copy.
 
 export async function generateStaticParams() {
   try {
@@ -255,7 +295,7 @@ export async function generateStaticParams() {
 
 export default async function BusinessPage({ params }: BusinessPageProps) {
   const { slug } = await params;
-  const business = await fetchBusinessWithRequirements(slug);
+  const business = await fetchBusinessWithRequirements(slug, market);
 
   if (!business) {
     notFound();
@@ -273,14 +313,13 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   const { core: coreRequirements, stock: stockRequirements } = splitCoreAndStock(requirements);
   const requirementCount = coreRequirements.length;
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
-  const pageUrl = `${siteUrl}/businesses/${slug}/requirements`;
-  const hubUrl = `${siteUrl}/businesses/${slug}`;
-  const ogImage = business.image || `${siteUrl}/images/default-business.jpg`;
+  const pageUrl = `${SITE_BASE}/businesses/${slug}/requirements`;
+  const hubUrl = `${SITE_BASE}/businesses/${slug}`;
+  const ogImage = business.image || `${SITE_URL}/images/default-business.jpg`;
   const title = buildTitle(business.name, requirementCount);
   const description =
     business.description ||
-    `Complete guide to starting ${a} business in Kenya with ${requirementCount} requirements and cost calculator.`;
+    `Complete guide to starting ${a} business in ${COUNTRY} with ${requirementCount} requirements and cost calculator.`;
 
   // ── Requirement counts (for FAQs and general use) ───────────────────────
   const requiredCount = coreRequirements.filter(
@@ -302,7 +341,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   for (const [categoryName, group] of Object.entries(categoryGroups)) {
     if (group.slug && group.items.length >= CATEGORY_PAGE_THRESHOLD) {
       categoryLinks[categoryName] = {
-        href: `/businesses/${slug}/requirements/${group.slug}`,
+        href: `${BASE_PATH}/businesses/${slug}/requirements/${group.slug}`,
         count: group.items.length,
       };
     }
@@ -398,8 +437,8 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
         '@type': 'BreadcrumbList',
         '@id': `${pageUrl}#breadcrumb`,
         itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
-          { '@type': 'ListItem', position: 2, name: 'Businesses', item: `${siteUrl}/businesses` },
+          { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
+          { '@type': 'ListItem', position: 2, name: 'Businesses', item: `${SITE_BASE}/businesses` },
           { '@type': 'ListItem', position: 3, name: business.name, item: hubUrl },
           { '@type': 'ListItem', position: 4, name: 'Requirements', item: pageUrl },
         ],
@@ -421,15 +460,15 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
         author: {
           '@type': 'Organization',
           name: 'HustleCare',
-          url: siteUrl,
+          url: SITE_URL,
         },
         publisher: {
           '@type': 'Organization',
           name: 'HustleCare',
-          url: siteUrl,
+          url: SITE_URL,
           logo: {
             '@type': 'ImageObject',
-            url: `${siteUrl}/images/logo.png`,
+            url: `${SITE_URL}/images/logo.png`,
           },
         },
         datePublished: business.createdAt.toISOString(),
@@ -439,7 +478,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
           '@id': pageUrl,
         },
         breadcrumb: { '@id': `${pageUrl}#breadcrumb` },
-        inLanguage: 'en-KE',
+        inLanguage: HREFLANG,
         about: {
           '@type': 'Thing',
           name: `${business.name} Business`,
@@ -447,7 +486,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
         keywords: [
           `how to start ${a} business`,
           `${business.name} business requirements`,
-          `${business.name} startup cost Kenya`,
+          `${business.name} startup cost in ${COUNTRY}`,
         ].join(', '),
       },
 
@@ -456,16 +495,16 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
         '@type': 'Service',
         '@id': `${pageUrl}#service`,
         name: `${business.name} Business Startup Guide`,
-        description: `Complete guide to starting ${a} business in Kenya with detailed requirements and cost estimates.`,
+        description: `Complete guide to starting ${a} business in ${COUNTRY} with detailed requirements and cost estimates.`,
         provider: {
           '@type': 'Organization',
           name: 'HustleCare',
-          url: siteUrl,
+          url: SITE_URL,
         },
         areaServed: {
           '@type': 'Country',
-          name: 'Kenya',
-          sameAs: 'https://en.wikipedia.org/wiki/Kenya',
+          name: marketLabel(market),
+          sameAs: marketCountrySameAs(market),
         },
         url: pageUrl,
       },
@@ -477,8 +516,8 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
             {
               '@type': 'ItemList',
               '@id': `${pageUrl}#requirements`,
-              name: `Complete Requirements for Starting ${a} Business In Kenya`,
-              description: `All ${requirementCount} requirements needed to start ${a} business in Kenya, covering essential and optional items.`,
+              name: `Complete Requirements for Starting ${a} Business in ${COUNTRY}`,
+              description: `All ${requirementCount} requirements needed to start ${a} business in ${COUNTRY}, covering essential and optional items.`,
               numberOfItems: requirementCount,
               itemListElement: requirementListItems,
             },
@@ -517,7 +556,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
               name: `Popular Products You Can Sell in ${a} Business`,
               description: `${stockRequirements.length} product${
                 stockRequirements.length === 1 ? '' : 's'
-              } commonly stocked by ${business.name} businesses in Kenya. These are inventory suggestions, not startup requirements.`,
+              } commonly stocked by ${business.name} businesses in ${COUNTRY}. These are inventory suggestions, not startup requirements.`,
               numberOfItems: stockRequirements.length,
               itemListElement: stockListItems,
             },
@@ -595,6 +634,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
         initialRequirements={initialRequirements}
         faqs={requirementFaqs}
         categoryLinks={categoryLinks}
+        market={market}
       />
     </>
   );

@@ -1,15 +1,19 @@
 // app/us/businesses/[slug]/requirements/[category]/page.tsx
+import { cache } from 'react';
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { fetchBusinessWithRequirements } from '@/lib/business-data';
 import { selectTemplateDescription } from '@/lib/requirement-description';
 import { isExcludedFromTotals } from '@/lib/necessity';
+import { getCategorySeo } from '@/lib/category-seo';
 import type { Business as BusinessData, Requirement as RequirementData } from 'hooks/useBusinessData';
 import CategoryChecklistContent from '@/components/DetailsPage/CategoryChecklistContent';
-import { type MarketCode } from '@/lib/markets';
+import { marketBasePath, marketHreflang, marketOgLocale, type MarketCode } from '@/lib/markets';
 
 export const revalidate = 300; // regenerate at most every 5 minutes
+
+// The ONLY market-specific line in this file (see lib/markets.ts).
 const market: MarketCode = 'US';
 
 // Must stay in sync with the Kenya [category] route and both requirements
@@ -21,22 +25,29 @@ interface Props {
 }
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
+// US: https://hustlecare.net/us
+const SITE_BASE = `${SITE_URL}${marketBasePath(market)}`;
+const HREFLANG = marketHreflang(market);
 
-async function getEligibleCategoryForBusiness(businessSlug: string, categorySlug: string) {
-  const business = await fetchBusinessWithRequirements(businessSlug, market);
-  if (!business) return null;
+// Wrapped in React cache() so generateMetadata and the page component
+// share one fetch per request/render.
+const getEligibleCategoryForBusiness = cache(
+  async (businessSlug: string, categorySlug: string) => {
+    const business = await fetchBusinessWithRequirements(businessSlug, market);
+    if (!business) return null;
 
-  const categoryRequirements = (business.requirements ?? []).filter(
-    (r) => r.template.categoryRef?.slug === categorySlug
-  );
+    const categoryRequirements = (business.requirements ?? []).filter(
+      (r) => r.template.categoryRef?.slug === categorySlug
+    );
 
-  if (categoryRequirements.length < CATEGORY_PAGE_THRESHOLD) return null;
+    if (categoryRequirements.length < CATEGORY_PAGE_THRESHOLD) return null;
 
-  const categoryName = categoryRequirements[0]?.template.category ?? null;
-  if (!categoryName) return null;
+    const categoryName = categoryRequirements[0]?.template.category ?? null;
+    if (!categoryName) return null;
 
-  return { business, categoryRequirements, categoryName };
-}
+    return { business, categoryRequirements, categoryName };
+  }
+);
 
 // ── SEO Metadata ──────────────────────────────────────────────────────────────
 
@@ -52,22 +63,36 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const { business, categoryRequirements, categoryName } = result;
-  const count = categoryRequirements.length;
-  const year = new Date().getFullYear();
 
-  const title = `${count} ${categoryName} Requirements for a ${business.name} Business in the US (${year})`;
-  const description = `Every ${categoryName.toLowerCase()} requirement for a ${business.name} business in the US, with costs and options — part of the full ${business.name} requirements checklist.`;
-  const pageUrl = `${SITE_URL}/us/businesses/${slug}/requirements/${category}`;
+  // Category-specific, market-aware title/description — see lib/category-seo.ts
+  const { title, description } = getCategorySeo({
+    businessName: business.name,
+    categoryName,
+    count: categoryRequirements.length,
+    year: new Date().getFullYear(),
+    market,
+  });
+
+  const pageUrl = `${SITE_BASE}/businesses/${slug}/requirements/${category}`;
   const ogImage = business.image || `${SITE_URL}/images/default-business.jpg`;
 
   return {
     title,
     description,
-    alternates: { canonical: pageUrl },
+    alternates: {
+      canonical: pageUrl,
+      languages: { [HREFLANG]: pageUrl },
+    },
     robots: {
       index: true,
       follow: true,
-      googleBot: { index: true, follow: true, 'max-snippet': -1 },
+      googleBot: {
+        index: true,
+        follow: true,
+        'max-video-preview': -1,
+        'max-image-preview': 'large',
+        'max-snippet': -1,
+      },
     },
     openGraph: {
       title,
@@ -75,8 +100,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       url: pageUrl,
       siteName: 'HustleCare',
       type: 'article',
-      locale: 'en_US',
-      images: [{ url: ogImage, width: 1200, height: 630, alt: `${categoryName} requirements for a ${business.name} business` }],
+      locale: marketOgLocale(market),
+      publishedTime: business.createdAt.toISOString(),
+      modifiedTime: business.updatedAt.toISOString(),
+      images: [{ url: ogImage, width: 1200, height: 630, alt: `${categoryName} requirements for ${business.name}` }],
     },
     twitter: {
       card: 'summary_large_image',
@@ -148,7 +175,7 @@ export default async function USCategoryChecklistPage({ params }: Props) {
 
   if (!result) notFound();
 
-  const { business, categoryName } = result;
+  const { business, categoryRequirements, categoryName } = result;
 
   const effectiveTradeClassId = business.tradeClassId ?? business.category?.defaultTradeClassId ?? null;
 
@@ -189,9 +216,21 @@ export default async function USCategoryChecklistPage({ params }: Props) {
       req.template.categoryRef?.usesLegalCountyFilter ?? (req.template.category === 'Legal'),
   }));
 
-  const pageUrl = `${SITE_URL}/us/businesses/${slug}/requirements/${category}`;
-  const hubUrl = `${SITE_URL}/us/businesses/${slug}`;
+  const pageUrl = `${SITE_BASE}/businesses/${slug}/requirements/${category}`;
+  const hubUrl = `${SITE_BASE}/businesses/${slug}`;
   const requirementsUrl = `${hubUrl}/requirements`;
+
+  const seo = getCategorySeo({
+    businessName: business.name,
+    categoryName,
+    count: categoryRequirements.length,
+    year: new Date().getFullYear(),
+    market,
+  });
+
+  // This category's items only, for the ItemList node ("Thing", not
+  // "Product" — same reasoning as the requirements page).
+  const categoryItems = initialRequirements.filter((r) => r.category === categoryName);
 
   const structuredData = {
     '@context': 'https://schema.org',
@@ -200,12 +239,47 @@ export default async function USCategoryChecklistPage({ params }: Props) {
         '@type': 'BreadcrumbList',
         '@id': `${pageUrl}#breadcrumb`,
         itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE_URL}/us` },
-          { '@type': 'ListItem', position: 2, name: 'Businesses', item: `${SITE_URL}/us/businesses` },
+          { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_BASE },
+          { '@type': 'ListItem', position: 2, name: 'Businesses', item: `${SITE_BASE}/businesses` },
           { '@type': 'ListItem', position: 3, name: business.name, item: hubUrl },
           { '@type': 'ListItem', position: 4, name: 'Requirements', item: requirementsUrl },
           { '@type': 'ListItem', position: 5, name: categoryName, item: pageUrl },
         ],
+      },
+      {
+        '@type': 'CollectionPage',
+        '@id': `${pageUrl}#webpage`,
+        url: pageUrl,
+        name: seo.title,
+        description: seo.description,
+        inLanguage: HREFLANG,
+        isPartOf: { '@type': 'WebPage', '@id': requirementsUrl, url: requirementsUrl },
+        breadcrumb: { '@id': `${pageUrl}#breadcrumb` },
+        mainEntity: { '@id': `${pageUrl}#items` },
+        dateModified: business.updatedAt.toISOString(),
+        publisher: { '@type': 'Organization', name: 'HustleCare', url: SITE_URL },
+      },
+      {
+        '@type': 'ItemList',
+        '@id': `${pageUrl}#items`,
+        name: seo.h1,
+        numberOfItems: categoryItems.length,
+        itemListElement: categoryItems.map((item, i) => ({
+          '@type': 'ListItem',
+          position: i + 1,
+          item: {
+            '@type': 'Thing',
+            name: item.name,
+            ...(item.description ? { description: item.description } : {}),
+            additionalProperty: [
+              {
+                '@type': 'PropertyValue',
+                name: item.excludedFromTotals ? 'demand' : 'necessity',
+                value: item.necessity,
+              },
+            ],
+          },
+        })),
       },
     ],
   };
@@ -221,7 +295,7 @@ export default async function USCategoryChecklistPage({ params }: Props) {
         categoryName={categoryName}
         initialBusiness={initialBusiness}
         initialRequirements={initialRequirements}
-        market="US"
+        market={market}
       />
     </>
   );

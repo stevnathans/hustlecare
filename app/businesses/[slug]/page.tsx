@@ -8,10 +8,20 @@ import RelatedBusinesses from './RelatedBusinesses';
 import { isExcludedFromTotals } from '@/lib/necessity';
 import { formatCurrency } from '@/lib/currency';
 import { prisma } from '@/lib/prisma';
-import { type MarketCode } from '@/lib/markets';
+import {
+  marketBasePath,
+  marketCountryPhrase,
+  marketHreflang,
+  marketOgLocale,
+  type MarketCode,
+} from '@/lib/markets';
+import { withArticle } from '@/lib/grammar';
+import { pickWithinLimit, TITLE_MAX } from '@/lib/seo-fit';
 
 export const revalidate = 300; // regenerate at most every 5 minutes
 
+// The ONLY market-specific line in this file. Every URL, locale and piece
+// of copy below derives from it (see lib/markets.ts).
 const market: MarketCode = 'KE';
 
 interface Props {
@@ -19,6 +29,10 @@ interface Props {
 }
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
+// Kenya: https://hustlecare.net — US: https://hustlecare.net/us
+const SITE_BASE = `${SITE_URL}${marketBasePath(market)}`;
+const COUNTRY = marketCountryPhrase(market); // "Kenya" / "the US"
+const HREFLANG = marketHreflang(market);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -59,6 +73,18 @@ function isRequirementExcludedFromTotals(template: {
   return template.categoryRef?.excludedFromTotals ?? isExcludedFromTotals(template.category ?? '');
 }
 
+/** Browser-tab / search title, fitted to TITLE_MAX (longest wording first). */
+function buildHubTitle(name: string, year: number): string {
+  return pickWithinLimit(
+    [
+      `${name} Business in ${COUNTRY}: Costs & Requirements (${year})`,
+      `${name} Business in ${COUNTRY} (${year})`,
+      `${name} Business in ${COUNTRY}`,
+    ],
+    TITLE_MAX
+  );
+}
+
 /** Build auto-generated FAQs from business data. */
 function buildAutoFaqs(
   name: string,
@@ -72,6 +98,11 @@ function buildAutoFaqs(
 ): AutoFaq[] {
   const faqs: AutoFaq[] = [];
 
+  // "a Barbershop" / "an Event Planning" — see lib/grammar.ts. `A` is the
+  // sentence-initial form ("An Event Planning business has...").
+  const a = withArticle(name);
+  const A = a.charAt(0).toUpperCase() + a.slice(1);
+
   // Only answer the cost question from genuinely computed data. When
   // `source` is EDITORIAL there's nothing priced behind the figure, and a
   // hand-entered band dressed up as a data-derived answer in an FAQ rich
@@ -81,8 +112,8 @@ function buildAutoFaqs(
     const { requirementsWithPricing, totalRequirements } = cost.coverage;
 
     faqs.push({
-      question: `How much does it cost to start a ${name} business in Kenya?`,
-      answer: `Starting a ${name} business in Kenya costs between ${money(cost.oneTime.low)} and ${money(cost.oneTime.high)} depending on your scale and location, with a typical setup around ${money(cost.oneTime.typical)}. This is based on ${requirementsWithPricing} out of ${totalRequirements} essential requirements that currently have real supplier prices.${
+      question: `How much does it cost to start ${a} business in ${COUNTRY}?`,
+      answer: `Starting ${a} business in ${COUNTRY} costs between ${money(cost.oneTime.low)} and ${money(cost.oneTime.high)} depending on your scale and location, with a typical setup around ${money(cost.oneTime.typical)}. This is based on ${requirementsWithPricing} out of ${totalRequirements} essential requirements that currently have real supplier prices.${
         requirementsWithPricing < totalRequirements
           ? ' The actual cost may be higher, as some requirements are still being priced.'
           : ''
@@ -92,30 +123,30 @@ function buildAutoFaqs(
 
   if (timeMin && timeMax) {
     faqs.push({
-      question: `How long does it take to launch a ${name} business in Kenya?`,
+      question: `How long does it take to launch ${a} business in ${COUNTRY}?`,
       answer: `You can expect to launch your ${name} business within ${formatDays(timeMin)} to ${formatDays(timeMax)}. This includes registration, sourcing requirements, and getting your first customers.`,
     });
   }
 
   if (requirementCount > 0) {
     faqs.push({
-      question: `What are the requirements to start a ${name} business in Kenya?`,
-      answer: `A ${name} business in Kenya has ${requirementCount} requirements covering documents, equipment, licences, and operational needs. Some are mandatory while others are optional depending on your business scale.`,
+      question: `What are the requirements to start ${a} business in ${COUNTRY}?`,
+      answer: `${A} business in ${COUNTRY} has ${requirementCount} requirements covering documents, equipment, licences, and operational needs. Some are mandatory while others are optional depending on your business scale.`,
     });
   }
 
   if (profitPotential) {
     const label = profitPotential.replace(/_/g, ' ');
     faqs.push({
-      question: `Is a ${name} business profitable in Kenya?`,
-      answer: `A ${name} business has ${label} profit potential in Kenya. Profitability depends on your location, scale of operation, and how well you manage costs and customer acquisition.`,
+      question: `Is ${a} business profitable in ${COUNTRY}?`,
+      answer: `${A} business has ${label} profit potential in ${COUNTRY}. Profitability depends on your location, scale of operation, and how well you manage costs and customer acquisition.`,
     });
   }
 
   if (skillLevel) {
     faqs.push({
-      question: `Do I need special skills to start a ${name} business?`,
-      answer: `The skill level required for a ${name} business is ${skillLevel}. ${
+      question: `Do I need special skills to start ${a} business?`,
+      answer: `The skill level required for ${a} business is ${skillLevel}. ${
         skillLevel === 'low'
           ? 'Most people can start with basic training and learn on the job.'
           : skillLevel === 'moderate'
@@ -128,8 +159,8 @@ function buildAutoFaqs(
   if (bestLocations.length > 0) {
     const locationList = bestLocations.join(', ');
     faqs.push({
-      question: `Where is the best place to start a ${name} business in Kenya?`,
-      answer: `The best locations for a ${name} business in Kenya include ${locationList}. These areas offer strong customer demand, good infrastructure, or proximity to key suppliers.`,
+      question: `Where is the best place to start ${a} business in ${COUNTRY}?`,
+      answer: `The best locations for ${a} business in ${COUNTRY} include ${locationList}. These areas offer strong customer demand, good infrastructure, or proximity to key suppliers.`,
     });
   }
 
@@ -156,26 +187,30 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const year = new Date().getFullYear();
   const name = business.name;
-  const title = `${name} Business in Kenya [${year}] - Everything You Need to Know | HustleCare`;
+  const a = withArticle(name);
+  const title = buildHubTitle(name, year);
   const description =
     business.description ||
-    `Complete guide to starting a ${name} business in Kenya. Explore requirements, startup costs, licences, and everything you need to launch.`;
+    `Complete guide to starting ${a} business in ${COUNTRY}. Explore requirements, startup costs, ${market === 'KE' ? 'licences' : 'licenses'}, and everything you need to launch.`;
 
-  const pageUrl = `${SITE_URL}/businesses/${slug}`;
+  const pageUrl = `${SITE_BASE}/businesses/${slug}`;
   const ogImage = business.image || `${SITE_URL}/images/default-business.jpg`;
 
-  // Only advertise a US alternate if this business actually has a live US
-  // page — see isUSMarketEligible() in lib/business-data.ts.
-  const usEligible = await isUSMarketEligible(business.id);
+  // Cross-market alternate. Kenya pages exist for every business, so a US
+  // page always advertises its Kenya twin; a Kenya page only advertises a
+  // US twin if that business actually has a live US page — see
+  // isUSMarketEligible() in lib/business-data.ts.
+  const otherMarket: MarketCode = market === 'KE' ? 'US' : 'KE';
+  const otherMarketLive = market === 'KE' ? await isUSMarketEligible(business.id) : true;
 
   return {
     title,
     description,
     keywords: [
-      `how to start a ${name} business in Kenya`,
-      `${name} business guide Kenya`,
-      `${name} business requirements Kenya`,
-      `${name} startup cost Kenya`,
+      `how to start ${a} business in ${COUNTRY}`,
+      `${name} business guide ${COUNTRY}`,
+      `${name} business requirements ${COUNTRY}`,
+      `${name} startup cost ${COUNTRY}`,
       `start ${name} business`,
     ].join(', '),
     authors: [{ name: 'HustleCare' }],
@@ -185,8 +220,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       url: pageUrl,
       siteName: 'HustleCare',
       type: 'article',
-      locale: 'en_KE',
-      images: [{ url: ogImage, width: 1200, height: 630, alt: `Start a ${name} business in Kenya` }],
+      locale: marketOgLocale(market),
+      images: [{ url: ogImage, width: 1200, height: 630, alt: `Start ${a} business in ${COUNTRY}` }],
     },
     twitter: {
       card: 'summary_large_image',
@@ -204,8 +239,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     alternates: {
       canonical: pageUrl,
       languages: {
-        'en-KE': pageUrl,
-        ...(usEligible ? { 'en-US': `${SITE_URL}/us/businesses/${slug}` } : {}),
+        [HREFLANG]: pageUrl,
+        ...(otherMarketLive
+          ? { [marketHreflang(otherMarket)]: `${SITE_URL}${marketBasePath(otherMarket)}/businesses/${slug}` }
+          : {}),
       },
     },
     verification: { google: process.env.GOOGLE_SITE_VERIFICATION },
@@ -213,6 +250,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 // ── Static Params ─────────────────────────────────────────────────────────────
+// NOTE: for a non-Kenya market this should only return businesses with live
+// requirements in that market (see isUSMarketEligible) — keep that filter
+// in the US route's own copy.
 
 export async function generateStaticParams() {
   try {
@@ -242,7 +282,11 @@ export default async function BusinessHubPage({ params }: Props) {
 
   const year = new Date().getFullYear();
   const name = business.name;
-  const pageUrl = `${SITE_URL}/businesses/${slug}`;
+  const a = withArticle(name);
+  const pageUrl = `${SITE_BASE}/businesses/${slug}`;
+
+  // Real timestamps from the Business row — never "now", which would change
+  // on every ISR regeneration and falsely signal the page was modified.
   const datePublished = business.createdAt.toISOString();
   const dateModified = business.updatedAt.toISOString();
 
@@ -256,10 +300,10 @@ export default async function BusinessHubPage({ params }: Props) {
   );
 
   const requirementCount = coreRequirements.length;
-  const title = `${name} Business in Kenya [${year}] - Everything You Need to Know | HustleCare`;
+  const title = buildHubTitle(name, year);
   const description =
     business.description ||
-    `Complete guide to starting a ${name} business in Kenya with ${requirementCount} requirements and cost estimates.`;
+    `Complete guide to starting ${a} business in ${COUNTRY} with ${requirementCount} requirements and cost estimates.`;
 
   // ── Requirement grouping ──────────────────────────────────────────────────
   const grouped = coreRequirements.reduce<Record<string, typeof coreRequirements>>(
@@ -315,7 +359,7 @@ export default async function BusinessHubPage({ params }: Props) {
   // doesn't.
   const breadcrumbItems: Array<{ '@type': string; position: number; name: string; item: string }> = [
     { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
-    { '@type': 'ListItem', position: 2, name: 'Businesses', item: `${SITE_URL}/businesses` },
+    { '@type': 'ListItem', position: 2, name: 'Businesses', item: `${SITE_BASE}/businesses` },
   ];
   let breadcrumbPosition = 3;
   if (business.category) {
@@ -323,13 +367,13 @@ export default async function BusinessHubPage({ params }: Props) {
       '@type': 'ListItem',
       position: breadcrumbPosition++,
       name: 'Categories',
-      item: `${SITE_URL}/businesses/categories`,
+      item: `${SITE_BASE}/businesses/categories`,
     });
     breadcrumbItems.push({
       '@type': 'ListItem',
       position: breadcrumbPosition++,
       name: business.category.name,
-      item: `${SITE_URL}/businesses/categories/${categorySlug(business.category.name)}`,
+      item: `${SITE_BASE}/businesses/categories/${categorySlug(business.category.name)}`,
     });
   }
   breadcrumbItems.push({
@@ -370,7 +414,7 @@ export default async function BusinessHubPage({ params }: Props) {
         dateModified,
         mainEntityOfPage: { '@type': 'WebPage', '@id': pageUrl },
         breadcrumb: { '@id': `${pageUrl}#breadcrumb` },
-        inLanguage: 'en-KE',
+        inLanguage: HREFLANG,
       },
       // FAQPage schema — only emit when we have FAQs
       ...(finalFaqs.length > 0
@@ -415,6 +459,7 @@ export default async function BusinessHubPage({ params }: Props) {
         skillLevel={business.skillLevel}
         bestLocations={business.bestLocations}
         faqs={finalFaqs}
+        market={market}
       />
 
       {business.category && (

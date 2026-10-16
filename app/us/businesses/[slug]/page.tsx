@@ -6,12 +6,32 @@ import { prisma } from '@/lib/prisma';
 import HubPageContent from '../../../businesses/[slug]/HubPageContent';
 import RelatedBusinesses from '../../../businesses/[slug]/RelatedBusinesses';
 import { isExcludedFromTotals } from '@/lib/necessity';
+import {
+  marketBasePath,
+  marketCountryPhrase,
+  marketHreflang,
+  marketOgLocale,
+  type MarketCode,
+} from '@/lib/markets';
+import { withArticle } from '@/lib/grammar';
+import { pickWithinLimit, TITLE_MAX } from '@/lib/seo-fit';
+
+// Without this the page is prerendered once and stays static until the next
+// deploy; the Kenya hub already revalidates on the same interval.
+export const revalidate = 300; // regenerate at most every 5 minutes
+
+// The ONLY market-specific line in this file (see lib/markets.ts).
+const market: MarketCode = 'US';
 
 interface Props {
   params: Promise<{ slug: string }>;
 }
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
+// US: https://hustlecare.net/us
+const SITE_BASE = `${SITE_URL}${marketBasePath(market)}`;
+const COUNTRY = marketCountryPhrase(market); // "the US"
+const HREFLANG = marketHreflang(market);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -55,6 +75,18 @@ function isRequirementExcludedFromTotals(template: {
   return template.categoryRef?.excludedFromTotals ?? isExcludedFromTotals(template.category ?? '');
 }
 
+/** Browser-tab / search title, fitted to TITLE_MAX (longest wording first). */
+function buildHubTitle(name: string, year: number): string {
+  return pickWithinLimit(
+    [
+      `${name} Business in ${COUNTRY}: Costs & Requirements (${year})`,
+      `${name} Business in ${COUNTRY} (${year})`,
+      `${name} Business in ${COUNTRY}`,
+    ],
+    TITLE_MAX
+  );
+}
+
 /** Build auto-generated FAQs from business data — US copy. */
 function buildAutoFaqs(
   name: string,
@@ -68,39 +100,44 @@ function buildAutoFaqs(
 ): AutoFaq[] {
   const faqs: AutoFaq[] = [];
 
+  // "a Barbershop" / "an Event Planning" — see lib/grammar.ts. `A` is the
+  // sentence-initial form.
+  const art = withArticle(name);
+  const Art = art.charAt(0).toUpperCase() + art.slice(1);
+
   if (cost?.hasPricing) {
     faqs.push({
-      question: `How much does it cost to start a ${name} business in the US?`,
-      answer: `Starting a ${name} business in the US costs between ${formatUSD(cost.low)} and ${formatUSD(cost.high)} depending on your scale and location. This is based on ${cost.requirementsWithProducts} out of ${cost.totalRequirements} requirements that have products assigned.${cost.requirementsWithProducts < cost.totalRequirements ? ' The actual cost may be higher as some requirements are still being priced.' : ''}`,
+      question: `How much does it cost to start ${art} business in ${COUNTRY}?`,
+      answer: `Starting ${art} business in ${COUNTRY} costs between ${formatUSD(cost.low)} and ${formatUSD(cost.high)} depending on your scale and location. This is based on ${cost.requirementsWithProducts} out of ${cost.totalRequirements} requirements that have products assigned.${cost.requirementsWithProducts < cost.totalRequirements ? ' The actual cost may be higher as some requirements are still being priced.' : ''}`,
     });
   }
 
   if (timeMin && timeMax) {
     faqs.push({
-      question: `How long does it take to launch a ${name} business in the US?`,
+      question: `How long does it take to launch ${art} business in ${COUNTRY}?`,
       answer: `You can expect to launch your ${name} business within ${formatDays(timeMin)} to ${formatDays(timeMax)}. This includes sourcing equipment and software, and getting your first customers.`,
     });
   }
 
   if (requirementCount > 0) {
     faqs.push({
-      question: `What are the requirements to start a ${name} business in the US?`,
-      answer: `A ${name} business in the US has ${requirementCount} requirements covering equipment, software, and operational needs. Some are essential while others are optional depending on your business scale.`,
+      question: `What are the requirements to start ${art} business in ${COUNTRY}?`,
+      answer: `${Art} business in ${COUNTRY} has ${requirementCount} requirements covering equipment, software, and operational needs. Some are essential while others are optional depending on your business scale.`,
     });
   }
 
   if (profitPotential) {
     const label = profitPotential.replace(/_/g, ' ');
     faqs.push({
-      question: `Is a ${name} business profitable in the US?`,
-      answer: `A ${name} business has ${label} profit potential in the US. Profitability depends on your location, scale of operation, and how well you manage costs and customer acquisition.`,
+      question: `Is ${art} business profitable in ${COUNTRY}?`,
+      answer: `${Art} business has ${label} profit potential in ${COUNTRY}. Profitability depends on your location, scale of operation, and how well you manage costs and customer acquisition.`,
     });
   }
 
   if (skillLevel) {
     faqs.push({
-      question: `Do I need special skills to start a ${name} business?`,
-      answer: `The skill level required for a ${name} business is ${skillLevel}. ${
+      question: `Do I need special skills to start ${art} business?`,
+      answer: `The skill level required for ${art} business is ${skillLevel}. ${
         skillLevel === 'low'
           ? 'Most people can start with basic training and learn on the job.'
           : skillLevel === 'moderate'
@@ -113,8 +150,8 @@ function buildAutoFaqs(
   if (bestLocations.length > 0) {
     const locationList = bestLocations.join(', ');
     faqs.push({
-      question: `Where is the best place to start a ${name} business in the US?`,
-      answer: `The best locations for a ${name} business in the US include ${locationList}. These areas offer strong customer demand, good infrastructure, or proximity to key suppliers.`,
+      question: `Where is the best place to start ${art} business in ${COUNTRY}?`,
+      answer: `The best locations for ${art} business in ${COUNTRY} include ${locationList}. These areas offer strong customer demand, good infrastructure, or proximity to key suppliers.`,
     });
   }
 
@@ -144,7 +181,7 @@ function countCoreRequirements(business: NonNullable<Awaited<ReturnType<typeof f
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const business = await fetchBusiness(slug, 'US');
+  const business = await fetchBusiness(slug, market);
 
   const requirementCount = business ? countCoreRequirements(business) : 0;
 
@@ -159,22 +196,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const year = new Date().getFullYear();
   const name = business.name;
-  const title = `${name} Business in the US [${year}] - Everything You Need to Know | HustleCare`;
+  const art = withArticle(name);
+  const title = buildHubTitle(name, year);
   const description =
     business.description ||
-    `Complete guide to starting a ${name} business in the US. Explore requirements, startup costs, and everything you need to launch.`;
+    `Complete guide to starting ${art} business in ${COUNTRY}. Explore requirements, startup costs, and everything you need to launch.`;
 
-  const pageUrl = `${SITE_URL}/us/businesses/${slug}`;
+  const pageUrl = `${SITE_BASE}/businesses/${slug}`;
   const ogImage = business.image || `${SITE_URL}/images/default-business.jpg`;
 
   return {
     title,
     description,
     keywords: [
-      `how to start a ${name} business in the US`,
-      `${name} business guide US`,
-      `${name} business requirements US`,
-      `${name} startup cost US`,
+      `how to start ${art} business in ${COUNTRY}`,
+      `${name} business guide in ${COUNTRY}`,
+      `${name} business requirements in ${COUNTRY}`,
+      `${name} startup cost in ${COUNTRY}`,
       `start ${name} business`,
     ].join(', '),
     authors: [{ name: 'HustleCare' }],
@@ -184,8 +222,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       url: pageUrl,
       siteName: 'HustleCare',
       type: 'article',
-      locale: 'en_US',
-      images: [{ url: ogImage, width: 1200, height: 630, alt: `Start a ${name} business in the US` }],
+      locale: marketOgLocale(market),
+      images: [{ url: ogImage, width: 1200, height: 630, alt: `Start ${art} business in ${COUNTRY}` }],
     },
     twitter: {
       card: 'summary_large_image',
@@ -206,8 +244,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       // gated by requirement count, only the US side is — so no
       // eligibility check is needed in this direction.
       languages: {
-        'en-US': pageUrl,
-        'en-KE': `${SITE_URL}/businesses/${slug}`,
+        [HREFLANG]: pageUrl,
+        [marketHreflang('KE')]: `${SITE_URL}${marketBasePath('KE')}/businesses/${slug}`,
       },
     },
     verification: { google: process.env.GOOGLE_SITE_VERIFICATION },
@@ -245,13 +283,18 @@ export async function generateStaticParams() {
 
 export default async function USBusinessHubPage({ params }: Props) {
   const { slug } = await params;
-  const business = await fetchBusiness(slug, 'US');
+  const business = await fetchBusiness(slug, market);
 
   if (!business) notFound();
 
   const year = new Date().getFullYear();
   const name = business.name;
-  const pageUrl = `${SITE_URL}/us/businesses/${slug}`;
+  const pageUrl = `${SITE_BASE}/businesses/${slug}`;
+
+  // Real timestamps from the Business row — never "now", which would change
+  // on every ISR regeneration and falsely signal the page was modified.
+  const datePublished = business.createdAt.toISOString();
+  const dateModified = business.updatedAt.toISOString();
 
   const coreRequirements = business.requirements.filter(
     (r) => !isRequirementExcludedFromTotals(r.template)
@@ -265,10 +308,10 @@ export default async function USBusinessHubPage({ params }: Props) {
   // gets a real 404 instead of an empty, indexable page.
   if (requirementCount === 0) notFound();
 
-  const title = `${name} Business in the US [${year}] - Everything You Need to Know | HustleCare`;
+  const title = buildHubTitle(name, year);
   const description =
     business.description ||
-    `Complete guide to starting a ${name} business in the US with ${requirementCount} requirements and cost estimates.`;
+    `Complete guide to starting ${withArticle(name)} business in ${COUNTRY} with ${requirementCount} requirements and cost estimates.`;
 
   const grouped = coreRequirements.reduce<Record<string, typeof coreRequirements>>(
     (acc, req) => {
@@ -361,8 +404,8 @@ export default async function USBusinessHubPage({ params }: Props) {
         '@type': 'BreadcrumbList',
         '@id': `${pageUrl}#breadcrumb`,
         itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE_URL}/us` },
-          { '@type': 'ListItem', position: 2, name: 'Businesses', item: `${SITE_URL}/us/businesses` },
+          { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_BASE },
+          { '@type': 'ListItem', position: 2, name: 'Businesses', item: `${SITE_BASE}/businesses` },
           { '@type': 'ListItem', position: 3, name: name, item: pageUrl },
         ],
       },
@@ -385,13 +428,11 @@ export default async function USBusinessHubPage({ params }: Props) {
           url: SITE_URL,
           logo: { '@type': 'ImageObject', url: `${SITE_URL}/images/logo.png` },
         },
-        datePublished:
-          (business as { createdAt?: Date }).createdAt?.toISOString() ??
-          new Date().toISOString(),
-        dateModified: new Date().toISOString(),
+        datePublished,
+        dateModified,
         mainEntityOfPage: { '@type': 'WebPage', '@id': pageUrl },
         breadcrumb: { '@id': `${pageUrl}#breadcrumb` },
-        inLanguage: 'en-US',
+        inLanguage: HREFLANG,
       },
       ...(finalFaqs.length > 0
         ? [
@@ -434,7 +475,7 @@ export default async function USBusinessHubPage({ params }: Props) {
         skillLevel={business.skillLevel}
         bestLocations={business.bestLocations}
         faqs={finalFaqs}
-        market="US"
+        market={market}
       />
 
       {business.category && (

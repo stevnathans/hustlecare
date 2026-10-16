@@ -582,7 +582,7 @@ export default function ProductForm({
               {mode === 'admin' && fetchMetadataError && <div className={t.error}>{fetchMetadataError}</div>}
               {mode === 'admin' && !isShellProduct && (
                 <p className="mt-1 text-xs text-gray-400">
-                  Paste the product page link, then click Fetch details to pull name, description, image, and price where the site supports it. Won&apos;t work for Amazon — add those manually.
+                  Paste the product page link, then click Fetch details to pull details.
                 </p>
               )}
             </div>

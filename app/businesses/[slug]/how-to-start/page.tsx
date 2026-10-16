@@ -4,12 +4,23 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { withArticle } from '@/lib/grammar';
 import HowToStartContent from './HowToStartContent';
+import { pickWithinLimit, TITLE_MAX } from '@/lib/seo-fit';
 
 interface Props {
   params: Promise<{ slug: string }>;
 }
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
+
+const defaultTitle = pickWithinLimit(
+  [
+    `How to Start ${a} Business in Kenya (${year}) - Step-by-Step Guide`,
+    `How to Start ${a} Business in Kenya (${year})`,
+    `How to Start ${a} Business in Kenya`,
+  ],
+  TITLE_MAX
+);
+const title = guide.metaTitle || guide.title || defaultTitle; // include guide.title in both places
 
 // ── Data Fetching ─────────────────────────────────────────────────────────────
 

@@ -7,6 +7,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { SlidersHorizontal, ShieldCheck, Truck, X, ArrowRight, FileText } from 'lucide-react';
 import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
+import { withArticle } from '@/lib/grammar';
 
 type CategoryFacet = { name: string; count: number };
 type BusinessSuggestion = { id: number; name: string; slug: string };
@@ -161,12 +162,14 @@ export default function MarketplaceContent({ market = DEFAULT_MARKET }: Marketpl
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
             <div>
               <p className="text-sm font-semibold text-emerald-900">
-                Showing {total} product{total !== 1 ? 's' : ''} for starting a {activeBusiness.name} business
+                Showing {total} product{total !== 1 ? 's' : ''} for starting {withArticle(activeBusiness.name)} business
               </p>
               <div className="mt-1 flex flex-wrap gap-3 text-xs">
-                <Link href={`${base}/businesses/${activeBusiness.slug}/how-to-start`} className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:underline">
-                  How to start a {activeBusiness.name} business <ArrowRight className="h-3 w-3" />
-                </Link>
+                {market === 'KE' && (
+                 <Link href={`${base}/businesses/${activeBusiness.slug}/how-to-start`} className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:underline">
+                   How to start {withArticle(activeBusiness.name)} business <ArrowRight className="h-3 w-3" />
+                 </Link>
+                )}
                 <Link href={`${base}/businesses/${activeBusiness.slug}/requirements`} className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:underline">
                   <FileText className="h-3 w-3" /> Full requirements checklist
                 </Link>

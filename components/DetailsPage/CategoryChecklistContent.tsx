@@ -222,6 +222,7 @@ function CategoryChecklistContentInner({
     categoryName,
     count: allReqsInCategory.length,
     year: new Date().getFullYear(),
+    market,
   });
 
   return (

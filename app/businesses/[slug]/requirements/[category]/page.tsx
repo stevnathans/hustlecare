@@ -9,9 +9,12 @@ import { isExcludedFromTotals } from '@/lib/necessity';
 import { getCategorySeo } from '@/lib/category-seo';
 import type { Business as BusinessData, Requirement as RequirementData } from 'hooks/useBusinessData';
 import CategoryChecklistContent from '@/components/DetailsPage/CategoryChecklistContent';
-import { type MarketCode } from '@/lib/markets';
+import { marketBasePath, marketHreflang, marketOgLocale, type MarketCode } from '@/lib/markets';
 
 export const revalidate = 300; // regenerate at most every 5 minutes
+
+// The ONLY market-specific line in this file. Every URL, locale and piece
+// of copy below derives from it (see lib/markets.ts).
 const market: MarketCode = 'KE';
 
 // Must stay in sync with the identical constant in
@@ -26,6 +29,9 @@ interface Props {
 }
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
+// Kenya: https://hustlecare.net — US: https://hustlecare.net/us
+const SITE_BASE = `${SITE_URL}${marketBasePath(market)}`;
+const HREFLANG = marketHreflang(market);
 
 /**
  * Resolves a business slug + category slug into the matching business
@@ -72,15 +78,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const { business, categoryRequirements, categoryName } = result;
 
-  // Category-specific title/description — see lib/category-seo.ts
+  // Category-specific, market-aware title/description — see lib/category-seo.ts
   const { title, description } = getCategorySeo({
     businessName: business.name,
     categoryName,
     count: categoryRequirements.length,
     year: new Date().getFullYear(),
+    market,
   });
 
-  const pageUrl = `${SITE_URL}/businesses/${slug}/requirements/${category}`;
+  const pageUrl = `${SITE_BASE}/businesses/${slug}/requirements/${category}`;
   const ogImage = business.image || `${SITE_URL}/images/default-business.jpg`;
 
   return {
@@ -88,7 +95,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description,
     alternates: {
       canonical: pageUrl,
-      languages: { 'en-KE': pageUrl },
+      // Self-referencing only: whether this exact category page exists in
+      // the other market depends on that market's own requirement counts.
+      languages: { [HREFLANG]: pageUrl },
     },
     robots: {
       index: true,
@@ -107,7 +116,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       url: pageUrl,
       siteName: 'HustleCare',
       type: 'article',
-      locale: 'en_KE',
+      locale: marketOgLocale(market),
       publishedTime: business.createdAt.toISOString(),
       modifiedTime: business.updatedAt.toISOString(),
       images: [{ url: ogImage, width: 1200, height: 630, alt: `${categoryName} requirements for ${business.name}` }],
@@ -125,7 +134,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 // ── Static Params ─────────────────────────────────────────────────────────────
-// (unchanged)
+// Iterates published businesses × RequirementCategory rows, keeping only
+// pairs that clear CATEGORY_PAGE_THRESHOLD. fetchBusinessWithRequirements
+// is market-scoped, so counts naturally reflect this market's requirements.
 
 export async function generateStaticParams() {
   try {
@@ -216,8 +227,8 @@ export default async function CategoryChecklistPage({ params }: Props) {
       req.template.categoryRef?.usesLegalCountyFilter ?? (req.template.category === 'Legal'),
   }));
 
-  const pageUrl = `${SITE_URL}/businesses/${slug}/requirements/${category}`;
-  const hubUrl = `${SITE_URL}/businesses/${slug}`;
+  const pageUrl = `${SITE_BASE}/businesses/${slug}/requirements/${category}`;
+  const hubUrl = `${SITE_BASE}/businesses/${slug}`;
   const requirementsUrl = `${hubUrl}/requirements`;
 
   const seo = getCategorySeo({
@@ -225,6 +236,7 @@ export default async function CategoryChecklistPage({ params }: Props) {
     categoryName,
     count: categoryRequirements.length,
     year: new Date().getFullYear(),
+    market,
   });
 
   // This category's items only, for the ItemList node. Typed "Thing", not
@@ -240,7 +252,7 @@ export default async function CategoryChecklistPage({ params }: Props) {
         '@id': `${pageUrl}#breadcrumb`,
         itemListElement: [
           { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
-          { '@type': 'ListItem', position: 2, name: 'Businesses', item: `${SITE_URL}/businesses` },
+          { '@type': 'ListItem', position: 2, name: 'Businesses', item: `${SITE_BASE}/businesses` },
           { '@type': 'ListItem', position: 3, name: business.name, item: hubUrl },
           { '@type': 'ListItem', position: 4, name: 'Requirements', item: requirementsUrl },
           { '@type': 'ListItem', position: 5, name: categoryName, item: pageUrl },
@@ -252,7 +264,7 @@ export default async function CategoryChecklistPage({ params }: Props) {
         url: pageUrl,
         name: seo.title,
         description: seo.description,
-        inLanguage: 'en-KE',
+        inLanguage: HREFLANG,
         isPartOf: { '@type': 'WebPage', '@id': requirementsUrl, url: requirementsUrl },
         breadcrumb: { '@id': `${pageUrl}#breadcrumb` },
         mainEntity: { '@id': `${pageUrl}#items` },
@@ -295,7 +307,7 @@ export default async function CategoryChecklistPage({ params }: Props) {
         categoryName={categoryName}
         initialBusiness={initialBusiness}
         initialRequirements={initialRequirements}
-        market="KE"
+        market={market}
       />
     </>
   );

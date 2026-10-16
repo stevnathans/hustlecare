@@ -7,11 +7,30 @@ import type { CategoryLinkInfo } from '@/components/DetailsPage/RequirementsSect
 import { prisma } from '@/lib/prisma';
 import { isExcludedFromTotals } from '@/lib/necessity';
 import type { Business as BusinessData, Requirement as RequirementData } from 'hooks/useBusinessData';
-import { selectTemplateDescription } from '@/lib/requirement-description'; 
-import { type MarketCode } from '@/lib/markets';
+import { selectTemplateDescription } from '@/lib/requirement-description';
+import {
+  marketBasePath,
+  marketCountryPhrase,
+  marketCountrySameAs,
+  marketHreflang,
+  marketLabel,
+  marketOgLocale,
+  type MarketCode,
+} from '@/lib/markets';
+import { withArticle } from '@/lib/grammar';
+import { pickWithinLimit, TITLE_MAX } from '@/lib/seo-fit';
 
 export const revalidate = 300; // regenerate at most every 5 minutes
+
+// The ONLY market-specific line in this file (see lib/markets.ts).
 const market: MarketCode = 'US';
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
+// US: https://hustlecare.net/us
+const BASE_PATH = marketBasePath(market);
+const SITE_BASE = `${SITE_URL}${BASE_PATH}`;
+const COUNTRY = marketCountryPhrase(market); // "the US"
+const HREFLANG = marketHreflang(market);
 
 // Stage 4.5 — same threshold as the Kenya requirements page and its
 // [category] sub-route counterpart. Kept as its own local constant here
@@ -58,13 +77,29 @@ function splitCoreAndStock<T extends {
 }
 
 // ── Title Builder ─────────────────────────────────────────────────────────────
+// Fitted to TITLE_MAX so it isn't truncated in the browser tab or search
+// results — longest wording first, falling back to shorter ones.
 
 function buildTitle(businessName: string, requirementCount: number): string {
   const year = new Date().getFullYear();
+  const a = withArticle(businessName);
   if (requirementCount > 0) {
-    return `${requirementCount} Requirements To Start a ${businessName} Business in the US (${year} Costs & Checklist)`;
+    return pickWithinLimit(
+      [
+        `${requirementCount} Requirements To Start ${a} Business in ${COUNTRY} (${year} Costs & Checklist)`,
+        `${requirementCount} Requirements to Start ${a} Business in ${COUNTRY} (${year})`,
+        `${requirementCount} Requirements to Start ${a} Business in ${COUNTRY}`,
+      ],
+      TITLE_MAX
+    );
   }
-  return `${businessName} Business Requirements in the US - Complete Checklist & Costs`;
+  return pickWithinLimit(
+    [
+      `${businessName} Business Requirements in ${COUNTRY} - Complete Checklist & Costs`,
+      `${businessName} Business Requirements in ${COUNTRY}`,
+    ],
+    TITLE_MAX
+  );
 }
 
 // ── FAQ Builder ────────────────────────────────────────────────────────────────
@@ -77,11 +112,12 @@ function buildRequirementsFaqs(
   categories: string[],
 ): RequirementFaq[] {
   const faqs: RequirementFaq[] = [];
+  const a = withArticle(businessName);
 
   if (totalRequirements > 0) {
     faqs.push({
-      question: `What do I need to start a ${businessName} business in the US?`,
-      answer: `To start a ${businessName} business in the US, you need ${totalRequirements} requirements in total${
+      question: `What do I need to start ${a} business in ${COUNTRY}?`,
+      answer: `To start ${a} business in ${COUNTRY}, you need ${totalRequirements} requirements in total${
         categories.length > 0 ? `, covering categories such as ${categories.join(', ')}` : ''
       }. Use the checklist on this page to see every item and add them to the cost calculator to estimate your total investment.`,
     });
@@ -90,7 +126,7 @@ function buildRequirementsFaqs(
   if (requiredCount > 0) {
     faqs.push({
       question: `How many of the ${businessName} business requirements are mandatory?`,
-      answer: `Out of the ${totalRequirements} requirements listed for a ${businessName} business, ${requiredCount} ${
+      answer: `Out of the ${totalRequirements} requirements listed for ${a} business, ${requiredCount} ${
         requiredCount === 1 ? 'is essential' : 'are essential'
       } and ${optionalCount} ${
         optionalCount === 1 ? 'is optional' : 'are optional'
@@ -105,7 +141,7 @@ function buildRequirementsFaqs(
 
 export async function generateMetadata({ params }: BusinessPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const business = await fetchBusinessWithRequirements(slug, 'US');
+  const business = await fetchBusinessWithRequirements(slug, market);
 
   const requirementCount = business
     ? splitCoreAndStock(business.requirements ?? []).core.length
@@ -122,28 +158,28 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
     };
   }
 
+  const a = withArticle(business.name);
   const title = buildTitle(business.name, requirementCount);
   const description =
     business.description ||
-    `Explore all ${requirementCount} requirements to start a ${business.name} business in the US. Use our cost calculator to estimate your total investment and get a complete launch plan.`;
+    `Explore all ${requirementCount} requirements to start ${a} business in ${COUNTRY}. Use our cost calculator to estimate your total investment and get a complete launch plan.`;
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
-  const pageUrl = `${siteUrl}/us/businesses/${slug}/requirements`;
-  const ogImage = business.image || `${siteUrl}/images/default-business.jpg`;
+  const pageUrl = `${SITE_BASE}/businesses/${slug}/requirements`;
+  const ogImage = business.image || `${SITE_URL}/images/default-business.jpg`;
 
   return {
     title,
     description,
     keywords: [
-      `how to start a ${business.name} business`,
-      `how to start a ${business.name} business in the US`,
+      `how to start ${a} business`,
+      `how to start ${a} business in ${COUNTRY}`,
       `${business.name} business requirements`,
       `${business.name} business equipment list`,
-      `${business.name} startup cost in the US`,
+      `${business.name} startup cost in ${COUNTRY}`,
       `${business.name} cost calculator`,
       `${business.name} business plan`,
-      `equipment list to start a ${business.name} business`,
-      'business planning US',
+      `equipment list to start ${a} business`,
+      `business planning in ${COUNTRY}`,
       'investment calculator',
       'business requirements checklist',
     ].join(', '),
@@ -158,13 +194,13 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
       url: pageUrl,
       siteName: 'HustleCare',
       type: 'article',
-      locale: 'en_US',
+      locale: marketOgLocale(market),
       images: [
         {
           url: ogImage,
           width: 1200,
           height: 630,
-          alt: `What you need to start a ${business.name} business`,
+          alt: `What you need to start ${a} business`,
         },
       ],
     },
@@ -196,8 +232,8 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
       // exist (its bar isn't gated on requirement count), so no
       // eligibility check is needed in this direction.
       languages: {
-        'en-US': pageUrl,
-        'en-KE': `${siteUrl}/businesses/${slug}/requirements`,
+        [HREFLANG]: pageUrl,
+        [marketHreflang('KE')]: `${SITE_URL}${marketBasePath('KE')}/businesses/${slug}/requirements`,
       },
     },
 
@@ -241,7 +277,7 @@ export async function generateStaticParams() {
 
 export default async function USBusinessPage({ params }: BusinessPageProps) {
   const { slug } = await params;
-  const business = await fetchBusinessWithRequirements(slug, 'US');
+  const business = await fetchBusinessWithRequirements(slug, market);
 
   if (!business) {
     notFound();
@@ -259,14 +295,14 @@ export default async function USBusinessPage({ params }: BusinessPageProps) {
     notFound();
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
-  const pageUrl = `${siteUrl}/us/businesses/${slug}/requirements`;
-  const hubUrl = `${siteUrl}/us/businesses/${slug}`;
-  const ogImage = business.image || `${siteUrl}/images/default-business.jpg`;
+  const a = withArticle(business.name);
+  const pageUrl = `${SITE_BASE}/businesses/${slug}/requirements`;
+  const hubUrl = `${SITE_BASE}/businesses/${slug}`;
+  const ogImage = business.image || `${SITE_URL}/images/default-business.jpg`;
   const title = buildTitle(business.name, requirementCount);
   const description =
     business.description ||
-    `Complete guide to starting a ${business.name} business in the US with ${requirementCount} requirements and cost calculator.`;
+    `Complete guide to starting ${a} business in ${COUNTRY} with ${requirementCount} requirements and cost calculator.`;
 
   const requiredCount = coreRequirements.filter(
     (req) => (req.necessityOverride ?? req.template.necessity) === 'Required'
@@ -283,7 +319,7 @@ export default async function USBusinessPage({ params }: BusinessPageProps) {
   for (const [categoryName, group] of Object.entries(categoryGroups)) {
     if (group.slug && group.items.length >= CATEGORY_PAGE_THRESHOLD) {
       categoryLinks[categoryName] = {
-        href: `/us/businesses/${slug}/requirements/${group.slug}`,
+        href: `${BASE_PATH}/businesses/${slug}/requirements/${group.slug}`,
         count: group.items.length,
       };
     }
@@ -308,7 +344,7 @@ export default async function USBusinessPage({ params }: BusinessPageProps) {
       description:
         req.descriptionOverride ||
         req.template.description ||
-        `${req.template.name} required to start a ${business.name} business`,
+        `${req.template.name} required to start ${a} business`,
       additionalProperty: [
         {
           '@type': 'PropertyValue',
@@ -365,8 +401,8 @@ export default async function USBusinessPage({ params }: BusinessPageProps) {
         '@type': 'BreadcrumbList',
         '@id': `${pageUrl}#breadcrumb`,
         itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Home', item: `${siteUrl}/us` },
-          { '@type': 'ListItem', position: 2, name: 'Businesses', item: `${siteUrl}/us/businesses` },
+          { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_BASE },
+          { '@type': 'ListItem', position: 2, name: 'Businesses', item: `${SITE_BASE}/businesses` },
           { '@type': 'ListItem', position: 3, name: business.name, item: hubUrl },
           { '@type': 'ListItem', position: 4, name: 'Requirements', item: pageUrl },
         ],
@@ -386,15 +422,15 @@ export default async function USBusinessPage({ params }: BusinessPageProps) {
         author: {
           '@type': 'Organization',
           name: 'HustleCare',
-          url: siteUrl,
+          url: SITE_URL,
         },
         publisher: {
           '@type': 'Organization',
           name: 'HustleCare',
-          url: siteUrl,
+          url: SITE_URL,
           logo: {
             '@type': 'ImageObject',
-            url: `${siteUrl}/images/logo.png`,
+            url: `${SITE_URL}/images/logo.png`,
           },
         },
         datePublished: business.createdAt.toISOString(),
@@ -404,31 +440,31 @@ export default async function USBusinessPage({ params }: BusinessPageProps) {
           '@id': pageUrl,
         },
         breadcrumb: { '@id': `${pageUrl}#breadcrumb` },
-        inLanguage: 'en-US',
+        inLanguage: HREFLANG,
         about: {
           '@type': 'Thing',
           name: `${business.name} Business`,
         },
         keywords: [
-          `how to start a ${business.name} business`,
+          `how to start ${a} business`,
           `${business.name} business requirements`,
-          `${business.name} startup cost US`,
+          `${business.name} startup cost in ${COUNTRY}`,
         ].join(', '),
       },
       {
         '@type': 'Service',
         '@id': `${pageUrl}#service`,
         name: `${business.name} Business Startup Guide`,
-        description: `Complete guide to starting a ${business.name} business in the US with detailed requirements and cost estimates.`,
+        description: `Complete guide to starting ${a} business in ${COUNTRY} with detailed requirements and cost estimates.`,
         provider: {
           '@type': 'Organization',
           name: 'HustleCare',
-          url: siteUrl,
+          url: SITE_URL,
         },
         areaServed: {
           '@type': 'Country',
-          name: 'United States',
-          sameAs: 'https://en.wikipedia.org/wiki/United_States',
+          name: marketLabel(market),
+          sameAs: marketCountrySameAs(market),
         },
         url: pageUrl,
       },
@@ -437,8 +473,8 @@ export default async function USBusinessPage({ params }: BusinessPageProps) {
             {
               '@type': 'ItemList',
               '@id': `${pageUrl}#requirements`,
-              name: `Complete Requirements for Starting a ${business.name} Business In the US`,
-              description: `All ${requirementCount} requirements needed to start a ${business.name} business in the US, covering essential and optional items.`,
+              name: `Complete Requirements for Starting ${a} Business in ${COUNTRY}`,
+              description: `All ${requirementCount} requirements needed to start ${a} business in ${COUNTRY}, covering essential and optional items.`,
               numberOfItems: requirementCount,
               itemListElement: requirementListItems,
             },
@@ -465,10 +501,10 @@ export default async function USBusinessPage({ params }: BusinessPageProps) {
             {
               '@type': 'ItemList',
               '@id': `${pageUrl}#stock`,
-              name: `Popular Products You Can Sell in a ${business.name} Business`,
+              name: `Popular Products You Can Sell in ${a} Business`,
               description: `${stockRequirements.length} product${
                 stockRequirements.length === 1 ? '' : 's'
-              } commonly stocked by ${business.name} businesses in the US. These are inventory suggestions, not startup requirements.`,
+              } commonly stocked by ${business.name} businesses in ${COUNTRY}. These are inventory suggestions, not startup requirements.`,
               numberOfItems: stockRequirements.length,
               itemListElement: stockListItems,
             },
@@ -517,21 +553,21 @@ export default async function USBusinessPage({ params }: BusinessPageProps) {
   // consistency with RequirementData and so the two market page
   // implementations don't quietly diverge.
   const initialRequirements: RequirementData[] = requirements.map((req) => ({
-  id: req.id,
-  templateId: req.templateId,
-  name: req.template.name,
-  description: req.descriptionOverride ?? selectTemplateDescription(req.template, market) ?? null,
-  category: req.template.category ?? null,
-  necessity: req.necessityOverride ?? req.template.necessity,
-  image: req.template.image ?? null,
-  slug: null,
-  excludedFromTotals:
-    req.template.categoryRef?.excludedFromTotals ?? isExcludedFromTotals(req.template.category ?? ''),
-  usesLegalCountyFilter:
-    req.template.categoryRef?.usesLegalCountyFilter ?? (req.template.category === 'Legal'),
-}));
+    id: req.id,
+    templateId: req.templateId,
+    name: req.template.name,
+    description: req.descriptionOverride ?? selectTemplateDescription(req.template, market) ?? null,
+    category: req.template.category ?? null,
+    necessity: req.necessityOverride ?? req.template.necessity,
+    image: req.template.image ?? null,
+    slug: null,
+    excludedFromTotals:
+      req.template.categoryRef?.excludedFromTotals ?? isExcludedFromTotals(req.template.category ?? ''),
+    usesLegalCountyFilter:
+      req.template.categoryRef?.usesLegalCountyFilter ?? (req.template.category === 'Legal'),
+  }));
 
-    return (
+  return (
     <>
       <script
         type="application/ld+json"
@@ -543,7 +579,7 @@ export default async function USBusinessPage({ params }: BusinessPageProps) {
         initialBusiness={initialBusiness}
         initialRequirements={initialRequirements}
         faqs={requirementFaqs}
-        market="US"
+        market={market}
         categoryLinks={categoryLinks}
       />
     </>
