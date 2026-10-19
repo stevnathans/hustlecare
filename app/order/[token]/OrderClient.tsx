@@ -26,9 +26,10 @@ interface Props {
   files: FileView[];
   revisionsLeft: number;
   revisionsAllowed: number;
+  orderRef: string;
 }
 
-export default function OrderClient({ token, stage, payable, paymentMode, defaultPhone, canUpload, specs, files, revisionsLeft, revisionsAllowed }: Props) {
+export default function OrderClient({ token, stage, payable, paymentMode, defaultPhone, canUpload, specs, files, revisionsLeft, revisionsAllowed, orderRef }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<{ key: string; message: string } | null>(null);
@@ -152,6 +153,7 @@ export default function OrderClient({ token, stage, payable, paymentMode, defaul
           label={payable.kind === "BALANCE" ? "balance" : payable.kind === "DEPOSIT" ? "deposit" : "fee"}
           paymentMode={paymentMode}
           defaultPhone={defaultPhone}
+          orderRef={orderRef}
           onPaid={() => setTimeout(() => router.refresh(), 1200)}
         />
       )}

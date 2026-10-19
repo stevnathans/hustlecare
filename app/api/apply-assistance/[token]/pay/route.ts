@@ -10,6 +10,7 @@ import { normalizeKenyanPhone, toMpesaMsisdn, formatPhoneLocal } from '@/lib/pho
 import { getPaymentMode } from '@/lib/applyAssistance/lifecycle';
 import { logEvent } from '@/lib/applyAssistance/events';
 import { initiateStkPush, DarajaError } from '@/lib/payments/daraja';
+import { MANUAL_PAY_NUMBER } from '@/lib/payments/manual-config';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -76,7 +77,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
         mode: 'manual',
         amount: lead.serviceFee,
         currency: lead.currency,
-        payTo: process.env.APPLY_MANUAL_PAY_TO || null,
+        payTo: process.env.APPLY_MANUAL_PAY_TO || MANUAL_PAY_NUMBER,
         payFromPhone: lead.contactPhoneE164 ? formatPhoneLocal(lead.contactPhoneE164) : null,
       });
     }

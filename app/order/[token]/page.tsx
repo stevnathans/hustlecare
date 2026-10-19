@@ -184,6 +184,7 @@ export default async function OrderPage({ params }: { params: Promise<{ token: s
         files={customerFiles.map((f) => ({ id: f.id, specId: f.specId, label: f.label, fileName: f.fileName }))}
         revisionsLeft={revisionsLeft}
         revisionsAllowed={order.revisionsAllowed ?? 0}
+        orderRef={order.orderNumber ?? ""}
       />
 
       <p className="text-xs text-slate-500 mt-8">

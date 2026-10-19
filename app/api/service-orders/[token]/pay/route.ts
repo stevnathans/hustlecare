@@ -11,6 +11,7 @@ import { getPaymentMode } from "@/lib/applyAssistance/lifecycle";
 import { nextPayable } from "@/lib/services/orders/lifecycle";
 import { logOrderEvent } from "@/lib/services/orders/events";
 import { initiateStkPush, DarajaError } from "@/lib/payments/daraja";
+import { MANUAL_PAY_NUMBER } from "@/lib/payments/manual-config";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -71,7 +72,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
         mode: "manual",
         amount: due.amount,
         currency: order.currency,
-        payTo: process.env.APPLY_MANUAL_PAY_TO || null,
+        payTo: process.env.APPLY_MANUAL_PAY_TO || MANUAL_PAY_NUMBER,
         payFromPhone: contactE164 ? formatPhoneLocal(contactE164) : null,
       });
     }

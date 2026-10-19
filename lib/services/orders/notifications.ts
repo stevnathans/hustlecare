@@ -6,18 +6,19 @@
 // to the order's timeline.
 //
 // WHATSAPP TEMPLATES to create in Meta's WhatsApp Manager (Utility, English):
-//   service_order_received   Hi {{1}}, we received your {{2}} order ({{3}}). Pay the deposit and track it here: {{4}}
+//   service_order_received   Hi {{1}}, we received your {{2}} order ({{3}}). Pay {{4}} by M-Pesa Send Money to {{5}}, then WhatsApp your confirmation message to the same number. Track your order: {{6}}
 //   service_deposit_received Hi {{1}}, we received your deposit and started work on your {{2}}. Track it here: {{3}}
 //   service_preview_ready    Hi {{1}}, the preview of your {{2}} is ready. Review it here: {{3}}
-//   service_balance_due      Hi {{1}}, your {{2}} is ready. Pay the balance to download it: {{3}}
+//   service_balance_due      Hi {{1}}, your {{2}} is ready. Pay the balance of {{3}} by M-Pesa Send Money to {{4}} and the final files unlock. Details: {{5}}
 //   service_completed        Hi {{1}}, your final {{2}} files are ready to download: {{3}}
-//   service_payment_reminder Hi {{1}}, you have not paid the deposit for your {{2}} yet. Continue here: {{3}}
+//   service_payment_reminder Hi {{1}}, you have not paid the deposit for your {{2}} yet. Send {{3}} by M-Pesa to {{4}}, then WhatsApp your confirmation message. Details: {{5}}
 
 import { prisma } from '@/lib/prisma';
 import { sendEmail, INFO_EMAIL } from '@/lib/email';
 import { isWhatsAppEnabled, sendWhatsAppTemplate } from '@/lib/whatsapp';
 import { notify } from '@/lib/notify';
-import { normalizeKenyanPhone } from '@/lib/phone';
+import { normalizeKenyanPhone, formatPhoneLocal } from '@/lib/phone';
+import { MANUAL_PAY_NUMBER, payInstructionLines } from '@/lib/payments/manual-config';
 import { getDeep } from '@/lib/questionnaires/get-deep';
 import { getQuestionnaireConfig } from '@/lib/questionnaires/registry';
 import { logOrderEvent } from '@/lib/services/orders/events';
@@ -91,6 +92,8 @@ export async function notifyOrderCustomer(orderId: string, notice: OrderNotice):
     ? `We expect to deliver by ${order.dueDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}.`
     : '';
   const revisionsLeft = Math.max(0, (order.revisionsAllowed ?? 0) - order.revisionsUsed);
+  const phoneE164 = normalizeKenyanPhone(order.contactPhone);
+  const payFrom = phoneE164 ? formatPhoneLocal(phoneE164) : null;
 
   let subject: string;
   let email: ApplyAssistanceEmailProps;
@@ -106,17 +109,20 @@ export async function notifyOrderCustomer(orderId: string, notice: OrderNotice):
         paragraphs: [
           `Hi ${first}, thank you. We have received your ${serviceName} order${pkg}.`,
           priced
-            ? `To get started, pay the ${ksh(order.depositAmount)} ${(order.balanceAmount ?? 0) > 0 ? 'deposit' : 'fee'} by M-Pesa.${
+            ? `To get started, pay ${ksh(order.depositAmount)}${(order.balanceAmount ?? 0) > 0 ? ' (the deposit)' : ''} by M-Pesa Send Money to ${MANUAL_PAY_NUMBER}.${
                 (order.balanceAmount ?? 0) > 0 ? ` The remaining ${ksh(order.balanceAmount)} is due only when the work is ready.` : ''
               }`
             : 'We will contact you shortly with the price and the next steps.',
           'You can also upload your logo, photos or documents on your order page.',
         ],
-        ctaLabel: priced ? 'Pay and track your order' : 'Track your order',
+        ...(priced
+          ? { bulletsTitle: 'How to pay', bullets: payInstructionLines({ amount: order.depositAmount ?? 0, fromPhone: payFrom, orderRef: orderNumber }) }
+          : {}),
+        ctaLabel: priced ? 'Open your order page' : 'Track your order',
         ctaUrl: trackUrl,
         footnote: `Order reference: ${orderNumber}. Keep this link private; it is how you follow your order.`,
       };
-      whatsapp = { template: 'service_order_received', params: [first, serviceName, orderNumber, trackUrl] };
+      whatsapp = { template: 'service_order_received', params: [first, serviceName, orderNumber, ksh(order.depositAmount), MANUAL_PAY_NUMBER, trackUrl] };
       bell = 'SUCCESS';
       break;
     }
@@ -158,12 +164,14 @@ export async function notifyOrderCustomer(orderId: string, notice: OrderNotice):
         heading: 'Your work is ready',
         paragraphs: [
           `Hi ${first}, your ${serviceName} is complete.`,
-          `Pay the remaining ${ksh(order.balanceAmount)} by M-Pesa and the final files unlock for download straight away.`,
+          `Pay the remaining ${ksh(order.balanceAmount)} by M-Pesa Send Money to ${MANUAL_PAY_NUMBER} and the final files unlock for download.`,
         ],
-        ctaLabel: 'Pay balance and download',
+        bulletsTitle: 'How to pay',
+        bullets: payInstructionLines({ amount: order.balanceAmount ?? 0, fromPhone: payFrom, orderRef: orderNumber }),
+        ctaLabel: 'Open your order page',
         ctaUrl: trackUrl,
       };
-      whatsapp = { template: 'service_balance_due', params: [first, serviceName, trackUrl] };
+      whatsapp = { template: 'service_balance_due', params: [first, serviceName, ksh(order.balanceAmount), MANUAL_PAY_NUMBER, trackUrl] };
       bell = 'SUCCESS';
       break;
     case 'COMPLETED':
@@ -187,13 +195,15 @@ export async function notifyOrderCustomer(orderId: string, notice: OrderNotice):
           `Hi ${first}, you submitted your ${serviceName} order${pkg} but have not paid the deposit yet.`,
           n === 3
             ? 'This is the last reminder we will send. Pay the deposit when you are ready and we start straight away.'
-            : `Pay the ${ksh(order.depositAmount)} deposit by M-Pesa and we start work straight away.`,
+            : `Pay ${ksh(order.depositAmount)} by M-Pesa Send Money to ${MANUAL_PAY_NUMBER} and we start work straight away.`,
         ],
-        ctaLabel: 'Continue to payment',
+        bulletsTitle: 'How to pay',
+        bullets: payInstructionLines({ amount: order.depositAmount ?? 0, fromPhone: payFrom, orderRef: orderNumber }),
+        ctaLabel: 'Open your order page',
         ctaUrl: trackUrl,
         unsubscribeUrl: stopUrl,
       };
-      whatsapp = { template: 'service_payment_reminder', params: [first, serviceName, trackUrl] };
+      whatsapp = { template: 'service_payment_reminder', params: [first, serviceName, ksh(order.depositAmount), MANUAL_PAY_NUMBER, trackUrl] };
     }
   }
 
@@ -226,9 +236,8 @@ export async function notifyOrderCustomer(orderId: string, notice: OrderNotice):
   if (!isReminder) await inApp(order.userId, bell, email.heading, email.paragraphs.slice(0, 2).join('\n'), `/order/${order.publicToken}`);
 
   // WhatsApp (only once switched on and templates are approved)
-  const phone = normalizeKenyanPhone(order.contactPhone);
-  if (isWhatsAppEnabled() && phone) {
-    const res = await sendWhatsAppTemplate({ toE164: phone, template: whatsapp.template, params: whatsapp.params });
+  if (isWhatsAppEnabled() && phoneE164) {
+    const res = await sendWhatsAppTemplate({ toE164: phoneE164, template: whatsapp.template, params: whatsapp.params });
     await logOrderEvent(
       prisma,
       orderId,

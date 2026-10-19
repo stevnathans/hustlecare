@@ -28,6 +28,8 @@ import { logEvent } from '@/lib/applyAssistance/events';
 import ApplyAssistanceEmail, { type ApplyAssistanceEmailProps } from '@/emails/ApplyAssistanceEmail';
 import { notify } from '@/lib/notify';
 import { formatCurrency } from '@/lib/currency';
+import { formatPhoneLocal } from '@/lib/phone';
+import { payInstructionLines } from '@/lib/payments/manual-config';
 import { DEFAULT_MARKET } from '@/lib/markets';
 
 export type CustomerNotice = 'PAID' | 'DOCS_COMPLETE' | 'DOC_REJECTED' | 'SUBMITTED' | 'COMPLETED';
@@ -297,6 +299,10 @@ export async function notifyLeadReminder(requestId: string, attempt: 1 | 2 | 3 |
   const what = r.requirementName;
   const where = r.countyName ? ` in ${r.countyName}` : '';
   const fee = r.serviceFee ? formatCurrency(r.serviceFee, DEFAULT_MARKET) : null;
+  // The exact M-Pesa steps and number, so nobody has to guess how to pay.
+  const payBullets = r.serviceFee
+    ? payInstructionLines({ amount: r.serviceFee, fromPhone: r.contactPhoneE164 ? formatPhoneLocal(r.contactPhoneE164) : null })
+    : undefined;
 
   let subject: string;
   let email: ApplyAssistanceEmailProps;
@@ -309,6 +315,8 @@ export async function notifyLeadReminder(requestId: string, attempt: 1 | 2 | 3 |
         `Hi ${first}, this is the last reminder we will send about your ${what}${where}.`,
         'If you still want us to handle the application, you can pick up where you left off. If not, no problem at all.',
       ],
+      bulletsTitle: payBullets ? 'How to pay' : undefined,
+      bullets: payBullets,
       ctaLabel: 'Continue to payment',
       ctaUrl: resumeUrl,
       unsubscribeUrl: stopUrl,
@@ -323,6 +331,8 @@ export async function notifyLeadReminder(requestId: string, attempt: 1 | 2 | 3 |
           ? `You pay the ${fee} service fee by M-Pesa, send us your documents from your phone, and we do the rest.`
           : 'Pay the service fee by M-Pesa, send us your documents from your phone, and we do the rest.',
       ],
+      bulletsTitle: payBullets ? 'How to pay' : undefined,
+      bullets: payBullets,
       ctaLabel: 'Continue to payment',
       ctaUrl: resumeUrl,
       unsubscribeUrl: stopUrl,
@@ -337,6 +347,8 @@ export async function notifyLeadReminder(requestId: string, attempt: 1 | 2 | 3 |
           ? `The service fee is ${fee}. Pay by M-Pesa and we take it from there. You only need to upload your documents.`
           : 'Pay the service fee by M-Pesa and we take it from there. You only need to upload your documents.',
       ],
+      bulletsTitle: payBullets ? 'How to pay' : undefined,
+      bullets: payBullets,
       ctaLabel: 'Continue to payment',
       ctaUrl: resumeUrl,
       unsubscribeUrl: stopUrl,

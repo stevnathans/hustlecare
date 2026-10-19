@@ -19,6 +19,7 @@ import {
   STK_POLL_MAX_MS,
   type ApplyPaymentMode,
 } from '@/lib/applyAssistance/config';
+import { MANUAL_PAY_NUMBER, MANUAL_PAY_WHATSAPP } from '@/lib/payments/manual-config';
 
 interface OfferingView {
   serviceFee: number;
@@ -300,14 +301,21 @@ export default function ApplyHelpForm({ initial, counties, offering, paymentMode
     return (
       <div className={card} role="status">
         <h2 className="text-lg font-bold text-slate-900 mb-1">Pay with M-Pesa</h2>
+        <ol className="text-sm text-slate-700 space-y-1.5 list-decimal pl-5 mb-4">
+          <li>Open M-Pesa and choose <strong>Send Money</strong>.</li>
+          <li>Enter the number <strong className="text-base text-slate-900">{manual.payTo ?? MANUAL_PAY_NUMBER}</strong>.</li>
+          <li>Enter the amount <strong>{formatCurrency(manual.amount, DEFAULT_MARKET)}</strong>.</li>
+          {manual.payFromPhone && <li>Pay from <strong>{manual.payFromPhone}</strong>, the number you gave us, so we can match your payment.</li>}
+          <li>
+            Send your M-Pesa confirmation message to{' '}
+            <a href={`https://wa.me/${MANUAL_PAY_WHATSAPP}`} className="font-semibold text-emerald-700 underline" target="_blank" rel="noopener">
+              {MANUAL_PAY_NUMBER} on WhatsApp
+            </a>
+            .
+          </li>
+        </ol>
         <p className="text-sm text-slate-600 mb-5">
-          Send {formatCurrency(manual.amount, DEFAULT_MARKET)} by M-Pesa
-          {manual.payTo ? <> to <strong className="text-slate-900">{manual.payTo}</strong></> : null}.
-          {manual.payFromPhone ? <> Please pay from {manual.payFromPhone} so we can match your payment.</> : null}
-        </p>
-        <p className="text-sm text-slate-600 mb-5">
-          We confirm payments by hand. As soon as we see yours, we will email you what we need. You can follow your
-          request on its own page.
+          We confirm payments by hand and email you what we need as soon as we see yours. You can follow your request on its own page.
         </p>
         {trackHref && (
           <Link href={trackHref} rel="nofollow" className={linkClass}>

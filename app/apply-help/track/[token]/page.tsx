@@ -12,6 +12,7 @@ import { prisma } from '@/lib/prisma';
 import { createSignedDownloadUrl } from '@/lib/storage/privateStorage';
 import { formatCurrency } from '@/lib/currency';
 import { DEFAULT_MARKET } from '@/lib/markets';
+import { MANUAL_PAY_NUMBER } from '@/lib/payments/manual-config';
 import TrackingClient from '@/components/apply-help/TrackingClient';
 
 export const dynamic = 'force-dynamic';
@@ -107,7 +108,7 @@ export default async function TrackPage({ params }: { params: Promise<{ token: s
           <p className="font-semibold text-slate-900">We have not received your payment yet</p>
           <p className="text-sm text-slate-600 mt-1">
             {r.serviceFee ? `The service fee is ${formatCurrency(r.serviceFee, DEFAULT_MARKET)}. ` : ''}
-            If you have just paid, give it a minute and refresh this page. Otherwise you can pick up where you left off.
+            To pay by M-Pesa, use Send Money to <strong>{MANUAL_PAY_NUMBER}</strong>, then WhatsApp your confirmation message to the same number. If you have just paid, give it a minute and refresh this page. Or continue to payment below.
           </p>
           <Link
             href={`/apply-help?resume=${token}`}

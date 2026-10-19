@@ -71,6 +71,7 @@ export function ConfirmationScreen({ orderNumber }: { orderNumber: string }) {
               label={summary.payable.kind === "DEPOSIT" ? "deposit" : "fee"}
               paymentMode={summary.paymentMode}
               defaultPhone={summary.contactPhone}
+              orderRef={orderNumber}
               onPaid={() => setPaid(true)}
             />
             {hasBalance && summary.balanceAmount !== null && (
