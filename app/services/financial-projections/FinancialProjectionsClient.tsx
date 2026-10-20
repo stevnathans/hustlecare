@@ -233,7 +233,7 @@ const plans: Plan[] = [
     id: "essential",
     name: "Essential Projections",
     tag: "Best for early planning",
-    price: "KSh 7,500",
+    price: "KSh 5,500",
     items: [
       "3-year revenue & expense forecasts",
       "Cash flow & Profit & Loss statements",
@@ -248,7 +248,7 @@ const plans: Plan[] = [
     id: "full",
     name: "Full Financial Model",
     tag: "Most popular",
-    price: "KSh 15,000",
+    price: "KSh 10,000",
     items: [
       "Everything in Essential Projections",
       "Balance Sheet & Break-even analysis",
@@ -265,7 +265,7 @@ const plans: Plan[] = [
     id: "investor",
     name: "Investor Package",
     tag: "Best for fundraising",
-    price: "KSh 30,000",
+    price: "KSh 25,000",
     items: [
       "Everything in Full Financial Model",
       "Extended 5-year projections",

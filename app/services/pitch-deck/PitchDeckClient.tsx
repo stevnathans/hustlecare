@@ -189,7 +189,7 @@ const plans: Plan[] = [
     id: "starter",
     name: "Starter Deck",
     tag: "For founders with existing content",
-    price: "KSh 8,500",
+    price: "KSh 4,500",
     items: [
       "Up to 10 slides",
       "Professional modern design",
@@ -197,7 +197,7 @@ const plans: Plan[] = [
       "PDF + PowerPoint files",
       "2 revision rounds",
     ],
-    delivery: "4–5 days",
+    delivery: "3–5 days",
     cta: "Start Starter Deck",
     popular: false,
   },
@@ -205,7 +205,7 @@ const plans: Plan[] = [
     id: "investor",
     name: "Investor Deck",
     tag: "Most popular",
-    price: "KSh 18,000",
+    price: "KSh 10,000",
     items: [
       "Everything in Starter Deck",
       "Up to 15 slides",
@@ -223,7 +223,7 @@ const plans: Plan[] = [
     id: "fundraising",
     name: "Fundraising Deck",
     tag: "Best for serious fundraising",
-    price: "KSh 35,000",
+    price: "KSh 20,000",
     items: [
       "Everything in Investor Deck",
       "Up to 20 slides & 2 design concepts",

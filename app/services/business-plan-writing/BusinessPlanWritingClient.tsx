@@ -407,7 +407,7 @@ const plans: Plan[] = [
     id: "starter",
     name: "Starter",
     tag: "Best for early ideas",
-    price: "KSh 5,999",
+    price: "KSh 2,999",
     items: [
       "Executive Summary",
       "Business Description",
@@ -429,7 +429,7 @@ const plans: Plan[] = [
     id: "professional",
     name: "Professional",
     tag: "Most Popular",
-    price: "KSh 12,999",
+    price: "KSh 5,999",
     items: [
       "Everything in Starter, plus:",
       "Detailed Market & Industry Analysis",
@@ -449,7 +449,7 @@ const plans: Plan[] = [
     id: "investor",
     name: "Investor",
     tag: "Best for Fundraising",
-    price: "KSh 24,999",
+    price: "KSh 12,999",
     items: [
       "Everything in Professional, plus:",
       "Comprehensive Industry Research",

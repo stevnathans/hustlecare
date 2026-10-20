@@ -209,7 +209,7 @@ const plans: Plan[] = [
     id: "starter",
     name: "Starter",
     tag: "Ideal for new businesses",
-    price: "KSh 25,000",
+    price: "KSh 15,000",
     items: [
       "Up to 5 pages",
       "Mobile responsive design",
@@ -225,7 +225,7 @@ const plans: Plan[] = [
     id: "professional",
     name: "Professional",
     tag: "Recommended",
-    price: "KSh 45,000",
+    price: "KSh 30,000",
     items: [
       "Everything in Starter",
       "Up to 10 pages, Blog & Gallery",
@@ -242,7 +242,7 @@ const plans: Plan[] = [
     id: "premium",
     name: "Premium",
     tag: "Complete digital solution",
-    price: "KSh 85,000",
+    price: "KSh 65,000",
     items: [
       "Everything in Professional",
       "Custom design & Premium animations",
