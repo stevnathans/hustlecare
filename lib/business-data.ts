@@ -7,6 +7,21 @@
 // explicit `market` argument — callers should always pass one, but it
 // defaults to Kenya to match the pre-market-aware behavior of the original
 // inline functions this was extracted from.
+//
+// COST NOTE: fetchBusiness no longer selects template.products. It used to,
+// purely so the hub pages could compute a cost figure inline — but that
+// select had no `status: 'ACTIVE'` filter and no vendor-market filter, so
+// hub cost FAQs and JSON-LD were built from DRAFT / PENDING_REVIEW /
+// REJECTED / ARCHIVED products and products from the wrong market. Every
+// cost figure now comes from getBusinessCostBreakdown() in
+// lib/cost-data.ts, which owns the one correct product filter
+// (COSTABLE_PRODUCT_WHERE). Do not reintroduce a price select here.
+//
+// QUANTITY / RECURRENCE: fetchBusinessWithRequirements selects the same
+// per-business quantity and recurrence inputs lib/cost-data.ts uses
+// (defaultQuantity, per-band quantities, template.costRecurrence,
+// categoryRef.defaultCostRecurrence), so the requirements pages can pass
+// them to the client and the client-side cost matches the server's.
 
 import { prisma } from '@/lib/prisma';
 import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
@@ -60,11 +75,6 @@ export async function fetchBusiness(slug: string, market: MarketCode = DEFAULT_M
                   usesLegalCountyFilter: true,
                 },
               },
-              // ← needed for server-side cost calculation for FAQs
-              products: {
-                select: { price: true },
-                where: { price: { not: null } },
-              },
             },
           },
         },
@@ -109,6 +119,10 @@ export async function fetchBusinessWithRequirements(slug: string, market: Market
           templateId: true,
           necessityOverride: true,
           descriptionOverride: true,
+          // Cost engine inputs — see the QUANTITY / RECURRENCE note at the
+          // top of this file.
+          defaultQuantity: true,
+          quantities: { select: { sizeBand: true, quantity: true } },
           template: {
             select: {
               name: true,
@@ -122,6 +136,7 @@ export async function fetchBusinessWithRequirements(slug: string, market: Market
               // for every requirement card on the checklist page.
               slug: true,
               published: true,
+              costRecurrence: true,
               // categoryRef (Stage 3 Part B, extended in Stage 4.5) — see
               // the comment in fetchBusiness above. `slug` is additionally
               // selected here (not needed on the hub page) because the
@@ -132,11 +147,14 @@ export async function fetchBusinessWithRequirements(slug: string, market: Market
               // category name — see groupRequirementsByCategory below and
               // its callers in app/businesses/[slug]/requirements/page.tsx
               // and app/businesses/[slug]/requirements/[category]/page.tsx.
+              // defaultCostRecurrence is the category-level fallback for
+              // the cost engine's recurrence resolution.
               categoryRef: {
                 select: {
                   slug: true,
                   excludedFromTotals: true,
                   usesLegalCountyFilter: true,
+                  defaultCostRecurrence: true,
                 },
               },
             },

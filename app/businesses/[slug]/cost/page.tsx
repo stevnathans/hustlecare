@@ -1,37 +1,18 @@
 // app/businesses/[slug]/cost/page.tsx
 //
-// CATEGORY-TOTAL CONSISTENCY (this revision): the category breakdown now
-// sources from `required` (the required-only, Medium-band breakdown —
-// same one CostSummaryPanel shows by default) rather than `withOptional`,
-// and its line list is explicitly filtered to required + non-stock. Before
-// this, category cards summed required + optional + stock regardless of
-// what the headline number above them showed, which is the "extra cost"
-// bug — see lib/cost-engine.ts's header comment for the actual fix.
-// Optional items and stock are still visible elsewhere on the page (the
-// "not yet priced" section, and stock's own site-wide stats) — just not
-// folded into this specific total anymore.
-//
-// FLOATING CART (this revision): CostCartSummary now renders as a fixed
-// bottom bar (see that file), so it moves out of the normal content flow
-// into an overlay rendered once near the top of this component, and the
-// content wrapper gets extra bottom padding so the bar never covers the
-// page's own CTAs.
-//
-// SHARED CART COMPONENTS: CostCartSync/CostCartSummary now live in
-// components/shared/ instead of this folder — a second consumer
-// (components/DetailsPage/CategoryChecklistContent.tsx, for the
-// /businesses/{slug}/requirements/{category-slug} sub-pages) needed the
-// same floating cart bar, so both moved out once they stopped being
-// /cost-specific. See each file's own header comment for the fuller
-// reasoning.
+// HREFLANG + INDEXING (this revision): the US cost page now exists, so
+// this page advertises it as an en-US alternate — but only when the US
+// side has genuinely computed pricing (an hreflang pointing at a
+// noindexed page is a conflicting signal). A cost page with no computed
+// pricing at all is noindexed: it has nothing a searcher came for.
 
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
-import { getCostBreakdownMatrix, getCountyFeeTable } from '@/lib/cost-data';
+import { getCostBreakdownMatrix, getCountyFeeTable, hasComputedPricing } from '@/lib/cost-data';
 import { formatCurrency, formatMoneyRange } from '@/lib/currency';
-import { type MarketCode } from '@/lib/markets';
+import { marketBasePath, marketHreflang, type MarketCode } from '@/lib/markets';
 import type { CostBreakdownPair, BusinessCostBreakdown } from '@/lib/cost-data';
 import { DEFAULT_SIZE_BAND, type SizeBand } from '@/lib/cost-engine';
 import CostSummaryPanel, { type CostPanelSummary } from './CostSummaryPanel';
@@ -134,9 +115,10 @@ function buildCostPageFaqs(
 
 export async function generateMetadata({ params }: CostPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const [business, matrix] = await Promise.all([
+  const [business, matrix, usHasPricing] = await Promise.all([
     fetchBusinessIdentity(slug),
     getCostBreakdownMatrix(slug, market),
+    hasComputedPricing(slug, 'US'),
   ]);
 
   if (!business) {
@@ -144,6 +126,7 @@ export async function generateMetadata({ params }: CostPageProps): Promise<Metad
   }
 
   const required = matrix?.[DEFAULT_SIZE_BAND].requiredOnly;
+  const indexable = !!required?.hasPricing;
   const year = new Date().getFullYear();
   const name = business.name;
   const title = `How Much Does It Cost to Start a ${name} Business in Kenya? (${year} Breakdown) | HustleCare`;
@@ -184,11 +167,19 @@ export async function generateMetadata({ params }: CostPageProps): Promise<Metad
       site: '@HustleCare',
     },
     robots: {
-      index: true,
+      index: indexable,
       follow: true,
-      googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 },
+      googleBot: { index: indexable, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 },
     },
-    alternates: { canonical: pageUrl },
+    alternates: {
+      canonical: pageUrl,
+      languages: {
+        [marketHreflang(market)]: pageUrl,
+        ...(usHasPricing
+          ? { [marketHreflang('US')]: `${SITE_URL}${marketBasePath('US')}/businesses/${slug}/cost` }
+          : {}),
+      },
+    },
     verification: { google: process.env.GOOGLE_SITE_VERIFICATION },
   };
 }
@@ -225,17 +216,11 @@ export default async function CostPage({ params }: CostPageProps) {
   const { requiredOnly: required, withOptional } = reference;
 
   const optionalCount = withOptional.coverage.totalRequirements - required.coverage.totalRequirements;
-  // .lines is the raw, unfiltered list regardless of options — used here
-  // for coverage ("what's not priced yet") across both required and
-  // optional. The category breakdown below deliberately narrows this
-  // further — see categoryLines.
   const unpricedLines = withOptional.lines.filter((l) => !l.hasPricing && !l.isStock);
   const hasCountyFees = countyFeeRows.length > 0;
 
   // Required + non-stock only, matching required.categories exactly (see
-  // lib/cost-engine.ts's filterInScope) — this is what keeps the category
-  // cards from ever summing to more than the headline "cash to open"
-  // figure above them.
+  // lib/cost-engine.ts's filterInScope).
   const categoryLines = required.lines.filter((l) => l.isRequired && !l.isStock);
 
   const faqs = buildCostPageFaqs(name, required, optionalCount, required.stockCount, hasCountyFees);

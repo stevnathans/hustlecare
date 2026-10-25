@@ -1,11 +1,20 @@
 // lib/cost-data.ts
 //
-// (Unchanged design from the previous revision — size-band-aware fee
-// resolution, getCostBreakdownMatrix, getRequirementsPageCostSummary,
-// getCountyFeeTable. See that revision's comments for the full
-// rationale.) Product select now also pulls name/image, so
-// buildCostLines can populate CostLine.representativeProduct for the
-// /cost page's "add cheapest option" action.
+// The Prisma layer under lib/cost-engine.ts.
+//
+// MARKET GATES (this revision):
+//  - County-fee resolution only runs for Kenya (LegalFeeSchedule is a
+//    Kenya-only mechanism). Other markets skip it entirely, even if a
+//    template were mis-flagged isCountyFeeSchedule.
+//  - Business.costMin/costMax (the editorial fallback) is assumed to be
+//    KES, so it's only applied on the Kenya market. On any other market it
+//    would show KES figures as that market's currency.
+//  - Requirement link slugs are only emitted for Kenya, matching what the
+//    US hub/requirements pages already do (their /us/requirements/{slug}
+//    entity pages exist but the US pages deliberately don't link yet).
+//
+// SIZE-BAND: county fees are resolved per-call (not baked into the cached
+// inputs) so the requested size band can influence the fee row chosen.
 
 import { unstable_cache } from 'next/cache';
 import type { Prisma } from '@prisma/client';
@@ -32,6 +41,9 @@ import {
 } from '@/lib/cost-engine';
 
 const REVALIDATE_SECONDS = 60 * 30;
+
+/** Markets whose Kenya-specific mechanisms (county fees, editorial KES band, entity-page links) apply. */
+const isKenya = (market: MarketCode) => market === 'KE';
 
 export const COSTABLE_PRODUCT_WHERE = (market: MarketCode): Prisma.ProductWhereInput => ({
   status: 'ACTIVE',
@@ -154,7 +166,8 @@ const getBusinessCostInputs = unstable_cache(
 
     for (const link of business.requirements) {
       const name = link.template.name;
-      const templateSlug = link.template.published ? link.template.slug : null;
+      // Entity-page links: Kenya only (see header note).
+      const templateSlug = isKenya(market) && link.template.published ? link.template.slug : null;
 
       const recurrence: CostRecurrence =
         link.template.costRecurrence ?? link.template.categoryRef?.defaultCostRecurrence ?? 'ONE_TIME';
@@ -164,7 +177,8 @@ const getBusinessCostInputs = unstable_cache(
         return acc;
       }, {});
 
-      if (link.template.isCountyFeeSchedule) {
+      // County fees: Kenya only.
+      if (link.template.isCountyFeeSchedule && isKenya(market)) {
         countyFeeRequirements.push({
           id: link.id,
           name,
@@ -185,7 +199,7 @@ const getBusinessCostInputs = unstable_cache(
         quantity: link.defaultQuantity,
         quantityByBand,
         recurrence,
-        feeSchedule: null,
+        feeSchedule: null, // resolved per-call, per-sizeBand — see getBusinessCostBreakdown
       });
 
       productsByRequirementName[name] = link.template.products.map((p) => ({
@@ -258,7 +272,8 @@ export async function getBusinessCostBreakdown(
     ...options,
     sizeBand,
     market,
-    editorialFallback: { min: inputs.costMin, max: inputs.costMax },
+    // Editorial band is presumed KES — Kenya only (see header note).
+    editorialFallback: isKenya(market) ? { min: inputs.costMin, max: inputs.costMax } : null,
   });
 
   return {
@@ -268,6 +283,16 @@ export async function getBusinessCostBreakdown(
     slug: inputs.slug,
     market,
   };
+}
+
+/**
+ * True when a business has genuinely computed (not editorial) pricing for
+ * the market. Used for noindex decisions and for deciding whether to emit
+ * an hreflang alternate pointing at that market's cost page.
+ */
+export async function hasComputedPricing(slug: string, market: MarketCode): Promise<boolean> {
+  const breakdown = await getBusinessCostBreakdown(slug, market, { includeOptional: false });
+  return !!breakdown && breakdown.hasPricing;
 }
 
 export interface CostBreakdownPair {
@@ -340,11 +365,14 @@ export interface CountyFeeTableRow {
   resolution: FeeScheduleResolution;
 }
 
+/** Kenya only — returns [] for any other market. */
 export async function getCountyFeeTable(
   slug: string,
   market: MarketCode = DEFAULT_MARKET,
   sizeBand: SizeBand = DEFAULT_SIZE_BAND,
 ): Promise<CountyFeeTableRow[]> {
+  if (!isKenya(market)) return [];
+
   const inputs = await getBusinessCostInputs(slug, market);
   if (!inputs || inputs.countyFeeRequirements.length === 0) return [];
 

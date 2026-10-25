@@ -41,13 +41,9 @@ export async function POST(request: NextRequest) {
 
     // Look up the real product row being added. For a fee-schedule shell
     // product or a Software package selection, the client-sent price is
-    // only a hint — the authoritative price is re-resolved here, either
-    // from LegalFeeSchedule (using the county the client says it's adding
-    // for) or from SoftwarePackage (using the packageId the client says
-    // was picked). This mirrors the project's existing "never trust a
-    // client-sent price, snapshot the real one" pattern (see
-    // OrderItem.unitPrice). currency gets the same treatment: it's read
-    // from the product row itself, never trusted from the client.
+    // only a hint — the authoritative price is re-resolved here. Currency
+    // gets the same treatment: read from the product row, never trusted
+    // from the client.
     const productRecord = await prisma.product.findUnique({
       where: { id: Number(product.productId) },
       select: { id: true, isFeeScheduleShell: true, templateId: true, currency: true },
@@ -60,9 +56,6 @@ export async function POST(request: NextRequest) {
     let unitPrice = product.price
     let packageId: number | null = null
     let billingPeriodLabel: string | null = null
-    // Falls back to KES if the product row somehow has a null currency —
-    // matches the Product.currency schema default, so this only ever
-    // triggers on pre-migration data.
     const currency = productRecord.currency ?? 'KES'
 
     if (productRecord.isFeeScheduleShell) {
@@ -87,16 +80,6 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      // Re-derive both matching dimensions defensively rather than trusting
-      // anything the client sent, consistent with the "never trust
-      // client-sent price" pattern this route already follows for
-      // unitPrice itself:
-      //   - businessCategoryId: the business's own browsing category,
-      //     matched directly against legacy category-tiered rows.
-      //   - tradeClassId: the business's own override, else its
-      //     category's default — matched against tradeClass-tiered rows.
-      // Passing both lets resolveFeeSchedule correctly resolve rows using
-      // either taxonomy, whichever a given county's data actually uses.
       const business = await prisma.business.findUnique({
         where: { id: parseInt(businessId.toString()) },
         select: {
@@ -124,14 +107,7 @@ export async function POST(request: NextRequest) {
       }
 
       unitPrice = resolution.price
-      // County fee schedules are Kenya-only (see LegalFeeSchedule/County
-      // in schema.prisma) — currency here is always KES regardless of the
-      // shell product's own currency field, since the resolved price
-      // itself only ever comes from a Kenyan county's fee schedule.
     } else if (product.packageId) {
-      // Software package selection — same "re-resolve, never trust the
-      // client" treatment as the county-fee branch above, just against
-      // SoftwarePackage instead of LegalFeeSchedule.
       const pkg = await prisma.softwarePackage.findUnique({
         where: { id: Number(product.packageId) },
         select: { id: true, productId: true, price: true, billingPeriod: true },
@@ -147,8 +123,6 @@ export async function POST(request: NextRequest) {
       unitPrice = pkg.price
       packageId = pkg.id
       billingPeriodLabel = billingPeriodLabelFor(pkg.billingPeriod)
-      // SoftwarePackage has no currency of its own — it inherits the
-      // parent product's currency, already captured above.
     }
 
     // Find or create cart for this user and business
@@ -170,6 +144,32 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // CURRENCY GUARD (new): one cart exists per (user, business) and is
+    // shared across markets, so the Kenya and US pages for the same
+    // business point at the same cart. Cart totals just sum
+    // price × quantity with no currency conversion, so mixing KES and USD
+    // lines would produce a meaningless total. Reject the add instead,
+    // ignoring the product's own existing line (a same-product re-add is
+    // never a conflict).
+    const conflictingItem = await prisma.cartItem.findFirst({
+      where: {
+        cartId: cart.id,
+        currency: { not: currency },
+        NOT: { productId: Number(product.productId) },
+      },
+      select: { id: true },
+    })
+
+    if (conflictingItem) {
+      return NextResponse.json(
+        {
+          error:
+            'Your list for this business already contains items priced in a different currency. Clear it on the requirements page before adding this item.',
+        },
+        { status: 409 }
+      )
+    }
+
     const existingItem = await prisma.cartItem.findFirst({
       where: {
         cartId:    cart.id,
@@ -177,12 +177,6 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // A fee-schedule shell re-add (after switching county) or a package
-    // switch on an already-cart-added Software product both REPLACE the
-    // existing line's snapshotted price/package rather than incrementing
-    // quantity like a normal product — in both cases the person only
-    // needs one of this requirement, priced/tiered for their latest
-    // choice.
     const replacesExistingLine = productRecord.isFeeScheduleShell || packageId !== null
 
     if (existingItem) {
@@ -213,8 +207,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Notify the vendor + log the analytics event — both fire-and-forget,
-    // neither should ever block the cart add itself.
+    // Notify the vendor + log the analytics event — both fire-and-forget.
     prisma.product.findUnique({
       where:  { id: Number(product.productId) },
       select: { name: true, vendorId: true, vendor: { select: { userId: true } } },
@@ -229,8 +222,6 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      // This is what actually increments VendorAnalytics.cartAdds — that field
-      // existed on the schema already but nothing was writing to it before.
       await trackEvent({
         type: 'CART_ADD',
         userId,

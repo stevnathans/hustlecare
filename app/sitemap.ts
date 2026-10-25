@@ -3,6 +3,7 @@ import { MetadataRoute } from 'next';
 import { prisma } from '@/lib/prisma';
 import { getIndexableRequirementSlugs } from '@/lib/requirement-data';
 import { fetchBusinessWithRequirements, groupRequirementsByCategory } from '@/lib/business-data';
+import { hasComputedPricing } from '@/lib/cost-data';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
 
@@ -27,6 +28,21 @@ const US_ELIGIBLE_WHERE = {
     },
   },
 };
+
+/**
+ * Runs `fn` over `items` a few at a time. The cost-page section below does
+ * one (cached) cost computation per business per market; chunking keeps
+ * that from opening hundreds of simultaneous Prisma queries on a cold
+ * cache.
+ */
+async function inChunks<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = [];
+  for (let i = 0; i < items.length; i += size) {
+    const chunk = items.slice(i, i + size);
+    out.push(...(await Promise.all(chunk.map(fn))));
+  }
+  return out;
+}
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
@@ -205,6 +221,72 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     console.error('Sitemap: failed to fetch US-eligible businesses from DB:', error);
   }
 
+  // ── Dynamic cost pages (/businesses/{slug}/cost, /us/businesses/{slug}/cost) ─
+  // Only businesses with genuinely COMPUTED pricing in that market — the
+  // cost pages are `noindex` without it (see their generateMetadata), and a
+  // sitemap entry for a noindexed page is a conflicting signal. Uses the
+  // same hasComputedPricing() the pages themselves use, so the two can't
+  // disagree.
+  //
+  // hreflang alternates are reciprocal and only emitted when BOTH markets
+  // qualify, for the same reason (an alternate pointing at a noindexed page
+  // is worse than none).
+  const costPages: MetadataRoute.Sitemap = [];
+
+  try {
+    const [keBusinesses, usBusinesses] = await Promise.all([
+      prisma.business.findMany({ where: { published: true }, select: { slug: true, updatedAt: true } }),
+      prisma.business.findMany({ where: { published: true, ...US_ELIGIBLE_WHERE }, select: { slug: true, updatedAt: true } }),
+    ]);
+
+    const [keFlags, usFlags] = await Promise.all([
+      inChunks(keBusinesses, 10, async (b) => [b.slug, await hasComputedPricing(b.slug, 'KE')] as const),
+      inChunks(usBusinesses, 10, async (b) => [b.slug, await hasComputedPricing(b.slug, 'US')] as const),
+    ]);
+    const keHasPricing = new Map(keFlags);
+    const usHasPricing = new Map(usFlags);
+
+    for (const { slug, updatedAt } of keBusinesses) {
+      if (!keHasPricing.get(slug)) continue;
+      const alsoUs = usHasPricing.get(slug) === true;
+      costPages.push({
+        url: `${SITE_URL}/businesses/${slug}/cost`,
+        lastModified: updatedAt,
+        changeFrequency: 'weekly',
+        priority: 0.80,
+        ...(alsoUs && {
+          alternates: {
+            languages: {
+              'en-KE': `${SITE_URL}/businesses/${slug}/cost`,
+              'en-US': `${SITE_URL}/us/businesses/${slug}/cost`,
+            },
+          },
+        }),
+      });
+    }
+
+    for (const { slug, updatedAt } of usBusinesses) {
+      if (!usHasPricing.get(slug)) continue;
+      const alsoKe = keHasPricing.get(slug) === true;
+      costPages.push({
+        url: `${SITE_URL}/us/businesses/${slug}/cost`,
+        lastModified: updatedAt,
+        changeFrequency: 'weekly',
+        priority: 0.80,
+        ...(alsoKe && {
+          alternates: {
+            languages: {
+              'en-KE': `${SITE_URL}/businesses/${slug}/cost`,
+              'en-US': `${SITE_URL}/us/businesses/${slug}/cost`,
+            },
+          },
+        }),
+      });
+    }
+  } catch (error) {
+    console.error('Sitemap: failed to build cost page entries:', error);
+  }
+
   // ── Dynamic requirement entity pages (Stage 2, extended in Stage 4) ───────
   // Filtered by getIndexableRequirementSlugs's anti-orphan rule — a
   // requirement only gets a sitemap entry if it has real content behind
@@ -341,6 +423,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...staticPages,
     ...businessPages,
     ...usBusinessPages,
+    ...costPages,
     ...requirementPages,
     ...usRequirementPages,
     ...categoryChecklistPages,

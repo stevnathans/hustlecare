@@ -1,10 +1,9 @@
 // app/businesses/[slug]/cost/CostSummaryPanel.tsx
 //
-// SIZE BAND (new): accepts a full matrix (every SizeBand × includeOptional
-// combination), computed server-side in page.tsx, and switches between
-// them with local state — no client fetch, same trick as the optional-
-// items toggle. "Working capital months" and "include stock" remain pure
-// client-side arithmetic on whichever cell of the matrix is active.
+// Interactive summary for the /cost pages (Kenya and US). Everything
+// arrives as props computed server-side; size band, optional items,
+// starting stock and working-capital months are all pure arithmetic on a
+// precomputed matrix — no client fetch. See page.tsx for the matrix.
 
 'use client';
 
@@ -111,7 +110,6 @@ export default function CostSummaryPanel({
         )}
       </div>
 
-      {/* ── Business size ────────────────────────────────────────────── */}
       <div className="mb-6">
         <p className="text-sm text-slate-600 mb-2 text-center">Business size</p>
         <div className="grid grid-cols-4 gap-2">
@@ -133,7 +131,6 @@ export default function CostSummaryPanel({
         </div>
       </div>
 
-      {/* ── Other controls ───────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 justify-center mb-6 pb-6 border-b border-slate-100">
         {optionalCount > 0 && (
           <label className="inline-flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none">
@@ -185,7 +182,7 @@ export default function CostSummaryPanel({
         <div className="bg-slate-50 rounded-xl p-4 text-center">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">One-time setup</p>
           <p className="text-lg font-bold text-slate-900">{range(active.oneTime)}</p>
-          <p className="text-xs text-slate-400 mt-1">Legal, equipment, documents, branding</p>
+          <p className="text-xs text-slate-400 mt-1">Equipment, documents, branding and other one-off costs</p>
         </div>
 
         <div className="bg-slate-50 rounded-xl p-4 text-center">

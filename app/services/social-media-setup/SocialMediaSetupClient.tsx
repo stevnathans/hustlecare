@@ -226,7 +226,7 @@ const plans: Plan[] = [
     id: "starter",
     name: "Starter Setup",
     tag: "Best for new businesses",
-    price: "KSh 4,500",
+    price: "KSh 1,000",
     items: [
       "Facebook Page",
       "Instagram Business",
@@ -243,7 +243,7 @@ const plans: Plan[] = [
     id: "full",
     name: "Full Social Launch",
     tag: "Recommended",
-    price: "KSh 8,500",
+    price: "KSh 2,000",
     items: [
       "Everything in Starter",
       "TikTok Business",
@@ -262,7 +262,7 @@ const plans: Plan[] = [
     id: "complete",
     name: "Complete Brand Presence",
     tag: "Best for serious startups",
-    price: "KSh 15,000",
+    price: "KSh 5,000",
     items: [
       "Everything in Business",
       "X (Twitter) setup",

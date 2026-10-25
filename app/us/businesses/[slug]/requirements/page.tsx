@@ -3,6 +3,7 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import BusinessPageContent from '../../../../businesses/[slug]/requirements/BusinessPageContent';
 import { fetchBusinessWithRequirements, groupRequirementsByCategory } from '@/lib/business-data';
+import { getRequirementsPageCostSummary } from '@/lib/cost-data';
 import type { CategoryLinkInfo } from '@/components/DetailsPage/RequirementsSection';
 import { prisma } from '@/lib/prisma';
 import { isExcludedFromTotals } from '@/lib/necessity';
@@ -19,6 +20,7 @@ import {
 } from '@/lib/markets';
 import { withArticle } from '@/lib/grammar';
 import { pickWithinLimit, TITLE_MAX } from '@/lib/seo-fit';
+import type { CostRecurrence, SizeBand } from '@/lib/cost-engine';
 
 export const revalidate = 300; // regenerate at most every 5 minutes
 
@@ -26,18 +28,11 @@ export const revalidate = 300; // regenerate at most every 5 minutes
 const market: MarketCode = 'US';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
-// US: https://hustlecare.net/us
 const BASE_PATH = marketBasePath(market);
 const SITE_BASE = `${SITE_URL}${BASE_PATH}`;
 const COUNTRY = marketCountryPhrase(market); // "the US"
 const HREFLANG = marketHreflang(market);
 
-// Stage 4.5 — same threshold as the Kenya requirements page and its
-// [category] sub-route counterpart. Kept as its own local constant here
-// (rather than a shared import) to match this file's existing convention
-// of near-duplicating the Kenya page rather than sharing state across the
-// two market implementations — see the module comments throughout this
-// file for the fuller reasoning already established at Stage 2/3.
 const CATEGORY_PAGE_THRESHOLD = 3;
 
 interface BusinessPageProps {
@@ -49,16 +44,6 @@ interface RequirementFaq {
   answer: string;
 }
 
-// ── Core/Stock split ──────────────────────────────────────────────────────────
-// Same reasoning as the Kenya requirements page — see that file for the
-// fuller comment. Stock requirements are sellable inventory, not fixed
-// startup requirements, so they're excluded from every SEO-facing count
-// here and get their own separate structured-data ItemList further down.
-//
-// Stage 3 Part B: reads RequirementCategory.excludedFromTotals
-// (template.categoryRef) instead of string-comparing template.category,
-// with the same fallback as the Kenya page for a template with no
-// categoryRef yet.
 function splitCoreAndStock<T extends {
   template: { category: string | null; categoryRef?: { excludedFromTotals: boolean } | null };
 }>(requirements: T[]): { core: T[]; stock: T[] } {
@@ -77,8 +62,9 @@ function splitCoreAndStock<T extends {
 }
 
 // ── Title Builder ─────────────────────────────────────────────────────────────
-// Fitted to TITLE_MAX so it isn't truncated in the browser tab or search
-// results — longest wording first, falling back to shorter ones.
+// COST PAGE DE-DUPLICATION: "Costs" is no longer part of this title — it
+// competes with the dedicated /us/businesses/{slug}/cost page for cost
+// intent, exactly as on the Kenya requirements page. Fitted to TITLE_MAX.
 
 function buildTitle(businessName: string, requirementCount: number): string {
   const year = new Date().getFullYear();
@@ -86,7 +72,7 @@ function buildTitle(businessName: string, requirementCount: number): string {
   if (requirementCount > 0) {
     return pickWithinLimit(
       [
-        `${requirementCount} Requirements To Start ${a} Business in ${COUNTRY} (${year} Costs & Checklist)`,
+        `${requirementCount} Requirements To Start ${a} Business in ${COUNTRY} (${year} Checklist)`,
         `${requirementCount} Requirements to Start ${a} Business in ${COUNTRY} (${year})`,
         `${requirementCount} Requirements to Start ${a} Business in ${COUNTRY}`,
       ],
@@ -95,7 +81,7 @@ function buildTitle(businessName: string, requirementCount: number): string {
   }
   return pickWithinLimit(
     [
-      `${businessName} Business Requirements in ${COUNTRY} - Complete Checklist & Costs`,
+      `${businessName} Business Requirements in ${COUNTRY} - Complete Checklist`,
       `${businessName} Business Requirements in ${COUNTRY}`,
     ],
     TITLE_MAX
@@ -147,9 +133,6 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
     ? splitCoreAndStock(business.requirements ?? []).core.length
     : 0;
 
-  // Guards against both a genuinely missing business AND a business with
-  // zero US-visible requirements — same anti-thin-content bar as
-  // generateStaticParams below and the US hub page.
   if (!business || requirementCount === 0) {
     return {
       title: 'Business Not Found | HustleCare',
@@ -228,9 +211,6 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
 
     alternates: {
       canonical: pageUrl,
-      // The Kenya requirements page for this slug is always guaranteed to
-      // exist (its bar isn't gated on requirement count), so no
-      // eligibility check is needed in this direction.
       languages: {
         [HREFLANG]: pageUrl,
         [marketHreflang('KE')]: `${SITE_URL}${marketBasePath('KE')}/businesses/${slug}/requirements`,
@@ -247,8 +227,6 @@ export async function generateMetadata({ params }: BusinessPageProps): Promise<M
 }
 
 // ── Static Params ─────────────────────────────────────────────────────────────
-// Same filter as app/us/businesses/[slug]/page.tsx — only pre-render
-// businesses with at least one US-visible requirement.
 
 export async function generateStaticParams() {
   try {
@@ -277,7 +255,14 @@ export async function generateStaticParams() {
 
 export default async function USBusinessPage({ params }: BusinessPageProps) {
   const { slug } = await params;
-  const business = await fetchBusinessWithRequirements(slug, market);
+
+  // costSummary: per-size-band headline figures computed server-side, so
+  // the cost section renders real numbers in the initial HTML (see
+  // hooks/useFilterState.ts) — same as the Kenya requirements page.
+  const [business, costSummary] = await Promise.all([
+    fetchBusinessWithRequirements(slug, market),
+    getRequirementsPageCostSummary(slug, market),
+  ]);
 
   if (!business) {
     notFound();
@@ -287,10 +272,6 @@ export default async function USBusinessPage({ params }: BusinessPageProps) {
   const { core: coreRequirements, stock: stockRequirements } = splitCoreAndStock(requirements);
   const requirementCount = coreRequirements.length;
 
-  // Same bar as generateStaticParams and generateMetadata above — a
-  // business that slipped through to this on-demand render but has zero
-  // qualifying requirements gets a real 404 instead of an empty,
-  // indexable page.
   if (requirementCount === 0) {
     notFound();
   }
@@ -310,10 +291,6 @@ export default async function USBusinessPage({ params }: BusinessPageProps) {
   const optionalCount = requirementCount - requiredCount;
 
   // ── Category-scoped checklist links (Stage 4.5) ──────────────────────────
-  // Same grouping as the Kenya page, pointed at the US sub-route
-  // (/us/businesses/{slug}/requirements/{category-slug}). See that file's
-  // fuller comment on why the grouping runs over ALL active requirements
-  // (Stock included) rather than just coreRequirements.
   const categoryGroups = groupRequirementsByCategory(requirements);
   const categoryLinks: Record<string, CategoryLinkInfo> = {};
   for (const [categoryName, group] of Object.entries(categoryGroups)) {
@@ -538,34 +515,38 @@ export default async function USBusinessPage({ params }: BusinessPageProps) {
     effectiveTradeClassId,
   };
 
-  // slug deliberately always null on the US market for now —
-  // /requirements/{slug} was Kenya-scoped until Stage 4; a market-aware
-  // /us/requirements/{slug} now exists, so this could be re-enabled, but
-  // is left as-is here since re-pointing it is outside this stage's scope
-  // — flip back to `req.template.published ? req.template.slug : null`
-  // and point RequirementCard at the US route for this market when ready.
-  //
-  // Stage 3 Part B: excludedFromTotals/usesLegalCountyFilter threaded
-  // through the same way as the Kenya page — see that file for the fuller
-  // comment. The Legal county-vendor filter never actually applies on the
-  // US market (BusinessPageContent.tsx's isKenya guard short-circuits it
-  // before this flag is read), but it's threaded here anyway for type
-  // consistency with RequirementData and so the two market page
-  // implementations don't quietly diverge.
-  const initialRequirements: RequirementData[] = requirements.map((req) => ({
-    id: req.id,
-    templateId: req.templateId,
-    name: req.template.name,
-    description: req.descriptionOverride ?? selectTemplateDescription(req.template, market) ?? null,
-    category: req.template.category ?? null,
-    necessity: req.necessityOverride ?? req.template.necessity,
-    image: req.template.image ?? null,
-    slug: null,
-    excludedFromTotals:
-      req.template.categoryRef?.excludedFromTotals ?? isExcludedFromTotals(req.template.category ?? ''),
-    usesLegalCountyFilter:
-      req.template.categoryRef?.usesLegalCountyFilter ?? (req.template.category === 'Legal'),
-  }));
+  // slug deliberately always null on the US market for now (existing
+  // decision — see the original comment: a /us/requirements/{slug} entity
+  // page exists, but re-pointing RequirementCard at it is a separate
+  // stage). Quantity/recurrence resolve exactly as in lib/cost-data.ts so
+  // the client-side cost matches the server's (see the Kenya page).
+  const initialRequirements: RequirementData[] = requirements.map((req) => {
+    const recurrence: CostRecurrence =
+      req.template.costRecurrence ?? req.template.categoryRef?.defaultCostRecurrence ?? 'ONE_TIME';
+
+    const quantityByBand = req.quantities.reduce<Partial<Record<SizeBand, number>>>((acc, row) => {
+      acc[row.sizeBand as SizeBand] = row.quantity;
+      return acc;
+    }, {});
+
+    return {
+      id: req.id,
+      templateId: req.templateId,
+      name: req.template.name,
+      description: req.descriptionOverride ?? selectTemplateDescription(req.template, market) ?? null,
+      category: req.template.category ?? null,
+      necessity: req.necessityOverride ?? req.template.necessity,
+      image: req.template.image ?? null,
+      slug: null,
+      excludedFromTotals:
+        req.template.categoryRef?.excludedFromTotals ?? isExcludedFromTotals(req.template.category ?? ''),
+      usesLegalCountyFilter:
+        req.template.categoryRef?.usesLegalCountyFilter ?? (req.template.category === 'Legal'),
+      quantity: req.defaultQuantity,
+      quantityByBand,
+      recurrence,
+    };
+  });
 
   return (
     <>
@@ -581,6 +562,7 @@ export default async function USBusinessPage({ params }: BusinessPageProps) {
         faqs={requirementFaqs}
         market={market}
         categoryLinks={categoryLinks}
+        initialCost={costSummary}
       />
     </>
   );

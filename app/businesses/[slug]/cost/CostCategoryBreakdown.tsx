@@ -1,12 +1,14 @@
 // app/businesses/[slug]/cost/CostCategoryBreakdown.tsx
 //
-// Still a server component — only the individual "Add cheapest option"
-// buttons are client islands (QuickAddButton), the standard RSC pattern
-// for a mostly-static list with a few interactive controls.
+// Server component; only the "Add cheapest" buttons are client islands.
+//
+// MARKET (new): links now use the market's base path (lib/markets.ts's
+// marketBasePath: "" for Kenya, "/us" for the US) instead of a hardcoded
+// Kenya path, and the quick-add button is told the market's currency.
 
 import Link from 'next/link';
-import { formatMoneyRange } from '@/lib/currency';
-import type { MarketCode } from '@/lib/markets';
+import { currencyCode, formatMoneyRange } from '@/lib/currency';
+import { marketBasePath, type MarketCode } from '@/lib/markets';
 import type { CategoryBreakdown, CostLine, CostRecurrence } from '@/lib/cost-engine';
 import QuickAddButton from './QuickAddButton';
 
@@ -33,6 +35,9 @@ export default function CostCategoryBreakdown({
   market,
   businessSlug,
 }: CostCategoryBreakdownProps) {
+  const basePath = marketBasePath(market);
+  const marketCurrency = currencyCode(market);
+
   const linesByCategory = new Map<string, CostLine[]>();
   for (const line of lines) {
     if (!linesByCategory.has(line.category)) linesByCategory.set(line.category, []);
@@ -70,7 +75,7 @@ export default function CostCategoryBreakdown({
                 const recurrence = recurrenceLabel(line.recurrence);
                 const nameContent = line.slug ? (
                   <Link
-                    href={`/requirements/${line.slug}`}
+                    href={`${basePath}/requirements/${line.slug}`}
                     className="font-medium text-slate-800 hover:text-emerald-700 hover:underline"
                   >
                     {line.name}
@@ -115,6 +120,7 @@ export default function CostCategoryBreakdown({
                           image={line.representativeProduct.image}
                           requirementName={line.name}
                           category={line.category}
+                          marketCurrency={marketCurrency}
                         />
                       )}
                     </div>
@@ -125,7 +131,7 @@ export default function CostCategoryBreakdown({
 
             <div className="px-5 py-2 bg-slate-50 border-t border-slate-100 text-right">
               <Link
-                href={`/businesses/${businessSlug}/requirements#${categoryAnchor(category.name)}`}
+                href={`${basePath}/businesses/${businessSlug}/requirements#${categoryAnchor(category.name)}`}
                 className="text-xs font-medium text-emerald-700 hover:text-emerald-800 hover:underline"
               >
                 Browse all {category.name} options →

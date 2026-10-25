@@ -1,7 +1,16 @@
 // app/us/businesses/[slug]/page.tsx
+//
+// COST (this revision): the inline price loop and formatUSD are gone —
+// cost comes from getBusinessCostBreakdown (lib/cost-data.ts), the same
+// engine every other cost surface uses. The old loop read
+// template.products, which fetchBusiness no longer selects (it also had
+// no status/vendor-market filter), so the cost FAQ here was silently
+// missing and, when present, was built from non-ACTIVE products.
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { fetchBusiness } from '@/lib/business-data';
+import { getBusinessCostBreakdown, type BusinessCostBreakdown } from '@/lib/cost-data';
+import { formatCurrency } from '@/lib/currency';
 import { prisma } from '@/lib/prisma';
 import HubPageContent from '../../../businesses/[slug]/HubPageContent';
 import RelatedBusinesses from '../../../businesses/[slug]/RelatedBusinesses';
@@ -16,8 +25,6 @@ import {
 import { withArticle } from '@/lib/grammar';
 import { pickWithinLimit, TITLE_MAX } from '@/lib/seo-fit';
 
-// Without this the page is prerendered once and stays static until the next
-// deploy; the Kenya hub already revalidates on the same interval.
 export const revalidate = 300; // regenerate at most every 5 minutes
 
 // The ONLY market-specific line in this file (see lib/markets.ts).
@@ -28,30 +35,11 @@ interface Props {
 }
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://hustlecare.net';
-// US: https://hustlecare.net/us
 const SITE_BASE = `${SITE_URL}${marketBasePath(market)}`;
 const COUNTRY = marketCountryPhrase(market); // "the US"
 const HREFLANG = marketHreflang(market);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-interface CostData {
-  low: number;
-  medium: number;
-  high: number;
-  requirementsWithProducts: number;
-  totalRequirements: number;
-  hasPricing: boolean;
-}
-
-function formatUSD(amount: number) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
 
 function formatDays(days: number) {
   if (days < 7) return `${days} day${days !== 1 ? 's' : ''}`;
@@ -61,13 +49,6 @@ function formatDays(days: number) {
   return `${months} month${months !== 1 ? 's' : ''}`;
 }
 
-/**
- * Whether a requirement counts toward the headline requirement total
- * (Stage 3 Part B) — same helper as the Kenya hub page. Reads
- * RequirementCategory.excludedFromTotals (threaded through by
- * fetchBusiness alongside slug/published) with a fallback to the legacy
- * category-string comparison for a template with no categoryRef yet.
- */
 function isRequirementExcludedFromTotals(template: {
   category: string | null;
   categoryRef?: { excludedFromTotals: boolean } | null;
@@ -75,7 +56,6 @@ function isRequirementExcludedFromTotals(template: {
   return template.categoryRef?.excludedFromTotals ?? isExcludedFromTotals(template.category ?? '');
 }
 
-/** Browser-tab / search title, fitted to TITLE_MAX (longest wording first). */
 function buildHubTitle(name: string, year: number): string {
   return pickWithinLimit(
     [
@@ -90,7 +70,7 @@ function buildHubTitle(name: string, year: number): string {
 /** Build auto-generated FAQs from business data — US copy. */
 function buildAutoFaqs(
   name: string,
-  cost: CostData | null,
+  cost: BusinessCostBreakdown | null,
   timeMin: number | null,
   timeMax: number | null,
   profitPotential: string | null,
@@ -100,15 +80,21 @@ function buildAutoFaqs(
 ): AutoFaq[] {
   const faqs: AutoFaq[] = [];
 
-  // "a Barbershop" / "an Event Planning" — see lib/grammar.ts. `A` is the
-  // sentence-initial form.
   const art = withArticle(name);
   const Art = art.charAt(0).toUpperCase() + art.slice(1);
 
-  if (cost?.hasPricing) {
+  // Only answer from genuinely computed data (see the Kenya hub page).
+  if (cost?.hasPricing && cost.source === 'COMPUTED') {
+    const money = (n: number) => formatCurrency(n, market);
+    const { requirementsWithPricing, totalRequirements } = cost.coverage;
+
     faqs.push({
       question: `How much does it cost to start ${art} business in ${COUNTRY}?`,
-      answer: `Starting ${art} business in ${COUNTRY} costs between ${formatUSD(cost.low)} and ${formatUSD(cost.high)} depending on your scale and location. This is based on ${cost.requirementsWithProducts} out of ${cost.totalRequirements} requirements that have products assigned.${cost.requirementsWithProducts < cost.totalRequirements ? ' The actual cost may be higher as some requirements are still being priced.' : ''}`,
+      answer: `Starting ${art} business in ${COUNTRY} costs between ${money(cost.oneTime.low)} and ${money(cost.oneTime.high)} depending on your scale and location, with a typical setup around ${money(cost.oneTime.typical)}. This is based on ${requirementsWithPricing} out of ${totalRequirements} essential requirements that currently have real supplier prices.${
+        requirementsWithPricing < totalRequirements
+          ? ' The actual cost may be higher as some requirements are still being priced.'
+          : ''
+      }`,
     });
   }
 
@@ -164,15 +150,6 @@ interface AutoFaq {
 }
 
 // ── Shared eligibility calc ──────────────────────────────────────────────────
-// Same anti-orphan bar as generateStaticParams below: a business with zero
-// active, non-deprecated, US-visible requirements has nothing genuinely
-// US-specific to show. Rendering it anyway (Next's default dynamicParams
-// lets any slug outside generateStaticParams still render on demand) would
-// produce an indexable near-duplicate of the Kenya page.
-//
-// Stage 3 Part B: now reads categoryRef.excludedFromTotals instead of
-// string-comparing template.category — see isRequirementExcludedFromTotals
-// above.
 function countCoreRequirements(business: NonNullable<Awaited<ReturnType<typeof fetchBusiness>>>) {
   return business.requirements.filter((r) => !isRequirementExcludedFromTotals(r.template)).length;
 }
@@ -185,8 +162,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const requirementCount = business ? countCoreRequirements(business) : 0;
 
-  // Guards against both a genuinely missing business AND a business with
-  // no US-visible requirements — see countCoreRequirements() above.
   if (!business || requirementCount === 0) {
     return {
       title: 'Business Not Found | HustleCare',
@@ -240,9 +215,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     },
     alternates: {
       canonical: pageUrl,
-      // The Kenya page for this slug is guaranteed to exist — it isn't
-      // gated by requirement count, only the US side is — so no
-      // eligibility check is needed in this direction.
       languages: {
         [HREFLANG]: pageUrl,
         [marketHreflang('KE')]: `${SITE_URL}${marketBasePath('KE')}/businesses/${slug}`,
@@ -253,9 +225,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 // ── Static Params ─────────────────────────────────────────────────────────────
-// Only pre-render businesses that actually have at least one US-visible
-// requirement, so we don't statically build empty US pages for businesses
-// that haven't been reviewed for the US market yet.
 
 export async function generateStaticParams() {
   try {
@@ -283,7 +252,11 @@ export async function generateStaticParams() {
 
 export default async function USBusinessHubPage({ params }: Props) {
   const { slug } = await params;
-  const business = await fetchBusiness(slug, market);
+
+  const [business, cost] = await Promise.all([
+    fetchBusiness(slug, market),
+    getBusinessCostBreakdown(slug, market),
+  ]);
 
   if (!business) notFound();
 
@@ -291,8 +264,6 @@ export default async function USBusinessHubPage({ params }: Props) {
   const name = business.name;
   const pageUrl = `${SITE_BASE}/businesses/${slug}`;
 
-  // Real timestamps from the Business row — never "now", which would change
-  // on every ISR regeneration and falsely signal the page was modified.
   const datePublished = business.createdAt.toISOString();
   const dateModified = business.updatedAt.toISOString();
 
@@ -302,10 +273,6 @@ export default async function USBusinessHubPage({ params }: Props) {
 
   const requirementCount = coreRequirements.length;
 
-  // Same bar as generateStaticParams and generateMetadata above — a
-  // business that slipped through to this on-demand render (because
-  // dynamicParams defaults to true) but has zero qualifying requirements
-  // gets a real 404 instead of an empty, indexable page.
   if (requirementCount === 0) notFound();
 
   const title = buildHubTitle(name, year);
@@ -323,14 +290,9 @@ export default async function USBusinessHubPage({ params }: Props) {
     {}
   );
 
-  // requirementSlug deliberately always null on the US market for now —
-  // /requirements/{slug} (built in Stage 2) is Kenya-scoped: it fetches
-  // Kenya business links and frames content around Kenya ("... in
-  // Kenya"). Linking a US visitor there would be a content mismatch, not
-  // a 404, but still wrong — the fix is Stage 4 (a market-aware
-  // /us/requirements/{slug}), not enabling this link early. Revisit once
-  // that ships: swap this back to `r.template.published ? r.template.slug
-  // : null` and point the href at the US route.
+  // requirementSlug deliberately null on the US market for now — see the
+  // existing note: a market-aware /us/requirements/{slug} exists, but
+  // linking to it is left for a later stage.
   const previewRequirements = coreRequirements.slice(0, 4).map((r) => ({
     id: r.id,
     name: r.template.name,
@@ -346,38 +308,6 @@ export default async function USBusinessHubPage({ params }: Props) {
     requiredCount: reqs.filter((r) => r.template.necessity === 'Required').length,
   }));
 
-  let cost: CostData | null = null;
-  try {
-    let low = 0, medium = 0, high = 0, requirementsWithProducts = 0;
-    const totalRequirements = coreRequirements.length;
-
-    for (const req of coreRequirements) {
-      const prices = (req.template as typeof req.template & {
-        products?: Array<{ price: number | null }>;
-      }).products
-        ?.map((p: { price: number | null }) => p.price)
-        .filter((p): p is number => p !== null && p > 0)
-        .sort((a: number, b: number) => a - b) ?? [];
-
-      if (prices.length === 0) continue;
-      requirementsWithProducts++;
-      low    += prices[0];
-      high   += prices[prices.length - 1];
-      medium += prices[Math.floor(prices.length / 2)];
-    }
-
-    cost = {
-      low,
-      medium,
-      high,
-      requirementsWithProducts,
-      totalRequirements,
-      hasPricing: requirementsWithProducts > 0,
-    };
-  } catch {
-    cost = null;
-  }
-
   const autoFaqs = buildAutoFaqs(
     name,
     cost,
@@ -390,11 +320,7 @@ export default async function USBusinessHubPage({ params }: Props) {
   );
 
   // NOTE: unlike the Kenya hub page, we deliberately do NOT fall back to
-  // business.faqs here. Those FAQ rows were authored for the Kenya market
-  // (e.g. reference county permits, KES figures) and would be wrong if
-  // reused verbatim on the US page. Until US-specific FAQ overrides exist
-  // (a future country-scoped FAQ table/field), this page always uses the
-  // auto-generated US copy above.
+  // business.faqs here — those rows were authored for the Kenya market.
   const finalFaqs = autoFaqs;
 
   const structuredData = {

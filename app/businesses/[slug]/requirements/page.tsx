@@ -3,6 +3,7 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import BusinessPageContent from './BusinessPageContent';
 import { fetchBusinessWithRequirements, isUSMarketEligible, groupRequirementsByCategory } from '@/lib/business-data';
+import { getRequirementsPageCostSummary } from '@/lib/cost-data';
 import type { CategoryLinkInfo } from '@/components/DetailsPage/RequirementsSection';
 import { isExcludedFromTotals } from '@/lib/necessity';
 import type { Business as BusinessData, Requirement as RequirementData } from 'hooks/useBusinessData';
@@ -18,6 +19,7 @@ import {
 } from '@/lib/markets';
 import { withArticle } from '@/lib/grammar';
 import { pickWithinLimit, TITLE_MAX } from '@/lib/seo-fit';
+import type { CostRecurrence, SizeBand } from '@/lib/cost-engine';
 
 export const revalidate = 300; // regenerate at most every 5 minutes
 
@@ -88,6 +90,11 @@ function splitCoreAndStock<T extends {
 }
 
 // ── Title Builder ─────────────────────────────────────────────────────────────
+// COST PAGE DE-DUPLICATION: "Costs" is deliberately NOT part of this title
+// — it competed head-on with the dedicated /businesses/{slug}/cost page
+// for "cost of starting a X business" intent. This page owns the
+// CHECKLIST framing; /cost owns COST.
+//
 // The country is explicit and market-aware ("in Kenya" / "in the US"), and
 // the title is fitted to TITLE_MAX so it isn't truncated in the browser tab
 // or search results — longest wording first, falling back to shorter ones.
@@ -103,7 +110,7 @@ function buildTitle(businessName: string, requirementCount: number): string {
   if (requirementCount > 0) {
     return pickWithinLimit(
       [
-        `${requirementCount} Requirements To Start ${a} Business in ${COUNTRY} (${year} Costs & Checklist)`,
+        `${requirementCount} Requirements To Start ${a} Business in ${COUNTRY} (${year} Checklist)`,
         `${requirementCount} Requirements to Start ${a} Business in ${COUNTRY} (${year})`,
         `${requirementCount} Requirements to Start ${a} Business in ${COUNTRY}`,
       ],
@@ -112,7 +119,7 @@ function buildTitle(businessName: string, requirementCount: number): string {
   }
   return pickWithinLimit(
     [
-      `${businessName} Business Requirements in ${COUNTRY} - Complete Checklist & Costs`,
+      `${businessName} Business Requirements in ${COUNTRY} - Complete Checklist`,
       `${businessName} Business Requirements in ${COUNTRY}`,
     ],
     TITLE_MAX
@@ -122,8 +129,8 @@ function buildTitle(businessName: string, requirementCount: number): string {
 // ── FAQ Builder ────────────────────────────────────────────────────────────────
 // Small, requirements-specific FAQ set generated from data already fetched
 // above. Deliberately different in focus from the hub page's FAQs (which
-// cover cost/time/profitability/location) so the two pages don't compete
-// with near-duplicate FAQ content.
+// cover cost/time/profitability/location) and the /cost page's FAQs (cost
+// mechanics) so the pages don't compete with near-duplicate FAQ content.
 //
 // All counts passed in here must be CORE (non-Stock) counts.
 
@@ -295,7 +302,16 @@ export async function generateStaticParams() {
 
 export default async function BusinessPage({ params }: BusinessPageProps) {
   const { slug } = await params;
-  const business = await fetchBusinessWithRequirements(slug, market);
+
+  // costSummary: per-size-band headline figures computed server-side, so
+  // the cost section renders real numbers in the initial HTML (see
+  // hooks/useFilterState.ts). Fetched in parallel — it comes from its own
+  // cached path in lib/cost-data.ts and doesn't depend on the business
+  // fetch.
+  const [business, costSummary] = await Promise.all([
+    fetchBusinessWithRequirements(slug, market),
+    getRequirementsPageCostSummary(slug, market),
+  ]);
 
   if (!business) {
     notFound();
@@ -599,25 +615,43 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   //
   // Stage 3 Part B: excludedFromTotals and usesLegalCountyFilter are
   // threaded through here the same way slug already is — computed once,
-  // server-side, from template.categoryRef (added to
-  // fetchBusinessWithRequirements's select alongside slug/published).
-  // Client-side consumers (useFilterState.ts's core/stock split,
-  // BusinessPageContent.tsx's Legal vendor-filter check) read these
-  // fields directly instead of re-deriving them from the category string.
-  const initialRequirements: RequirementData[] = requirements.map((req) => ({
-    id: req.id,
-    templateId: req.templateId,
-    name: req.template.name,
-    description: req.descriptionOverride ?? selectTemplateDescription(req.template, market) ?? null,
-    category: req.template.category ?? null,
-    necessity: req.necessityOverride ?? req.template.necessity,
-    image: req.template.image ?? null,
-    slug: req.template.published ? req.template.slug : null,
-    excludedFromTotals:
-      req.template.categoryRef?.excludedFromTotals ?? isExcludedFromTotals(req.template.category ?? ''),
-    usesLegalCountyFilter:
-      req.template.categoryRef?.usesLegalCountyFilter ?? (req.template.category === 'Legal'),
-  }));
+  // server-side, from template.categoryRef. Client-side consumers
+  // (useFilterState.ts's core/stock split, BusinessPageContent.tsx's Legal
+  // vendor-filter check) read these fields directly instead of
+  // re-deriving them from the category string.
+  //
+  // quantity / quantityByBand / recurrence resolve exactly as in
+  // lib/cost-data.ts (template override, then category default, then
+  // ONE_TIME) so the client-side cost matches the server's. All 1 /
+  // ONE_TIME until entered in the admin — but wired now so entering real
+  // data can't make server and client silently disagree.
+  const initialRequirements: RequirementData[] = requirements.map((req) => {
+    const recurrence: CostRecurrence =
+      req.template.costRecurrence ?? req.template.categoryRef?.defaultCostRecurrence ?? 'ONE_TIME';
+
+    const quantityByBand = req.quantities.reduce<Partial<Record<SizeBand, number>>>((acc, row) => {
+      acc[row.sizeBand as SizeBand] = row.quantity;
+      return acc;
+    }, {});
+
+    return {
+      id: req.id,
+      templateId: req.templateId,
+      name: req.template.name,
+      description: req.descriptionOverride ?? selectTemplateDescription(req.template, market) ?? null,
+      category: req.template.category ?? null,
+      necessity: req.necessityOverride ?? req.template.necessity,
+      image: req.template.image ?? null,
+      slug: req.template.published ? req.template.slug : null,
+      excludedFromTotals:
+        req.template.categoryRef?.excludedFromTotals ?? isExcludedFromTotals(req.template.category ?? ''),
+      usesLegalCountyFilter:
+        req.template.categoryRef?.usesLegalCountyFilter ?? (req.template.category === 'Legal'),
+      quantity: req.defaultQuantity,
+      quantityByBand,
+      recurrence,
+    };
+  });
 
   return (
     <>
@@ -627,7 +661,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
       />
 
       {/* Pass resolved slug string — NOT the params Promise — plus the
-          server-fetched business/requirements/FAQs for SSR content. */}
+          server-fetched business/requirements/FAQs/cost for SSR content. */}
       <BusinessPageContent
         slug={slug}
         initialBusiness={initialBusiness}
@@ -635,6 +669,7 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
         faqs={requirementFaqs}
         categoryLinks={categoryLinks}
         market={market}
+        initialCost={costSummary}
       />
     </>
   );
