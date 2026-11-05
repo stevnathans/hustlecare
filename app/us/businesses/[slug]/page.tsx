@@ -410,6 +410,7 @@ export default async function USBusinessHubPage({ params }: Props) {
             categoryId={business.category.id}
             currentSlug={slug}
             categoryName={business.category.name}
+            market={market}
           />
         </div>
       )}

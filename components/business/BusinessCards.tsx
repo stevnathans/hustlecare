@@ -51,10 +51,17 @@ interface CostResponse {
   cashToOpen?: { low: number; typical: number; high: number };
 }
 
+// Rounds to at most two decimal places and drops trailing zeros,
+// e.g. 523.456789 -> "523.46", 40 -> "40", 12.5 -> "12.5".
+function trimDecimals(n: number, places = 2) {
+  return Number(n.toFixed(places)).toString();
+}
+
 function formatCompact(n: number) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (!Number.isFinite(n)) return '—';
+  if (n >= 1_000_000) return `${trimDecimals(n / 1_000_000, 1)}M`;
   if (n >= 1_000)     return `${(n / 1_000).toFixed(0)}K`;
-  return `${n}`;
+  return trimDecimals(n, 2);
 }
 
 export default function BusinessCard({

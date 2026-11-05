@@ -1,25 +1,49 @@
 // app/businesses/[slug]/RelatedBusinesses.tsx
+//
+// Shared by the Kenya hub page (app/businesses/[slug]/page.tsx) and the US
+// hub page (app/us/businesses/[slug]/page.tsx). `market` decides which
+// businesses/requirements are eligible and which URL prefix links use.
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { ArrowRight } from 'lucide-react';
 import BusinessCard from '@/components/business/BusinessCards';
+import { isExcludedFromTotals } from '@/lib/necessity';
+import { DEFAULT_MARKET, marketBasePath, type MarketCode } from '@/lib/markets';
 
 interface Props {
   categoryId: number;
   currentSlug: string;
   categoryName: string;
+  market?: MarketCode;
 }
 
 export default async function RelatedBusinesses({
   categoryId,
   currentSlug,
   categoryName,
+  market = DEFAULT_MARKET,
 }: Props) {
-  const related = await prisma.business.findMany({
+  const base = marketBasePath(market);
+
+  // Same visibility rule the hub pages use (see generateStaticParams in
+  // app/us/businesses/[slug]/page.tsx): a requirement is visible in this
+  // market when it isn't restricted to a country, or is restricted to this one.
+  const requirementFilter = {
+    isActive: true,
+    template: {
+      isDeprecated: false,
+      OR: [{ restrictedToCountry: null }, { restrictedToCountry: market }],
+    },
+  };
+
+  const candidates = await prisma.business.findMany({
     where: {
       categoryId,
       published: true,
       slug: { not: currentSlug },
+      // Only businesses that actually have content in this market —
+      // otherwise a US visitor sees Kenya-only businesses.
+      requirements: { some: requirementFilter },
     },
     select: {
       id: true,
@@ -27,17 +51,37 @@ export default async function RelatedBusinesses({
       slug: true,
       image: true,
       requirements: {
-        where: { isActive: true, template: { isDeprecated: false } },
+        where: requirementFilter,
         select: {
           template: {
-            select: { name: true, category: true, necessity: true },
+            select: {
+              name: true,
+              category: true,
+              necessity: true,
+              categoryRef: { select: { excludedFromTotals: true } },
+            },
           },
         },
       },
     },
     orderBy: { name: 'asc' },
-    take: 6,
+    // Over-fetch: some candidates are dropped below if they have no core
+    // requirements (the hub page 404s for those), so we trim to 6 after.
+    take: 12,
   });
+
+  // Mirror the hub page's eligibility check so we never link to a 404.
+  const related = candidates
+    .filter((biz) =>
+      biz.requirements.some(
+        (r) =>
+          !(
+            r.template.categoryRef?.excludedFromTotals ??
+            isExcludedFromTotals(r.template.category ?? '')
+          )
+      )
+    )
+    .slice(0, 6);
 
   if (related.length === 0) return null;
 
@@ -71,6 +115,8 @@ export default async function RelatedBusinesses({
     };
   });
 
+  const viewAllHref = `${base}/businesses?category=${encodeURIComponent(categoryName)}`;
+
   return (
     <section aria-labelledby="related-heading">
       {/* Section header */}
@@ -84,7 +130,7 @@ export default async function RelatedBusinesses({
           </p>
         </div>
         <Link
-          href={`/businesses?category=${encodeURIComponent(categoryName)}`}
+          href={viewAllHref}
           className="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-600 hover:text-emerald-700 transition-colors flex-shrink-0"
         >
           View all
@@ -105,6 +151,7 @@ export default async function RelatedBusinesses({
             groupedRequirements={biz.groupedRequirements}
             sortedCategories={biz.sortedCategories}
             requirements={[]}
+            market={market}
           />
         ))}
       </div>
@@ -112,7 +159,7 @@ export default async function RelatedBusinesses({
       {/* Mobile "view all" */}
       <div className="mt-5 sm:hidden text-center">
         <Link
-          href={`/businesses?category=${encodeURIComponent(categoryName)}`}
+          href={viewAllHref}
           className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-600 hover:text-emerald-700 transition-colors"
         >
           View all {categoryName} businesses
