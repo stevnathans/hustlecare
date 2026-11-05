@@ -22,10 +22,29 @@ export function marketLabel(code: MarketCode): string {
   return MARKETS[code].label;
 }
 
-// Add this alongside the existing exports in lib/markets.ts
-
 export function getMarketFromPath(pathname: string): MarketCode {
   return pathname === '/us' || pathname.startsWith('/us/') ? 'US' : 'KE';
+}
+
+// Top-level routes that exist under /us (dedicated page or rewrite).
+// Anything else falls back to the US home when switching to US, so we
+// never send someone to a /us URL that 404s. Keep in sync with the
+// /us pages and marketMirroredPaths in next.config.ts.
+const US_AVAILABLE_ROOTS = ['businesses', 'marketplace', 'about', 'contact', 'search'];
+
+/** The equivalent URL for `pathname` in the `target` market. */
+export function getPathForMarket(pathname: string, target: MarketCode): string {
+  const current = getMarketFromPath(pathname);
+  if (current === target) return pathname;
+
+  // Strip the /us prefix if we're coming from the US market
+  const unprefixed = current === 'US' ? pathname.slice(3) || '/' : pathname;
+
+  if (target === 'KE') return unprefixed;
+
+  const root = unprefixed.split('/')[1];
+  if (!US_AVAILABLE_ROOTS.includes(root)) return '/us';
+  return `/us${unprefixed === '/' ? '' : unprefixed}`;
 }
 
 // ── Market-specific copy/URL metadata ─────────────────────────────────────────

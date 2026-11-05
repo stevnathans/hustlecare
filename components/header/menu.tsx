@@ -14,6 +14,8 @@ import {
   BookOpen,
   LayoutDashboard,
   ChevronDown,
+  Globe,
+  Check,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -23,7 +25,12 @@ import { useRouter } from "next/navigation";
 import MenuSearchBar from "./MenuSearchBar";
 import NotificationBell from "@/components/Dashboard/NotificationBell";
 import { NotificationsProvider } from "@/components/Dashboard/NotificationsContext";
-import { getMarketFromPath } from "@/lib/markets";
+import {
+  MARKETS,
+  getMarketFromPath,
+  getPathForMarket,
+  type MarketCode,
+} from "@/lib/markets";
 
 // Nav destinations, in three groups:
 //
@@ -39,9 +46,9 @@ import { getMarketFromPath } from "@/lib/markets";
 // otherwise the prefixed link 404s.
 //
 // NOT_YET_MARKET_AWARE_LINKS — routes with no /us equivalent yet, neither
-// a dedicated page nor a rewrite. Left unprefixed on purpose: a /us
-// visitor clicking these still lands on the Kenya-path page. Move an
-// entry out of this list once it either gets a dedicated /us page
+// a dedicated page nor a rewrite. These only apply to Kenya, so they are
+// hidden entirely for the US market (see navLinks below). Move an entry
+// out of this list once it either gets a dedicated /us page
 // (→ MARKET_AWARE_LINKS) or is added to marketMirroredPaths
 // (→ REWRITE_SHARED_LINKS).
 const MARKET_AWARE_LINKS = [
@@ -63,6 +70,7 @@ export default function Menu() {
   const [isOpen, setIsOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isMarketOpen, setIsMarketOpen] = useState(false);
   const { data: session, status, update } = useSession();
   const router = useRouter();
   const pathname = usePathname();
@@ -78,7 +86,8 @@ export default function Menu() {
   const navLinks = [
     ...MARKET_AWARE_LINKS.map((l) => ({ href: `${base}${l.path}`, label: l.label, icon: l.icon })),
     ...REWRITE_SHARED_LINKS.map((l) => ({ href: `${base}${l.path}`, label: l.label, icon: l.icon })),
-    ...NOT_YET_MARKET_AWARE_LINKS,
+    // Guides & Services currently only apply to Kenya
+    ...(market === "US" ? [] : NOT_YET_MARKET_AWARE_LINKS),
   ];
 
   // Matches the check used in app/vendor/apply/page.tsx
@@ -102,6 +111,7 @@ export default function Menu() {
     setIsOpen(false);
     setIsSearchOpen(false);
     setIsProfileOpen(false);
+    setIsMarketOpen(false);
   };
 
   const handleDashboardClick = () => {
@@ -128,16 +138,37 @@ export default function Menu() {
     setIsSearchOpen(!isSearchOpen);
     if (isOpen) setIsOpen(false);
     setIsProfileOpen(false);
+    setIsMarketOpen(false);
   };
 
   const handleMenuToggle = () => {
     setIsOpen(!isOpen);
     if (isSearchOpen) setIsSearchOpen(false);
     setIsProfileOpen(false);
+    setIsMarketOpen(false);
   };
 
   const handleProfileToggle = () => {
     setIsProfileOpen(!isProfileOpen);
+    setIsMarketOpen(false);
+  };
+
+  const handleMarketToggle = () => {
+    setIsMarketOpen(!isMarketOpen);
+    setIsSearchOpen(false);
+    setIsProfileOpen(false);
+  };
+
+  const handleMarketChange = (target: MarketCode) => {
+    if (target !== market) {
+      const path = getPathForMarket(pathname ?? "/", target);
+      // Preserve the query string (e.g. ?keyword=) only when we stay on an
+      // equivalent page, not when we fall back to a market home.
+      const keepQuery = path !== "/us" && path !== "/";
+      const search = keepQuery ? window.location.search : "";
+      router.push(`${path}${search}`);
+    }
+    closeAllMenus();
   };
 
   return (
@@ -193,6 +224,51 @@ export default function Menu() {
                 </button>
               )}
 
+              {/* Market Selector - Desktop */}
+              <div className="relative">
+                <button
+                  onClick={handleMarketToggle}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500 transition-all duration-200"
+                  aria-label="Select country"
+                  aria-haspopup="listbox"
+                  aria-expanded={isMarketOpen}
+                >
+                  <Globe className="h-4 w-4" />
+                  {market}
+                  <ChevronDown
+                    className={`h-4 w-4 text-gray-500 transition-transform duration-200 ${
+                      isMarketOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+
+                {isMarketOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsMarketOpen(false)}
+                    />
+                    <div
+                      role="listbox"
+                      className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-900 rounded-xl shadow-lg border border-gray-200/70 dark:border-gray-700/70 py-2 z-50"
+                    >
+                      {Object.values(MARKETS).map(({ code, label }) => (
+                        <button
+                          key={code}
+                          role="option"
+                          aria-selected={code === market}
+                          onClick={() => handleMarketChange(code)}
+                          className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors duration-200"
+                        >
+                          <span>{label}</span>
+                          {code === market && <Check className="h-4 w-4 text-emerald-600" />}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
               {/* Search Icon Toggle - Desktop */}
               <div className="relative">
                 <button
@@ -213,6 +289,7 @@ export default function Menu() {
                     <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-900 rounded-xl shadow-lg border border-gray-200/70 dark:border-gray-700/70 p-3 z-50">
                       <MenuSearchBar
                         autoFocus
+                        market={market}
                         onNavigate={() => setIsSearchOpen(false)}
                       />
                     </div>
@@ -345,7 +422,11 @@ export default function Menu() {
             />
             <div className="lg:hidden absolute top-full left-0 right-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-lg border-b border-gray-200/50 dark:border-gray-700/50 shadow-lg z-50">
               <div className="px-4 py-4">
-                <MenuSearchBar autoFocus onNavigate={() => setIsSearchOpen(false)} />
+                <MenuSearchBar
+                  autoFocus
+                  market={market}
+                  onNavigate={() => setIsSearchOpen(false)}
+                />
               </div>
             </div>
           </>
@@ -361,7 +442,11 @@ export default function Menu() {
             <div className="lg:hidden absolute top-full left-0 right-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-lg border-b border-gray-200/50 dark:border-gray-700/50 shadow-lg z-50 max-h-[calc(100vh-4rem)] overflow-y-auto">
               <div className="px-4 py-6 space-y-4">
                 <div className="pb-4 border-b border-gray-200/50 dark:border-gray-700/50">
-                  <MenuSearchBar autoFocus onNavigate={() => setIsOpen(false)} />
+                  <MenuSearchBar
+                    autoFocus
+                    market={market}
+                    onNavigate={() => setIsOpen(false)}
+                  />
                 </div>
 
                 <div className="space-y-1">
@@ -376,6 +461,27 @@ export default function Menu() {
                       <span>{label}</span>
                     </Link>
                   ))}
+                </div>
+
+                {/* Market Selector - Mobile */}
+                <div className="flex items-center gap-2 px-1">
+                  <Globe className="h-5 w-5 text-gray-500 flex-shrink-0" />
+                  <div className="flex flex-1 rounded-xl bg-gray-100 dark:bg-gray-800 p-1">
+                    {Object.values(MARKETS).map(({ code, label }) => (
+                      <button
+                        key={code}
+                        onClick={() => handleMarketChange(code)}
+                        aria-pressed={code === market}
+                        className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                          code === market
+                            ? "bg-white dark:bg-gray-700 text-emerald-700 dark:text-emerald-400 shadow-sm"
+                            : "text-gray-600 dark:text-gray-400"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {!isVendor && (
