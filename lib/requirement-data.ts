@@ -25,6 +25,10 @@
 //     The US requirement page never shows a county fee table — not an
 //     empty one, none at all — and fee-schedule rows never make an
 //     otherwise-orphaned template indexable on the US market.
+//   - Products ("options to buy") are filtered by Vendor.country, so a
+//     Kenya page only recommends Kenyan vendors' products (priced in KES)
+//     and a US page only recommends US vendors' products (priced in USD).
+//     Same vendor-market rule lib/cost-data.ts applies to cost figures.
 
 import { prisma } from '@/lib/prisma';
 import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
@@ -138,10 +142,35 @@ function businessEligibilityWhere(market: MarketCode) {
 }
 
 /**
+ * Which products may be recommended under "options to buy" on a
+ * requirement page in the given market:
+ *   - status ACTIVE (live listings only)
+ *   - the vendor operates in this market (Vendor.country === market).
+ *     Products with no vendor are excluded: without a vendor there is no
+ *     way to tell which market they belong to, and the page prices them
+ *     in the page's own currency.
+ *   - not a system-generated county-fee "shell" product (price is always
+ *     null; real pricing lives in LegalFeeSchedule — see
+ *     Product.isFeeScheduleShell in the schema).
+ *
+ * Unlike COSTABLE_PRODUCT_WHERE in lib/cost-data.ts this does NOT require
+ * a price: this page also shows products with only a min/max range, or
+ * "contact for price" listings.
+ */
+function displayableProductWhere(market: MarketCode) {
+  return {
+    status: 'ACTIVE' as const,
+    isFeeScheduleShell: false,
+    vendor: { country: market },
+  };
+}
+
+/**
  * Fetches everything the public /requirements/{slug} (or
  * /us/requirements/{slug}) page needs: the template itself, the
  * businesses that actively use it (only published, market-eligible
- * businesses — see businessEligibilityWhere above), its products, its
+ * businesses — see businessEligibilityWhere above), its products
+ * (only from vendors in this market — see displayableProductWhere), its
  * county fee schedule rows if it's a Legal county-fee requirement AND
  * the market is Kenya, and a computed "related requirements" list.
  *
@@ -186,7 +215,7 @@ export async function fetchRequirementBySlug(
         orderBy: { business: { name: 'asc' } },
       },
       products: {
-        where: { status: 'ACTIVE' },
+        where: displayableProductWhere(market),
         select: {
           id: true,
           name: true,

@@ -4,7 +4,8 @@ import Image from 'next/image';
 import { ArrowLeft, ArrowRight, CheckCircle2, ExternalLink, ShieldCheck } from 'lucide-react';
 import type { RequirementDetail } from '@/lib/requirement-data';
 import { formatCurrency } from '@/lib/currency';
-import { DEFAULT_MARKET, type MarketCode } from '@/lib/markets';
+import { DEFAULT_MARKET, marketCountryPhrase, type MarketCode } from '@/lib/markets';
+import { buildPriceContent, getPriceSummary } from '@/lib/requirement-pricing';
 
 interface Props {
   requirement: RequirementDetail;
@@ -42,6 +43,20 @@ function formatVerifiedDate(date: Date | string | null): string | null {
   return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 }
 
+function PriceStat({ label, value, note }: { label: string; value: string; note?: string | null }) {
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl px-5 py-4">
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
+      <p className="text-xl font-bold text-emerald-700 mt-1">{value}</p>
+      {note && (
+        <p className="text-xs text-gray-500 mt-1 truncate" title={note}>
+          {note}
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function RequirementPageContent({ requirement, market = DEFAULT_MARKET }: Props) {
@@ -64,7 +79,8 @@ export default function RequirementPageContent({ requirement, market = DEFAULT_M
 
   const isKenya = market === 'KE';
   const base = isKenya ? '' : '/us';
-  const countryPhrase = isKenya ? 'Kenya' : 'the US';
+  const countryPhrase = marketCountryPhrase(market); // "Kenya" | "the US"
+  const money = (n: number) => formatCurrency(n, market);
 
   // US visitors see descriptionUS when set (see the RequirementTemplate
   // schema comment on descriptionUS — only meaningful when the template
@@ -75,6 +91,11 @@ export default function RequirementPageContent({ requirement, market = DEFAULT_M
   const typeLabel = formatTypeLabel(type);
   const verifiedLabel = formatVerifiedDate(verifiedAt);
   const hasTrustInfo = Boolean(sourceName || sourceUrl || verifiedLabel);
+
+  // Price section — null when there is no usable price data, in which
+  // case the whole section (and the price FAQs) are simply not rendered.
+  const priceSummary = getPriceSummary(requirement);
+  const priceContent = priceSummary ? buildPriceContent(requirement, priceSummary, market) : null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -126,6 +147,63 @@ export default function RequirementPageContent({ requirement, market = DEFAULT_M
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-12">
 
+        {/* ── Price ── placed first so the answer to "how much is X?" is
+            the first thing under the hero, for readers and for search. */}
+        {priceSummary && priceContent && (
+          <section aria-labelledby="price-heading">
+            <h2 id="price-heading" className="text-2xl font-bold text-gray-900 mb-3">
+              {priceContent.heading}
+            </h2>
+            <div className="space-y-3 max-w-3xl">
+              {priceContent.paragraphs.map((p, i) => (
+                <p key={i} className="text-gray-600 text-base leading-relaxed">
+                  {p}
+                </p>
+              ))}
+            </div>
+
+            <div className={`grid grid-cols-1 gap-3 mt-5 ${priceSummary.isSinglePrice ? 'sm:grid-cols-1 max-w-xs' : priceSummary.count >= 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+              {priceSummary.isSinglePrice ? (
+                <PriceStat label="Price" value={money(priceSummary.low)} note={priceSummary.lowest.label} />
+              ) : (
+                <>
+                  <PriceStat
+                    label="Lowest price"
+                    value={money(priceSummary.low)}
+                    note={priceSummary.lowest.sub ? `${priceSummary.lowest.label} · ${priceSummary.lowest.sub}` : priceSummary.lowest.label}
+                  />
+                  {priceSummary.count >= 3 && (
+                    <PriceStat
+                      label="Typical price"
+                      value={money(priceSummary.median)}
+                      note={priceSummary.source === 'county' ? `Median across ${priceSummary.count} counties` : `Median of ${priceSummary.count} listings`}
+                    />
+                  )}
+                  <PriceStat
+                    label="Highest price"
+                    value={money(priceSummary.high)}
+                    note={priceSummary.highest.sub ? `${priceSummary.highest.label} · ${priceSummary.highest.sub}` : priceSummary.highest.label}
+                  />
+                </>
+              )}
+            </div>
+
+            <p className="mt-4 text-sm">
+              {priceSummary.source === 'products' ? (
+                <a href="#products" className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-700 font-semibold">
+                  See recommended products
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </a>
+              ) : (
+                <a href="#fees" className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-700 font-semibold">
+                  See the price in each county
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </a>
+              )}
+            </p>
+          </section>
+        )}
+
         {/* ── Businesses that need this ── */}
         {businessSummaries.length > 0 && (
           <section aria-labelledby="businesses-heading">
@@ -171,9 +249,9 @@ export default function RequirementPageContent({ requirement, market = DEFAULT_M
             already forced false outside Kenya so this section naturally
             never renders on the US page. ── */}
         {isCountyFeeSchedule && feeSchedules.length > 0 && (
-          <section aria-labelledby="fees-heading">
+          <section id="fees" aria-labelledby="fees-heading" className="scroll-mt-20">
             <h2 id="fees-heading" className="text-xl font-bold text-gray-900 mb-1">
-              {name} cost by county
+              {name} price by county in {countryPhrase}
             </h2>
             <p className="text-sm text-gray-500 mb-5">
               Prices are set by individual county governments and can change — always confirm with the issuing office before paying.
@@ -223,9 +301,9 @@ export default function RequirementPageContent({ requirement, market = DEFAULT_M
 
         {/* ── Products ── */}
         {products.length > 0 && (
-          <section aria-labelledby="products-heading">
+          <section id="products" aria-labelledby="products-heading" className="scroll-mt-20">
             <h2 id="products-heading" className="text-xl font-bold text-gray-900 mb-5">
-              {name} — options to buy
+              Recommended products for {name} in {countryPhrase}
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {products.map((product) => {
@@ -282,6 +360,32 @@ export default function RequirementPageContent({ requirement, market = DEFAULT_M
                 >
                   {r.name}
                 </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ── FAQ — same questions/answers as the FAQPage JSON-LD in
+            page.tsx (both come from buildPriceContent). ── */}
+        {priceContent && priceContent.faqs.length > 0 && (
+          <section aria-labelledby="faq-heading">
+            <h2 id="faq-heading" className="text-xl font-bold text-gray-900 mb-5">
+              {name} price: frequently asked questions
+            </h2>
+            <div className="space-y-3">
+              {priceContent.faqs.map((faq) => (
+                <details
+                  key={faq.question}
+                  className="group bg-white border border-gray-100 rounded-2xl px-5 py-4 open:border-emerald-200"
+                >
+                  <summary className="cursor-pointer list-none flex items-center justify-between gap-3 font-semibold text-gray-800 text-sm">
+                    {faq.question}
+                    <span className="text-emerald-600 text-lg leading-none group-open:rotate-45 transition-transform" aria-hidden="true">
+                      +
+                    </span>
+                  </summary>
+                  <p className="mt-3 text-sm text-gray-600 leading-relaxed">{faq.answer}</p>
+                </details>
               ))}
             </div>
           </section>

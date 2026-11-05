@@ -7,6 +7,13 @@ import {
   hasIndexableContent,
   isRequirementUSMarketEligible,
 } from '@/lib/requirement-data';
+import {
+  buildPriceContent,
+  getPriceSummary,
+  isProductSchemaEligible,
+} from '@/lib/requirement-pricing';
+import { currencyCode, formatCurrency } from '@/lib/currency';
+import { pickWithinLimit, TITLE_MAX } from '@/lib/seo-fit';
 import RequirementPageContent from './RequirementPageContent';
 import { DEFAULT_MARKET } from '@/lib/markets';
 
@@ -23,6 +30,14 @@ function formatTypeLabel(type: string | null): string | null {
   return type.charAt(0) + type.slice(1).toLowerCase();
 }
 
+/** Trim to a meta-description-friendly length without cutting mid-word. */
+function clip(text: string, max = 158): string {
+  if (text.length <= max) return text;
+  return `${text.slice(0, max - 1).replace(/\s+\S*$/, '')}…`;
+}
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 // ── SEO Metadata ──────────────────────────────────────────────────────────────
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -37,16 +52,47 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const pageUrl = `${SITE_URL}/requirements/${slug}`;
-  const businessCount = requirement.businessSummaries.length;
   const typeLabel = formatTypeLabel(requirement.type);
+  const name = requirement.name;
+  const year = new Date().getFullYear();
+  const money = (n: number) => formatCurrency(n, DEFAULT_MARKET);
 
-  const title = `${requirement.name}${
-    businessCount > 0 ? ` Price In Kenya [Updated]` : ''
-  } | HustleCare`;
+  // The title promises a price, so only claim one when we can show one
+  // (see getPriceSummary — null when there is no usable price data).
+  const summary = getPriceSummary(requirement);
+  const rangeText = summary
+    ? summary.isSinglePrice
+      ? money(summary.low)
+      : `${money(summary.low)} – ${money(summary.high)}`
+    : null;
 
-  const description =
-    requirement.description ||
-    `${requirement.name} explained: what it is, whether your business needs it, typical costs in Kenya, and which business types require it.`;
+  const title = summary
+    ? pickWithinLimit(
+        [
+          `${name} Price in Kenya (${year}): ${rangeText} | HustleCare`,
+          `${name} Price in Kenya (${year}) | HustleCare`,
+          `${name} Price in Kenya | HustleCare`,
+        ],
+        TITLE_MAX
+      )
+    : `${name} Requirement in Kenya | HustleCare`;
+
+  let description: string;
+  if (summary?.source === 'county') {
+    description = clip(
+      `${name} price in Kenya: ${rangeText}, depending on the county. See the fee in each county and which businesses need it.`
+    );
+  } else if (summary) {
+    description = clip(
+      `${name} price in Kenya: ${rangeText}. Compare ${summary.count} ${
+        summary.count === 1 ? 'option' : 'options'
+      } from Kenyan vendors and see which businesses need it.`
+    );
+  } else {
+    description =
+      requirement.description ||
+      `${name} explained: what it is, whether your business needs it, typical costs in Kenya, and which business types require it.`;
+  }
 
   const ogImage = requirement.image || `${SITE_URL}/images/default-requirement.jpg`;
 
@@ -60,11 +106,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title,
     description,
     keywords: [
-      requirement.name,
-      `${requirement.name} Kenya`,
-      `${requirement.name} cost`,
-      `${requirement.name} requirements`,
-      ...(typeLabel ? [`${requirement.name} ${typeLabel.toLowerCase()}`] : []),
+      name,
+      `${name} price in Kenya`,
+      `${name} price`,
+      `how much is ${name} in Kenya`,
+      `${name} cost in Kenya`,
+      `${name} Kenya`,
+      `${name} requirements`,
+      ...(typeLabel ? [`${name} ${typeLabel.toLowerCase()}`] : []),
     ].join(', '),
     authors: [{ name: 'HustleCare' }],
     creator: 'HustleCare',
@@ -76,7 +125,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       siteName: 'HustleCare',
       type: 'article',
       locale: 'en_KE',
-      images: [{ url: ogImage, width: 1200, height: 630, alt: requirement.name }],
+      images: [{ url: ogImage, width: 1200, height: 630, alt: `${name} price in Kenya` }],
     },
     twitter: {
       card: 'summary_large_image',
@@ -136,6 +185,12 @@ export default async function RequirementPage({ params }: Props) {
   const pageUrl = `${SITE_URL}/requirements/${slug}`;
   const businessCount = requirement.businessSummaries.length;
 
+  const summary = getPriceSummary(requirement);
+  // Same copy the visible page renders (RequirementPageContent calls the
+  // same builder) — FAQ schema must match on-page text.
+  const priceContent = summary ? buildPriceContent(requirement, summary, DEFAULT_MARKET) : null;
+  const ogImage = requirement.image || `${SITE_URL}/images/default-requirement.jpg`;
+
   // ── Structured Data ───────────────────────────────────────────────────────
   //
   // DefinedTerm is the closest accurate schema.org type for a reusable
@@ -143,6 +198,10 @@ export default async function RequirementPage({ params }: Props) {
   // forcing Permit/Product schema onto every requirement regardless of
   // its actual type would misrepresent equipment/software requirements
   // that aren't permits at all. See the SEO architecture doc, Section 11.
+  //
+  // Product + AggregateOffer is added ONLY for purchasable goods priced
+  // from real vendor listings (see isProductSchemaEligible) — never for
+  // permits/licences/county fees.
   const structuredData = {
     '@context': 'https://schema.org',
     '@graph': [
@@ -166,6 +225,38 @@ export default async function RequirementPage({ params }: Props) {
           name: requirement.category,
         },
       },
+      ...(summary && isProductSchemaEligible(requirement, summary)
+        ? [
+            {
+              '@type': 'Product',
+              '@id': `${pageUrl}#product`,
+              name: requirement.name,
+              description: requirement.description || `${requirement.name} for businesses in Kenya.`,
+              image: ogImage,
+              category: requirement.category,
+              offers: {
+                '@type': 'AggregateOffer',
+                priceCurrency: currencyCode(DEFAULT_MARKET),
+                lowPrice: round2(summary.low),
+                highPrice: round2(summary.high),
+                offerCount: summary.count,
+              },
+            },
+          ]
+        : []),
+      ...(priceContent && priceContent.faqs.length > 0
+        ? [
+            {
+              '@type': 'FAQPage',
+              '@id': `${pageUrl}#faq`,
+              mainEntity: priceContent.faqs.map((faq) => ({
+                '@type': 'Question',
+                name: faq.question,
+                acceptedAnswer: { '@type': 'Answer', text: faq.answer },
+              })),
+            },
+          ]
+        : []),
       ...(businessCount > 0
         ? [
             {
